@@ -24,7 +24,7 @@ jobs:
           cat .bootstrap/part-* | base64 --decode > /tmp/kafedra-project.tar.gz
           echo "2867bc9cfc701404de623550ac0216b57a17a6f745531a9364b1ca913dcaa3ed  /tmp/kafedra-project.tar.gz" | sha256sum -c -
           tar -xzf /tmp/kafedra-project.tar.gz
-          rm -rf .bootstrap .github/workflows/bootstrap.yml
+          rm -rf .bootstrap
 
       - name: Зафиксировать проект
         shell: bash
