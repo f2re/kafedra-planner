@@ -1,0 +1,84 @@
+<!doctype html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="color-scheme" content="light dark">
+  <title>Кафедра · Планирование и документы</title>
+  <link rel="stylesheet" href="/styles.css">
+</head>
+<body>
+  <div class="shell">
+    <aside class="sidebar">
+      <div class="brand">
+        <div class="brand-mark">К</div>
+        <div><strong>Кафедра</strong><span>единая рабочая среда</span></div>
+      </div>
+      <nav id="navigation">
+        <button class="nav-item active" data-view="overview">Обзор</button>
+        <button class="nav-item" data-view="documents">Документы</button>
+        <button class="nav-item" data-view="calendar">Календарь</button>
+        <button class="nav-item" data-view="review">Проверка данных <span id="review-badge" class="badge hidden">0</span></button>
+        <button class="nav-item" data-view="search">Поиск</button>
+      </nav>
+      <div class="system-state"><span id="health-dot" class="dot"></span><span id="health-text">Проверка системы…</span></div>
+    </aside>
+
+    <main class="content">
+      <header class="topbar">
+        <div><h1 id="page-title">Обзор</h1><p id="page-subtitle">Ближайшие сроки, новые документы и вопросы оператору</p></div>
+        <label class="upload-button">
+          <input id="file-input" type="file" multiple hidden>
+          <span>Добавить документы</span>
+        </label>
+      </header>
+
+      <section id="upload-progress" class="upload-progress hidden"></section>
+
+      <section class="view active" data-view-panel="overview">
+        <div id="overview-cards" class="metric-grid"></div>
+        <div class="two-column">
+          <article class="panel"><div class="panel-head"><h2>Ближайшие события</h2><button class="link-button" data-open-view="calendar">Открыть календарь</button></div><div id="overview-calendar" class="list"></div></article>
+          <article class="panel"><div class="panel-head"><h2>Требует внимания</h2><button class="link-button" data-open-view="review">Проверить</button></div><div id="overview-review" class="list"></div></article>
+        </div>
+      </section>
+
+      <section class="view" data-view-panel="documents">
+        <article class="panel">
+          <div class="panel-head"><div><h2>Документы</h2><p>Оригиналы сохраняются неизменяемо; обработка продолжается после закрытия страницы.</p></div></div>
+          <div id="documents-table" class="table-wrap"></div>
+        </article>
+      </section>
+
+      <section class="view" data-view-panel="calendar">
+        <div class="calendar-toolbar">
+          <button id="previous-month" class="icon-button" aria-label="Предыдущий месяц">←</button>
+          <h2 id="calendar-title"></h2>
+          <button id="next-month" class="icon-button" aria-label="Следующий месяц">→</button>
+          <button id="today-month" class="secondary-button">Сегодня</button>
+        </div>
+        <div id="calendar-grid" class="calendar-grid"></div>
+      </section>
+
+      <section class="view" data-view-panel="review">
+        <article class="panel">
+          <div class="panel-head"><div><h2>Очередь проверки</h2><p>Каждый вопрос содержит применённое решение и доступное действие.</p></div></div>
+          <div id="review-list" class="review-list"></div>
+        </article>
+      </section>
+
+      <section class="view" data-view-panel="search">
+        <article class="panel search-panel">
+          <form id="search-form" class="search-form">
+            <input id="search-input" type="search" placeholder="Тема, человек, решение, номер протокола…" autocomplete="off">
+            <button type="submit">Найти</button>
+          </form>
+          <div id="search-results" class="search-results empty-state">Введите запрос. Поиск выполняется по документам, заседаниям и решениям.</div>
+        </article>
+      </section>
+    </main>
+  </div>
+  <div id="toast" class="toast hidden" role="status"></div>
+  <script type="module" src="/app.js"></script>
+</body>
+</html>
