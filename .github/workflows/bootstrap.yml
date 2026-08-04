@@ -1,0 +1,33 @@
+name: Развернуть платформенное ядро
+
+on:
+  push:
+    paths:
+      - .bootstrap/ready
+
+permissions:
+  contents: write
+
+jobs:
+  bootstrap:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Развернуть проект
+        shell: bash
+        run: |
+          cat .bootstrap/part-* | base64 --decode > /tmp/kafedra-project.tar.gz
+          tar -xzf /tmp/kafedra-project.tar.gz
+          rm -rf .bootstrap .github/workflows/bootstrap.yml
+
+      - name: Зафиксировать проект
+        shell: bash
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -A
+          git commit -m "Заложить платформенное ядро"
+          git push
