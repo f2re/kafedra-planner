@@ -1,0 +1,22 @@
+{
+  "name": "kafedra-planner",
+  "version": "0.1.0-alpha.1",
+  "private": true,
+  "description": "Автономная платформа учёта документов, решений, сроков и деятельности кафедры.",
+  "type": "module",
+  "engines": {
+    "node": ">=24.15.0 <25"
+  },
+  "scripts": {
+    "start": "node apps/api/src/main.mjs",
+    "worker": "node apps/worker/src/main.mjs",
+    "dev": "node --watch apps/api/src/main.mjs",
+    "dev:worker": "node --watch apps/worker/src/main.mjs",
+    "migrate": "node scripts/migrate.mjs",
+    "check": "node scripts/check.mjs",
+    "test": "node --test --test-reporter=spec tests/*.test.mjs",
+    "smoke": "node scripts/smoke-test.mjs",
+    "bundle:offline": "bash scripts/offline/build-bundle.sh",
+    "bundle:verify": "bash scripts/offline/verify-bundle.sh"
+  }
+}
