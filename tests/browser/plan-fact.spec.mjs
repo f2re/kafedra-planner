@@ -15,7 +15,7 @@ async function upload(page, name, text) {
 }
 
 test('показывает персональный план-факт из подтверждённого отчёта', async ({ page }, testInfo) => {
-  test.skip(testInfo.project.name !== 'reports-science-desktop', 'Изолированный контур план/факт');
+  test.skip(testInfo.project.name !== 'plan-fact-desktop', 'Изолированный контур план/факт');
   await page.goto('/');
 
   const managerResponse = await page.request.post('/api/people', {
@@ -38,7 +38,7 @@ test('показывает персональный план-факт из по�
   }, { timeout: 30_000 }).toBeGreaterThan(0);
 
   await upload(page, 'otchet-plan-fact-82.txt', `ОТЧЁТ ПО РАСПОРЯЖЕНИЮ № 82-р\nОрлова Ольга Олеговна\nПоказатель: статьи ВАК; план: 5; факт: 4\nПоручение выполнено частично.`);
-  const match = await expect.poll(async () => {
+  await expect.poll(async () => {
     const body = await (await page.request.get('/api/report-matches?status=suggested&limit=100')).json();
     return body.items?.find((item) => item.document_number === '82-р') || null;
   }, { timeout: 30_000 }).not.toBeNull();
@@ -70,6 +70,7 @@ test('показывает персональный план-факт из по�
   await expect(page.locator('#plan-fact-results')).toContainText('80%');
   await expect(page.locator('#plan-fact-results')).toContainText('Орлова Ольга Олеговна');
 
+  await expect(page.locator('#current-person-select option')).toContainText('Орлова Ольга Олеговна');
   await page.locator('#current-person-select').selectOption(owner.id);
   await expect.poll(async () => {
     const response = await page.request.get(`/api/plan-fact?ownerPersonId=${encodeURIComponent(owner.id)}`);
