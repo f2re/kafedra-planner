@@ -158,6 +158,8 @@ export async function serveStatic(response, publicDir, pathname) {
       if (!html.includes('/preview-next.js')) scripts.push('  <script type="module" src="/preview-next.js"></script>');
       if (!html.includes('/template-binding.js')) scripts.push('  <script type="module" src="/template-binding.js"></script>');
       if (!html.includes('/work-next.js')) scripts.push('  <script type="module" src="/work-next.js"></script>');
+      if (!html.includes('/reports-science-next.js')) scripts.push('  <script type="module" src="/reports-science-next.js"></script>');
+      if (!html.includes('/report-match-refresh.js')) scripts.push('  <script type="module" src="/report-match-refresh.js"></script>');
       if (scripts.length) content = Buffer.from(html.replace('</body>', scripts.join('\n') + '\n</body>'));
     }
     response.writeHead(200, {

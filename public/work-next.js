@@ -132,4 +132,5 @@ document.addEventListener('input', (event) => {
   if (event.target.closest('#work-search-form')) { clearTimeout(workState.timer); workState.timer=setTimeout(()=>loadWork().catch(()=>{}),250); }
 });
 
+window.loadWork = loadWork;
 ensureWorkUi();
