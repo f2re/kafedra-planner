@@ -1,10 +1,22 @@
 import { basename } from 'node:path';
-import { newId } from '../../../packages/core/src/ids.mjs';
 import { AppError } from '../../../packages/core/src/errors.mjs';
 import { detectFormat } from '../../../packages/document-intake/src/formats.mjs';
 import { storeIncomingStream } from '../../../packages/document-intake/src/blob-store.mjs';
 import { registerDocument, listDocuments, getDocument } from '../../../packages/storage/src/documents.mjs';
-import { listCalendarItems } from '../../../packages/calendar/src/service.mjs';
+import {
+  listCalendarItems,
+  createCalendarItem,
+  updateCalendarItem,
+  listTasks,
+  listNotifications,
+  setNotificationState
+} from '../../../packages/calendar/src/service.mjs';
+import {
+  listTemplates,
+  getTemplateSource,
+  previewTemplate,
+  createTemplate
+} from '../../../packages/templates/src/service.mjs';
 import { listReviewItems, resolveReviewItem } from '../../../packages/storage/src/reviews.mjs';
 import { getOverview } from '../../../packages/storage/src/overview.mjs';
 import { systemHealth } from '../../../packages/storage/src/system.mjs';
@@ -27,6 +39,14 @@ function integerParam(value, fallback, max = 1000) {
   const parsed = Number.parseInt(value || '', 10);
   if (!Number.isFinite(parsed)) return fallback;
   return Math.max(1, Math.min(max, parsed));
+}
+
+function templateError(error) {
+  const code = String(error?.message || error);
+  if (code === 'template_name_required') return new AppError(code, 'Назовите шаблон.', 400);
+  if (code === 'template_fields_required') return new AppError(code, 'Добавьте хотя бы одно поле извлечения.', 400);
+  if (code === 'template_source_not_found') return new AppError(code, 'Исходный документ для шаблона не найден.', 404);
+  return error;
 }
 
 export function createRouter({ database, config, logger }) {
@@ -78,6 +98,35 @@ export function createRouter({ database, config, logger }) {
       return sendJson(response, 202, result, { location: `/api/documents/${result.documentId}` });
     }
 
+    if (method === 'GET' && path === '/api/templates') {
+      return sendJson(response, 200, { items: listTemplates(database, workspace.id) });
+    }
+    if (method === 'GET' && path === '/api/templates/source') {
+      const documentId = url.searchParams.get('documentId');
+      if (!documentId) throw new AppError('document_id_required', 'Выберите документ.', 400);
+      const source = getTemplateSource(database, workspace.id, documentId);
+      if (!source) throw new AppError('document_not_found', 'Документ не найден.', 404);
+      if (!source.extracted_text) {
+        throw new AppError('document_text_not_ready', 'Текст документа ещё не готов. Дождитесь завершения обработки.', 409);
+      }
+      return sendJson(response, 200, source);
+    }
+    if (method === 'POST' && path === '/api/templates/preview') {
+      const body = await readJson(request);
+      const preview = previewTemplate(database, workspace.id, body);
+      if (!preview) throw new AppError('template_source_not_found', 'Исходный документ для проверки не найден.', 404);
+      return sendJson(response, 200, preview);
+    }
+    if (method === 'POST' && path === '/api/templates') {
+      const body = await readJson(request);
+      try {
+        const template = database.transaction(() => createTemplate(database, workspace.id, body));
+        return sendJson(response, 201, template);
+      } catch (error) {
+        throw templateError(error);
+      }
+    }
+
     const documentMatch = path.match(/^\/api\/documents\/([^/]+)$/);
     if (method === 'GET' && documentMatch) {
       const document = getDocument(database, workspace.id, decodeURIComponent(documentMatch[1]));
@@ -90,25 +139,40 @@ export function createRouter({ database, config, logger }) {
         items: listCalendarItems(database, workspace.id, {
           from: url.searchParams.get('from'),
           to: url.searchParams.get('to'),
+          kind: url.searchParams.get('kind'),
+          status: url.searchParams.get('status'),
           limit: integerParam(url.searchParams.get('limit'), 500, 2000)
         })
       });
     }
     if (method === 'POST' && path === '/api/calendar') {
       const body = await readJson(request);
-      if (!body.title || !body.startsAt) throw new AppError('calendar_fields_required', 'Укажите название и дату события.', 400);
-      const now = new Date().toISOString();
-      const id = newId('cal');
-      database.run(`
-        INSERT INTO calendar_items(
-          id, workspace_id, source_kind, source_id, title, starts_at, ends_at,
-          all_day, category, importance, status, description, created_at, updated_at
-        ) VALUES (?, ?, 'manual', ?, ?, ?, ?, ?, ?, ?, 'confirmed', ?, ?, ?)
-      `, id, workspace.id, id, body.title, body.startsAt, body.endsAt ?? null,
-      body.allDay === false ? 0 : 1, body.category || 'everyday', body.importance || 'normal',
-      body.description || null, now, now);
-      return sendJson(response, 201, { id });
+      if (!body.title || !body.startsAt) throw new AppError('calendar_fields_required', 'Укажите название и дату.', 400);
+      return sendJson(response, 201, createCalendarItem(database, workspace.id, body));
     }
+    const calendarMatch = path.match(/^\/api\/calendar\/([^/]+)$/);
+    if (method === 'PATCH' && calendarMatch) {
+      const body = await readJson(request);
+      const item = updateCalendarItem(database, workspace.id, decodeURIComponent(calendarMatch[1]), body);
+      if (!item) throw new AppError('calendar_item_not_found', 'Событие или задача не найдены.', 404);
+      return sendJson(response, 200, item);
+    }
+    if (method === 'GET' && path === '/api/tasks') {
+      return sendJson(response, 200, { items: listTasks(database, workspace.id, { limit: integerParam(url.searchParams.get('limit'), 500, 2000) }) });
+    }
+    if (method === 'GET' && path === '/api/notifications') {
+      const items = listNotifications(database, workspace.id, { limit: integerParam(url.searchParams.get('limit'), 50, 200) });
+      return sendJson(response, 200, { items, unread: items.filter((item) => !item.read).length });
+    }
+    if (method === 'POST' && path === '/api/notifications/state') {
+      const body = await readJson(request);
+      if (!body.key || !['read', 'dismiss'].includes(body.action)) {
+        throw new AppError('notification_state_invalid', 'Укажите уведомление и действие.', 400);
+      }
+      setNotificationState(database, workspace.id, body.key, body.action);
+      return sendJson(response, 200, { status: body.action === 'dismiss' ? 'dismissed' : 'read' });
+    }
+
     if (method === 'GET' && path === '/api/review') {
       return sendJson(response, 200, {
         items: listReviewItems(database, workspace.id, url.searchParams.get('status') || 'open')

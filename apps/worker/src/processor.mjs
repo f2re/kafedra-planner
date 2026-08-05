@@ -2,6 +2,7 @@ import { extractText } from '../../../packages/document-intake/src/extract-text.
 import { supportedFormat } from '../../../packages/document-intake/src/formats.mjs';
 import { looksLikeDepartmentProtocol, extractDepartmentProtocol } from '../../../packages/protocols/src/extractor.mjs';
 import { persistProtocol } from '../../../packages/protocols/src/persist.mjs';
+import { applyMatchingTemplates } from '../../../packages/templates/src/service.mjs';
 import { newId } from '../../../packages/core/src/ids.mjs';
 import { addSearchFragment } from '../../../packages/storage/src/search.mjs';
 
@@ -66,27 +67,15 @@ export async function processDocumentJob(database, payload, logger) {
     }
 
     const isProtocol = payload.requestedType === 'protocol' || looksLikeDepartmentProtocol(text);
-    const result = isProtocol ? extractDepartmentProtocol(text) : null;
-    database.transaction(() => {
-      database.run(`
-        UPDATE document_versions
-        SET processing_status = ?, extracted_text = ?, extraction_error = NULL
-        WHERE id = ?
-      `, isProtocol ? 'processed' : 'needs_review', text, version.id);
-      database.run(`
-        UPDATE documents
-        SET document_type = ?, status = ?, updated_at = ?
-        WHERE id = ?
-      `, isProtocol ? 'department_protocol' : 'unknown', isProtocol ? 'processed' : 'needs_review', new Date().toISOString(), version.document_id);
-      database.run(`
-        UPDATE extraction_runs
-        SET extractor_code = ?, extractor_version = ?, status = ?, confidence = ?, result_json = ?, completed_at = ?
-        WHERE id = ?
-      `, isProtocol ? 'department-protocol' : extracted.extractor, isProtocol ? '1' : extracted.version,
-      isProtocol ? 'completed' : 'needs_review', result?.confidence ?? null,
-      JSON.stringify({ textExtractor: { code: extracted.extractor, version: extracted.version }, protocol: result }),
-      new Date().toISOString(), extractionRunId);
+    const protocolResult = isProtocol ? extractDepartmentProtocol(text) : null;
+    let templateApplications = [];
+    let finalType = isProtocol ? 'department_protocol' : 'unknown';
+    let finalStatus = isProtocol ? 'processed' : 'needs_review';
+    let confidence = protocolResult?.confidence ?? null;
+    let extractorCode = isProtocol ? 'department-protocol' : extracted.extractor;
+    let extractorVersion = isProtocol ? '1' : extracted.version;
 
+    database.transaction(() => {
       addSearchFragment(database, {
         workspaceId: version.workspace_id,
         sourceKind: 'document',
@@ -102,20 +91,63 @@ export async function processDocumentJob(database, payload, logger) {
           workspaceId: version.workspace_id,
           documentVersionId: version.id,
           documentTitle: version.title,
-          result
+          result: protocolResult
         });
       } else {
-        insertReview(database, version.workspace_id, version.id, 'document_type_unknown',
-          'Не определён тип документа',
-          'Текст извлечён и доступен для поиска, но подходящий шаблон не найден.',
-          'Выберите тип документа или создайте новый шаблон извлечения.');
+        templateApplications = applyMatchingTemplates(database, {
+          workspaceId: version.workspace_id,
+          version,
+          text
+        });
+        if (templateApplications.length) {
+          const best = templateApplications[0];
+          finalType = best.template.document_type;
+          finalStatus = best.result.missing.length ? 'needs_review' : 'processed';
+          confidence = best.result.confidence;
+          extractorCode = `template:${best.template.code}`;
+          extractorVersion = String(best.template.version);
+        } else {
+          insertReview(database, version.workspace_id, version.id, 'document_type_unknown',
+            'Не определён тип документа',
+            'Текст извлечён и доступен для поиска, но подходящий шаблон не найден.',
+            'Откройте документ и создайте шаблон: отметьте нужные поля, проверьте результат и сохраните.');
+        }
       }
+
+      database.run(`
+        UPDATE document_versions
+        SET processing_status = ?, extracted_text = ?, extraction_error = NULL
+        WHERE id = ?
+      `, finalStatus, text, version.id);
+      database.run(`
+        UPDATE documents
+        SET document_type = ?, status = ?, updated_at = ?
+        WHERE id = ?
+      `, finalType, finalStatus, new Date().toISOString(), version.document_id);
+      database.run(`
+        UPDATE extraction_runs
+        SET extractor_code = ?, extractor_version = ?, status = ?, confidence = ?, result_json = ?, completed_at = ?
+        WHERE id = ?
+      `, extractorCode, extractorVersion,
+      finalStatus === 'processed' ? 'completed' : 'needs_review', confidence,
+      JSON.stringify({
+        textExtractor: { code: extracted.extractor, version: extracted.version },
+        protocol: protocolResult,
+        templates: templateApplications.map(({ template, result }) => ({
+          id: template.id,
+          code: template.code,
+          confidence: result.confidence,
+          missing: result.missing
+        }))
+      }),
+      new Date().toISOString(), extractionRunId);
     });
     logger.info('document processed', {
       documentId: version.document_id,
       versionId: version.id,
       format: version.detected_format,
-      type: isProtocol ? 'department_protocol' : 'unknown'
+      type: finalType,
+      templates: templateApplications.length
     });
   } catch (error) {
     database.run(`
