@@ -70,7 +70,7 @@ test('показывает персональный план-факт из по�
   await expect(page.locator('#plan-fact-results')).toContainText('80%');
   await expect(page.locator('#plan-fact-results')).toContainText('Орлова Ольга Олеговна');
 
-  await expect(page.locator('#current-person-select option')).toContainText('Орлова Ольга Олеговна');
+  await expect(page.locator('#current-person-select').getByRole('option', { name: 'Орлова Ольга Олеговна' })).toBeAttached();
   await page.locator('#current-person-select').selectOption(owner.id);
   await expect.poll(async () => {
     const response = await page.request.get(`/api/plan-fact?ownerPersonId=${encodeURIComponent(owner.id)}`);
