@@ -11,6 +11,8 @@ const env = {
   KAFEDRA_HOST: '127.0.0.1',
   KAFEDRA_PORT: '4173',
   KAFEDRA_WORKER_POLL_MS: '60',
+  KAFEDRA_OCR_ENABLED: 'false',
+  KAFEDRA_PREVIEW_ENABLED: 'true',
   KAFEDRA_LOG_LEVEL: 'error'
 };
 const api = spawn(process.execPath, ['apps/api/src/main.mjs'], { cwd: resolve('.'), env, stdio: 'inherit' });

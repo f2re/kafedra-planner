@@ -29,7 +29,7 @@ while (!stopping) {
   }
   const jobLogger = logger.child({ jobId: job.id, jobKind: job.kind });
   try {
-    await dispatchJob(database, job, jobLogger);
+    await dispatchJob(database, job, jobLogger, config);
     completeJob(database, job.id);
     jobLogger.info('job completed');
   } catch (error) {

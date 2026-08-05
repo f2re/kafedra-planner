@@ -13,8 +13,32 @@ import {
   pdfBboxHtmlToBlocks,
   blocksToText
 } from './structure.mjs';
+import { ocrImage, ocrPdf } from './ocr.mjs';
 
 const execFileAsync = promisify(execFile);
+
+function ocrDiagnostic(result, fallbackStatus = 'not_needed') {
+  if (!result) {
+    return {
+      status: fallbackStatus,
+      engine: null,
+      languages: null,
+      confidence: null,
+      error: null
+    };
+  }
+  return {
+    status: result.status,
+    engine: result.engine || null,
+    languages: result.languages || null,
+    confidence: Number.isFinite(result.confidence) ? result.confidence : null,
+    error: result.error || null
+  };
+}
+
+function textCharacterCount(text) {
+  return (String(text || '').match(/[\p{L}\p{N}]/gu) || []).length;
+}
 
 async function archiveEntries(path) {
   try {
@@ -43,31 +67,76 @@ async function readArchiveEntry(path, entry, { optional = false } = {}) {
   }
 }
 
-async function extractPdf(path) {
+async function extractPdf(path, { ocr = {}, tempDir }) {
+  let text = '';
+  let blocks = [];
+  let extractor = 'pdftotext-layout';
+  let version = '3';
+
   try {
     const { stdout } = await execFileAsync('pdftotext', ['-bbox-layout', '-enc', 'UTF-8', path, '-'], {
       encoding: 'utf8', maxBuffer: 192 * 1024 * 1024, timeout: 120_000
     });
-    const blocks = pdfBboxHtmlToBlocks(stdout);
+    blocks = pdfBboxHtmlToBlocks(stdout);
     if (blocks.length) {
-      return { text: blocksToText(blocks), blocks, extractor: 'pdftotext-bbox', version: '2' };
+      text = blocksToText(blocks);
+      extractor = 'pdftotext-bbox';
     }
   } catch {}
 
-  try {
-    const { stdout } = await execFileAsync('pdftotext', ['-layout', '-enc', 'UTF-8', path, '-'], {
-      encoding: 'utf8', maxBuffer: 128 * 1024 * 1024, timeout: 120_000
-    });
-    const text = cleanupText(stdout);
-    return { text, blocks: plainTextToBlocks(text), extractor: 'pdftotext-layout', version: '2' };
-  } catch (error) {
-    throw new AppError(
-      'pdf_text_unavailable',
-      'PDF не удалось преобразовать в текст. Установите poppler-utils или отправьте документ на OCR.',
-      422,
-      { command: 'pdftotext', cause: error.message }
-    );
+  if (!text) {
+    try {
+      const { stdout } = await execFileAsync('pdftotext', ['-layout', '-enc', 'UTF-8', path, '-'], {
+        encoding: 'utf8', maxBuffer: 128 * 1024 * 1024, timeout: 120_000
+      });
+      text = cleanupText(stdout);
+      blocks = plainTextToBlocks(text);
+    } catch (error) {
+      if (error?.code === 'ENOENT') {
+        throw new AppError(
+          'pdf_text_unavailable',
+          'PDF не удалось преобразовать в текст: отсутствует pdftotext.',
+          422,
+          { command: 'pdftotext', cause: error.message }
+        );
+      }
+    }
   }
+
+  if (textCharacterCount(text) >= Number(ocr.minCharacters ?? 40)) {
+    return {
+      text,
+      blocks,
+      extractor,
+      version,
+      diagnostics: { ocr: ocrDiagnostic(null) }
+    };
+  }
+
+  const result = await ocrPdf(path, {
+    enabled: ocr.enabled,
+    languages: ocr.languages,
+    dpi: ocr.dpi,
+    maxPages: ocr.maxPages,
+    tempDir
+  });
+  if (result.blocks.length) {
+    return {
+      text: cleanupText(result.text),
+      blocks: result.blocks,
+      extractor: 'tesseract-pdf',
+      version: '1',
+      diagnostics: { ocr: ocrDiagnostic(result) }
+    };
+  }
+
+  return {
+    text,
+    blocks,
+    extractor,
+    version,
+    diagnostics: { ocr: ocrDiagnostic(result) }
+  };
 }
 
 async function extractXlsx(path) {
@@ -88,33 +157,71 @@ async function extractXlsx(path) {
   if (!blocks.length) {
     throw new AppError('xlsx_cells_unavailable', 'В книге XLSX не найдено текстовых или числовых ячеек.', 422);
   }
-  return { text: blocksToText(blocks), blocks, extractor: 'xlsx-ooxml', version: '1' };
+  return {
+    text: blocksToText(blocks),
+    blocks,
+    extractor: 'xlsx-ooxml',
+    version: '1',
+    diagnostics: { ocr: ocrDiagnostic(null) }
+  };
 }
 
-export async function extractText({ path, format }) {
+export async function extractText({ path, format, ocr = {}, tempDir = process.cwd() }) {
   switch (format) {
     case 'text': {
       const content = await readFile(path);
       const text = cleanupText(content.toString('utf8').replace(/^\uFEFF/, ''));
-      return { text, blocks: plainTextToBlocks(text), extractor: 'plain-text', version: '2' };
+      return {
+        text,
+        blocks: plainTextToBlocks(text),
+        extractor: 'plain-text',
+        version: '2',
+        diagnostics: { ocr: ocrDiagnostic(null) }
+      };
     }
     case 'docx': {
       const xml = await readArchiveEntry(path, 'word/document.xml');
       const blocks = docxXmlToBlocks(xml);
       const text = wordDocumentXmlToText(xml);
-      return { text, blocks: blocks.length ? blocks : plainTextToBlocks(text), extractor: 'docx-ooxml', version: '2' };
+      return {
+        text,
+        blocks: blocks.length ? blocks : plainTextToBlocks(text),
+        extractor: 'docx-ooxml',
+        version: '2',
+        diagnostics: { ocr: ocrDiagnostic(null) }
+      };
     }
     case 'odt':
     case 'ods': {
       const xml = await readArchiveEntry(path, 'content.xml');
       const blocks = odtXmlToBlocks(xml);
       const text = odtContentXmlToText(xml);
-      return { text, blocks: blocks.length ? blocks : plainTextToBlocks(text), extractor: `${format}-xml`, version: '2' };
+      return {
+        text,
+        blocks: blocks.length ? blocks : plainTextToBlocks(text),
+        extractor: `${format}-xml`,
+        version: '2',
+        diagnostics: { ocr: ocrDiagnostic(null) }
+      };
     }
     case 'xlsx':
       return extractXlsx(path);
     case 'pdf':
-      return extractPdf(path);
+      return extractPdf(path, { ocr, tempDir });
+    case 'image': {
+      const result = await ocrImage(path, {
+        enabled: ocr.enabled,
+        languages: ocr.languages,
+        dpi: ocr.dpi
+      });
+      return {
+        text: cleanupText(result.text),
+        blocks: result.blocks,
+        extractor: result.blocks.length ? 'tesseract-image' : 'image-no-text',
+        version: '1',
+        diagnostics: { ocr: ocrDiagnostic(result) }
+      };
+    }
     default:
       throw new AppError('unsupported_document_format', 'Формат пока не поддерживается автоматическим разбором.', 422, { format });
   }

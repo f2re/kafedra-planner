@@ -44,10 +44,23 @@ KAFEDRA_DATABASE_PATH=$DATA_DIR/kafedra-planner.sqlite3
 KAFEDRA_MAX_UPLOAD_BYTES=209715200
 KAFEDRA_WORKER_POLL_MS=1500
 KAFEDRA_WORKER_LEASE_SECONDS=120
+KAFEDRA_OCR_ENABLED=true
+KAFEDRA_OCR_LANGUAGES=rus+eng
+KAFEDRA_OCR_DPI=250
+KAFEDRA_OCR_MAX_PAGES=50
+KAFEDRA_OCR_MIN_CHARACTERS=40
+KAFEDRA_PREVIEW_ENABLED=true
 KAFEDRA_LOG_LEVEL=info
 ENV
   chown root:kafedra-planner "$CONFIG_DIR/kafedra-planner.env"
   chmod 0640 "$CONFIG_DIR/kafedra-planner.env"
+fi
+
+for command in pdftotext pdftoppm tesseract; do
+  command -v "$command" >/dev/null 2>&1 || echo "Предупреждение: $command не найден; часть OCR/PDF-функций будет недоступна." >&2
+done
+if ! command -v soffice >/dev/null 2>&1 && ! command -v libreoffice >/dev/null 2>&1; then
+  echo "Предупреждение: LibreOffice не найден; предпросмотр DOCX/XLSX/ODT/ODS будет недоступен." >&2
 fi
 
 ln -sfn "$RELEASE_DIR" "$APP_ROOT/current.new"
@@ -55,8 +68,7 @@ mv -Tf "$APP_ROOT/current.new" "$APP_ROOT/current"
 install -m 0644 "$RELEASE_DIR/deploy/systemd/kafedra-planner-api.service" /etc/systemd/system/
 install -m 0644 "$RELEASE_DIR/deploy/systemd/kafedra-planner-worker.service" /etc/systemd/system/
 systemctl daemon-reload
-runuser -u kafedra-planner -- env KAFEDRA_DATA_DIR="$DATA_DIR" KAFEDRA_DATABASE_PATH="$DATA_DIR/kafedra-planner.sqlite3" \
-  "$RELEASE_DIR/runtime/node/bin/node" "$RELEASE_DIR/scripts/migrate.mjs"
+runuser -u kafedra-planner -- env KAFEDRA_DATA_DIR="$DATA_DIR" KAFEDRA_DATABASE_PATH="$DATA_DIR/kafedra-planner.sqlite3"   "$RELEASE_DIR/runtime/node/bin/node" "$RELEASE_DIR/scripts/migrate.mjs"
 systemctl enable --now kafedra-planner-api.service kafedra-planner-worker.service
 sleep 2
 curl --fail --silent http://127.0.0.1:8080/api/system/health >/dev/null || {

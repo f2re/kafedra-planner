@@ -9,9 +9,12 @@ export function createApp({ database, config, logger }) {
     const requestId = randomUUID();
     const started = Date.now();
     response.setHeader('x-request-id', requestId);
-    response.setHeader('x-frame-options', 'DENY');
+    response.setHeader('x-frame-options', 'SAMEORIGIN');
     response.setHeader('referrer-policy', 'no-referrer');
-    response.setHeader('content-security-policy', "default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data:; connect-src 'self'; object-src 'none'; base-uri 'none'; frame-ancestors 'none'");
+    response.setHeader(
+      'content-security-policy',
+      "default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data: blob:; connect-src 'self'; object-src 'self'; frame-src 'self'; base-uri 'none'; frame-ancestors 'self'"
+    );
     try {
       const url = new URL(request.url || '/', `http://${request.headers.host || 'localhost'}`);
       if (url.pathname.startsWith('/api/')) {
