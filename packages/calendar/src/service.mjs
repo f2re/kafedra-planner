@@ -52,6 +52,13 @@ function sourceDocumentExpression() {
       JOIN document_versions dv ON dv.id = m.source_document_version_id
       WHERE d.id = ci.source_id
     )
+    WHEN ci.source_kind = 'assignment' THEN (
+      SELECT dv.document_id
+      FROM assignments a
+      JOIN directives d ON d.id = a.directive_id
+      JOIN document_versions dv ON dv.id = d.source_document_version_id
+      WHERE a.id = ci.source_id
+    )
     ELSE NULL
   END`;
 }
@@ -241,9 +248,31 @@ export function listTasks(database, workspaceId, { limit = 500, categories = [] 
   `, ...params);
 }
 
+function notificationAudience(database, item) {
+  if (item.source_kind === 'assignment') {
+    const rows = database.all(`
+      SELECT ae.role, ae.person_id, ae.executor_raw, p.manager_id
+      FROM assignment_executors ae
+      LEFT JOIN people p ON p.id = ae.person_id
+      WHERE ae.assignment_id = ?
+    `, item.source_id);
+    return {
+      personIds: [...new Set(rows.flatMap((row) => [row.person_id, row.role === 'executor' ? row.manager_id : null]).filter(Boolean))],
+      executors: rows.filter((row) => row.role === 'executor').map((row) => row.executor_raw),
+      controllers: rows.filter((row) => row.role === 'controller').map((row) => row.executor_raw)
+    };
+  }
+  if (item.source_kind === 'periodic_task') {
+    const row = database.get('SELECT owner_person_id, manager_person_id FROM periodic_tasks WHERE id = ?', item.source_id);
+    return { personIds: [row?.owner_person_id, row?.manager_person_id].filter(Boolean), executors: [], controllers: [] };
+  }
+  return { personIds: [], executors: [], controllers: [] };
+}
+
 export function listNotifications(database, workspaceId, {
   now = new Date(),
-  limit = 50
+  limit = 50,
+  personId = null
 } = {}) {
   const nowDate = now instanceof Date ? now : new Date(now);
   const from = new Date(nowDate.getTime() - 45 * 24 * 60 * 60 * 1000).toISOString().slice(0, 10);
@@ -260,11 +289,13 @@ export function listNotifications(database, workspaceId, {
     if (item.status === 'completed' || item.status === 'cancelled') continue;
     const start = asIsoDateTime(item.starts_at);
     if (!start) continue;
-    const isTask = item.item_kind === 'task' || item.source_kind === 'decision';
+    const isTask = item.item_kind === 'task' || ['decision', 'assignment', 'periodic_task'].includes(item.source_kind);
     const dateKey = String(item.starts_at).slice(0, 10);
+    const audience = notificationAudience(database, item);
+    if (personId && audience.personIds.length && !audience.personIds.includes(personId)) continue;
 
     if (isTask && dateKey < today) {
-      const key = `calendar:${item.id}:overdue`;
+      const key = `calendar:${item.id}:overdue:${dateKey}:r${item.revision || 1}`;
       const state = states.get(key);
       if (!state?.dismissed_at) notifications.push({
         key,
@@ -274,7 +305,8 @@ export function listNotifications(database, workspaceId, {
         body: item.description || 'Срок задачи уже прошёл.',
         notifyAt: item.starts_at,
         urgency: 'high',
-        read: Boolean(state?.read_at)
+        read: Boolean(state?.read_at),
+        audience
       });
       continue;
     }
@@ -282,7 +314,7 @@ export function listNotifications(database, workspaceId, {
     if (item.reminder_minutes !== null && item.reminder_minutes !== undefined) {
       const reminderAt = new Date(start.getTime() - Number(item.reminder_minutes) * 60_000);
       if (reminderAt <= nowDate && start.getTime() >= nowDate.getTime() - 24 * 60 * 60 * 1000) {
-        const key = `calendar:${item.id}:reminder:${item.reminder_minutes}`;
+        const key = `calendar:${item.id}:reminder:${dateKey}:${item.reminder_minutes}:r${item.revision || 1}`;
         const state = states.get(key);
         if (!state?.dismissed_at) notifications.push({
           key,
@@ -296,7 +328,7 @@ export function listNotifications(database, workspaceId, {
         });
       }
     } else if (dateKey === today) {
-      const key = `calendar:${item.id}:today`;
+      const key = `calendar:${item.id}:today:${dateKey}:r${item.revision || 1}`;
       const state = states.get(key);
       if (!state?.dismissed_at) notifications.push({
         key,
@@ -306,7 +338,8 @@ export function listNotifications(database, workspaceId, {
         body: isTask ? 'Задача запланирована на сегодня.' : 'Событие запланировано на сегодня.',
         notifyAt: item.starts_at,
         urgency: importanceRank(item.importance) >= 3 ? 'high' : 'normal',
-        read: Boolean(state?.read_at)
+        read: Boolean(state?.read_at),
+        audience
       });
     }
   }

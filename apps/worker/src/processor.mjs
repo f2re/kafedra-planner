@@ -7,6 +7,9 @@ import { applyMatchingTemplates } from '../../../packages/templates/src/service.
 import { newId } from '../../../packages/core/src/ids.mjs';
 import { addSearchFragment } from '../../../packages/storage/src/search.mjs';
 import { replaceDocumentBlocks } from '../../../packages/storage/src/document-structure.mjs';
+import { looksLikeDirective, extractDirective } from '../../../packages/work-management/src/extractor.mjs';
+import { persistDirective, recordLlmRun } from '../../../packages/work-management/src/service.mjs';
+import { proposeDirectiveWithLlama } from '../../../packages/ai/src/llama-client.mjs';
 
 function insertReview(database, workspaceId, versionId, code, title, explanation, proposedAction, context = {}) {
   const existing = database.get(`
@@ -153,12 +156,19 @@ export async function processDocumentJob(database, payload, logger, config) {
 
     const isProtocol = Boolean(text) && (payload.requestedType === 'protocol' || looksLikeDepartmentProtocol(text));
     const protocolResult = isProtocol ? extractDepartmentProtocol(text) : null;
+    const requestedDirective = ['directive', 'order', 'decree'].includes(payload.requestedType);
+    const isDirective = Boolean(text) && !isProtocol && (requestedDirective || looksLikeDirective(text));
+    const directiveResult = isDirective ? extractDirective(text) : null;
+    const llmResult = isDirective
+      ? await proposeDirectiveWithLlama({ config, text, deterministic: directiveResult })
+      : null;
     let templateApplications = [];
-    let finalType = isProtocol ? 'department_protocol' : 'unknown';
-    let finalStatus = isProtocol ? 'processed' : 'needs_review';
-    let confidence = protocolResult?.confidence ?? null;
-    let extractorCode = isProtocol ? 'department-protocol' : extracted.extractor;
-    let extractorVersion = isProtocol ? '1' : extracted.version;
+    let persistedDirective = null;
+    let finalType = isProtocol ? 'department_protocol' : isDirective ? directiveResult.kind : 'unknown';
+    let finalStatus = isProtocol || isDirective ? 'processed' : 'needs_review';
+    let confidence = protocolResult?.confidence ?? directiveResult?.confidence ?? null;
+    let extractorCode = isProtocol ? 'department-protocol' : isDirective ? 'directive-deterministic' : extracted.extractor;
+    let extractorVersion = isProtocol ? '1' : isDirective ? '1' : extracted.version;
     const completedAt = new Date().toISOString();
 
     database.transaction(() => {
@@ -189,6 +199,23 @@ export async function processDocumentJob(database, payload, logger, config) {
           documentTitle: version.title,
           result: protocolResult
         });
+      } else if (isDirective) {
+        persistedDirective = persistDirective(database, {
+          workspaceId: version.workspace_id,
+          documentVersionId: version.id,
+          documentTitle: version.title,
+          result: directiveResult
+        });
+        if (llmResult) {
+          recordLlmRun(database, version.workspace_id, version.id, llmResult, completedAt);
+          if (llmResult.status === 'completed') {
+            insertReview(database, version.workspace_id, version.id, 'llm_directive_proposal',
+              'Локальная модель предложила уточнения',
+              'Детерминированный результат уже сохранён. Предложение LLM доступно только для проверки и не меняет подтверждённые сведения.',
+              'Сравните предложение модели с исходным документом и примите только подтверждённые поля.',
+              { directiveId: persistedDirective?.id, proposal: llmResult.output });
+          }
+        }
       } else if (text) {
         templateApplications = applyMatchingTemplates(database, {
           workspaceId: version.workspace_id,
@@ -240,6 +267,13 @@ export async function processDocumentJob(database, payload, logger, config) {
           error: preview.error
         },
         protocol: protocolResult,
+        directive: directiveResult ? {
+          id: persistedDirective?.id || null,
+          kind: directiveResult.kind,
+          documentNumber: directiveResult.documentNumber,
+          assignmentCount: directiveResult.assignments.length
+        } : null,
+        llm: llmResult ? { status: llmResult.status, model: llmResult.model || null, error: llmResult.error || null } : null,
         templates: templateApplications.map(({ template, result }) => ({
           id: template.id,
           code: template.code,

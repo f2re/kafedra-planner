@@ -154,14 +154,11 @@ export async function serveStatic(response, publicDir, pathname) {
     let content = await readFile(path);
     if (relative === 'index.html') {
       const html = content.toString('utf8');
-      if (!html.includes('/preview-next.js')) {
-        content = Buffer.from(html.replace(
-          '</body>',
-          '  <script type="module" src="/preview-next.js"></script>\n'
-            + '  <script type="module" src="/template-binding.js"></script>\n'
-            + '</body>'
-        ));
-      }
+      const scripts = [];
+      if (!html.includes('/preview-next.js')) scripts.push('  <script type="module" src="/preview-next.js"></script>');
+      if (!html.includes('/template-binding.js')) scripts.push('  <script type="module" src="/template-binding.js"></script>');
+      if (!html.includes('/work-next.js')) scripts.push('  <script type="module" src="/work-next.js"></script>');
+      if (scripts.length) content = Buffer.from(html.replace('</body>', scripts.join('\n') + '\n</body>'));
     }
     response.writeHead(200, {
       'content-type': staticTypes.get(extname(path).toLowerCase()) || 'application/octet-stream',
