@@ -24,9 +24,8 @@ jobs:
       - name: Проверить и развернуть пакет
         shell: bash
         run: |
-          cat .iteration5/part-* | base64 --decode > /tmp/kafedra-iteration5.tar.gz
-          echo "c7fdf6de340b06ab345bb754cc469b018d4dcdb05eb1d6a9f588f84c004ba380  /tmp/kafedra-iteration5.tar.gz" | sha256sum -c -
-          tar -xzf /tmp/kafedra-iteration5.tar.gz
+          echo "c7fdf6de340b06ab345bb754cc469b018d4dcdb05eb1d6a9f588f84c004ba380  .iteration5/archive.tar.gz" | sha256sum -c -
+          tar -xzf .iteration5/archive.tar.gz
           rm -rf .iteration5
       - name: Проверить проект
         run: |
