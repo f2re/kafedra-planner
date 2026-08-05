@@ -256,17 +256,29 @@ function notificationAudience(database, item) {
       LEFT JOIN people p ON p.id = ae.person_id
       WHERE ae.assignment_id = ?
     `, item.source_id);
+    const executorPersonIds = [...new Set(rows.filter((row) => ['executor','coexecutor'].includes(row.role)).map((row) => row.person_id).filter(Boolean))];
+    const managerPersonIds = [...new Set(rows.flatMap((row) => [
+      row.role === 'controller' ? row.person_id : null,
+      ['executor','coexecutor'].includes(row.role) ? row.manager_id : null
+    ]).filter(Boolean))];
     return {
-      personIds: [...new Set(rows.flatMap((row) => [row.person_id, row.role === 'executor' ? row.manager_id : null]).filter(Boolean))],
-      executors: rows.filter((row) => row.role === 'executor').map((row) => row.executor_raw),
+      personIds: [...new Set([...executorPersonIds, ...managerPersonIds])],
+      executorPersonIds,
+      managerPersonIds,
+      executors: rows.filter((row) => ['executor','coexecutor'].includes(row.role)).map((row) => row.executor_raw),
       controllers: rows.filter((row) => row.role === 'controller').map((row) => row.executor_raw)
     };
   }
   if (item.source_kind === 'periodic_task') {
     const row = database.get('SELECT owner_person_id, manager_person_id FROM periodic_tasks WHERE id = ?', item.source_id);
-    return { personIds: [row?.owner_person_id, row?.manager_person_id].filter(Boolean), executors: [], controllers: [] };
+    return {
+      personIds: [row?.owner_person_id, row?.manager_person_id].filter(Boolean),
+      executorPersonIds: [row?.owner_person_id].filter(Boolean),
+      managerPersonIds: [row?.manager_person_id].filter(Boolean),
+      executors: [], controllers: []
+    };
   }
-  return { personIds: [], executors: [], controllers: [] };
+  return { personIds: [], executorPersonIds: [], managerPersonIds: [], executors: [], controllers: [] };
 }
 
 export function listNotifications(database, workspaceId, {
@@ -293,6 +305,33 @@ export function listNotifications(database, workspaceId, {
     const dateKey = String(item.starts_at).slice(0, 10);
     const audience = notificationAudience(database, item);
     if (personId && audience.personIds.length && !audience.personIds.includes(personId)) continue;
+
+    if (item.source_kind === 'assignment' && item.status === 'submitted') {
+      if (personId && audience.managerPersonIds.length && !audience.managerPersonIds.includes(personId)) continue;
+      const key = `calendar:${item.id}:manager-review:r${item.revision || 1}`;
+      const state = states.get(key);
+      if (!state?.dismissed_at) notifications.push({
+        key, calendarItemId: item.id, kind: 'manager_review',
+        title: `Проверить отчёт: ${item.title}`,
+        body: 'Исполнитель представил отчёт. Подтвердите результат или верните его на доработку.',
+        notifyAt: item.updated_at || item.starts_at, urgency: 'high',
+        read: Boolean(state?.read_at), audience: { ...audience, personIds: audience.managerPersonIds }
+      });
+      continue;
+    }
+    if (item.source_kind === 'assignment' && item.status === 'rework') {
+      if (personId && audience.executorPersonIds.length && !audience.executorPersonIds.includes(personId)) continue;
+      const key = `calendar:${item.id}:rework:r${item.revision || 1}`;
+      const state = states.get(key);
+      if (!state?.dismissed_at) notifications.push({
+        key, calendarItemId: item.id, kind: 'rework',
+        title: `Требуется доработка: ${item.title}`,
+        body: 'Руководитель вернул отчёт. Откройте поручение и устраните замечания.',
+        notifyAt: item.updated_at || item.starts_at, urgency: 'high',
+        read: Boolean(state?.read_at), audience: { ...audience, personIds: audience.executorPersonIds }
+      });
+      continue;
+    }
 
     if (isTask && dateKey < today) {
       const key = `calendar:${item.id}:overdue:${dateKey}:r${item.revision || 1}`;
@@ -324,7 +363,8 @@ export function listNotifications(database, workspaceId, {
           body: item.description || (isTask ? 'Наступает срок задачи.' : 'Скоро начнётся событие.'),
           notifyAt: reminderAt.toISOString(),
           urgency: importanceRank(item.importance) >= 3 ? 'high' : 'normal',
-          read: Boolean(state?.read_at)
+          read: Boolean(state?.read_at),
+          audience
         });
       }
     } else if (dateKey === today) {

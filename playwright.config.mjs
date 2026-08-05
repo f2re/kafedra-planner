@@ -21,17 +21,17 @@ export default defineConfig({
   projects: [
     {
       name: 'desktop',
-      testIgnore: '**/work-management.spec.mjs',
+      testIgnore: ['**/work-management.spec.mjs', '**/reports-science.spec.mjs'],
       use: { browserName: 'chromium', viewport: { width: 1440, height: 980 } }
     },
     {
       name: 'mobile',
-      testIgnore: '**/work-management.spec.mjs',
+      testIgnore: ['**/work-management.spec.mjs', '**/reports-science.spec.mjs'],
       use: { ...devices['iPhone 15'], browserName: 'chromium' }
     },
     {
       name: 'workflow-desktop',
-      testMatch: '**/work-management.spec.mjs',
+      testMatch: ['**/work-management.spec.mjs', '**/reports-science.spec.mjs'],
       use: { browserName: 'chromium', viewport: { width: 1440, height: 980 } }
     }
   ]

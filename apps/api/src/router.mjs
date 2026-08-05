@@ -35,6 +35,12 @@ import {
   addAssignmentProgress, attachAssignmentReport, createPeriodicTask,
   listPeriodicTasks, searchWork
 } from '../../../packages/work-management/src/service.mjs';
+import {
+  listReportMatches, acceptReportMatch, rejectReportMatch, reviewAssignmentReport
+} from '../../../packages/reports/src/service.mjs';
+import {
+  listScientificItems, getScientificItem, createScientificItem
+} from '../../../packages/science/src/service.mjs';
 import { readJson, requireHeader, sendFile, sendJson } from './http-utils.mjs';
 
 function workspaceOf(database, request) {
@@ -76,6 +82,20 @@ function workFilters(url) {
     ownerPersonId: url.searchParams.get('ownerPersonId') || '',
     managerPersonId: url.searchParams.get('managerPersonId') || '',
     limit: integerParam(url.searchParams.get('limit'), 500, 2000)
+  };
+}
+
+function scienceFilters(url) {
+  return {
+    q: url.searchParams.get('q') || '',
+    kind: url.searchParams.get('kind') || '',
+    status: url.searchParams.get('status') || '',
+    from: url.searchParams.get('from') || '',
+    to: url.searchParams.get('to') || '',
+    year: url.searchParams.get('year') || '',
+    author: url.searchParams.get('author') || '',
+    classification: url.searchParams.get('classification') || '',
+    limit: integerParam(url.searchParams.get('limit'), 300, 1000)
   };
 }
 
@@ -306,6 +326,60 @@ export function createRouter({ database, config, logger }) {
     }
     if (method === 'GET' && path === '/api/work/search') {
       return sendJson(response, 200, searchWork(database, workspace.id, workFilters(url)));
+    }
+    if (method === 'GET' && path === '/api/report-matches') {
+      return sendJson(response, 200, { items: listReportMatches(database, workspace.id, {
+        documentId: url.searchParams.get('documentId') || '',
+        documentVersionId: url.searchParams.get('documentVersionId') || '',
+        assignmentId: url.searchParams.get('assignmentId') || '',
+        status: url.searchParams.get('status') || '',
+        limit: integerParam(url.searchParams.get('limit'), 100, 500)
+      }) });
+    }
+    const reportMatchAction = path.match(/^\/api\/report-matches\/([^/]+)\/(accept|reject)$/);
+    if (method === 'POST' && reportMatchAction) {
+      const body = await readJson(request);
+      const item = reportMatchAction[2] === 'accept'
+        ? acceptReportMatch(database, workspace.id, decodeURIComponent(reportMatchAction[1]), body)
+        : rejectReportMatch(database, workspace.id, decodeURIComponent(reportMatchAction[1]), body);
+      if (!item) throw new AppError('report_match_not_found', 'Предложенная связь отчёта не найдена.', 404);
+      return sendJson(response, 200, item);
+    }
+    const assignmentReviewMatch = path.match(/^\/api\/assignments\/([^/]+)\/review$/);
+    if (method === 'POST' && assignmentReviewMatch) {
+      const body = await readJson(request);
+      try {
+        const item = reviewAssignmentReport(database, workspace.id, decodeURIComponent(assignmentReviewMatch[1]), body);
+        if (!item) throw new AppError('assignment_not_found', 'Поручение не найдено.', 404);
+        return sendJson(response, 200, item);
+      } catch (error) {
+        if (String(error?.message || error) === 'report_review_action_invalid') {
+          throw new AppError('report_review_action_invalid', 'Допустимы действия approve и return.', 400);
+        }
+        if (String(error?.message || error) === 'report_evidence_missing') {
+          throw new AppError('report_evidence_missing', 'У поручения нет отчёта, ожидающего проверки.', 409);
+        }
+        throw error;
+      }
+    }
+    if (method === 'GET' && path === '/api/science') {
+      return sendJson(response, 200, { items: listScientificItems(database, workspace.id, scienceFilters(url)) });
+    }
+    if (method === 'POST' && path === '/api/science') {
+      const body = await readJson(request);
+      try { return sendJson(response, 201, createScientificItem(database, workspace.id, body)); }
+      catch (error) {
+        if (String(error?.message || error) === 'scientific_title_required') {
+          throw new AppError('scientific_title_required', 'Укажите название научного материала.', 400);
+        }
+        throw error;
+      }
+    }
+    const scienceMatch = path.match(/^\/api\/science\/([^/]+)$/);
+    if (method === 'GET' && scienceMatch) {
+      const item = getScientificItem(database, workspace.id, decodeURIComponent(scienceMatch[1]));
+      if (!item) throw new AppError('scientific_item_not_found', 'Научный материал не найден.', 404);
+      return sendJson(response, 200, item);
     }
 
     if (method === 'GET' && path === '/api/calendar') {
