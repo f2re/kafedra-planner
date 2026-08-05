@@ -25,7 +25,7 @@ jobs:
         shell: bash
         run: |
           cat .iteration5/part-* | base64 --decode > /tmp/kafedra-iteration5.tar.gz
-          echo "08b8b9f348c31e31d0d35f1b9f303bd7471b9fe65074bf0dc3aa5f1adc74e6c5  /tmp/kafedra-iteration5.tar.gz" | sha256sum -c -
+          echo "c7fdf6de340b06ab345bb754cc469b018d4dcdb05eb1d6a9f588f84c004ba380  /tmp/kafedra-iteration5.tar.gz" | sha256sum -c -
           tar -xzf /tmp/kafedra-iteration5.tar.gz
           rm -rf .iteration5
       - name: Проверить проект
