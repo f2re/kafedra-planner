@@ -55,16 +55,19 @@ export function createPlanFactRouter({ database }) {
 
     const workspace = workspaceOf(database, request);
     if (method === 'GET' && path === '/api/plan-fact') {
-      return sendJson(response, 200, listPlanFact(database, workspace.id, filters(url)));
+      sendJson(response, 200, listPlanFact(database, workspace.id, filters(url)));
+      return true;
     }
     if (method === 'POST' && path === '/api/plan-fact/rebuild') {
-      return sendJson(response, 200, rebuildPlanFact(database, workspace.id));
+      sendJson(response, 200, rebuildPlanFact(database, workspace.id));
+      return true;
     }
     const assignmentMatch = path.match(/^\/api\/assignments\/([^/]+)\/plan-fact$/);
     if (method === 'GET' && assignmentMatch) {
       const item = getAssignmentPlanFact(database, workspace.id, decodeURIComponent(assignmentMatch[1]));
       if (!item) throw new AppError('assignment_not_found', 'Поручение не найдено.', 404);
-      return sendJson(response, 200, item);
+      sendJson(response, 200, item);
+      return true;
     }
     if (method === 'GET' && path === '/api/personal-notifications') {
       const personId = url.searchParams.get('personId');
@@ -74,7 +77,8 @@ export function createPlanFactRouter({ database }) {
         limit: integerParam(url.searchParams.get('limit'), 100, 500)
       });
       if (!result) throw new AppError('person_not_found', 'Сотрудник не найден.', 404);
-      return sendJson(response, 200, result);
+      sendJson(response, 200, result);
+      return true;
     }
     if (method === 'POST' && path === '/api/personal-notifications/state') {
       const body = await readJson(request);
@@ -84,7 +88,8 @@ export function createPlanFactRouter({ database }) {
       if (!setPersonalNotificationState(database, workspace.id, body.personId, body.key, body.action)) {
         throw new AppError('person_or_notification_not_found', 'Сотрудник или уведомление не найдены.', 404);
       }
-      return sendJson(response, 200, { status: body.action === 'dismiss' ? 'dismissed' : 'read' });
+      sendJson(response, 200, { status: body.action === 'dismiss' ? 'dismissed' : 'read' });
+      return true;
     }
     throw new AppError('method_not_allowed', 'Метод не поддерживается для этого маршрута.', 405);
   };
