@@ -31,7 +31,12 @@ export default defineConfig({
     },
     {
       name: 'workflow-desktop',
-      testMatch: ['**/work-management.spec.mjs', '**/reports-science.spec.mjs'],
+      testMatch: '**/work-management.spec.mjs',
+      use: { browserName: 'chromium', viewport: { width: 1440, height: 980 } }
+    },
+    {
+      name: 'reports-science-desktop',
+      testMatch: '**/reports-science.spec.mjs',
       use: { browserName: 'chromium', viewport: { width: 1440, height: 980 } }
     }
   ]
