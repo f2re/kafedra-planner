@@ -28,6 +28,21 @@ jobs:
           echo "5ab430db6256728b10fd681cb3da9b9e7efe0e49d6b7692db5f6b559b321fc7a  /tmp/kafedra-workflow-foundation.tar.gz" | sha256sum -c -
           tar -xzf /tmp/kafedra-workflow-foundation.tar.gz
           node scripts/apply-workflow-foundation.mjs
+          python3 - <<'PY'
+          from pathlib import Path
+          path = Path('apps/api/src/router.mjs')
+          source = path.read_text()
+          fixes = {
+              'path.match(/^/api/directives/([^/]+)$/)': r'path.match(/^\/api\/directives\/([^/]+)$/)',
+              'path.match(/^/api/assignments/([^/]+)/progress$/)': r'path.match(/^\/api\/assignments\/([^/]+)\/progress$/)',
+              'path.match(/^/api/assignments/([^/]+)/report$/)': r'path.match(/^\/api\/assignments\/([^/]+)\/report$/)',
+          }
+          for old, new in fixes.items():
+              if old not in source:
+                  raise SystemExit(f'Не найден сгенерированный маршрут: {old}')
+              source = source.replace(old, new)
+          path.write_text(source)
+          PY
           rm -rf .iteration6 scripts/apply-workflow-foundation.mjs
       - name: Проверить проект
         run: |
