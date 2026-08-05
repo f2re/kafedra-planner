@@ -32,6 +32,8 @@ export class Database {
   constructor(path, { migrationsDir, readonly = false } = {}) {
     mkdirSync(dirname(path), { recursive: true });
     this.path = path;
+    this.transactionDepth = 0;
+    this.savepointSequence = 0;
     this.db = new DatabaseSync(path, {
       open: true,
       readOnly: readonly,
@@ -73,8 +75,30 @@ export class Database {
   }
 
   transaction(fn, mode = 'IMMEDIATE') {
+    if (this.transactionDepth > 0) {
+      const savepoint = `kafedra_sp_${++this.savepointSequence}`;
+      return retryBusy(() => {
+        this.db.exec(`SAVEPOINT ${savepoint}`);
+        this.transactionDepth += 1;
+        try {
+          const value = fn();
+          this.db.exec(`RELEASE SAVEPOINT ${savepoint}`);
+          return value;
+        } catch (error) {
+          try {
+            this.db.exec(`ROLLBACK TO SAVEPOINT ${savepoint}`);
+            this.db.exec(`RELEASE SAVEPOINT ${savepoint}`);
+          } catch {}
+          throw error;
+        } finally {
+          this.transactionDepth -= 1;
+        }
+      });
+    }
+
     return retryBusy(() => {
       this.db.exec(`BEGIN ${mode}`);
+      this.transactionDepth = 1;
       try {
         const value = fn();
         this.db.exec('COMMIT');
@@ -82,6 +106,8 @@ export class Database {
       } catch (error) {
         try { this.db.exec('ROLLBACK'); } catch {}
         throw error;
+      } finally {
+        this.transactionDepth = 0;
       }
     });
   }
