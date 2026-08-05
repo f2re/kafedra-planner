@@ -8,7 +8,7 @@ import {
 } from '../packages/reports/src/facts.mjs';
 
 test('извлекает единый ключ показателя из плана и отчёта', () => {
-  const plan = extractPlanMetrics('Подготовить не менее 5 статей ВАК до конца года.');
+  const plan = extractPlanMetrics('Подготовить не менее 5 статей ВАК и представить отчёт до 20 августа 2026 года.');
   const report = extractReportFacts(`ОТЧЁТ\nПоказатель: статьи ВАК; план: 5; факт: 4\nПоручение выполнено частично.`);
 
   assert.equal(plan.length, 1);
