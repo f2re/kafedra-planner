@@ -28,6 +28,37 @@ jobs:
           echo "d8a63f3179b9c5acf4a2b9d2f4240b86f2baaf43526f5ea5ce4dda6e7f1801ab  /tmp/kafedra-reports-science.tar.gz" | sha256sum -c -
           tar -xzf /tmp/kafedra-reports-science.tar.gz
           node scripts/apply-reports-science.mjs
+          python3 - <<'PY'
+          from pathlib import Path
+
+          matcher = Path('packages/reports/src/matcher.mjs')
+          source = matcher.read_text()
+          source = source.replace(
+              "const contribution = Math.min(0.2, 0.12 + 0.04 * (matchedExecutors.length - 1));",
+              "const contribution = Math.min(0.24, 0.16 + 0.04 * (matchedExecutors.length - 1));"
+          )
+          source = source.replace(
+              r"if (/\b(отчет|отчёт|справка|акт|выполнен|исполнен|результат)\b/iu.test(haystack)) {",
+              r"if (/(?:отчет|отчёт|справка|акт|выполнен|исполнен|результат)/iu.test(haystack)) {"
+          )
+          matcher.write_text(source)
+
+          science = Path('packages/science/src/extractor.mjs')
+          source = science.read_text()
+          source = source.replace(
+              r"if (/\bвак\b|переч(?:ень|ня)\s+вак/iu.test(value))",
+              r"if (/(?:вак)|переч(?:ень|ня)\s+вак/iu.test(value))"
+          )
+          source = source.replace(
+              r"if (/\bринц\b|russian science citation index/iu.test(value))",
+              r"if (/(?:ринц)|russian science citation index/iu.test(value))"
+          )
+          source = source.replace(
+              r"if (/\bмбд\b/iu.test(value))",
+              r"if (/(?:мбд)/iu.test(value))"
+          )
+          science.write_text(source)
+          PY
           rm -rf .iteration7 scripts/apply-reports-science.mjs
       - name: Проверить проект
         run: |
