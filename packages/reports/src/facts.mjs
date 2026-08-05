@@ -90,7 +90,7 @@ function parseNumberValue(value) {
     for (const [pattern] of UNIT_RULES) name = name.replace(pattern, '');
   }
   name = cleanText(name)
-    .replace(/\s+и\s+(?:представить|направить|подготовить|провести|опубликовать|разработать|обеспечить|заключить)\b.*$/iu, '')
+    .replace(/\s+и\s+(?:представить|направить|подготовить|провести|опубликовать|разработать|обеспечить|заключить)(?=\s|$).*$/iu, '')
     .replace(/\s+(?:до|к)\s+(?:конц[ау]?|начал[ау]?|\d{1,2}[.\/-]|\d{4}).*$/iu, '');
   return { numeric, unit, name, raw: text };
 }
