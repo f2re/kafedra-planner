@@ -22,88 +22,13 @@ jobs:
         with:
           node-version: 24.18.0
       - name: Сделать справочник профилей реактивным
-        shell: bash
         run: |
-          python3 - <<'PY'
-          from pathlib import Path
-          path = Path('public/plan-fact-next.js')
-          source = path.read_text()
-
-          old_open = """function openPlanFactView() {
-  pfMany('.nav-item,.mobile-tab').forEach((button) => button.classList.toggle('active', button.dataset.view === 'plan-fact'));
-  pfMany('[data-view-panel]').forEach((panel) => panel.classList.toggle('active', panel.dataset.viewPanel === 'plan-fact'));
-  pfOne('#page-title').textContent = 'План / факт';
-  pfOne('#page-subtitle').textContent = 'Подтверждённые результаты, показатели и риски';
-  pfOne('#calendar-mode-switch')?.classList.add('hidden');
-  document.body.classList.remove('mobile-sidebar-open');
-  loadPlanFact().catch((error) => {
-    pfOne('#plan-fact-results').innerHTML = `<div class=\"empty-state\">${pfSafe(error.message)}</div>`;
-  });
-}
-"""
-          new_open = """async function openPlanFactView() {
-  pfMany('.nav-item,.mobile-tab').forEach((button) => button.classList.toggle('active', button.dataset.view === 'plan-fact'));
-  pfMany('[data-view-panel]').forEach((panel) => panel.classList.toggle('active', panel.dataset.viewPanel === 'plan-fact'));
-  pfOne('#page-title').textContent = 'План / факт';
-  pfOne('#page-subtitle').textContent = 'Подтверждённые результаты, показатели и риски';
-  pfOne('#calendar-mode-switch')?.classList.add('hidden');
-  document.body.classList.remove('mobile-sidebar-open');
-  try {
-    await refreshPeople();
-    await loadPlanFact();
-  } catch (error) {
-    pfOne('#plan-fact-results').innerHTML = `<div class=\"empty-state\">${pfSafe(error.message)}</div>`;
-  }
-}
-"""
-          if old_open not in source:
-              raise SystemExit('Не найден openPlanFactView для замены')
-          source = source.replace(old_open, new_open, 1)
-
-          old_init = """async function initializePlanFact() {
-  ensurePlanFactUi();
-  const people = await pfApi('/api/people');
-  pfState.people = people.items || [];
-  renderPeople();
-  await refreshPersonalNotifications().catch(() => {});
-}
-"""
-          new_init = """async function refreshPeople() {
-  const selectedProfile = pfOne('#current-person-select')?.value || pfState.currentPersonId;
-  const selectedFilter = pfOne('#plan-fact-filters select[name=\"personId\"]')?.value || '';
-  const people = await pfApi('/api/people');
-  pfState.people = people.items || [];
-  if (selectedProfile) pfState.currentPersonId = selectedProfile;
-  renderPeople();
-  const planPerson = pfOne('#plan-fact-filters select[name=\"personId\"]');
-  if (planPerson && selectedFilter && pfState.people.some((person) => person.id === selectedFilter)) {
-    planPerson.value = selectedFilter;
-  }
-}
-
-async function initializePlanFact() {
-  ensurePlanFactUi();
-  await refreshPeople();
-  await refreshPersonalNotifications().catch(() => {});
-}
-"""
-          if old_init not in source:
-              raise SystemExit('Не найден initializePlanFact для замены')
-          source = source.replace(old_init, new_init, 1)
-
-          old_click = "if (view) { event.preventDefault(); event.stopPropagation(); openPlanFactView(); }"
-          new_click = "if (view) { event.preventDefault(); event.stopPropagation(); openPlanFactView().catch(() => {}); }"
-          if old_click not in source:
-              raise SystemExit('Не найден обработчик открытия план/факт')
-          source = source.replace(old_click, new_click, 1)
-
-          path.write_text(source)
-          PY
+          node scripts/fix-plan-fact-people.mjs
           npm run check
           npm test
           npm run smoke
           bash -n scripts/offline/*.sh deploy/install.sh
-          rm -rf .fix-plan-fact-people .github/workflows/fix-plan-fact-people.yml
+          rm -rf .fix-plan-fact-people scripts/fix-plan-fact-people.mjs .github/workflows/fix-plan-fact-people.yml
       - name: Зафиксировать исправление
         run: |
           git config user.name "github-actions[bot]"
