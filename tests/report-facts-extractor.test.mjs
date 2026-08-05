@@ -13,6 +13,7 @@ test('извлекает единый ключ показателя из пла�
 
   assert.equal(plan.length, 1);
   assert.equal(plan[0].key, 'статья_вак');
+  assert.doesNotMatch(plan[0].key, /представ|отчет|август|2026/u);
   assert.equal(plan[0].targetNumeric, 5);
   assert.equal(report.metrics.length, 1);
   assert.equal(report.metrics[0].key, plan[0].key);
