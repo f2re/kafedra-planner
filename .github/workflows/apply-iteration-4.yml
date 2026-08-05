@@ -1,0 +1,45 @@
+name: Применить структурный источник
+
+on:
+  push:
+    branches:
+      - agent/structured-source-browser
+    paths:
+      - .iteration4/ready
+
+permissions:
+  contents: write
+
+jobs:
+  apply:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          ref: agent/structured-source-browser
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24.18.0
+      - name: Проверить и развернуть пакет
+        shell: bash
+        run: |
+          cat .iteration4/part-* | base64 --decode > /tmp/kafedra-iteration4.tar.gz
+          echo "aa362d23041d2003f07e9e3a49f272afa74b4c017350033ebbd0be58740df3b0  /tmp/kafedra-iteration4.tar.gz" | sha256sum -c -
+          tar -xzf /tmp/kafedra-iteration4.tar.gz
+          node scripts/apply-iteration-4.mjs
+          rm -rf .iteration4 scripts/apply-iteration-4.mjs
+      - name: Проверить проект
+        run: |
+          npm run check
+          npm test
+          npm run smoke
+          bash -n scripts/offline/*.sh deploy/install.sh
+      - name: Зафиксировать результат
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -A
+          git diff --cached --quiet && exit 0
+          git commit -m "Реализовать структурный источник документов"
+          git push origin HEAD:agent/structured-source-browser
