@@ -21,15 +21,25 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: 24.18.0
-      - name: Обновить HTML и UX-документацию
+      - name: Проверить и развернуть изменения
+        shell: bash
         run: |
+          cat .ux-iteration-2/part-* | base64 --decode > /tmp/kafedra-ux3.tar.gz
+          echo "3b0cd0a124dd39a0f1944e2c7e7d02eb8e6f9d63ce72d8ee0db1bafff0130cd3  /tmp/kafedra-ux3.tar.gz" | sha256sum -c -
+          tar -xzf /tmp/kafedra-ux3.tar.gz
           node scripts/apply-ux-iteration-2.mjs
           rm -rf .ux-iteration-2 scripts/apply-ux-iteration-2.mjs
+      - name: Проверить проект
+        run: |
+          npm run check
+          npm test
+          npm run smoke
+          bash -n scripts/offline/*.sh deploy/install.sh
       - name: Зафиксировать результат
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git add -A
           git diff --cached --quiet && exit 0
-          git commit -m "Подключить инспектор и восстановление черновиков"
+          git commit -m "Реализовать инспектор и устойчивые черновики"
           git push origin HEAD:agent/inspector-drafts-ux
