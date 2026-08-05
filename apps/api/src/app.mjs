@@ -1,9 +1,11 @@
 import { createServer } from 'node:http';
 import { randomUUID } from 'node:crypto';
 import { createRouter } from './router.mjs';
+import { createPlanFactRouter } from './plan-fact-router.mjs';
 import { sendError, serveStatic } from './http-utils.mjs';
 
 export function createApp({ database, config, logger }) {
+  const planFactRouter = createPlanFactRouter({ database, config, logger });
   const router = createRouter({ database, config, logger });
   return createServer(async (request, response) => {
     const requestId = randomUUID();
@@ -18,7 +20,8 @@ export function createApp({ database, config, logger }) {
     try {
       const url = new URL(request.url || '/', `http://${request.headers.host || 'localhost'}`);
       if (url.pathname.startsWith('/api/')) {
-        await router(request, response, url, requestId);
+        const handled = await planFactRouter(request, response, url, requestId);
+        if (!handled) await router(request, response, url, requestId);
       } else if (!(await serveStatic(response, config.publicDir, url.pathname))) {
         if (!(await serveStatic(response, config.publicDir, '/index.html'))) response.end();
       }

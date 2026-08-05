@@ -1,4 +1,10 @@
 import { newId } from '../../core/src/ids.mjs';
+import {
+  applyReportFactsToAssignment,
+  ensureAssignmentPlanMetrics,
+  ensureReportFactExtraction,
+  getAssignmentPlanFact
+} from '../../plan-fact/src/service.mjs';
 import { scoreReportCandidate } from './matcher.mjs';
 
 function parseJson(value, fallback) {
@@ -40,12 +46,13 @@ export function generateReportMatchCandidates(database, workspaceId, documentVer
   if (!document?.extracted_text) return [];
   if (['directive', 'order', 'decree', 'department_protocol'].includes(document.document_type)) return [];
 
+  ensureReportFactExtraction(database, workspaceId, documentVersionId, now);
   const reportDateMatch = String(document.extracted_text).match(/(?:от|дата\s*[:№]?)\s*(\d{1,2}[.\/-]\d{1,2}[.\/-]\d{2,4})/iu);
   const date = reportDateMatch?.[1] || String(document.uploaded_at || '').slice(0, 10);
-  const candidates = [];
 
   database.transaction(() => {
     for (const assignment of assignmentCandidates(database, workspaceId)) {
+      ensureAssignmentPlanMetrics(database, workspaceId, assignment.id, now);
       const result = scoreReportCandidate({
         document: { title: document.title, text: document.extracted_text, date },
         assignment: {
@@ -93,16 +100,25 @@ export function listReportMatches(database, workspaceId, filters = {}) {
   return database.all(`
     SELECT rm.*, a.title AS assignment_title, a.instruction_text, a.due_date,
       a.status AS assignment_status, a.direction, d.document_number,
-      doc.id AS document_id, doc.title AS document_title, dv.original_name
+      doc.id AS document_id, doc.title AS document_title, dv.original_name,
+      rfe.result_state, rfe.summary AS result_summary,
+      rfe.progress_percent, rfe.metrics_json AS report_metrics_json,
+      rfe.confidence AS report_confidence
     FROM report_match_candidates rm
     JOIN assignments a ON a.id = rm.assignment_id
     LEFT JOIN directives d ON d.id = a.directive_id
     JOIN document_versions dv ON dv.id = rm.document_version_id
     JOIN documents doc ON doc.id = dv.document_id
+    LEFT JOIN report_fact_extractions rfe ON rfe.document_version_id = rm.document_version_id
+      AND rfe.workspace_id = rm.workspace_id
     WHERE ${clauses.join(' AND ')}
     ORDER BY rm.score DESC, rm.created_at DESC
     LIMIT ?
-  `, ...params).map((row) => ({ ...row, reasons: parseJson(row.reasons_json, []) }));
+  `, ...params).map((row) => ({
+    ...row,
+    reasons: parseJson(row.reasons_json, []),
+    reportMetrics: parseJson(row.report_metrics_json, [])
+  }));
 }
 
 function candidate(database, workspaceId, matchId) {
@@ -119,21 +135,28 @@ export function acceptReportMatch(database, workspaceId, matchId, body = {}, now
   const match = candidate(database, workspaceId, matchId);
   if (!match || match.status === 'rejected') return null;
   return database.transaction(() => {
-    const existing = database.get(`
+    let evidence = database.get(`
       SELECT id FROM assignment_evidence
       WHERE assignment_id = ? AND document_version_id = ? AND evidence_kind = 'report'
     `, match.assignment_id, match.document_version_id);
-    if (!existing) {
+    if (!evidence) {
+      const evidenceId = newId('evidence');
       database.run(`
         INSERT INTO assignment_evidence(
           id, assignment_id, document_version_id, evidence_kind, note,
           locator_json, created_at, match_status, match_score,
           match_reasons_json, review_status
         ) VALUES (?, ?, ?, 'report', ?, '{}', ?, 'accepted', ?, ?, 'pending')
-      `, newId('evidence'), match.assignment_id, match.document_version_id,
+      `, evidenceId, match.assignment_id, match.document_version_id,
       body.note || `Автоматически сопоставлен отчёт «${match.document_title}»`, now,
       match.score, match.reasons_json);
+      evidence = { id: evidenceId };
     }
+    const extraction = ensureReportFactExtraction(database, workspaceId, match.document_version_id, now);
+    if (extraction) {
+      applyReportFactsToAssignment(database, workspaceId, match.assignment_id, evidence.id, extraction, now);
+    }
+    const planFact = getAssignmentPlanFact(database, workspaceId, match.assignment_id, { ensure: false, now });
     database.run(`
       UPDATE report_match_candidates SET status = 'accepted', decided_at = ?, decided_by_person_id = ?
       WHERE id = ?
@@ -142,15 +165,19 @@ export function acceptReportMatch(database, workspaceId, matchId, body = {}, now
       UPDATE assignments SET status = 'submitted', updated_at = ? WHERE id = ?
     `, now, match.assignment_id);
     database.run(`
-      INSERT INTO assignment_updates(id, assignment_id, actor_person_id, status, note, created_at)
-      VALUES (?, ?, ?, 'submitted', ?, ?)
+      INSERT INTO assignment_updates(id, assignment_id, actor_person_id, status, progress_percent, note, created_at)
+      VALUES (?, ?, ?, 'submitted', ?, ?, ?)
     `, newId('assignupd'), match.assignment_id, body.personId || null,
+    planFact?.progressPercent ?? extraction?.progress_percent ?? null,
     body.note || `Отчёт «${match.document_title}» предложен системой и принят исполнителем.`, now);
     database.run(`
       UPDATE calendar_items SET status = 'submitted', revision = revision + 1, updated_at = ?
       WHERE workspace_id = ? AND source_kind = 'assignment' AND source_id = ?
     `, now, workspaceId, match.assignment_id);
-    return listReportMatches(database, workspaceId, { assignmentId: match.assignment_id, status: 'accepted' })[0] || match;
+    return {
+      ...(listReportMatches(database, workspaceId, { assignmentId: match.assignment_id, status: 'accepted' })[0] || match),
+      planFact: getAssignmentPlanFact(database, workspaceId, match.assignment_id, { ensure: false, now })
+    };
   });
 }
 
@@ -187,11 +214,13 @@ export function reviewAssignmentReport(database, workspaceId, assignmentId, body
       UPDATE assignments SET status = ?, completed_at = ?, updated_at = ?
       WHERE workspace_id = ? AND id = ?
     `, status, approved ? now : null, now, workspaceId, assignmentId);
+    const planFact = getAssignmentPlanFact(database, workspaceId, assignmentId, { ensure: true, now });
     database.run(`
       INSERT INTO assignment_updates(id, assignment_id, actor_person_id, status, progress_percent, note, created_at)
       VALUES (?, ?, ?, ?, ?, ?, ?)
     `, newId('assignupd'), assignmentId, body.personId || null, status,
-    approved ? 100 : null, body.note || (approved ? 'Результат подтверждён руководителем.' : 'Отчёт возвращён на доработку.'), now);
+    planFact?.progressPercent ?? (approved ? 100 : null),
+    body.note || (approved ? 'Результат подтверждён руководителем.' : 'Отчёт возвращён на доработку.'), now);
     database.run(`
       UPDATE calendar_items SET status = ?, completed_at = ?, revision = revision + 1, updated_at = ?
       WHERE workspace_id = ? AND source_kind = 'assignment' AND source_id = ?
@@ -201,7 +230,8 @@ export function reviewAssignmentReport(database, workspaceId, assignmentId, body
       status,
       evidenceId: evidence.id,
       reviewStatus: approved ? 'approved' : 'returned',
-      reviewedAt: now
+      reviewedAt: now,
+      planFact: getAssignmentPlanFact(database, workspaceId, assignmentId, { ensure: false, now })
     };
   });
 }
