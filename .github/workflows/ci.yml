@@ -35,3 +35,5 @@ jobs:
         run: npm run test:browser
       - name: Проверить отчёты, подтверждение и научный реестр
         run: npm run test:browser:reports-science
+      - name: Проверить персональный план-факт
+        run: npm run test:browser:plan-fact
