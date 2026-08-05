@@ -4,7 +4,7 @@ const port = 4174;
 
 export default defineConfig({
   testDir: './tests/browser',
-  testMatch: '**/reports-science.spec.mjs',
+  testMatch: ['**/reports-science.spec.mjs', '**/plan-fact.spec.mjs'],
   timeout: 60_000,
   expect: { timeout: 12_000 },
   fullyParallel: false,
