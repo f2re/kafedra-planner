@@ -11,7 +11,7 @@ async function upload(page, name, text) {
 }
 
 test('отчёт сопоставляется, руководитель подтверждает, статья попадает в реестр', async ({ page }, testInfo) => {
-  test.skip(testInfo.project.name !== 'workflow-desktop', 'Проверка изолированного рабочего потока');
+  test.skip(testInfo.project.name !== 'reports-science-desktop', 'Проверка изолированного потока отчётов и науки');
   await page.goto('/');
   await page.request.post('/api/people', { data: { displayName: 'Сидоров Сергей Сергеевич', position: 'доцент' } });
 
