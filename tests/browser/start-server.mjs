@@ -3,13 +3,14 @@ import { mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 
-const dataDir = mkdtempSync(join(tmpdir(), 'kafedra-browser-'));
+const port = String(process.env.KAFEDRA_BROWSER_PORT || '4173');
+const dataDir = mkdtempSync(join(tmpdir(), `kafedra-browser-${port}-`));
 const env = {
   ...process.env,
   KAFEDRA_DATA_DIR: dataDir,
   KAFEDRA_DATABASE_PATH: join(dataDir, 'browser.sqlite3'),
   KAFEDRA_HOST: '127.0.0.1',
-  KAFEDRA_PORT: '4173',
+  KAFEDRA_PORT: port,
   KAFEDRA_WORKER_POLL_MS: '60',
   KAFEDRA_OCR_ENABLED: 'false',
   KAFEDRA_PREVIEW_ENABLED: 'true',
