@@ -1,0 +1,50 @@
+#structured-evidence-panel { display: grid; gap: 14px; }
+.structure-source-section { overflow: hidden; }
+.structure-helper { margin: 0 0 10px; color: var(--muted); font-size: 12px; line-height: 1.45; }
+.structure-facets { display: flex; gap: 6px; overflow-x: auto; padding: 2px 0 10px; }
+.structure-facet { flex: 0 0 auto; border: 1px solid var(--border); background: transparent; color: inherit; border-radius: 999px; padding: 6px 10px; font-size: 12px; }
+.structure-facet.active { background: var(--accent-soft); border-color: transparent; color: var(--accent); font-weight: 700; }
+.structure-document-canvas { display: grid; gap: 5px; max-height: 430px; overflow: auto; padding: 12px; border-radius: 14px; background: color-mix(in srgb, var(--surface) 80%, #f5f5f7); border: 1px solid var(--border); }
+.structure-block { display: grid; gap: 3px; width: 100%; border: 1px solid transparent; background: transparent; color: inherit; text-align: left; border-radius: 9px; padding: 8px 10px; transition: background .15s ease, border-color .15s ease, box-shadow .15s ease; }
+.structure-block:hover { background: color-mix(in srgb, var(--accent-soft) 38%, transparent); }
+.structure-block small { color: var(--muted); font-size: 10px; }
+.structure-block.table_cell, .structure-block.spreadsheet_cell { border-color: var(--border); background: color-mix(in srgb, var(--surface) 92%, transparent); }
+.structure-block.heading .structure-block-text { font-weight: 750; font-size: 15px; }
+.structure-block.selected, [data-structure-block].selected { border-color: var(--accent) !important; box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 14%, transparent); background: color-mix(in srgb, var(--accent-soft) 70%, transparent) !important; }
+.structure-block.evidence-highlight, [data-structure-block].evidence-highlight { animation: structurePulse 1.4s ease; border-color: #e0a400 !important; background: #fff4c7 !important; color: #443000 !important; }
+@keyframes structurePulse { 0%, 100% { box-shadow: 0 0 0 0 rgba(224,164,0,.25); } 50% { box-shadow: 0 0 0 7px rgba(224,164,0,.12); } }
+.structure-sheet-wrap { overflow: auto; max-height: 450px; border: 1px solid var(--border); border-radius: 14px; background: var(--surface); }
+.structure-sheet { border-collapse: separate; border-spacing: 0; min-width: 100%; font-size: 12px; }
+.structure-sheet th { position: sticky; top: 0; z-index: 2; background: #f3f4f6; color: var(--muted); font-weight: 700; min-width: 38px; }
+.structure-sheet tbody th { left: 0; z-index: 1; }
+.structure-sheet th, .structure-sheet td { border-right: 1px solid var(--border); border-bottom: 1px solid var(--border); padding: 0; height: 32px; }
+.structure-sheet td button { width: 100%; min-width: 90px; height: 100%; border: 0; background: transparent; color: inherit; padding: 6px 8px; text-align: left; }
+.structure-pdf-stage { max-height: 520px; overflow: auto; padding: 12px; background: #d9dce3; border-radius: 14px; }
+.structure-pdf-page { position: relative; width: min(100%, 720px); margin: 0 auto; background: white; box-shadow: 0 12px 38px rgba(0,0,0,.16); color: #111; }
+.structure-pdf-line { position: absolute; overflow: hidden; border: 1px solid transparent; background: transparent; color: #111; padding: 0; text-align: left; font-size: clamp(5px, .7vw, 10px); line-height: 1; white-space: nowrap; }
+.structure-pdf-line:hover { border-color: rgba(48,94,220,.5); background: rgba(48,94,220,.08); overflow: visible; z-index: 3; }
+.structure-fields-section { display: grid; gap: 10px; }
+.structure-extraction { display: grid; gap: 8px; padding: 11px; border: 1px solid var(--border); border-radius: 13px; }
+.structure-field-row { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 10px; align-items: center; padding: 10px 0; border-top: 1px solid var(--border); }
+.structure-field-row:first-of-type { border-top: 0; }
+.structure-field-copy { min-width: 0; display: grid; gap: 2px; }
+.structure-field-copy span, .structure-field-copy small { color: var(--muted); font-size: 11px; }
+.structure-field-copy strong { word-break: break-word; }
+.structure-field-actions { display: flex; gap: 6px; align-items: center; }
+.structure-field-actions button { white-space: nowrap; font-size: 11px; padding: 6px 8px; }
+.structure-override-form { grid-column: 1 / -1; display: grid; gap: 9px; padding: 12px; border-radius: 12px; background: color-mix(in srgb, var(--accent-soft) 36%, transparent); }
+.structure-override-form.hidden { display: none; }
+.structure-selected-source { color: var(--muted); font-size: 11px; }
+.structure-override-actions { display: flex; justify-content: flex-end; gap: 8px; }
+@media (max-width: 720px) {
+  .structure-field-row { grid-template-columns: 1fr; }
+  .structure-field-actions { justify-content: flex-start; }
+  .structure-pdf-stage { max-height: 55vh; padding: 6px; }
+  .structure-document-canvas { max-height: 46vh; }
+}
+@media (prefers-reduced-motion: reduce) { .structure-block, .structure-facet { transition: none; } .structure-block.evidence-highlight, [data-structure-block].evidence-highlight { animation: none; } }
+@media (prefers-color-scheme: dark) {
+  .structure-sheet th { background: #252a35; }
+  .structure-pdf-stage { background: #30343d; }
+  .structure-pdf-page { background: #fff; }
+}

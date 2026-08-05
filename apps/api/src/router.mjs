@@ -28,6 +28,7 @@ import { listReviewItems, resolveReviewItem } from '../../../packages/storage/sr
 import { getOverview } from '../../../packages/storage/src/overview.mjs';
 import { systemHealth } from '../../../packages/storage/src/system.mjs';
 import { search } from '../../../packages/storage/src/search.mjs';
+import { getDocumentStructure, setExtractionValueOverride } from '../../../packages/storage/src/document-structure.mjs';
 import { readJson, requireHeader, sendJson } from './http-utils.mjs';
 
 function workspaceOf(database, request) {
@@ -159,6 +160,35 @@ export function createRouter({ database, config, logger }) {
       if (!documentVersionId) throw new AppError('document_version_required', 'Выберите документ для черновика.', 400);
       deleteTemplateDraft(database, workspace.id, documentVersionId);
       return sendJson(response, 200, { status: 'deleted' });
+    }
+
+    const documentStructureMatch = path.match(/^\/api\/documents\/([^/]+)\/structure$/);
+    if (method === 'GET' && documentStructureMatch) {
+      const structure = getDocumentStructure(database, workspace.id, decodeURIComponent(documentStructureMatch[1]), {
+        limit: integerParam(url.searchParams.get('limit'), 2000, 5000),
+        offset: Math.max(0, Number.parseInt(url.searchParams.get('offset') || '0', 10) || 0),
+        page: url.searchParams.get('page'),
+        sheet: url.searchParams.get('sheet')
+      });
+      if (!structure) throw new AppError('document_not_found', 'Документ не найден.', 404);
+      return sendJson(response, 200, structure);
+    }
+
+    const overrideMatch = path.match(/^\/api\/template-extractions\/([^/]+)\/fields\/([^/]+)$/);
+    if (method === 'PATCH' && overrideMatch) {
+      const body = await readJson(request);
+      if (!Object.prototype.hasOwnProperty.call(body, 'value')) {
+        throw new AppError('override_value_required', 'Укажите исправленное значение.', 400);
+      }
+      const result = setExtractionValueOverride(
+        database,
+        workspace.id,
+        decodeURIComponent(overrideMatch[1]),
+        decodeURIComponent(overrideMatch[2]),
+        body
+      );
+      if (!result) throw new AppError('template_extraction_not_found', 'Результат извлечения или поле не найдены.', 404);
+      return sendJson(response, 200, result);
     }
 
     const documentMatch = path.match(/^\/api\/documents\/([^/]+)$/);

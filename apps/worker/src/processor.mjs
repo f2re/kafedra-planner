@@ -5,6 +5,7 @@ import { persistProtocol } from '../../../packages/protocols/src/persist.mjs';
 import { applyMatchingTemplates } from '../../../packages/templates/src/service.mjs';
 import { newId } from '../../../packages/core/src/ids.mjs';
 import { addSearchFragment } from '../../../packages/storage/src/search.mjs';
+import { replaceDocumentBlocks } from '../../../packages/storage/src/document-structure.mjs';
 
 function insertReview(database, workspaceId, versionId, code, title, explanation, proposedAction, context = {}) {
   database.run(`
@@ -48,7 +49,7 @@ export async function processDocumentJob(database, payload, logger) {
         `Файл «${version.original_name}» сохранён, но формат ${version.detected_format} пока не разбирается автоматически.`,
         'Подключите конвертер LibreOffice, OCR или новый адаптер формата.',
         { format: version.detected_format });
-      database.run("UPDATE document_versions SET processing_status = 'needs_review' WHERE id = ?", version.id);
+      database.run("UPDATE document_versions SET processing_status = 'needs_review', structure_status = 'unsupported' WHERE id = ?", version.id);
       database.run("UPDATE documents SET status = 'needs_review', updated_at = ? WHERE id = ?", new Date().toISOString(), version.document_id);
       database.run(`
         UPDATE extraction_runs SET extractor_code = 'unsupported', status = 'needs_review', completed_at = ?
@@ -59,6 +60,7 @@ export async function processDocumentJob(database, payload, logger) {
 
     const extracted = await extractText({ path: version.storage_path, format: version.detected_format });
     const text = extracted.text;
+    const blocks = Array.isArray(extracted.blocks) ? extracted.blocks : [];
     if (!text) {
       insertReview(database, version.workspace_id, version.id, 'empty_text',
         'В документе не найден текст',
@@ -76,6 +78,12 @@ export async function processDocumentJob(database, payload, logger) {
     let extractorVersion = isProtocol ? '1' : extracted.version;
 
     database.transaction(() => {
+      replaceDocumentBlocks(database, {
+        documentVersionId: version.id,
+        blocks,
+        extractor: extracted.extractor,
+        version: extracted.version
+      });
       addSearchFragment(database, {
         workspaceId: version.workspace_id,
         sourceKind: 'document',
@@ -151,7 +159,7 @@ export async function processDocumentJob(database, payload, logger) {
     });
   } catch (error) {
     database.run(`
-      UPDATE document_versions SET processing_status = 'failed', extraction_error = ? WHERE id = ?
+      UPDATE document_versions SET processing_status = 'failed', extraction_error = ?, structure_status = 'failed' WHERE id = ?
     `, String(error?.message || error), version.id);
     database.run("UPDATE documents SET status = 'failed', updated_at = ? WHERE id = ?", new Date().toISOString(), version.document_id);
     database.run(`
