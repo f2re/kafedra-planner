@@ -1,0 +1,49 @@
+name: Исправить сопоставление метрик alpha.8
+
+on:
+  push:
+    branches:
+      - agent/plan-fact-personal
+    paths:
+      - .fix-alpha8/ready
+
+permissions:
+  contents: write
+
+jobs:
+  fix:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          ref: agent/plan-fact-personal
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24.18.0
+      - name: Исправить границу названия показателя
+        shell: bash
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          path = Path('packages/reports/src/facts.mjs')
+          source = path.read_text()
+          old = "  name = cleanText(name).replace(/\\s+(?:до|к)\\s+(?:конц[ау]?|начал[ау]?|\\d{1,2}[.\\/-]|\\d{4}).*$/iu, '');\n"
+          new = "  name = cleanText(name)\n    .replace(/\\s+и\\s+(?:представить|направить|подготовить|провести|опубликовать|разработать|обеспечить|заключить)\\b.*$/iu, '')\n    .replace(/\\s+(?:до|к)\\s+(?:конц[ау]?|начал[ау]?|\\d{1,2}[.\\/-]|\\d{4}).*$/iu, '');\n"
+          if old not in source:
+              raise SystemExit('Не найдена ожидаемая строка нормализации показателя')
+          path.write_text(source.replace(old, new, 1))
+          PY
+          npm run check
+          npm test
+          npm run smoke
+          bash -n scripts/offline/*.sh deploy/install.sh
+          rm -rf .fix-alpha8 .github/workflows/fix-plan-fact-alpha8.yml
+      - name: Зафиксировать исправление
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -A
+          git diff --cached --quiet && exit 0
+          git commit -m "Нормализовать составные показатели плана"
+          git push origin HEAD:agent/plan-fact-personal
