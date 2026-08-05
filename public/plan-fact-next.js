@@ -159,16 +159,19 @@ async function loadPlanFact({ rebuild = false } = {}) {
   renderPlanFact(data);
 }
 
-function openPlanFactView() {
+async function openPlanFactView() {
   pfMany('.nav-item,.mobile-tab').forEach((button) => button.classList.toggle('active', button.dataset.view === 'plan-fact'));
   pfMany('[data-view-panel]').forEach((panel) => panel.classList.toggle('active', panel.dataset.viewPanel === 'plan-fact'));
   pfOne('#page-title').textContent = 'План / факт';
   pfOne('#page-subtitle').textContent = 'Подтверждённые результаты, показатели и риски';
   pfOne('#calendar-mode-switch')?.classList.add('hidden');
   document.body.classList.remove('mobile-sidebar-open');
-  loadPlanFact().catch((error) => {
+  try {
+    await refreshPeople();
+    await loadPlanFact();
+  } catch (error) {
     pfOne('#plan-fact-results').innerHTML = `<div class="empty-state">${pfSafe(error.message)}</div>`;
-  });
+  }
 }
 
 function outcomeHtml(outcome) {
@@ -209,17 +212,28 @@ async function refreshPersonalNotifications() {
   list.innerHTML = data.items.length ? data.items.map((item) => `<article class="notification-item ${item.read ? 'read' : ''}"><span class="notification-dot"></span><div><strong>${pfSafe(item.title)}</strong><p>${pfSafe(item.body)}</p><time>${pfSafe(String(item.notifyAt || '').slice(0, 10))}</time></div><div class="notification-actions">${!item.read ? `<button type="button" data-notification-action="read" data-notification-key="${pfSafe(item.key)}" aria-label="Прочитано">✓</button>` : ''}<button type="button" data-notification-action="dismiss" data-notification-key="${pfSafe(item.key)}" aria-label="Скрыть">×</button></div></article>`).join('') : '<div class="empty-state">Новых уведомлений нет.</div>';
 }
 
-async function initializePlanFact() {
-  ensurePlanFactUi();
+async function refreshPeople() {
+  const selectedProfile = pfOne('#current-person-select')?.value || pfState.currentPersonId;
+  const selectedFilter = pfOne('#plan-fact-filters select[name="personId"]')?.value || '';
   const people = await pfApi('/api/people');
   pfState.people = people.items || [];
+  if (selectedProfile) pfState.currentPersonId = selectedProfile;
   renderPeople();
+  const planPerson = pfOne('#plan-fact-filters select[name="personId"]');
+  if (planPerson && selectedFilter && pfState.people.some((person) => person.id === selectedFilter)) {
+    planPerson.value = selectedFilter;
+  }
+}
+
+async function initializePlanFact() {
+  ensurePlanFactUi();
+  await refreshPeople();
   await refreshPersonalNotifications().catch(() => {});
 }
 
 document.addEventListener('click', (event) => {
   const view = event.target.closest('[data-view="plan-fact"]');
-  if (view) { event.preventDefault(); event.stopPropagation(); openPlanFactView(); }
+  if (view) { event.preventDefault(); event.stopPropagation(); openPlanFactView().catch(() => {}); }
   const card = event.target.closest('[data-plan-fact-id]');
   if (card && card.dataset.planFactKind === 'assignment') showPlanFact(card.dataset.planFactId).catch(() => {});
   if (event.target.closest('#plan-fact-rebuild')) loadPlanFact({ rebuild: true }).catch(() => {});
