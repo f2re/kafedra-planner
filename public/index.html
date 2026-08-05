@@ -2,83 +2,216 @@
 <html lang="ru">
 <head>
   <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
   <meta name="color-scheme" content="light dark">
-  <title>Кафедра · Планирование и документы</title>
+  <meta name="theme-color" content="#f5f5f7">
+  <title>Кафедра · Календарь и документы</title>
   <link rel="stylesheet" href="/styles.css">
 </head>
 <body>
-  <div class="shell">
-    <aside class="sidebar">
+  <div class="app-shell">
+    <aside id="sidebar" class="sidebar" aria-label="Основная навигация">
       <div class="brand">
-        <div class="brand-mark">К</div>
-        <div><strong>Кафедра</strong><span>единая рабочая среда</span></div>
+        <div class="brand-mark" aria-hidden="true">К</div>
+        <div class="brand-copy"><strong>Кафедра</strong><span>рабочий календарь</span></div>
       </div>
-      <nav id="navigation">
-        <button class="nav-item active" data-view="overview">Обзор</button>
-        <button class="nav-item" data-view="documents">Документы</button>
-        <button class="nav-item" data-view="calendar">Календарь</button>
-        <button class="nav-item" data-view="review">Проверка данных <span id="review-badge" class="badge hidden">0</span></button>
-        <button class="nav-item" data-view="search">Поиск</button>
+
+      <nav id="navigation" class="sidebar-nav">
+        <button class="nav-item active" data-view="calendar"><span class="nav-icon" aria-hidden="true">▦</span><span>Календарь</span></button>
+        <button class="nav-item" data-view="documents"><span class="nav-icon" aria-hidden="true">▤</span><span>Документы</span></button>
+        <button class="nav-item" data-view="templates"><span class="nav-icon" aria-hidden="true">◇</span><span>Шаблоны</span></button>
+        <button class="nav-item" data-view="review"><span class="nav-icon" aria-hidden="true">✓</span><span>Проверка</span><span id="review-badge" class="badge hidden">0</span></button>
+        <button class="nav-item" data-view="search"><span class="nav-icon" aria-hidden="true">⌕</span><span>Поиск</span></button>
       </nav>
-      <div class="system-state"><span id="health-dot" class="dot"></span><span id="health-text">Проверка системы…</span></div>
+
+      <div class="sidebar-footer">
+        <div class="system-state"><span id="health-dot" class="dot"></span><span id="health-text">Проверка системы…</span></div>
+        <button id="collapse-sidebar" class="quiet-button sidebar-collapse" type="button" aria-label="Скрыть боковую панель">Скрыть панель</button>
+      </div>
     </aside>
 
-    <main class="content">
+    <main class="workspace">
       <header class="topbar">
-        <div><h1 id="page-title">Обзор</h1><p id="page-subtitle">Ближайшие сроки, новые документы и вопросы оператору</p></div>
-        <label class="upload-button">
-          <input id="file-input" type="file" multiple hidden>
-          <span>Добавить документы</span>
-        </label>
+        <div class="topbar-leading">
+          <button id="show-sidebar" class="icon-button mobile-only" type="button" aria-label="Показать разделы">☰</button>
+          <div><h1 id="page-title">Календарь</h1><p id="page-subtitle">Все события, задачи и контрольные сроки</p></div>
+        </div>
+
+        <div id="calendar-mode-switch" class="segmented" role="tablist" aria-label="Вид календаря">
+          <button class="segment active" type="button" data-calendar-mode="month" role="tab" aria-selected="true">Месяц</button>
+          <button class="segment" type="button" data-calendar-mode="week" role="tab" aria-selected="false">Неделя</button>
+          <button class="segment" type="button" data-calendar-mode="tasks" role="tab" aria-selected="false">Задачи</button>
+        </div>
+
+        <div class="topbar-actions">
+          <button id="open-search" class="icon-button" type="button" aria-label="Открыть поиск" title="Поиск · Ctrl K">⌕</button>
+          <div class="popover-anchor">
+            <button id="notification-button" class="icon-button" type="button" aria-label="Уведомления" aria-expanded="false">♢<span id="notification-badge" class="notification-badge hidden">0</span></button>
+            <section id="notification-popover" class="popover hidden" aria-label="Уведомления">
+              <div class="popover-head"><div><strong>Уведомления</strong><span>Только то, что влияет на работу</span></div></div>
+              <div id="notification-list" class="notification-list"></div>
+            </section>
+          </div>
+          <button id="create-button" class="primary-button" type="button">Создать</button>
+        </div>
       </header>
 
-      <section id="upload-progress" class="upload-progress hidden"></section>
+      <section id="upload-progress" class="progress-banner hidden" aria-live="polite"></section>
 
-      <section class="view active" data-view-panel="overview">
-        <div id="overview-cards" class="metric-grid"></div>
-        <div class="two-column">
-          <article class="panel"><div class="panel-head"><h2>Ближайшие события</h2><button class="link-button" data-open-view="calendar">Открыть календарь</button></div><div id="overview-calendar" class="list"></div></article>
-          <article class="panel"><div class="panel-head"><h2>Требует внимания</h2><button class="link-button" data-open-view="review">Проверить</button></div><div id="overview-review" class="list"></div></article>
+      <section class="view active" data-view-panel="calendar">
+        <div class="calendar-layout">
+          <div class="calendar-main">
+            <div class="calendar-toolbar">
+              <div class="calendar-navigation">
+                <button id="previous-period" class="icon-button" type="button" aria-label="Предыдущий период">‹</button>
+                <button id="today-period" class="secondary-button" type="button">Сегодня</button>
+                <button id="next-period" class="icon-button" type="button" aria-label="Следующий период">›</button>
+              </div>
+              <h2 id="calendar-title" class="calendar-title"></h2>
+              <div class="category-legend" aria-label="Категории">
+                <span><i class="legend-dot science"></i>Наука</span>
+                <span><i class="legend-dot education"></i>Образование</span>
+                <span><i class="legend-dot organizational"></i>Организация</span>
+              </div>
+            </div>
+
+            <div id="month-view" class="calendar-surface"></div>
+            <div id="week-view" class="calendar-surface hidden"></div>
+            <div id="tasks-view" class="tasks-surface hidden"></div>
+          </div>
+
+          <aside class="context-rail" aria-label="Сводка календаря">
+            <section class="rail-card today-card">
+              <div class="eyebrow">Сегодня</div>
+              <div id="today-date" class="today-date"></div>
+              <div id="today-list" class="compact-list"></div>
+            </section>
+            <section class="rail-card">
+              <div class="rail-head"><strong>Ближайшие 7 дней</strong><span id="upcoming-count" class="count-pill">0</span></div>
+              <div id="upcoming-list" class="compact-list"></div>
+            </section>
+            <section class="rail-card attention-card">
+              <div class="rail-head"><strong>Требует внимания</strong><button class="text-button" data-open-view="review">Открыть</button></div>
+              <div id="calendar-attention" class="compact-list"></div>
+            </section>
+          </aside>
         </div>
       </section>
 
       <section class="view" data-view-panel="documents">
-        <article class="panel">
-          <div class="panel-head"><div><h2>Документы</h2><p>Оригиналы сохраняются неизменяемо; обработка продолжается после закрытия страницы.</p></div></div>
-          <div id="documents-table" class="table-wrap"></div>
-        </article>
+        <div class="section-heading">
+          <div><h2>Документы</h2><p>Оригинал сохраняется неизменяемо. Обработка продолжается после закрытия страницы.</p></div>
+          <label class="primary-button file-button"><input id="file-input" type="file" multiple hidden><span>Добавить документы</span></label>
+        </div>
+        <article class="surface-panel"><div id="documents-table" class="table-wrap"></div></article>
       </section>
 
-      <section class="view" data-view-panel="calendar">
-        <div class="calendar-toolbar">
-          <button id="previous-month" class="icon-button" aria-label="Предыдущий месяц">←</button>
-          <h2 id="calendar-title"></h2>
-          <button id="next-month" class="icon-button" aria-label="Следующий месяц">→</button>
-          <button id="today-month" class="secondary-button">Сегодня</button>
+      <section class="view" data-view-panel="templates">
+        <div class="section-heading">
+          <div><h2>Шаблоны извлечения</h2><p>Один раз покажите системе поля — следующие документы того же вида будут разбираться автоматически.</p></div>
+          <button id="template-from-document" class="secondary-button" type="button">Создать из документа</button>
         </div>
-        <div id="calendar-grid" class="calendar-grid"></div>
+        <div class="template-intro">
+          <div class="flow-step"><span>1</span><div><strong>Выберите документ</strong><p>Система покажет извлечённый текст без изменения оригинала.</p></div></div>
+          <div class="flow-arrow" aria-hidden="true">→</div>
+          <div class="flow-step"><span>2</span><div><strong>Отметьте поля</strong><p>Щёлкните строку, назовите поле и выберите понятное правило.</p></div></div>
+          <div class="flow-arrow" aria-hidden="true">→</div>
+          <div class="flow-step"><span>3</span><div><strong>Проверьте и сохраните</strong><p>Предпросмотр показывает результат до включения автоматики.</p></div></div>
+        </div>
+        <div id="templates-grid" class="templates-grid"></div>
       </section>
 
       <section class="view" data-view-panel="review">
-        <article class="panel">
-          <div class="panel-head"><div><h2>Очередь проверки</h2><p>Каждый вопрос содержит применённое решение и доступное действие.</p></div></div>
-          <div id="review-list" class="review-list"></div>
-        </article>
+        <div class="section-heading"><div><h2>Проверка данных</h2><p>Только вопросы, которые автоматика не может решить надёжно сама.</p></div></div>
+        <div id="review-list" class="review-list"></div>
       </section>
 
       <section class="view" data-view-panel="search">
-        <article class="panel search-panel">
-          <form id="search-form" class="search-form">
+        <div class="search-page">
+          <form id="search-form" class="global-search">
+            <span aria-hidden="true">⌕</span>
             <input id="search-input" type="search" placeholder="Тема, человек, решение, номер протокола…" autocomplete="off">
-            <button type="submit">Найти</button>
+            <kbd>Esc</kbd>
           </form>
-          <div id="search-results" class="search-results empty-state">Введите запрос. Поиск выполняется по документам, заседаниям и решениям.</div>
-        </article>
+          <div id="search-results" class="search-results empty-state">Начните вводить запрос. Результаты покажут документ и место, откуда взята информация.</div>
+        </div>
       </section>
     </main>
+
+    <nav class="mobile-tabs" aria-label="Разделы">
+      <button class="mobile-tab active" data-view="calendar"><span>▦</span>Календарь</button>
+      <button class="mobile-tab" data-view="documents"><span>▤</span>Документы</button>
+      <button class="mobile-tab" data-view="templates"><span>◇</span>Шаблоны</button>
+      <button class="mobile-tab" data-view="review"><span>✓</span>Проверка</button>
+    </nav>
   </div>
-  <div id="toast" class="toast hidden" role="status"></div>
+
+  <div id="sheet-backdrop" class="sheet-backdrop hidden"></div>
+
+  <section id="event-sheet" class="sheet hidden" role="dialog" aria-modal="true" aria-labelledby="event-sheet-title">
+    <header class="sheet-header"><div><div class="eyebrow">Календарь</div><h2 id="event-sheet-title">Новое событие</h2></div><button class="icon-button" type="button" data-close-sheet aria-label="Закрыть">×</button></header>
+    <form id="event-form" class="sheet-body form-grid">
+      <input id="event-id" type="hidden">
+      <label class="field full"><span>Название</span><input id="event-title" name="title" required placeholder="Например, сдать отчёт по НИР"></label>
+      <label class="field"><span>Тип</span><select id="event-kind" name="kind"><option value="event">Событие</option><option value="task">Задача</option></select></label>
+      <label class="field"><span>Дата</span><input id="event-date" name="date" type="date" required></label>
+      <label class="field"><span>Категория</span><select id="event-category" name="category"><option value="organizational">Организационная</option><option value="education">Образование</option><option value="science">Наука</option><option value="everyday">Повседневная</option></select></label>
+      <label class="field"><span>Важность</span><select id="event-importance" name="importance"><option value="normal">Обычная</option><option value="high">Высокая</option><option value="critical">Критическая</option><option value="low">Низкая</option></select></label>
+      <label class="field full"><span>Напомнить</span><select id="event-reminder" name="reminder"><option value="">Не напоминать</option><option value="0">В день события</option><option value="60">За час</option><option value="1440">За день</option><option value="4320">За 3 дня</option><option value="10080">За неделю</option></select></label>
+      <label class="field full"><span>Комментарий</span><textarea id="event-description" name="description" rows="4" placeholder="Коротко: что требуется и где смотреть исходные материалы"></textarea></label>
+      <div class="sheet-actions full"><button type="button" class="secondary-button" data-close-sheet>Отмена</button><button type="submit" class="primary-button">Сохранить</button></div>
+    </form>
+  </section>
+
+  <section id="template-sheet" class="sheet template-sheet hidden" role="dialog" aria-modal="true" aria-labelledby="template-sheet-title">
+    <header class="sheet-header">
+      <div><div class="eyebrow">Новый шаблон</div><h2 id="template-sheet-title">Покажите, что извлекать</h2></div>
+      <button class="icon-button" type="button" data-close-sheet aria-label="Закрыть">×</button>
+    </header>
+    <div class="wizard-progress" aria-label="Этапы создания шаблона">
+      <button class="wizard-step active" type="button" data-wizard-step="1"><span>1</span>Документ</button>
+      <button class="wizard-step" type="button" data-wizard-step="2"><span>2</span>Поля</button>
+      <button class="wizard-step" type="button" data-wizard-step="3"><span>3</span>Проверка</button>
+    </div>
+    <div class="template-workspace">
+      <div class="document-preview-panel">
+        <div class="preview-toolbar"><strong id="template-document-title">Документ</strong><span id="template-selection-hint">Выберите документ</span></div>
+        <div id="template-document-preview" class="document-preview empty-state">Текст появится здесь. Оригинальный файл не изменяется.</div>
+      </div>
+      <aside class="template-inspector">
+        <div id="wizard-step-1" class="wizard-panel active">
+          <label class="field"><span>Исходный документ</span><select id="template-document-select"></select></label>
+          <label class="field"><span>Название шаблона</span><input id="template-name" placeholder="Например, Приказ о назначении"></label>
+          <label class="field"><span>Вид документа</span><input id="template-document-type" value="custom_document" placeholder="Внутренний тип"></label>
+          <p class="helper">После загрузки текста нажмите «Далее». Поля можно менять без повторной загрузки документа.</p>
+          <button id="template-load-document" class="primary-button full-width" type="button">Открыть документ</button>
+        </div>
+        <div id="wizard-step-2" class="wizard-panel">
+          <div class="inspector-head"><div><strong>Поля шаблона</strong><span>Щёлкните строку слева</span></div><span id="field-count" class="count-pill">0</span></div>
+          <div id="selected-line-card" class="selected-line-card muted-card">Строка не выбрана.</div>
+          <div id="field-editor" class="field-editor hidden">
+            <label class="field"><span>Как назвать поле</span><input id="field-label" placeholder="Дата приказа"></label>
+            <label class="field"><span>Тип значения</span><select id="field-type"><option value="string">Короткий текст</option><option value="text">Длинный текст</option><option value="date">Дата</option><option value="number">Число</option><option value="boolean">Да / нет</option></select></label>
+            <label class="field"><span>Как извлекать</span><select id="field-strategy"><option value="after_label">После подписи в этой строке</option><option value="next_line">Из следующей непустой строки</option><option value="line">Вся выбранная строка</option><option value="between">Между двумя подписями</option></select></label>
+            <label class="field"><span>Подпись или якорь</span><input id="field-anchor" placeholder="Дата:"></label>
+            <label id="end-anchor-field" class="field hidden"><span>Конечная подпись</span><input id="field-end-anchor" placeholder="Следующий раздел"></label>
+            <label class="check-field"><input id="field-required" type="checkbox" checked><span>Поле обязательно</span></label>
+            <button id="add-template-field" class="primary-button full-width" type="button">Добавить поле</button>
+          </div>
+          <div id="template-fields" class="template-fields"></div>
+        </div>
+        <div id="wizard-step-3" class="wizard-panel">
+          <label class="field"><span>Файл содержит</span><input id="matcher-filename" placeholder="Например, приказ"></label>
+          <label class="field"><span>Обязательные фразы</span><textarea id="matcher-phrases" rows="4" placeholder="По одной фразе на строку"></textarea></label>
+          <button id="preview-template" class="secondary-button full-width" type="button">Проверить на документе</button>
+          <div id="template-preview-result" class="template-preview-result empty-state">Сначала выполните проверку.</div>
+        </div>
+      </aside>
+    </div>
+    <footer class="sheet-footer"><button id="wizard-back" class="secondary-button" type="button">Назад</button><div class="spacer"></div><button id="wizard-next" class="primary-button" type="button">Далее</button><button id="save-template" class="primary-button hidden" type="button">Сохранить шаблон</button></footer>
+  </section>
+
+  <div id="toast" class="toast hidden" role="status" aria-live="polite"></div>
   <script type="module" src="/app.js"></script>
 </body>
 </html>

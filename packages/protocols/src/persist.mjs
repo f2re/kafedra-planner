@@ -35,8 +35,10 @@ export function persistProtocol(database, {
     database.run(`
       INSERT OR IGNORE INTO calendar_items(
         id, workspace_id, source_kind, source_id, title, starts_at, ends_at,
-        all_day, category, importance, status, description, created_at, updated_at
-      ) VALUES (?, ?, 'meeting', ?, ?, ?, NULL, 1, 'organizational', 'normal', ?, ?, ?, ?)
+        all_day, category, importance, status, description, item_kind,
+        reminder_minutes, completed_at, created_at, updated_at
+      ) VALUES (?, ?, 'meeting', ?, ?, ?, NULL, 1, 'organizational', 'normal', ?, ?,
+        'event', NULL, NULL, ?, ?)
     `, newId('cal'), workspaceId, meetingId,
     result.protocolNumber ? `Заседание кафедры · протокол № ${result.protocolNumber}` : 'Заседание кафедры',
     result.meetingDate, result.confidence >= 0.75 ? 'confirmed' : 'proposed', documentTitle, now, now);
@@ -84,8 +86,10 @@ export function persistProtocol(database, {
         database.run(`
           INSERT OR IGNORE INTO calendar_items(
             id, workspace_id, source_kind, source_id, title, starts_at, ends_at,
-            all_day, category, importance, status, description, created_at, updated_at
-          ) VALUES (?, ?, 'decision', ?, ?, ?, NULL, 1, 'organizational', 'high', 'proposed', ?, ?, ?)
+            all_day, category, importance, status, description, item_kind,
+            reminder_minutes, completed_at, created_at, updated_at
+          ) VALUES (?, ?, 'decision', ?, ?, ?, NULL, 1, 'organizational', 'high', 'open', ?,
+            'task', 1440, NULL, ?, ?)
         `, newId('cal'), workspaceId, decisionId, `Срок: ${item.title}`,
         item.dueDate, item.decisionText, now, now);
       }
