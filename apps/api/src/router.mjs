@@ -5,8 +5,10 @@ import { storeIncomingStream } from '../../../packages/document-intake/src/blob-
 import { registerDocument, listDocuments, getDocument } from '../../../packages/storage/src/documents.mjs';
 import {
   listCalendarItems,
+  getCalendarItem,
   createCalendarItem,
   updateCalendarItem,
+  undoCalendarItem,
   listTasks,
   listNotifications,
   setNotificationState
@@ -17,6 +19,11 @@ import {
   previewTemplate,
   createTemplate
 } from '../../../packages/templates/src/service.mjs';
+import {
+  getTemplateDraft,
+  saveTemplateDraft,
+  deleteTemplateDraft
+} from '../../../packages/templates/src/drafts.mjs';
 import { listReviewItems, resolveReviewItem } from '../../../packages/storage/src/reviews.mjs';
 import { getOverview } from '../../../packages/storage/src/overview.mjs';
 import { systemHealth } from '../../../packages/storage/src/system.mjs';
@@ -39,6 +46,13 @@ function integerParam(value, fallback, max = 1000) {
   const parsed = Number.parseInt(value || '', 10);
   if (!Number.isFinite(parsed)) return fallback;
   return Math.max(1, Math.min(max, parsed));
+}
+
+function categoriesParam(url) {
+  return url.searchParams.getAll('category')
+    .flatMap((value) => String(value).split(','))
+    .map((value) => value.trim())
+    .filter(Boolean);
 }
 
 function templateError(error) {
@@ -126,6 +140,26 @@ export function createRouter({ database, config, logger }) {
         throw templateError(error);
       }
     }
+    if (method === 'GET' && path === '/api/templates/draft') {
+      const documentVersionId = url.searchParams.get('documentVersionId');
+      if (!documentVersionId) throw new AppError('document_version_required', 'Выберите документ для черновика.', 400);
+      return sendJson(response, 200, {
+        draft: getTemplateDraft(database, workspace.id, documentVersionId)
+      });
+    }
+    if (method === 'PUT' && path === '/api/templates/draft') {
+      const body = await readJson(request);
+      if (!body.documentVersionId) throw new AppError('document_version_required', 'Выберите документ для черновика.', 400);
+      const draft = saveTemplateDraft(database, workspace.id, body);
+      if (!draft) throw new AppError('template_source_not_found', 'Исходный документ для черновика не найден.', 404);
+      return sendJson(response, 200, { draft });
+    }
+    if (method === 'DELETE' && path === '/api/templates/draft') {
+      const documentVersionId = url.searchParams.get('documentVersionId');
+      if (!documentVersionId) throw new AppError('document_version_required', 'Выберите документ для черновика.', 400);
+      deleteTemplateDraft(database, workspace.id, documentVersionId);
+      return sendJson(response, 200, { status: 'deleted' });
+    }
 
     const documentMatch = path.match(/^\/api\/documents\/([^/]+)$/);
     if (method === 'GET' && documentMatch) {
@@ -141,6 +175,7 @@ export function createRouter({ database, config, logger }) {
           to: url.searchParams.get('to'),
           kind: url.searchParams.get('kind'),
           status: url.searchParams.get('status'),
+          categories: categoriesParam(url),
           limit: integerParam(url.searchParams.get('limit'), 500, 2000)
         })
       });
@@ -150,7 +185,18 @@ export function createRouter({ database, config, logger }) {
       if (!body.title || !body.startsAt) throw new AppError('calendar_fields_required', 'Укажите название и дату.', 400);
       return sendJson(response, 201, createCalendarItem(database, workspace.id, body));
     }
+    const calendarUndoMatch = path.match(/^\/api\/calendar\/([^/]+)\/undo$/);
+    if (method === 'POST' && calendarUndoMatch) {
+      const item = undoCalendarItem(database, workspace.id, decodeURIComponent(calendarUndoMatch[1]));
+      if (!item) throw new AppError('calendar_undo_unavailable', 'Предыдущее изменение уже отменено или недоступно.', 409);
+      return sendJson(response, 200, item);
+    }
     const calendarMatch = path.match(/^\/api\/calendar\/([^/]+)$/);
+    if (method === 'GET' && calendarMatch) {
+      const item = getCalendarItem(database, workspace.id, decodeURIComponent(calendarMatch[1]));
+      if (!item) throw new AppError('calendar_item_not_found', 'Событие или задача не найдены.', 404);
+      return sendJson(response, 200, item);
+    }
     if (method === 'PATCH' && calendarMatch) {
       const body = await readJson(request);
       const item = updateCalendarItem(database, workspace.id, decodeURIComponent(calendarMatch[1]), body);
@@ -158,7 +204,12 @@ export function createRouter({ database, config, logger }) {
       return sendJson(response, 200, item);
     }
     if (method === 'GET' && path === '/api/tasks') {
-      return sendJson(response, 200, { items: listTasks(database, workspace.id, { limit: integerParam(url.searchParams.get('limit'), 500, 2000) }) });
+      return sendJson(response, 200, {
+        items: listTasks(database, workspace.id, {
+          categories: categoriesParam(url),
+          limit: integerParam(url.searchParams.get('limit'), 500, 2000)
+        })
+      });
     }
     if (method === 'GET' && path === '/api/notifications') {
       const items = listNotifications(database, workspace.id, { limit: integerParam(url.searchParams.get('limit'), 50, 200) });

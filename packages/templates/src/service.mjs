@@ -1,6 +1,7 @@
 import { newId } from '../../core/src/ids.mjs';
 import { addSearchFragment } from '../../storage/src/search.mjs';
 import { applyTemplate, matchesTemplate, normalizeTemplateInput, textLines } from './extractor.mjs';
+import { deleteTemplateDraft } from './drafts.mjs';
 
 function parseJson(value, fallback) {
   try { return JSON.parse(value); } catch { return fallback; }
@@ -48,9 +49,10 @@ function persistExtraction(database, {
   }
 
   database.run('UPDATE document_templates SET usage_count = usage_count + 1, updated_at = ? WHERE id = ?', now, template.id);
+  const fields = parseJson(template.fields_json, []);
   const content = Object.entries(result.values)
     .map(([key, value]) => {
-      const field = parseJson(template.fields_json, []).find((item) => item.key === key);
+      const field = fields.find((item) => item.key === key);
       return `${field?.label || key}: ${String(value)}`;
     })
     .join('\n');
@@ -149,6 +151,7 @@ export function createTemplate(database, workspaceId, input, now = new Date().to
   database.run(`
     UPDATE document_versions SET processing_status = ? WHERE id = ?
   `, result.missing.length ? 'needs_review' : 'processed', source.id);
+  deleteTemplateDraft(database, workspaceId, source.id);
   return {
     ...template,
     matcher: normalized.matcher,
