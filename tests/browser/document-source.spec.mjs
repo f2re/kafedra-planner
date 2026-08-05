@@ -22,7 +22,8 @@ async function uploadAndWait(page) {
   await openDocuments(page);
 }
 
-test('desktop: документ показывает структурный источник в инспекторе', async ({ page }) => {
+test('desktop: документ показывает структурный источник в инспекторе', async ({ page }, testInfo) => {
+  test.skip(testInfo.project.name !== 'desktop', 'Проверка только настольного проекта');
   await page.goto('/');
   await uploadAndWait(page);
   await page.locator('.document-title').first().click();
