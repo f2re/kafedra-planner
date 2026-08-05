@@ -39,6 +39,8 @@ test('отчёт сопоставляется, руководитель подт
     const body = await (await page.request.get('/api/assignments?q=аналитический')).json();
     return body.items?.find((item) => item.document_number === '71-р')?.status;
   }).toBe('completed');
+  await page.locator('#ux-inspector-close').click();
+  await expect(page.locator('#ux-inspector')).toHaveClass(/hidden/);
 
   await upload(page, 'science-article.txt', `УДК 551.509\nСидоров С.С., Иванов И.И.\nЛокальные методы прогноза осадков\nАннотация. Рассмотрены методы радарного наукастинга.\nКлючевые слова: радар, прогноз.\nDOI: 10.1234/kafedra.2026.71\nЖурнал Метеорология, 2026\nПубликация входит в РИНЦ и перечень ВАК.`);
   await expect.poll(async () => (await (await page.request.get('/api/science?q=Локальные')).json()).items?.length || 0, { timeout: 30_000 }).toBeGreaterThan(0);
