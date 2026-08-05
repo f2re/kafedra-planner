@@ -1,4 +1,5 @@
 import { extractText } from '../../../packages/document-intake/src/extract-text.mjs';
+import { buildDocumentPreview } from '../../../packages/document-intake/src/preview.mjs';
 import { supportedFormat } from '../../../packages/document-intake/src/formats.mjs';
 import { looksLikeDepartmentProtocol, extractDepartmentProtocol } from '../../../packages/protocols/src/extractor.mjs';
 import { persistProtocol } from '../../../packages/protocols/src/persist.mjs';
@@ -8,6 +9,12 @@ import { addSearchFragment } from '../../../packages/storage/src/search.mjs';
 import { replaceDocumentBlocks } from '../../../packages/storage/src/document-structure.mjs';
 
 function insertReview(database, workspaceId, versionId, code, title, explanation, proposedAction, context = {}) {
+  const existing = database.get(`
+    SELECT 1 AS present FROM review_items
+    WHERE workspace_id = ? AND source_kind = 'document_version'
+      AND source_id = ? AND issue_code = ? AND status = 'open'
+  `, workspaceId, versionId, code);
+  if (existing) return;
   database.run(`
     INSERT INTO review_items(
       id, workspace_id, source_kind, source_id, issue_code, title, explanation,
@@ -17,9 +24,38 @@ function insertReview(database, workspaceId, versionId, code, title, explanation
   proposedAction, JSON.stringify(context), new Date().toISOString());
 }
 
-export async function processDocumentJob(database, payload, logger) {
+function ocrReview(database, version, ocr) {
+  if (!['unavailable', 'failed', 'empty', 'disabled'].includes(ocr?.status)) return;
+  const explanations = {
+    unavailable: 'OCR не запущен: в системе отсутствует Tesseract или конвертер страниц PDF.',
+    failed: `OCR завершился ошибкой: ${ocr.error || 'причина не определена'}.`,
+    empty: 'OCR выполнен, но распознаваемый текст не найден.',
+    disabled: 'OCR отключён в настройках системы.'
+  };
+  insertReview(
+    database,
+    version.workspace_id,
+    version.id,
+    `ocr_${ocr.status}`,
+    'Требуется распознавание документа',
+    explanations[ocr.status],
+    'Проверьте качество скана, языковые пакеты OCR и настройки KAFEDRA_OCR_*.',
+    { ocr }
+  );
+}
+
+function persistPreviewBlob(database, preview, now) {
+  if (!preview?.blob) return;
+  database.run(`
+    INSERT OR IGNORE INTO file_blobs(sha256, size_bytes, media_type, storage_path, created_at)
+    VALUES (?, ?, ?, ?, ?)
+  `, preview.blob.sha256, preview.blob.sizeBytes, preview.mediaType || preview.blob.mediaType,
+  preview.blob.storagePath, now);
+}
+
+export async function processDocumentJob(database, payload, logger, config) {
   const version = database.get(`
-    SELECT dv.*, d.title, d.workspace_id, fb.storage_path
+    SELECT dv.*, d.title, d.workspace_id, fb.storage_path, fb.size_bytes
     FROM document_versions dv
     JOIN documents d ON d.id = dv.document_id
     JOIN file_blobs fb ON fb.sha256 = dv.blob_sha256
@@ -39,7 +75,12 @@ export async function processDocumentJob(database, payload, logger) {
       confidence, result_json, started_at
     ) VALUES (?, ?, 'pending', '1', 'running', NULL, NULL, ?)
   `, extractionRunId, version.id, startedAt);
-  database.run("UPDATE document_versions SET processing_status = 'extracting', extraction_error = NULL WHERE id = ?", version.id);
+  database.run(`
+    UPDATE document_versions
+    SET processing_status = 'extracting', extraction_error = NULL,
+      preview_status = 'pending', preview_error = NULL
+    WHERE id = ?
+  `, version.id);
   database.run("UPDATE documents SET status = 'processing', updated_at = ? WHERE id = ?", startedAt, version.document_id);
 
   try {
@@ -49,7 +90,12 @@ export async function processDocumentJob(database, payload, logger) {
         `Файл «${version.original_name}» сохранён, но формат ${version.detected_format} пока не разбирается автоматически.`,
         'Подключите конвертер LibreOffice, OCR или новый адаптер формата.',
         { format: version.detected_format });
-      database.run("UPDATE document_versions SET processing_status = 'needs_review', structure_status = 'unsupported' WHERE id = ?", version.id);
+      database.run(`
+        UPDATE document_versions
+        SET processing_status = 'needs_review', structure_status = 'unsupported',
+          preview_status = 'unsupported'
+        WHERE id = ?
+      `, version.id);
       database.run("UPDATE documents SET status = 'needs_review', updated_at = ? WHERE id = ?", new Date().toISOString(), version.document_id);
       database.run(`
         UPDATE extraction_runs SET extractor_code = 'unsupported', status = 'needs_review', completed_at = ?
@@ -58,17 +104,54 @@ export async function processDocumentJob(database, payload, logger) {
       return;
     }
 
-    const extracted = await extractText({ path: version.storage_path, format: version.detected_format });
+    const extracted = await extractText({
+      path: version.storage_path,
+      format: version.detected_format,
+      tempDir: config.tempDir,
+      ocr: {
+        enabled: config.ocrEnabled,
+        languages: config.ocrLanguages,
+        dpi: config.ocrDpi,
+        maxPages: config.ocrMaxPages,
+        minCharacters: config.ocrMinCharacters
+      }
+    });
+    const preview = await buildDocumentPreview({
+      sourcePath: version.storage_path,
+      format: version.detected_format,
+      originalName: version.original_name,
+      originalMediaType: version.media_type,
+      originalBlob: {
+        sha256: version.blob_sha256,
+        sizeBytes: version.size_bytes,
+        storagePath: version.storage_path,
+        mediaType: version.media_type
+      },
+      blobDir: config.blobDir,
+      tempDir: config.tempDir,
+      enabled: config.previewEnabled
+    });
+
     const text = extracted.text;
     const blocks = Array.isArray(extracted.blocks) ? extracted.blocks : [];
+    const ocr = extracted.diagnostics?.ocr || {
+      status: 'not_needed',
+      engine: null,
+      languages: null,
+      confidence: null,
+      error: null
+    };
+
     if (!text) {
       insertReview(database, version.workspace_id, version.id, 'empty_text',
         'В документе не найден текст',
-        'Файл прочитан, но текстовый слой пуст. Вероятно, это скан.',
-        'Отправьте документ на OCR или загрузите версию с текстовым слоем.');
+        'Файл сохранён, но текстовый слой и результат OCR пусты.',
+        'Проверьте качество скана или загрузите документ с текстовым слоем.',
+        { format: version.detected_format, ocr });
+      ocrReview(database, version, ocr);
     }
 
-    const isProtocol = payload.requestedType === 'protocol' || looksLikeDepartmentProtocol(text);
+    const isProtocol = Boolean(text) && (payload.requestedType === 'protocol' || looksLikeDepartmentProtocol(text));
     const protocolResult = isProtocol ? extractDepartmentProtocol(text) : null;
     let templateApplications = [];
     let finalType = isProtocol ? 'department_protocol' : 'unknown';
@@ -76,23 +159,28 @@ export async function processDocumentJob(database, payload, logger) {
     let confidence = protocolResult?.confidence ?? null;
     let extractorCode = isProtocol ? 'department-protocol' : extracted.extractor;
     let extractorVersion = isProtocol ? '1' : extracted.version;
+    const completedAt = new Date().toISOString();
 
     database.transaction(() => {
+      persistPreviewBlob(database, preview, completedAt);
       replaceDocumentBlocks(database, {
         documentVersionId: version.id,
         blocks,
         extractor: extracted.extractor,
         version: extracted.version
       });
-      addSearchFragment(database, {
-        workspaceId: version.workspace_id,
-        sourceKind: 'document',
-        sourceId: version.document_id,
-        documentVersionId: version.id,
-        title: version.title,
-        content: text,
-        locator: { kind: version.detected_format, scope: 'full_document' }
-      });
+
+      if (text) {
+        addSearchFragment(database, {
+          workspaceId: version.workspace_id,
+          sourceKind: 'document',
+          sourceId: version.document_id,
+          documentVersionId: version.id,
+          title: version.title,
+          content: text,
+          locator: { kind: version.detected_format, scope: 'full_document' }
+        });
+      }
 
       if (isProtocol) {
         persistProtocol(database, {
@@ -101,11 +189,12 @@ export async function processDocumentJob(database, payload, logger) {
           documentTitle: version.title,
           result: protocolResult
         });
-      } else {
+      } else if (text) {
         templateApplications = applyMatchingTemplates(database, {
           workspaceId: version.workspace_id,
           version,
-          text
+          text,
+          blocks
         });
         if (templateApplications.length) {
           const best = templateApplications[0];
@@ -118,20 +207,24 @@ export async function processDocumentJob(database, payload, logger) {
           insertReview(database, version.workspace_id, version.id, 'document_type_unknown',
             'Не определён тип документа',
             'Текст извлечён и доступен для поиска, но подходящий шаблон не найден.',
-            'Откройте документ и создайте шаблон: отметьте нужные поля, проверьте результат и сохраните.');
+            'Откройте документ и создайте шаблон из структурного фрагмента.');
         }
       }
 
       database.run(`
         UPDATE document_versions
-        SET processing_status = ?, extracted_text = ?, extraction_error = NULL
+        SET processing_status = ?, extracted_text = ?, extraction_error = NULL,
+          ocr_status = ?, ocr_engine = ?, ocr_languages = ?, ocr_confidence = ?, ocr_error = ?,
+          preview_status = ?, preview_blob_sha256 = ?, preview_media_type = ?, preview_error = ?
         WHERE id = ?
-      `, finalStatus, text, version.id);
+      `, finalStatus, text, ocr.status, ocr.engine, ocr.languages, ocr.confidence, ocr.error,
+      preview.status, preview.blob?.sha256 || null, preview.mediaType || null, preview.error || null,
+      version.id);
       database.run(`
         UPDATE documents
         SET document_type = ?, status = ?, updated_at = ?
         WHERE id = ?
-      `, finalType, finalStatus, new Date().toISOString(), version.document_id);
+      `, finalType, finalStatus, completedAt, version.document_id);
       database.run(`
         UPDATE extraction_runs
         SET extractor_code = ?, extractor_version = ?, status = ?, confidence = ?, result_json = ?, completed_at = ?
@@ -140,6 +233,12 @@ export async function processDocumentJob(database, payload, logger) {
       finalStatus === 'processed' ? 'completed' : 'needs_review', confidence,
       JSON.stringify({
         textExtractor: { code: extracted.extractor, version: extracted.version },
+        ocr,
+        preview: {
+          status: preview.status,
+          mediaType: preview.mediaType,
+          error: preview.error
+        },
         protocol: protocolResult,
         templates: templateApplications.map(({ template, result }) => ({
           id: template.id,
@@ -148,19 +247,24 @@ export async function processDocumentJob(database, payload, logger) {
           missing: result.missing
         }))
       }),
-      new Date().toISOString(), extractionRunId);
+      completedAt, extractionRunId);
     });
     logger.info('document processed', {
       documentId: version.document_id,
       versionId: version.id,
       format: version.detected_format,
       type: finalType,
-      templates: templateApplications.length
+      templates: templateApplications.length,
+      ocrStatus: ocr.status,
+      previewStatus: preview.status
     });
   } catch (error) {
     database.run(`
-      UPDATE document_versions SET processing_status = 'failed', extraction_error = ?, structure_status = 'failed' WHERE id = ?
-    `, String(error?.message || error), version.id);
+      UPDATE document_versions
+      SET processing_status = 'failed', extraction_error = ?, structure_status = 'failed',
+        preview_status = 'failed', preview_error = ?
+      WHERE id = ?
+    `, String(error?.message || error), String(error?.message || error), version.id);
     database.run("UPDATE documents SET status = 'failed', updated_at = ? WHERE id = ?", new Date().toISOString(), version.document_id);
     database.run(`
       UPDATE extraction_runs
@@ -171,11 +275,11 @@ export async function processDocumentJob(database, payload, logger) {
   }
 }
 
-export async function dispatchJob(database, job, logger) {
+export async function dispatchJob(database, job, logger, config) {
   const payload = JSON.parse(job.payload_json);
   switch (job.kind) {
     case 'process_document':
-      return processDocumentJob(database, payload, logger);
+      return processDocumentJob(database, payload, logger, config);
     default:
       throw new Error(`Unsupported job kind: ${job.kind}`);
   }

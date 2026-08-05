@@ -1,5 +1,7 @@
-import { readFile } from 'node:fs/promises';
+import { createReadStream } from 'node:fs';
+import { readFile, stat } from 'node:fs/promises';
 import { extname, join, normalize } from 'node:path';
+import { pipeline } from 'node:stream/promises';
 import { AppError } from '../../../packages/core/src/errors.mjs';
 
 const staticTypes = new Map([
@@ -8,6 +10,9 @@ const staticTypes = new Map([
   ['.css', 'text/css; charset=utf-8'],
   ['.svg', 'image/svg+xml'],
   ['.png', 'image/png'],
+  ['.jpg', 'image/jpeg'],
+  ['.jpeg', 'image/jpeg'],
+  ['.webp', 'image/webp'],
   ['.ico', 'image/x-icon']
 ]);
 
@@ -50,13 +55,114 @@ export async function readJson(request, maxBytes = 1024 * 1024) {
   }
 }
 
+function safeDispositionFileName(value) {
+  const fallback = String(value || 'document')
+    .replace(/[\u0000-\u001f"\\/;]+/g, '_')
+    .slice(0, 180) || 'document';
+  return {
+    ascii: fallback.replace(/[^\x20-\x7e]/g, '_'),
+    encoded: encodeURIComponent(fallback).replaceAll("'", '%27')
+  };
+}
+
+function parseRange(value, size) {
+  const match = /^bytes=(\d*)-(\d*)$/.exec(String(value || '').trim());
+  if (!match) return null;
+  const startText = match[1];
+  const endText = match[2];
+  if (!startText && !endText) return null;
+
+  let start;
+  let end;
+  if (!startText) {
+    const suffix = Number(endText);
+    if (!Number.isFinite(suffix) || suffix <= 0) return null;
+    start = Math.max(0, size - suffix);
+    end = size - 1;
+  } else {
+    start = Number(startText);
+    end = endText ? Number(endText) : size - 1;
+  }
+  if (!Number.isInteger(start) || !Number.isInteger(end) || start < 0 || end < start || start >= size) {
+    return null;
+  }
+  return { start, end: Math.min(end, size - 1) };
+}
+
+export async function sendFile(request, response, path, {
+  mediaType = 'application/octet-stream',
+  fileName = 'document',
+  sizeBytes = null,
+  etag = null,
+  disposition = 'inline'
+} = {}) {
+  const fileStat = sizeBytes === null ? await stat(path) : null;
+  const size = Number(sizeBytes ?? fileStat.size);
+  const strongEtag = etag ? `"${String(etag)}"` : null;
+
+  if (strongEtag && request.headers['if-none-match'] === strongEtag) {
+    response.writeHead(304, { etag: strongEtag });
+    response.end();
+    return;
+  }
+
+  const rangeHeader = request.headers.range;
+  const range = rangeHeader ? parseRange(rangeHeader, size) : null;
+  if (rangeHeader && !range) {
+    response.writeHead(416, {
+      'content-range': `bytes */${size}`,
+      'accept-ranges': 'bytes'
+    });
+    response.end();
+    return;
+  }
+
+  const name = safeDispositionFileName(fileName);
+  const headers = {
+    'content-type': mediaType,
+    'accept-ranges': 'bytes',
+    'cache-control': 'private, no-store',
+    'content-disposition': `${disposition}; filename="${name.ascii}"; filename*=UTF-8''${name.encoded}`,
+    'x-content-type-options': 'nosniff'
+  };
+  if (strongEtag) headers.etag = strongEtag;
+
+  if (range) {
+    headers['content-range'] = `bytes ${range.start}-${range.end}/${size}`;
+    headers['content-length'] = String(range.end - range.start + 1);
+    response.writeHead(206, headers);
+  } else {
+    headers['content-length'] = String(size);
+    response.writeHead(200, headers);
+  }
+
+  if ((request.method || 'GET').toUpperCase() === 'HEAD') {
+    response.end();
+    return;
+  }
+
+  const stream = createReadStream(path, range || undefined);
+  await pipeline(stream, response);
+}
+
 export async function serveStatic(response, publicDir, pathname) {
   const requested = pathname === '/' ? '/index.html' : pathname;
   const relative = normalize(requested).replace(/^([/\\])+/, '');
   if (relative.startsWith('..')) return false;
   const path = join(publicDir, relative);
   try {
-    const content = await readFile(path);
+    let content = await readFile(path);
+    if (relative === 'index.html') {
+      const html = content.toString('utf8');
+      if (!html.includes('/preview-next.js')) {
+        content = Buffer.from(html.replace(
+          '</body>',
+          '  <script type="module" src="/preview-next.js"></script>\n'
+            + '  <script type="module" src="/template-binding.js"></script>\n'
+            + '</body>'
+        ));
+      }
+    }
     response.writeHead(200, {
       'content-type': staticTypes.get(extname(path).toLowerCase()) || 'application/octet-stream',
       'content-length': content.length,

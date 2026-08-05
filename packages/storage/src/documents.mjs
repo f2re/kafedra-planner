@@ -74,7 +74,10 @@ export function listDocuments(database, workspaceId, limit = 100) {
     SELECT
       d.id, d.title, d.document_type, d.status, d.created_at, d.updated_at,
       dv.id AS version_id, dv.original_name, dv.media_type, dv.detected_format,
-      dv.processing_status, dv.extraction_error, fb.size_bytes, fb.sha256
+      dv.processing_status, dv.extraction_error, dv.structure_status,
+      dv.ocr_status, dv.ocr_engine, dv.ocr_languages, dv.ocr_confidence, dv.ocr_error,
+      dv.preview_status, dv.preview_media_type, dv.preview_error,
+      fb.size_bytes, fb.sha256
     FROM documents d
     JOIN document_versions dv ON dv.id = d.current_version_id
     JOIN file_blobs fb ON fb.sha256 = dv.blob_sha256
@@ -111,6 +114,9 @@ export function getDocument(database, workspaceId, documentId) {
   const document = database.get(`
     SELECT d.*, dv.original_name, dv.media_type, dv.detected_format,
       dv.processing_status, dv.extracted_text, dv.extraction_error,
+      dv.structure_status, dv.structure_extractor, dv.structure_version,
+      dv.ocr_status, dv.ocr_engine, dv.ocr_languages, dv.ocr_confidence, dv.ocr_error,
+      dv.preview_status, dv.preview_media_type, dv.preview_error,
       dv.uploaded_at, fb.sha256, fb.size_bytes
     FROM documents d
     JOIN document_versions dv ON dv.id = d.current_version_id
@@ -155,6 +161,10 @@ export function getDocument(database, workspaceId, documentId) {
 
   return {
     ...document,
+    previewUrl: document.preview_status === 'ready'
+      ? `/api/documents/${encodeURIComponent(document.id)}/content?variant=preview`
+      : null,
+    originalUrl: `/api/documents/${encodeURIComponent(document.id)}/content?variant=original`,
     lines,
     meetings: meetingDetails(database, document.current_version_id),
     templateExtractions,

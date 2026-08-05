@@ -1,9 +1,13 @@
 import { createHash } from 'node:crypto';
-import { createWriteStream } from 'node:fs';
-import { mkdir, rename, rm, stat } from 'node:fs/promises';
+import { createReadStream, createWriteStream, constants as fsConstants } from 'node:fs';
+import { copyFile, mkdir, rename, rm, stat } from 'node:fs/promises';
 import { dirname, join } from 'node:path';
 import { once } from 'node:events';
 import { AppError } from '../../core/src/errors.mjs';
+
+function blobPath(blobDir, sha256) {
+  return join(blobDir, sha256.slice(0, 2), sha256.slice(2, 4), sha256);
+}
 
 export async function storeIncomingStream(stream, {
   blobDir,
@@ -29,7 +33,7 @@ export async function storeIncomingStream(stream, {
     output.end();
     await once(output, 'close');
     const sha256 = hash.digest('hex');
-    const storagePath = join(blobDir, sha256.slice(0, 2), sha256.slice(2, 4), sha256);
+    const storagePath = blobPath(blobDir, sha256);
     await mkdir(dirname(storagePath), { recursive: true });
     try {
       await rename(tempPath, storagePath);
@@ -47,4 +51,29 @@ export async function storeIncomingStream(stream, {
     await rm(tempPath, { force: true });
     throw error;
   }
+}
+
+export async function storeGeneratedFile(sourcePath, {
+  blobDir,
+  mediaType = 'application/octet-stream'
+}) {
+  const hash = createHash('sha256');
+  let size = 0;
+  for await (const chunk of createReadStream(sourcePath)) {
+    size += chunk.length;
+    hash.update(chunk);
+  }
+  const sha256 = hash.digest('hex');
+  const storagePath = blobPath(blobDir, sha256);
+  await mkdir(dirname(storagePath), { recursive: true });
+  try {
+    await copyFile(sourcePath, storagePath, fsConstants.COPYFILE_EXCL);
+  } catch (error) {
+    if (error.code !== 'EEXIST') throw error;
+  }
+  const actual = await stat(storagePath);
+  if (actual.size !== size) {
+    throw new AppError('blob_size_mismatch', 'Размер сформированного файла не совпал с сохранённым.', 500);
+  }
+  return { sha256, sizeBytes: size, storagePath, mediaType };
 }

@@ -3,6 +3,7 @@ import { AppError } from '../../../packages/core/src/errors.mjs';
 import { detectFormat } from '../../../packages/document-intake/src/formats.mjs';
 import { storeIncomingStream } from '../../../packages/document-intake/src/blob-store.mjs';
 import { registerDocument, listDocuments, getDocument } from '../../../packages/storage/src/documents.mjs';
+import { getDocumentFile } from '../../../packages/storage/src/document-files.mjs';
 import {
   listCalendarItems,
   getCalendarItem,
@@ -29,7 +30,7 @@ import { getOverview } from '../../../packages/storage/src/overview.mjs';
 import { systemHealth } from '../../../packages/storage/src/system.mjs';
 import { search } from '../../../packages/storage/src/search.mjs';
 import { getDocumentStructure, setExtractionValueOverride } from '../../../packages/storage/src/document-structure.mjs';
-import { readJson, requireHeader, sendJson } from './http-utils.mjs';
+import { readJson, requireHeader, sendFile, sendJson } from './http-utils.mjs';
 
 function workspaceOf(database, request) {
   const requested = request.headers['x-workspace-id'];
@@ -160,6 +161,37 @@ export function createRouter({ database, config, logger }) {
       if (!documentVersionId) throw new AppError('document_version_required', 'Выберите документ для черновика.', 400);
       deleteTemplateDraft(database, workspace.id, documentVersionId);
       return sendJson(response, 200, { status: 'deleted' });
+    }
+
+    const documentContentMatch = path.match(/^\/api\/documents\/([^/]+)\/content$/);
+    if (['GET', 'HEAD'].includes(method) && documentContentMatch) {
+      const variant = url.searchParams.get('variant') || 'original';
+      if (!['original', 'preview'].includes(variant)) {
+        throw new AppError('document_variant_invalid', 'Допустимы варианты original и preview.', 400);
+      }
+      const file = getDocumentFile(database, workspace.id, decodeURIComponent(documentContentMatch[1]), variant);
+      if (!file) throw new AppError('document_not_found', 'Документ не найден.', 404);
+      if (!file.available) {
+        throw new AppError(
+          'document_preview_unavailable',
+          file.status === 'pending'
+            ? 'Предпросмотр ещё формируется.'
+            : 'Предпросмотр для этого документа недоступен.',
+          409,
+          { status: file.status, error: file.error }
+        );
+      }
+      return sendFile(request, response, file.path, {
+        mediaType: file.mediaType,
+        fileName: file.fileName,
+        sizeBytes: file.sizeBytes,
+        etag: file.sha256,
+        disposition: variant === 'preview'
+          || file.mediaType === 'application/pdf'
+          || String(file.mediaType || '').startsWith('image/')
+          ? 'inline'
+          : 'attachment'
+      });
     }
 
     const documentStructureMatch = path.match(/^\/api\/documents\/([^/]+)\/structure$/);

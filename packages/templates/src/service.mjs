@@ -7,6 +7,23 @@ function parseJson(value, fallback) {
   try { return JSON.parse(value); } catch { return fallback; }
 }
 
+function versionBlocks(database, versionId) {
+  return database.all(`
+    SELECT id, sequence_no, block_type, text, locator_json, geometry_json, metadata_json
+    FROM document_blocks
+    WHERE document_version_id = ?
+    ORDER BY sequence_no
+  `, versionId).map((row) => ({
+    id: row.id,
+    sequence: row.sequence_no,
+    type: row.block_type,
+    text: row.text,
+    locator: parseJson(row.locator_json, {}),
+    geometry: parseJson(row.geometry_json, null),
+    metadata: parseJson(row.metadata_json, {})
+  }));
+}
+
 function createReview(database, workspaceId, versionId, templateId, missing, now) {
   if (!missing.length) return;
   const issueCode = `template_fields_missing:${templateId}`;
@@ -23,7 +40,7 @@ function createReview(database, workspaceId, versionId, templateId, missing, now
   `, newId('review'), workspaceId, versionId, issueCode,
   'Шаблон не нашёл обязательные поля',
   `Не найдено полей: ${missing.map((item) => item.label).join(', ')}. Остальные значения сохранены.`,
-  'Откройте документ, уточните подпись поля или подтвердите, что поле отсутствует.',
+  'Откройте документ, уточните подпись поля или выберите структурный фрагмент источника.',
   JSON.stringify({ templateId, missing }), now);
 }
 
@@ -96,9 +113,19 @@ export function getTemplateSource(database, workspaceId, documentId) {
     WHERE d.workspace_id = ? AND d.id = ?
   `, workspaceId, documentId);
   if (!version) return null;
+  const blocks = versionBlocks(database, version.version_id);
   return {
     ...version,
-    lines: textLines(version.extracted_text || '').slice(0, 5000)
+    lines: blocks.length
+      ? blocks.slice(0, 5000).map((block, index) => ({
+          number: index + 1,
+          text: block.text,
+          blockId: block.id,
+          blockType: block.type,
+          locator: block.locator,
+          geometry: block.geometry
+        }))
+      : textLines(version.extracted_text || '').slice(0, 5000)
   };
 }
 
@@ -116,7 +143,8 @@ export function previewTemplate(database, workspaceId, input) {
     document: { id: version.document_id, versionId: version.id, title: version.title, originalName: version.original_name },
     result: applyTemplate({ matcher: normalized.matcher, fields: normalized.fields }, {
       text: version.extracted_text || '',
-      originalName: version.original_name
+      originalName: version.original_name,
+      blocks: versionBlocks(database, version.id)
     })
   };
 }
@@ -143,7 +171,11 @@ export function createTemplate(database, workspaceId, input, now = new Date().to
   `, id, workspaceId, normalized.name, code, normalized.documentType,
   JSON.stringify(normalized.matcher), JSON.stringify(normalized.fields), source.id, now, now);
   const template = database.get('SELECT * FROM document_templates WHERE id = ?', id);
-  const result = applyTemplate(template, { text: source.extracted_text || '', originalName: source.original_name });
+  const result = applyTemplate(template, {
+    text: source.extracted_text || '',
+    originalName: source.original_name,
+    blocks: versionBlocks(database, source.id)
+  });
   persistExtraction(database, { workspaceId, template, version: source, result, now });
   database.run(`
     UPDATE documents SET document_type = ?, status = ?, updated_at = ? WHERE id = ?
@@ -164,6 +196,7 @@ export function applyMatchingTemplates(database, {
   workspaceId,
   version,
   text,
+  blocks = [],
   now = new Date().toISOString()
 }) {
   const templates = database.all(`
@@ -174,7 +207,7 @@ export function applyMatchingTemplates(database, {
   const applied = [];
   for (const template of templates) {
     if (!matchesTemplate(template, { text, originalName: version.original_name })) continue;
-    const result = applyTemplate(template, { text, originalName: version.original_name });
+    const result = applyTemplate(template, { text, originalName: version.original_name, blocks });
     const extraction = persistExtraction(database, { workspaceId, template, version, result, now });
     applied.push({ template, result, extraction });
   }
