@@ -30,6 +30,11 @@ import { getOverview } from '../../../packages/storage/src/overview.mjs';
 import { systemHealth } from '../../../packages/storage/src/system.mjs';
 import { search } from '../../../packages/storage/src/search.mjs';
 import { getDocumentStructure, setExtractionValueOverride } from '../../../packages/storage/src/document-structure.mjs';
+import {
+  listPeople, createPerson, listDirectives, getDirective, listAssignments,
+  addAssignmentProgress, attachAssignmentReport, createPeriodicTask,
+  listPeriodicTasks, searchWork
+} from '../../../packages/work-management/src/service.mjs';
 import { readJson, requireHeader, sendFile, sendJson } from './http-utils.mjs';
 
 function workspaceOf(database, request) {
@@ -55,6 +60,23 @@ function categoriesParam(url) {
     .flatMap((value) => String(value).split(','))
     .map((value) => value.trim())
     .filter(Boolean);
+}
+
+function workFilters(url) {
+  return {
+    q: url.searchParams.get('q') || '',
+    kind: url.searchParams.get('kind') || '',
+    from: url.searchParams.get('from') || '',
+    to: url.searchParams.get('to') || '',
+    direction: url.searchParams.get('direction') || '',
+    executor: url.searchParams.get('executor') || '',
+    status: url.searchParams.get('status') || '',
+    periodKind: url.searchParams.get('periodKind') || '',
+    periodKey: url.searchParams.get('periodKey') || '',
+    ownerPersonId: url.searchParams.get('ownerPersonId') || '',
+    managerPersonId: url.searchParams.get('managerPersonId') || '',
+    limit: integerParam(url.searchParams.get('limit'), 500, 2000)
+  };
 }
 
 function templateError(error) {
@@ -230,6 +252,62 @@ export function createRouter({ database, config, logger }) {
       return sendJson(response, 200, document);
     }
 
+    if (method === 'GET' && path === '/api/people') {
+      return sendJson(response, 200, { items: listPeople(database, workspace.id) });
+    }
+    if (method === 'POST' && path === '/api/people') {
+      const body = await readJson(request);
+      try { return sendJson(response, 201, createPerson(database, workspace.id, body)); }
+      catch (error) {
+        if (String(error?.message || error) === 'person_name_required') {
+          throw new AppError('person_name_required', 'Укажите ФИО сотрудника.', 400);
+        }
+        throw error;
+      }
+    }
+    if (method === 'GET' && path === '/api/directives') {
+      return sendJson(response, 200, { items: listDirectives(database, workspace.id, workFilters(url)) });
+    }
+    const directiveMatch = path.match(/^\/api\/directives\/([^/]+)$/);
+    if (method === 'GET' && directiveMatch) {
+      const item = getDirective(database, workspace.id, decodeURIComponent(directiveMatch[1]));
+      if (!item) throw new AppError('directive_not_found', 'Распорядительный документ не найден.', 404);
+      return sendJson(response, 200, item);
+    }
+    if (method === 'GET' && path === '/api/assignments') {
+      return sendJson(response, 200, { items: listAssignments(database, workspace.id, workFilters(url)) });
+    }
+    const assignmentProgressMatch = path.match(/^\/api\/assignments\/([^/]+)\/progress$/);
+    if (method === 'POST' && assignmentProgressMatch) {
+      const item = addAssignmentProgress(database, workspace.id, decodeURIComponent(assignmentProgressMatch[1]), await readJson(request));
+      if (!item) throw new AppError('assignment_not_found', 'Поручение не найдено.', 404);
+      return sendJson(response, 200, item);
+    }
+    const assignmentReportMatch = path.match(/^\/api\/assignments\/([^/]+)\/report$/);
+    if (method === 'POST' && assignmentReportMatch) {
+      const body = await readJson(request);
+      if (!body.documentId) throw new AppError('report_document_required', 'Выберите отчётный документ.', 400);
+      const item = attachAssignmentReport(database, workspace.id, decodeURIComponent(assignmentReportMatch[1]), body);
+      if (!item) throw new AppError('assignment_or_report_not_found', 'Поручение или отчётный документ не найдены.', 404);
+      return sendJson(response, 200, item);
+    }
+    if (method === 'GET' && path === '/api/periodic-tasks') {
+      return sendJson(response, 200, { items: listPeriodicTasks(database, workspace.id, workFilters(url)) });
+    }
+    if (method === 'POST' && path === '/api/periodic-tasks') {
+      const body = await readJson(request);
+      try { return sendJson(response, 201, createPeriodicTask(database, workspace.id, body)); }
+      catch (error) {
+        if (String(error?.message || error) === 'periodic_task_fields_required') {
+          throw new AppError('periodic_task_fields_required', 'Укажите название, период и срок задачи.', 400);
+        }
+        throw error;
+      }
+    }
+    if (method === 'GET' && path === '/api/work/search') {
+      return sendJson(response, 200, searchWork(database, workspace.id, workFilters(url)));
+    }
+
     if (method === 'GET' && path === '/api/calendar') {
       return sendJson(response, 200, {
         items: listCalendarItems(database, workspace.id, {
@@ -274,7 +352,10 @@ export function createRouter({ database, config, logger }) {
       });
     }
     if (method === 'GET' && path === '/api/notifications') {
-      const items = listNotifications(database, workspace.id, { limit: integerParam(url.searchParams.get('limit'), 50, 200) });
+      const items = listNotifications(database, workspace.id, {
+        limit: integerParam(url.searchParams.get('limit'), 50, 200),
+        personId: url.searchParams.get('personId') || null
+      });
       return sendJson(response, 200, { items, unread: items.filter((item) => !item.read).length });
     }
     if (method === 'POST' && path === '/api/notifications/state') {

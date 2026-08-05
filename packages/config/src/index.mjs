@@ -29,6 +29,11 @@ export function loadConfig(env = process.env, cwd = process.cwd()) {
     ocrMaxPages: integer(env.KAFEDRA_OCR_MAX_PAGES, 50, { min: 1, max: 500 }),
     ocrMinCharacters: integer(env.KAFEDRA_OCR_MIN_CHARACTERS, 40, { min: 0, max: 5000 }),
     previewEnabled: boolean(env.KAFEDRA_PREVIEW_ENABLED, true),
+    llmEnabled: boolean(env.KAFEDRA_LLM_ENABLED, false),
+    llmEndpoint: String(env.KAFEDRA_LLM_ENDPOINT || '').trim(),
+    llmModel: String(env.KAFEDRA_LLM_MODEL || 'local-model').trim() || 'local-model',
+    llmTimeoutMs: integer(env.KAFEDRA_LLM_TIMEOUT_MS, 45_000, { min: 1_000, max: 300_000 }),
+    llmMaxTokens: integer(env.KAFEDRA_LLM_MAX_TOKENS, 4096, { min: 256, max: 32768 }),
     publicDir: resolve(cwd, 'public'),
     migrationsDir: resolve(cwd, 'migrations'),
     logLevel: env.KAFEDRA_LOG_LEVEL || 'info'
