@@ -1,13 +1,14 @@
 import { test, expect } from '@playwright/test';
 
-async function openDocuments(page) {
-  const button = page.locator('button[data-view="documents"]:visible').first();
-  await button.click();
-  await expect(page.locator('[data-view-panel="documents"]')).toBeVisible();
+async function openView(page, view) {
+  const mobileButton = page.locator(`.mobile-tab[data-view="${view}"]`);
+  if (await mobileButton.isVisible()) await mobileButton.click();
+  else await page.locator(`.nav-item[data-view="${view}"]`).click();
+  await expect(page.locator(`[data-view-panel="${view}"]`)).toBeVisible();
 }
 
 async function uploadAndWait(page) {
-  await openDocuments(page);
+  await openView(page, 'documents');
   await page.locator('#file-input').setInputFiles({
     name: 'evidence.txt',
     mimeType: 'text/plain',
@@ -18,8 +19,8 @@ async function uploadAndWait(page) {
     const body = await response.json();
     return body.items?.[0]?.processing_status;
   }, { timeout: 30_000 }).toMatch(/processed|needs_review/);
-  await page.locator('button[data-view="calendar"]:visible').first().click();
-  await openDocuments(page);
+  await openView(page, 'calendar');
+  await openView(page, 'documents');
 }
 
 test('desktop: документ показывает структурный источник в инспекторе', async ({ page }, testInfo) => {
