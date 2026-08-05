@@ -19,5 +19,8 @@
     "test:browser": "playwright test",
     "bundle:offline": "bash scripts/offline/build-bundle.sh",
     "bundle:verify": "bash scripts/offline/verify-bundle.sh"
+  },
+  "devDependencies": {
+    "@playwright/test": "1.61.1"
   }
 }
