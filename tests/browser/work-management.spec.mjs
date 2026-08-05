@@ -1,7 +1,7 @@
 import { test, expect } from '@playwright/test';
 
 test('распоряжение создаёт поручение и отображается в рабочем поиске', async ({ page }, testInfo) => {
-  test.skip(testInfo.project.name !== 'desktop', 'Основной рабочий поток проверяется на desktop');
+  test.skip(testInfo.project.name !== 'workflow-desktop', 'Основной рабочий поток запускается в изолированном desktop-проекте');
   await page.goto('/');
   await page.locator('button[data-view="documents"]:visible').first().click();
   await page.locator('#file-input').setInputFiles({
