@@ -33,17 +33,5 @@ jobs:
         run: npx playwright install --with-deps chromium
       - name: Проверить desktop и mobile UX
         run: npm run test:browser
-
-  reports-science-browser:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
-        with:
-          node-version: 24.18.0
-      - name: Установить инструменты браузерной проверки
-        run: npm install --ignore-scripts --no-audit --no-fund
-      - name: Установить Chromium
-        run: npx playwright install --with-deps chromium
       - name: Проверить отчёты, подтверждение и научный реестр
         run: npm run test:browser:reports-science
