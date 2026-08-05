@@ -27,9 +27,20 @@ async function refreshReportMatchesOnOpen() {
   }
 }
 
+function releaseInspectorBackdrop() {
+  const inspector = document.querySelector('#ux-inspector');
+  const openSheet = document.querySelector('.sheet:not(.hidden)');
+  if (!inspector?.classList.contains('hidden') || openSheet) return;
+  document.querySelector('#sheet-backdrop')?.classList.add('hidden');
+  document.body.style.overflow = '';
+}
+
 document.addEventListener('click', (event) => {
   if (event.target.closest('[data-view="work"]')) {
     setTimeout(() => refreshReportMatchesOnOpen(), 0);
+  }
+  if (event.target.closest('#ux-inspector-close')) {
+    setTimeout(releaseInspectorBackdrop, 0);
   }
 }, true);
 
