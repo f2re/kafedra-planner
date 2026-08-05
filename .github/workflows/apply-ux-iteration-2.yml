@@ -5,7 +5,7 @@ on:
     branches:
       - agent/inspector-drafts-ux
     paths:
-      - .ux-iteration-2/ready
+      - .ux-iteration-2/ready-*
 
 permissions:
   contents: write
@@ -24,7 +24,7 @@ jobs:
       - name: Проверить и развернуть изменения
         shell: bash
         run: |
-          cat .ux-iteration-2/part-* | base64 --decode > /tmp/kafedra-ux3.tar.gz
+          cat .ux-iteration-2/chunk-* | base64 --decode > /tmp/kafedra-ux3.tar.gz
           echo "3b0cd0a124dd39a0f1944e2c7e7d02eb8e6f9d63ce72d8ee0db1bafff0130cd3  /tmp/kafedra-ux3.tar.gz" | sha256sum -c -
           tar -xzf /tmp/kafedra-ux3.tar.gz
           node scripts/apply-ux-iteration-2.mjs
