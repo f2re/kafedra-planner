@@ -28,6 +28,32 @@ jobs:
           cat .rc2/part-* | base64 --decode > /tmp/kafedra-rc2.tar.gz
           echo "a498f7683b69adf1c81cc8baf8ec1fa324d08b156cbe4876e18976034d6a9fc8  /tmp/kafedra-rc2.tar.gz" | sha256sum -c -
           tar -xzf /tmp/kafedra-rc2.tar.gz
+          node --input-type=module <<'NODE'
+          import { readFileSync, writeFileSync } from 'node:fs';
+          const path = 'packages/auth/src/readiness.mjs';
+          let source = readFileSync(path, 'utf8');
+          source = source.replace(
+            "function latestBackup(backupDir) {\n  const path = join(backupDir, 'latest-success.json');",
+            "function latestBackup(backupDir) {\n  if (!backupDir) return null;\n  const path = join(backupDir, 'latest-success.json');"
+          );
+          source = source.replace(
+            '  const backup = latestBackup(config.backupDir);\n  const backupAgeHours',
+            '  const backupRequired = Boolean(config.backupRequired);\n  const backupMaxAgeHours = Number.isFinite(Number(config.backupMaxAgeHours))\n    ? Number(config.backupMaxAgeHours)\n    : 24;\n  const backup = latestBackup(config.backupDir);\n  const backupAgeHours'
+          );
+          source = source.replace(
+            'backupAgeHours <= config.backupMaxAgeHours',
+            'backupAgeHours <= backupMaxAgeHours'
+          );
+          source = source.replace(
+            '!config.backupRequired || backupFresh',
+            '!backupRequired || backupFresh'
+          );
+          source = source.replace(
+            'config.backupRequired\n          ? `Нет проверенной копии моложе ${config.backupMaxAgeHours} ч.',
+            'backupRequired\n          ? `Нет проверенной копии моложе ${backupMaxAgeHours} ч.'
+          );
+          writeFileSync(path, source);
+          NODE
           npm run check
           npm test
           npm run smoke
