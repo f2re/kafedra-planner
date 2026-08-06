@@ -18,6 +18,8 @@ jobs:
       - run: npm run check
       - run: npm test
       - run: npm run smoke
+      - name: Проверить создание и полное восстановление резервной копии
+        run: npm run backup:selftest
       - run: bash -n scripts/offline/*.sh deploy/install.sh
 
   browser:
