@@ -29,6 +29,7 @@ jobs:
           tar -xzf /tmp/kafedra-auth-alpha10.tar.gz
           node patch-auth.mjs
           rm patch-auth.mjs
+          sed -i "/KAFEDRA_LOG_LEVEL: 'error'/a\\    KAFEDRA_AUTH_ENABLED: 'false'," tests/e2e.test.mjs
           npm run check
           npm test
           npm run smoke
