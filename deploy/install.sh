@@ -159,7 +159,7 @@ trap rollback_installation ERR
 systemctl stop "$API_SERVICE" "$WORKER_SERVICE" >/dev/null 2>&1 || true
 load_environment
 if [[ -f "$DATA_DIR/kafedra-planner.sqlite3" ]]; then
-  BACKUP_JSON="$(runuser -u kafedra-planner -- env \
+  BACKUP_JSON="$(env \
     KAFEDRA_DATA_DIR="$DATA_DIR" \
     KAFEDRA_DATABASE_PATH="$DATA_DIR/kafedra-planner.sqlite3" \
     KAFEDRA_APPLICATION_DIR="${PREVIOUS_RELEASE:-$RELEASE_DIR}" \
@@ -171,6 +171,8 @@ if [[ -f "$DATA_DIR/kafedra-planner.sqlite3" ]]; then
   BACKUP_ARCHIVE="$(printf '%s' "$BACKUP_JSON" | "$RELEASE_DIR/runtime/node/bin/node" -e \
     "let s='';process.stdin.on('data',c=>s+=c).on('end',()=>process.stdout.write(JSON.parse(s).archivePath||''));")"
   [[ -n "$BACKUP_ARCHIVE" && -f "$BACKUP_ARCHIVE" ]] || { echo "Не удалось определить созданную резервную копию" >&2; exit 6; }
+  chown -R kafedra-planner:kafedra-planner "$BACKUP_DIR"
+  chmod 0700 "$BACKUP_DIR"
   echo "Создана и проверена резервная копия: $BACKUP_ARCHIVE"
 fi
 

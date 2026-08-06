@@ -26,10 +26,12 @@ npm run backup:create
 ```bash
 npm run backup:create -- --reason manual-before-maintenance
 npm run backup:create -- --output-dir /mnt/nas/kafedra --keep 30
-npm run backup:create -- --key-file /root/kafedra-backup.key
+sudo npm run backup:create -- --key-file /root/kafedra-backup.key
 ```
 
-Ключевой файл должен содержать не менее 16 случайных байт. При наличии ключа
+Ключевой файл должен содержать не менее 16 случайных байт. Если ключ доступен
+только `root`, создание и восстановление запускаются от `root`; штатный
+`deploy/install.sh` именно так и работает. Сам API ключ шифрования не читает. При наличии ключа
 архив шифруется AES-256-GCM и получает расширение `.kpb`.
 
 ## Проверка
@@ -83,6 +85,8 @@ systemctl start kafedra-planner-api kafedra-planner-worker
 6. при любой ошибке восстанавливает данные и прежний symlink автоматически.
 
 Прямой запуск `npm run migrate` также создаёт копию при наличии новых миграций.
+При ошибке он восстанавливает только SQLite-файл внутри доступного каталога данных,
+поэтому откат работает и от имени системного пользователя `kafedra-planner`.
 Отключить это можно только явно: `KAFEDRA_AUTO_BACKUP_BEFORE_MIGRATION=false`.
 
 ## Ротация и диагностика

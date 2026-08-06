@@ -13,6 +13,7 @@ import {
 import {
   access,
   appendFile,
+  chmod,
   copyFile,
   cp,
   mkdir,
@@ -184,6 +185,13 @@ async function assertSafeTar(archivePath) {
   for (const entry of entries) {
     if (!ensureArchiveEntrySafe(entry)) throw new Error(`Unsafe archive entry: ${entry}`);
   }
+  const { stdout: verbose } = await run('tar', ['-tvzf', archivePath]);
+  for (const line of verbose.split(/\r?\n/).filter(Boolean)) {
+    const type = line[0];
+    if (type !== '-' && type !== 'd') {
+      throw new Error(`Unsupported archive entry type: ${type}`);
+    }
+  }
   if (!entries.some((entry) => entry === `${ARCHIVE_ROOT}/manifest.json`)) {
     throw new Error('Backup manifest is missing.');
   }
@@ -320,6 +328,17 @@ async function materializeArchive(archivePath, { keyFile } = {}) {
 async function verifyMaterialized(root, manifest) {
   const expected = new Map((manifest.files || []).map((record) => [record.path, record]));
   if (!expected.size) throw new Error('Backup manifest contains no files.');
+  const actual = new Set(
+    (await walkFiles(root))
+      .map((path) => relative(root, path).split(sep).join('/'))
+      .filter((name) => name !== 'manifest.json')
+  );
+  if (actual.size !== expected.size) {
+    throw new Error(`Backup manifest file count mismatch: ${actual.size} != ${expected.size}`);
+  }
+  for (const name of actual) {
+    if (!expected.has(name)) throw new Error(`Backup contains unmanifested file: ${name}`);
+  }
   for (const [name, record] of expected) {
     if (!ensureArchiveEntrySafe(name)) throw new Error(`Unsafe manifest path: ${name}`);
     const path = join(root, ...name.split('/'));
@@ -446,7 +465,10 @@ export async function createBackup({
     await writeFile(join(root, 'manifest.json'), `${JSON.stringify(manifest, null, 2)}\n`, { mode: 0o600 });
     await run('tar', ['-C', workDir, '-czf', rawArchive, ARCHIVE_ROOT]);
     if (keyFile) await encryptArchive(rawArchive, finalArchive, keyFile);
-    else await copyFile(rawArchive, finalArchive);
+    else {
+      await copyFile(rawArchive, finalArchive);
+      await chmod(finalArchive, 0o600);
+    }
     const verification = await verifyBackup({ archivePath: finalArchive, keyFile });
     const archiveInfo = await stat(finalArchive);
     const record = {
@@ -534,6 +556,89 @@ async function atomicReplaceFile(source, target, force, suffix) {
   return rollback;
 }
 
+export async function restoreDatabaseFile({
+  archivePath,
+  keyFile = null,
+  targetDatabasePath,
+  apply = false,
+  force = false,
+  now = new Date()
+} = {}) {
+  if (!archivePath || !(await exists(archivePath))) throw new Error('Backup archive does not exist.');
+  if (!targetDatabasePath) throw new Error('Target database path is required.');
+  const materialized = await materializeArchive(resolve(archivePath), { keyFile });
+  const target = resolve(targetDatabasePath);
+  const suffix = safeStamp(now);
+  try {
+    const verified = await verifyMaterialized(materialized.root, materialized.manifest);
+    if (!apply) {
+      return {
+        status: 'dry-run-ok',
+        archivePath: resolve(archivePath),
+        targetDatabasePath: target,
+        manifest: materialized.manifest,
+        ...verified
+      };
+    }
+    await mkdir(dirname(target), { recursive: true });
+    const targetExists = await exists(target);
+    if (targetExists && !force) {
+      throw new Error(`Target already exists: ${target}. Use --force with --apply.`);
+    }
+    const source = join(
+      materialized.root,
+      ...materialized.manifest.contents.database.split('/')
+    );
+    const temporary = `${target}.restore-${suffix}`;
+    const rollback = targetExists ? `${target}.before-restore-${suffix}` : null;
+    await copyFile(source, temporary);
+    const copied = openReadonlyDatabase(temporary);
+    try {
+      const quickCheck = copied.prepare('PRAGMA quick_check').get()?.quick_check;
+      if (quickCheck !== 'ok') throw new Error(`Restored database quick_check failed: ${quickCheck}`);
+    } finally {
+      copied.close();
+    }
+    await rm(`${target}-wal`, { force: true });
+    await rm(`${target}-shm`, { force: true });
+    if (rollback) {
+      await rm(rollback, { force: true });
+      await rename(target, rollback);
+    }
+    try {
+      await rename(temporary, target);
+    } catch (error) {
+      await rm(temporary, { force: true });
+      if (rollback && await exists(rollback) && !(await exists(target))) {
+        await rename(rollback, target);
+      }
+      throw error;
+    }
+    return {
+      status: 'restored',
+      archivePath: resolve(archivePath),
+      targetDatabasePath: target,
+      rollback,
+      manifest: materialized.manifest,
+      ...verified
+    };
+  } finally {
+    await rm(materialized.workDir, { recursive: true, force: true });
+  }
+}
+
+async function undoDirectoryReplacement(target, rollback) {
+  if (!rollback || !(await exists(rollback))) return;
+  await rm(target, { recursive: true, force: true });
+  await rename(rollback, target);
+}
+
+async function undoFileReplacement(target, rollback) {
+  if (!target || !rollback || !(await exists(rollback))) return;
+  await rm(target, { force: true });
+  await rename(rollback, target);
+}
+
 export async function restoreBackup({
   archivePath,
   keyFile = null,
@@ -586,7 +691,16 @@ export async function restoreBackup({
         rollbacks.application = await atomicReplaceDirectory(applicationStaging, targetApplication, force, suffix);
       }
     } catch (error) {
-      throw Object.assign(error, { rollbacks });
+      await undoDirectoryReplacement(
+        targetApplicationDir ? resolve(targetApplicationDir) : null,
+        rollbacks.application
+      ).catch(() => {});
+      await undoFileReplacement(
+        targetConfigPath ? resolve(targetConfigPath) : null,
+        rollbacks.config
+      ).catch(() => {});
+      await undoDirectoryReplacement(targetData, rollbacks.data).catch(() => {});
+      throw Object.assign(error, { rollbacks, rollbackAttempted: true });
     }
     return {
       status: 'restored',

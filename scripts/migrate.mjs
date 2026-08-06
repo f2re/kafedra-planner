@@ -4,7 +4,7 @@ import { ensureDefaultWorkspace } from '../packages/storage/src/bootstrap.mjs';
 import {
   createBackup,
   hasPendingMigrations,
-  restoreBackup
+  restoreDatabaseFile
 } from '../packages/backup/src/service.mjs';
 
 const config = loadConfig();
@@ -48,11 +48,10 @@ try {
     database = null;
   }
   if (backup?.archivePath) {
-    await restoreBackup({
+    await restoreDatabaseFile({
       archivePath: backup.archivePath,
       keyFile: config.backupEncryptionKeyFile || null,
-      targetDataDir: config.dataDir,
-      targetConfigPath: config.backupConfigPath || null,
+      targetDatabasePath: config.databasePath,
       apply: true,
       force: true
     });
