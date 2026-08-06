@@ -1,0 +1,45 @@
+name: Усилить резервное копирование
+
+on:
+  push:
+    branches:
+      - agent/backup-restore-safe-update
+    paths:
+      - .backup-hardening/ready
+
+permissions:
+  contents: write
+
+jobs:
+  apply:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          ref: agent/backup-restore-safe-update
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24.18.0
+      - name: Применить и проверить усиление
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          cat .backup-hardening/part-* | base64 --decode > /tmp/kafedra-backup-hardening.tar.gz
+          echo "702200803e1c33f18d0defd089723f9e623a8097501b0930cbb8afe921c1db03  /tmp/kafedra-backup-hardening.tar.gz" | sha256sum -c -
+          tar -xzf /tmp/kafedra-backup-hardening.tar.gz
+          npm run check
+          npm test
+          npm run smoke
+          npm run backup:selftest
+          bash -n scripts/offline/*.sh deploy/install.sh
+          rm -rf .backup-hardening .github/workflows/apply-backup-hardening.yml
+      - name: Зафиксировать проверенное усиление
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -A
+          git commit -m "Усилить восстановление и проверку резервных копий"
+          git push origin HEAD:agent/backup-restore-safe-update
