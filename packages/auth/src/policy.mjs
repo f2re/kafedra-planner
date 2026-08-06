@@ -79,6 +79,9 @@ export function scopePlanFactFilters(database, workspaceId, context, filters) {
   if (scoped.managerPersonId && scoped.managerPersonId !== context.personId) {
     throw new AppError('manager_scope_forbidden', 'Руководитель может открыть только собственную зону контроля.', 403);
   }
+  if (!scoped.ownerPersonId && !scoped.managerPersonId) {
+    scoped.managerPersonId = context.personId;
+  }
   return scoped;
 }
 
