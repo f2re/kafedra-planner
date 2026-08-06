@@ -29,7 +29,7 @@ jobs:
           tar -xzf /tmp/kafedra-auth-alpha10.tar.gz
           node patch-auth.mjs
           rm patch-auth.mjs
-          sed -i "/KAFEDRA_LOG_LEVEL: 'error'/a\\    KAFEDRA_AUTH_ENABLED: 'false'," tests/e2e.test.mjs
+          node --input-type=module -e "import{readFileSync,writeFileSync}from'node:fs';const p='tests/e2e.test.mjs';let s=readFileSync(p,'utf8');s=s.replace(\"    KAFEDRA_LOG_LEVEL: 'error'\\n\",\"    KAFEDRA_LOG_LEVEL: 'error',\\n    KAFEDRA_AUTH_ENABLED: 'false'\\n\");writeFileSync(p,s);"
           npm run check
           npm test
           npm run smoke
