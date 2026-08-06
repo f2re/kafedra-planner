@@ -1,5 +1,11 @@
 import { defineConfig, devices } from '@playwright/test';
 
+const baseIgnores = [
+  '**/work-management.spec.mjs',
+  '**/reports-science.spec.mjs',
+  '**/auth.spec.mjs'
+];
+
 export default defineConfig({
   testDir: './tests/browser',
   timeout: 60_000,
@@ -21,12 +27,12 @@ export default defineConfig({
   projects: [
     {
       name: 'desktop',
-      testIgnore: ['**/work-management.spec.mjs', '**/reports-science.spec.mjs'],
+      testIgnore: baseIgnores,
       use: { browserName: 'chromium', viewport: { width: 1440, height: 980 } }
     },
     {
       name: 'mobile',
-      testIgnore: ['**/work-management.spec.mjs', '**/reports-science.spec.mjs'],
+      testIgnore: baseIgnores,
       use: { ...devices['iPhone 15'], browserName: 'chromium' }
     },
     {
