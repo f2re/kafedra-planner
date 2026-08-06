@@ -1,0 +1,69 @@
+name: Исправить состояние меню авторизации
+
+on:
+  push:
+    branches:
+      - agent/release-candidate-readiness
+    paths:
+      - .rc-menu/ready
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          ref: agent/release-candidate-readiness
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24.18.0
+      - name: Исправить меню и проверить код
+        shell: bash
+        run: |
+          node --input-type=module <<'NODE'
+          import { readFileSync, writeFileSync } from 'node:fs';
+          const path = 'public/auth-next.js';
+          let source = readFileSync(path, 'utf8');
+          const from = `document.addEventListener('click', (event) => {
+            const userButton = event.target.closest('.auth-user-button');
+            if (userButton) {
+              const menu = document.querySelector('.auth-user-menu');
+              const open = menu.classList.toggle('hidden') === false;
+              userButton.setAttribute('aria-expanded', String(open));
+            }
+            const action = event.target.closest('[data-auth-action]')?.dataset.authAction;
+            if (action === 'password') showPasswordDialog(false);`;
+          const to = `function closeAuthMenu() {
+            document.querySelector('.auth-user-menu')?.classList.add('hidden');
+            document.querySelector('.auth-user-button')?.setAttribute('aria-expanded', 'false');
+          }
+
+          document.addEventListener('click', (event) => {
+            const userButton = event.target.closest('.auth-user-button');
+            if (userButton) {
+              const menu = document.querySelector('.auth-user-menu');
+              const open = menu.classList.toggle('hidden') === false;
+              userButton.setAttribute('aria-expanded', String(open));
+            }
+            const action = event.target.closest('[data-auth-action]')?.dataset.authAction;
+            if (action) closeAuthMenu();
+            if (action === 'password') showPasswordDialog(false);`;
+          if (!source.includes(from)) throw new Error('Фрагмент меню авторизации не найден');
+          source = source.replace(from, to);
+          writeFileSync(path, source);
+          NODE
+          node --check public/auth-next.js
+          npm test
+          rm -rf .rc-menu .github/workflows/patch-auth-menu.yml
+      - name: Зафиксировать исправление
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -A
+          git diff --cached --quiet && exit 0
+          git commit -m "Синхронизировать меню пользователя и административную панель"
+          git push origin HEAD:agent/release-candidate-readiness
