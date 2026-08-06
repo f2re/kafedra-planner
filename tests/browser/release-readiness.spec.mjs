@@ -39,8 +39,19 @@ test('release candidate защищает изменения и предоста�
   await expect(page.locator('#admin-accounts-body')).toContainText('Иванов Иван Иванович');
 
   page.once('dialog', (dialog) => dialog.accept());
-  await page.locator('#admin-revoke-all').click();
-  await expect(page.locator('#admin-access-status')).toContainText('Завершено сессий');
+  const [revokeResponse] = await Promise.all([
+    page.waitForResponse((response) =>
+      response.url().endsWith('/api/admin/sessions/revoke-all')
+        && response.request().method() === 'POST'
+    ),
+    page.locator('#admin-revoke-all').click()
+  ]);
+  expect(revokeResponse.status()).toBe(200);
+  const sessionsResponse = await page.request.get('/api/admin/sessions');
+  expect(sessionsResponse.status()).toBe(200);
+  const sessions = await sessionsResponse.json();
+  expect(sessions.items.filter((item) => item.active)).toHaveLength(1);
+  expect(sessions.items.find((item) => item.active)?.current).toBe(true);
 
   await page.locator('[data-admin-close]').click();
   await page.locator('.auth-user-button').click();
