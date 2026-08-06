@@ -54,7 +54,9 @@ test('release candidate защищает изменения и предоста�
   expect(sessions.items.find((item) => item.active)?.current).toBe(true);
 
   await page.locator('[data-admin-close]').click();
+  await expect(page.locator('#admin-access-panel')).toBeHidden();
   await page.locator('.auth-user-button').click();
+  await expect(page.locator('[data-auth-action="logout"]')).toBeVisible();
   await page.locator('[data-auth-action="logout"]').click();
   await expect(page.locator('#auth-gate')).toBeVisible();
 
