@@ -161,6 +161,7 @@ export async function serveStatic(response, publicDir, pathname) {
       if (!html.includes('/reports-science-next.js')) scripts.push('  <script type="module" src="/reports-science-next.js"></script>');
       if (!html.includes('/report-match-refresh.js')) scripts.push('  <script type="module" src="/report-match-refresh.js"></script>');
       if (!html.includes('/plan-fact-next.js')) scripts.push('  <script type="module" src="/plan-fact-next.js"></script>');
+      if (!html.includes('/plan-fact-tools.js')) scripts.push('  <script type="module" src="/plan-fact-tools.js"></script>');
       if (scripts.length) content = Buffer.from(html.replace('</body>', scripts.join('\n') + '\n</body>'));
     }
     response.writeHead(200, {

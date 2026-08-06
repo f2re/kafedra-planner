@@ -1,9 +1,22 @@
 import { AppError } from '../../../packages/core/src/errors.mjs';
+import { rebuildPlanFact } from '../../../packages/plan-fact/src/service.mjs';
 import {
-  getAssignmentPlanFact,
-  listPlanFact,
-  rebuildPlanFact
-} from '../../../packages/plan-fact/src/service.mjs';
+  createMetricCorrection,
+  getCorrectedAssignmentPlanFact,
+  listCorrectedPlanFact,
+  listMetricCorrections,
+  revertMetricCorrection
+} from '../../../packages/plan-fact/src/corrections.mjs';
+import {
+  deletePlanFactView,
+  listPlanFactViews,
+  savePlanFactView,
+  touchPlanFactView
+} from '../../../packages/plan-fact/src/views.mjs';
+import {
+  planFactExportCsv,
+  planFactExportJson
+} from '../../../packages/plan-fact/src/export.mjs';
 import {
   listPersonalNotifications,
   setPersonalNotificationState
@@ -42,31 +55,124 @@ function filters(url) {
   };
 }
 
+function attachmentName(value) {
+  return encodeURIComponent(value).replaceAll("'", '%27');
+}
+
+function sendDownload(response, body, {
+  contentType,
+  fileName
+}) {
+  const payload = Buffer.from(body, 'utf8');
+  response.writeHead(200, {
+    'content-type': contentType,
+    'content-length': payload.length,
+    'content-disposition': `attachment; filename*=UTF-8''${attachmentName(fileName)}`,
+    'cache-control': 'private, no-store',
+    'x-content-type-options': 'nosniff'
+  });
+  response.end(payload);
+}
+
 export function createPlanFactRouter({ database }) {
   return async function routePlanFact(request, response, url) {
     const method = request.method || 'GET';
     const path = url.pathname;
+    const assignmentMatch = path.match(/^\/api\/assignments\/([^/]+)\/plan-fact$/);
+    const correctionCollectionMatch = path.match(/^\/api\/assignments\/([^/]+)\/plan-fact\/corrections$/);
+    const correctionRevertMatch = path.match(/^\/api\/plan-fact\/corrections\/([^/]+)\/revert$/);
+    const viewMatch = path.match(/^\/api\/plan-fact\/views\/([^/]+)$/);
     const recognized = path === '/api/plan-fact'
       || path === '/api/plan-fact/rebuild'
+      || path === '/api/plan-fact/export.csv'
+      || path === '/api/plan-fact/export.json'
+      || path === '/api/plan-fact/views'
       || path === '/api/personal-notifications'
       || path === '/api/personal-notifications/state'
-      || /^\/api\/assignments\/[^/]+\/plan-fact$/.test(path);
+      || Boolean(assignmentMatch || correctionCollectionMatch || correctionRevertMatch || viewMatch);
     if (!recognized) return false;
 
     const workspace = workspaceOf(database, request);
+
     if (method === 'GET' && path === '/api/plan-fact') {
-      sendJson(response, 200, listPlanFact(database, workspace.id, filters(url)));
+      sendJson(response, 200, listCorrectedPlanFact(database, workspace.id, filters(url)));
       return true;
     }
     if (method === 'POST' && path === '/api/plan-fact/rebuild') {
       sendJson(response, 200, rebuildPlanFact(database, workspace.id));
       return true;
     }
-    const assignmentMatch = path.match(/^\/api\/assignments\/([^/]+)\/plan-fact$/);
+    if (method === 'GET' && path === '/api/plan-fact/export.csv') {
+      sendDownload(response, planFactExportCsv(database, workspace.id, filters(url)), {
+        contentType: 'text/csv; charset=utf-8',
+        fileName: 'plan-fakt.csv'
+      });
+      return true;
+    }
+    if (method === 'GET' && path === '/api/plan-fact/export.json') {
+      sendDownload(response, planFactExportJson(database, workspace.id, filters(url)), {
+        contentType: 'application/json; charset=utf-8',
+        fileName: 'plan-fakt.json'
+      });
+      return true;
+    }
+    if (method === 'GET' && path === '/api/plan-fact/views') {
+      const personId = url.searchParams.get('personId') || null;
+      sendJson(response, 200, listPlanFactViews(database, workspace.id, personId));
+      return true;
+    }
+    if (method === 'POST' && path === '/api/plan-fact/views') {
+      const body = await readJson(request);
+      sendJson(response, 201, savePlanFactView(database, workspace.id, body));
+      return true;
+    }
+    if (method === 'POST' && viewMatch) {
+      touchPlanFactView(database, workspace.id, decodeURIComponent(viewMatch[1]));
+      sendJson(response, 200, { status: 'used' });
+      return true;
+    }
+    if (method === 'DELETE' && viewMatch) {
+      const personId = url.searchParams.get('personId') || null;
+      deletePlanFactView(database, workspace.id, decodeURIComponent(viewMatch[1]), personId);
+      sendJson(response, 200, { status: 'deleted' });
+      return true;
+    }
     if (method === 'GET' && assignmentMatch) {
-      const item = getAssignmentPlanFact(database, workspace.id, decodeURIComponent(assignmentMatch[1]));
+      const item = getCorrectedAssignmentPlanFact(
+        database,
+        workspace.id,
+        decodeURIComponent(assignmentMatch[1])
+      );
       if (!item) throw new AppError('assignment_not_found', 'Поручение не найдено.', 404);
       sendJson(response, 200, item);
+      return true;
+    }
+    if (method === 'GET' && correctionCollectionMatch) {
+      const assignmentId = decodeURIComponent(correctionCollectionMatch[1]);
+      const item = getCorrectedAssignmentPlanFact(database, workspace.id, assignmentId);
+      if (!item) throw new AppError('assignment_not_found', 'Поручение не найдено.', 404);
+      sendJson(response, 200, { items: listMetricCorrections(database, workspace.id, assignmentId) });
+      return true;
+    }
+    if (method === 'POST' && correctionCollectionMatch) {
+      const assignmentId = decodeURIComponent(correctionCollectionMatch[1]);
+      const body = await readJson(request);
+      sendJson(response, 201, createMetricCorrection(
+        database,
+        workspace.id,
+        assignmentId,
+        body
+      ));
+      return true;
+    }
+    if (method === 'POST' && correctionRevertMatch) {
+      const body = await readJson(request);
+      sendJson(response, 200, revertMetricCorrection(
+        database,
+        workspace.id,
+        decodeURIComponent(correctionRevertMatch[1]),
+        body
+      ));
       return true;
     }
     if (method === 'GET' && path === '/api/personal-notifications') {
