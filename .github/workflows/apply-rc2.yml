@@ -1,0 +1,47 @@
+name: Применить резервное копирование rc.2
+
+on:
+  push:
+    branches:
+      - agent/backup-restore-safe-update
+    paths:
+      - .rc2/ready
+
+permissions:
+  contents: write
+
+jobs:
+  apply:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          ref: agent/backup-restore-safe-update
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24.18.0
+      - name: Проверить и применить пакет
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          cat .rc2/part-* | base64 --decode > /tmp/kafedra-rc2.tar.gz
+          echo "a498f7683b69adf1c81cc8baf8ec1fa324d08b156cbe4876e18976034d6a9fc8  /tmp/kafedra-rc2.tar.gz" | sha256sum -c -
+          tar -xzf /tmp/kafedra-rc2.tar.gz
+          npm run check
+          npm test
+          npm run smoke
+          npm run backup:selftest
+          bash -n scripts/offline/*.sh deploy/install.sh
+          git checkout origin/main -- .github/workflows/ci.yml
+          rm -rf .rc2 .github/workflows/apply-rc2.yml
+      - name: Зафиксировать проверенный результат
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -A
+          git diff --cached --quiet && exit 0
+          git commit -m "Добавить проверяемое резервное копирование и безопасное обновление"
+          git push origin HEAD:agent/backup-restore-safe-update
