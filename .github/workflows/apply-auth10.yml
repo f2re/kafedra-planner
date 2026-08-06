@@ -34,6 +34,7 @@ jobs:
           npm test
           npm run smoke
           bash -n scripts/offline/*.sh deploy/install.sh
+          git checkout -- .github/workflows/ci.yml
           rm -rf .auth10 .github/workflows/apply-auth10.yml
       - name: Зафиксировать проверенный результат
         run: |
