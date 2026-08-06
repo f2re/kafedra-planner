@@ -205,17 +205,18 @@ export function resetAuthPassword(database, workspaceId, accountId, password, {
 
 export function createSession(database, accountId, request, config, now = new Date()) {
   const token = randomSessionToken();
+  const csrfToken = randomSessionToken();
   const id = newId('session');
   const expiresAt = isoAfterHours(now, config.authSessionHours || 12);
   database.run(`
     INSERT INTO auth_sessions(
-      id, account_id, token_hash, created_at, expires_at, last_seen_at,
+      id, account_id, token_hash, csrf_token, created_at, expires_at, last_seen_at,
       user_agent, ip_hash
-    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-  `, id, accountId, hashSessionToken(token), now.toISOString(), expiresAt,
+    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+  `, id, accountId, hashSessionToken(token), csrfToken, now.toISOString(), expiresAt,
   now.toISOString(), String(request.headers['user-agent'] || '').slice(0, 500) || null,
   opaqueNetworkHash(requestIp(request, config)));
-  return { id, token, expiresAt };
+  return { id, token, csrfToken, expiresAt };
 }
 
 export function sessionCookie(config, token, expiresAt) {
@@ -307,7 +308,7 @@ export function resolveAuthContext(database, request, config, now = new Date()) 
   const token = cookies[config.authCookieName || 'kafedra_session'];
   if (!token) return { enabled: true, authenticated: false, user: null };
   const row = database.get(`
-    SELECT s.id AS session_id, s.expires_at, s.last_seen_at,
+    SELECT s.id AS session_id, s.expires_at, s.last_seen_at, s.csrf_token,
       a.*, p.display_name, p.email, p.position, p.manager_id,
       manager.display_name AS manager_name
     FROM auth_sessions s
@@ -318,6 +319,10 @@ export function resolveAuthContext(database, request, config, now = new Date()) 
       AND s.expires_at > ? AND a.is_active = 1
   `, hashSessionToken(token), now.toISOString());
   if (!row) return { enabled: true, authenticated: false, user: null };
+  if (!row.csrf_token) {
+    row.csrf_token = randomSessionToken();
+    database.run('UPDATE auth_sessions SET csrf_token = ? WHERE id = ?', row.csrf_token, row.session_id);
+  }
   if (now.getTime() - new Date(row.last_seen_at).getTime() > 5 * 60_000) {
     database.run('UPDATE auth_sessions SET last_seen_at = ? WHERE id = ?', now.toISOString(), row.session_id);
   }
@@ -329,6 +334,7 @@ export function resolveAuthContext(database, request, config, now = new Date()) 
     workspaceId: row.workspace_id,
     personId: row.person_id,
     role: row.role,
+    csrfToken: row.csrf_token,
     mustChangePassword: Boolean(row.must_change_password),
     sessionId: row.session_id,
     user: account

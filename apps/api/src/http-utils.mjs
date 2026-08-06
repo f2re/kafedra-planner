@@ -156,6 +156,7 @@ export async function serveStatic(response, publicDir, pathname) {
       const html = content.toString('utf8');
       const scripts = [];
       if (!html.includes('/auth-next.js')) scripts.push('  <script type="module" src="/auth-next.js"></script>');
+      if (!html.includes('/admin-next.js')) scripts.push('  <script type="module" src="/admin-next.js"></script>');
       if (!html.includes('/preview-next.js')) scripts.push('  <script type="module" src="/preview-next.js"></script>');
       if (!html.includes('/template-binding.js')) scripts.push('  <script type="module" src="/template-binding.js"></script>');
       if (!html.includes('/work-next.js')) scripts.push('  <script type="module" src="/work-next.js"></script>');
