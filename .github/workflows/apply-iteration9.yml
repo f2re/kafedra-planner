@@ -27,6 +27,7 @@ jobs:
           cat .iteration9/part-* | base64 --decode > /tmp/kafedra-alpha9.tar.gz
           echo "b7190f5c18b3941c532b5fa3010fa21b6f7b828a98784ea7242bec5893dcb76c  /tmp/kafedra-alpha9.tar.gz" | sha256sum -c -
           tar -xzf /tmp/kafedra-alpha9.tar.gz
+          sed -i 's/superseded_by_id TEXT REFERENCES plan_fact_metric_corrections(id) ON DELETE SET NULL,/superseded_by_id TEXT REFERENCES plan_fact_metric_corrections(id) ON DELETE SET NULL DEFERRABLE INITIALLY DEFERRED,/' migrations/009_plan_fact_corrections_views.sql
           npm run check
           npm test
           npm run smoke
