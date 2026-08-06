@@ -1,6 +1,20 @@
+import { existsSync, readFileSync } from 'node:fs';
+import { join } from 'node:path';
+
 function isLoopback(host) {
   const value = String(host || '').toLowerCase();
   return ['127.0.0.1', 'localhost', '::1'].includes(value);
+}
+
+function latestBackup(backupDir) {
+  if (!backupDir) return null;
+  const path = join(backupDir, 'latest-success.json');
+  if (!existsSync(path)) return null;
+  try {
+    return JSON.parse(readFileSync(path, 'utf8'));
+  } catch {
+    return null;
+  }
 }
 
 export function getReleaseReadiness(database, workspaceId, config) {
@@ -25,6 +39,15 @@ export function getReleaseReadiness(database, workspaceId, config) {
     JOIN auth_accounts a ON a.id = s.account_id
     WHERE a.workspace_id = ? AND s.revoked_at IS NULL AND s.expires_at > ?
   `, workspaceId, new Date().toISOString())?.count || 0);
+  const backupRequired = Boolean(config.backupRequired);
+  const backupMaxAgeHours = Number.isFinite(Number(config.backupMaxAgeHours))
+    ? Number(config.backupMaxAgeHours)
+    : 24;
+  const backup = latestBackup(config.backupDir);
+  const backupAgeHours = backup?.verifiedAt
+    ? Math.max(0, (Date.now() - new Date(backup.verifiedAt).getTime()) / 3_600_000)
+    : null;
+  const backupFresh = backupAgeHours !== null && backupAgeHours <= backupMaxAgeHours;
 
   const checks = [
     {
@@ -58,6 +81,16 @@ export function getReleaseReadiness(database, workspaceId, config) {
       detail: isLoopback(config.host) || config.authSecureCookies
         ? 'Cookie соответствуют текущему режиму размещения.'
         : 'Для сетевого HTTPS-размещения включите KAFEDRA_AUTH_SECURE_COOKIES=true.'
+    },
+    {
+      code: 'backup_fresh',
+      status: !backupRequired || backupFresh ? 'ok' : 'warning',
+      title: 'Проверенная резервная копия',
+      detail: backupFresh
+        ? `Последняя проверенная копия: ${backup.verifiedAt}; версия ${backup.appVersion}.`
+        : backupRequired
+          ? `Нет проверенной копии моложе ${backupMaxAgeHours} ч. Запустите npm run backup:create.`
+          : 'Контроль давности резервной копии отключён для этого окружения.'
     }
   ];
   const hasError = checks.some((item) => item.status === 'error');
@@ -65,6 +98,13 @@ export function getReleaseReadiness(database, workspaceId, config) {
   return {
     status: hasError ? 'not_ready' : hasWarning ? 'ready_with_warnings' : 'ready',
     checks,
-    counts: { activeAdmins, activeAccounts, activeSessions, peopleWithoutAccounts }
+    counts: {
+      activeAdmins,
+      activeAccounts,
+      activeSessions,
+      peopleWithoutAccounts,
+      backupAgeHours: backupAgeHours === null ? null : Math.round(backupAgeHours * 10) / 10
+    },
+    backup
   };
 }

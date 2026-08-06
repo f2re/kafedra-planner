@@ -39,11 +39,16 @@ export class Database {
       readOnly: readonly,
       timeout: 30_000
     });
-    this.db.exec('PRAGMA busy_timeout = 30000; PRAGMA foreign_keys = ON;');
-    if (!readonly) {
-      retryBusy(() => this.db.exec('PRAGMA journal_mode = WAL;'));
-      this.db.exec('PRAGMA synchronous = NORMAL;');
-      if (migrationsDir) this.migrate(migrationsDir);
+    try {
+      this.db.exec('PRAGMA busy_timeout = 30000; PRAGMA foreign_keys = ON;');
+      if (!readonly) {
+        retryBusy(() => this.db.exec('PRAGMA journal_mode = WAL;'));
+        this.db.exec('PRAGMA synchronous = NORMAL;');
+        if (migrationsDir) this.migrate(migrationsDir);
+      }
+    } catch (error) {
+      try { this.db.close(); } catch {}
+      throw error;
     }
   }
 
