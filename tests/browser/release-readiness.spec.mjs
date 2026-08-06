@@ -38,8 +38,8 @@ test('release candidate защищает изменения и предоста�
   await page.locator('#admin-account-create button[type="submit"]').click();
   await expect(page.locator('#admin-accounts-body')).toContainText('Иванов Иван Иванович');
 
-  await page.locator('#admin-revoke-all').click();
   page.once('dialog', (dialog) => dialog.accept());
+  await page.locator('#admin-revoke-all').click();
   await expect(page.locator('#admin-access-status')).toContainText('Завершено сессий');
 
   await page.locator('[data-admin-close]').click();
