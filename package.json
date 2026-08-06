@@ -19,6 +19,7 @@
     "test:browser": "playwright test",
     "test:browser:reports-science": "playwright test --config=playwright.reports-science.config.mjs",
     "test:browser:plan-fact": "playwright test --config=playwright.plan-fact.config.mjs",
+    "test:browser:plan-fact-tools": "playwright test --config=playwright.plan-fact-tools.config.mjs",
     "bundle:offline": "bash scripts/offline/build-bundle.sh",
     "bundle:verify": "bash scripts/offline/verify-bundle.sh"
   },
