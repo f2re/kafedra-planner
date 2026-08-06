@@ -15,7 +15,8 @@ import {
 import {
   assertAssignmentScope,
   assertPersonScope,
-  requireAssignmentCorrection
+  requireAssignmentCorrection,
+  scopePlanFactFilters
 } from '../packages/auth/src/policy.mjs';
 
 const migrationsDir = resolve('migrations');
@@ -85,6 +86,14 @@ test('локальные сессии привязывают запрос к с�
       () => assertPersonScope(database, workspace.id, context, outsider.id),
       (error) => error.code === 'person_scope_forbidden' && error.status === 403
     );
+    assert.deepEqual(
+      scopePlanFactFilters(database, workspace.id, context, {
+        ownerPersonId: outsider.id,
+        managerPersonId: manager.id,
+        status: 'open'
+      }),
+      { ownerPersonId: staff.id, managerPersonId: '', status: 'open' }
+    );
 
     const now = '2026-08-06T08:00:00.000Z';
     database.run(`
@@ -118,6 +127,18 @@ test('локальные сессии привязывают запрос к с�
     assertPersonScope(database, workspace.id, managerContext, staff.id);
     assertAssignmentScope(database, workspace.id, managerContext, 'assignment-auth');
     requireAssignmentCorrection(database, workspace.id, managerContext, 'assignment-auth');
+    assert.deepEqual(
+      scopePlanFactFilters(database, workspace.id, managerContext, { status: 'open' }),
+      { status: 'open', managerPersonId: manager.id }
+    );
+    assert.deepEqual(
+      scopePlanFactFilters(database, workspace.id, managerContext, { ownerPersonId: staff.id }),
+      { ownerPersonId: staff.id }
+    );
+    assert.throws(
+      () => scopePlanFactFilters(database, workspace.id, managerContext, { ownerPersonId: outsider.id }),
+      (error) => error.code === 'person_scope_forbidden' && error.status === 403
+    );
   } finally {
     database.close();
     await rm(dir, { recursive: true, force: true });
