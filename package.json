@@ -1,6 +1,6 @@
 {
   "name": "kafedra-planner",
-  "version": "0.1.0-alpha.9",
+  "version": "0.1.0-alpha.10",
   "private": true,
   "description": "Автономная платформа календаря, документов, решений, сроков и деятельности кафедры.",
   "type": "module",
@@ -13,6 +13,7 @@
     "dev": "node --watch apps/api/src/main.mjs",
     "dev:worker": "node --watch apps/worker/src/main.mjs",
     "migrate": "node scripts/migrate.mjs",
+    "auth:create-admin": "node scripts/create-admin.mjs",
     "check": "node scripts/check.mjs",
     "test": "node --test --test-reporter=spec tests/*.test.mjs",
     "smoke": "node scripts/smoke-test.mjs",
@@ -20,6 +21,7 @@
     "test:browser:reports-science": "playwright test --config=playwright.reports-science.config.mjs",
     "test:browser:plan-fact": "playwright test --config=playwright.plan-fact.config.mjs && playwright test --config=playwright.plan-fact-tools.config.mjs",
     "test:browser:plan-fact-tools": "playwright test --config=playwright.plan-fact-tools.config.mjs",
+    "test:browser:auth": "playwright test --config=playwright.auth.config.mjs",
     "bundle:offline": "bash scripts/offline/build-bundle.sh",
     "bundle:verify": "bash scripts/offline/verify-bundle.sh"
   },

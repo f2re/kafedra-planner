@@ -42,7 +42,8 @@ test('сквозной путь: загрузка протокола, worker, к
     KAFEDRA_PORT: String(port),
     KAFEDRA_HOST: '127.0.0.1',
     KAFEDRA_WORKER_POLL_MS: '50',
-    KAFEDRA_LOG_LEVEL: 'error'
+    KAFEDRA_LOG_LEVEL: 'error',
+    KAFEDRA_AUTH_ENABLED: 'false'
   };
   const api = spawn(process.execPath, ['apps/api/src/main.mjs'], { cwd: resolve('.'), env, stdio: 'ignore' });
   const worker = spawn(process.execPath, ['apps/worker/src/main.mjs'], { cwd: resolve('.'), env, stdio: 'ignore' });

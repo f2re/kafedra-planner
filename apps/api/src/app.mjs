@@ -2,9 +2,13 @@ import { createServer } from 'node:http';
 import { randomUUID } from 'node:crypto';
 import { createRouter } from './router.mjs';
 import { createPlanFactRouter } from './plan-fact-router.mjs';
+import { createAuthRouter } from './auth-router.mjs';
+import { resolveAuthContext } from '../../../packages/auth/src/service.mjs';
+import { authorizeApiRequest } from '../../../packages/auth/src/policy.mjs';
 import { sendError, serveStatic } from './http-utils.mjs';
 
 export function createApp({ database, config, logger }) {
+  const authRouter = createAuthRouter({ database, config, logger });
   const planFactRouter = createPlanFactRouter({ database, config, logger });
   const router = createRouter({ database, config, logger });
   return createServer(async (request, response) => {
@@ -19,9 +23,17 @@ export function createApp({ database, config, logger }) {
     );
     try {
       const url = new URL(request.url || '/', `http://${request.headers.host || 'localhost'}`);
+      request.auth = resolveAuthContext(database, request, config);
+      if (request.auth?.enabled && request.auth.authenticated && request.auth.workspaceId) {
+        request.headers['x-workspace-id'] = request.auth.workspaceId;
+      }
       if (url.pathname.startsWith('/api/')) {
-        const handled = await planFactRouter(request, response, url, requestId);
-        if (!handled) await router(request, response, url, requestId);
+        const authHandled = await authRouter(request, response, url, requestId);
+        if (!authHandled) {
+          authorizeApiRequest(request.auth, url.pathname);
+          const handled = await planFactRouter(request, response, url, requestId);
+          if (!handled) await router(request, response, url, requestId);
+        }
       } else if (!(await serveStatic(response, config.publicDir, url.pathname))) {
         if (!(await serveStatic(response, config.publicDir, '/index.html'))) response.end();
       }
@@ -35,7 +47,9 @@ export function createApp({ database, config, logger }) {
         method: request.method,
         url: request.url,
         status: response.statusCode,
-        durationMs: Date.now() - started
+        durationMs: Date.now() - started,
+        accountId: request.auth?.accountId || null,
+        personId: request.auth?.personId || null
       });
     }
   });

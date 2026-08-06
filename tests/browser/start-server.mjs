@@ -14,6 +14,7 @@ const env = {
   KAFEDRA_WORKER_POLL_MS: '60',
   KAFEDRA_OCR_ENABLED: 'false',
   KAFEDRA_PREVIEW_ENABLED: 'true',
+  KAFEDRA_AUTH_ENABLED: 'false',
   KAFEDRA_LOG_LEVEL: 'error'
 };
 const api = spawn(process.execPath, ['apps/api/src/main.mjs'], { cwd: resolve('.'), env, stdio: 'inherit' });

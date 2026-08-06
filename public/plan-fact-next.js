@@ -226,6 +226,7 @@ async function refreshPeople() {
 }
 
 async function initializePlanFact() {
+  if (window.kafedraAuthReady) await window.kafedraAuthReady;
   ensurePlanFactUi();
   await refreshPeople();
   await refreshPersonalNotifications().catch(() => {});
