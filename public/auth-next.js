@@ -226,6 +226,11 @@ document.addEventListener('submit', (event) => {
     });
 });
 
+function closeAuthMenu() {
+  document.querySelector('.auth-user-menu')?.classList.add('hidden');
+  document.querySelector('.auth-user-button')?.setAttribute('aria-expanded', 'false');
+}
+
 document.addEventListener('click', (event) => {
   const userButton = event.target.closest('.auth-user-button');
   if (userButton) {
@@ -234,6 +239,7 @@ document.addEventListener('click', (event) => {
     userButton.setAttribute('aria-expanded', String(open));
   }
   const action = event.target.closest('[data-auth-action]')?.dataset.authAction;
+  if (action) closeAuthMenu();
   if (action === 'password') showPasswordDialog(false);
   if (action === 'logout') {
     authJson('/api/auth/logout', { method: 'POST' })
