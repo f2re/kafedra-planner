@@ -5,6 +5,7 @@ import { createPlanFactRouter } from './plan-fact-router.mjs';
 import { createAuthRouter } from './auth-router.mjs';
 import { resolveAuthContext } from '../../../packages/auth/src/service.mjs';
 import { authorizeApiRequest } from '../../../packages/auth/src/policy.mjs';
+import { authorizeCsrfRequest } from '../../../packages/auth/src/csrf.mjs';
 import { sendError, serveStatic } from './http-utils.mjs';
 
 export function createApp({ database, config, logger }) {
@@ -28,6 +29,7 @@ export function createApp({ database, config, logger }) {
         request.headers['x-workspace-id'] = request.auth.workspaceId;
       }
       if (url.pathname.startsWith('/api/')) {
+        authorizeCsrfRequest(request, request.auth, url.pathname, config);
         const authHandled = await authRouter(request, response, url, requestId);
         if (!authHandled) {
           authorizeApiRequest(request.auth, url.pathname);
@@ -40,7 +42,12 @@ export function createApp({ database, config, logger }) {
     } catch (error) {
       if (!response.headersSent) sendError(response, error, requestId);
       else response.destroy(error);
-      logger.error('request failed', { requestId, method: request.method, url: request.url, error: String(error?.stack || error) });
+      logger.error('request failed', {
+        requestId,
+        method: request.method,
+        url: request.url,
+        error: String(error?.stack || error)
+      });
     } finally {
       logger.info('request completed', {
         requestId,

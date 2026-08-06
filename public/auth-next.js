@@ -5,8 +5,11 @@ const authState = {
   showingLogin: false
 };
 const authSafe = (value) => String(value ?? '')
-  .replaceAll('&', '&amp;').replaceAll('<', '&lt;').replaceAll('>', '&gt;')
-  .replaceAll('"', '&quot;').replaceAll("'", '&#039;');
+  .replaceAll('&', '&amp;')
+  .replaceAll('<', '&lt;')
+  .replaceAll('>', '&gt;')
+  .replaceAll('"', '&quot;')
+  .replaceAll("'", '&#039;');
 
 function ensureAuthStyles() {
   if (document.querySelector('#auth-next-styles')) return;
@@ -50,15 +53,41 @@ function hideLogin() {
   authState.showingLogin = false;
 }
 
+function requestWithCsrf(input, init = {}) {
+  const url = new URL(
+    input instanceof Request ? input.url : String(input),
+    window.location.origin
+  );
+  const method = String(
+    init.method || (input instanceof Request ? input.method : 'GET')
+  ).toUpperCase();
+  if (
+    url.origin !== window.location.origin
+    || ['GET', 'HEAD', 'OPTIONS'].includes(method)
+    || url.pathname === '/api/auth/login'
+    || !authState.payload?.csrfToken
+  ) return init;
+  const headers = new Headers(
+    init.headers || (input instanceof Request ? input.headers : undefined)
+  );
+  if (!headers.has('x-csrf-token')) {
+    headers.set('x-csrf-token', authState.payload.csrfToken);
+  }
+  return { ...init, headers };
+}
+
 async function authJson(path, options = {}) {
-  const response = await authBaseFetch(path, options);
+  const response = await authBaseFetch(path, requestWithCsrf(path, options));
   const data = await response.json().catch(() => ({}));
-  if (!response.ok) throw new Error(data?.error?.message || `Ошибка HTTP ${response.status}`);
+  if (!response.ok) {
+    throw new Error(data?.error?.message || `Ошибка HTTP ${response.status}`);
+  }
   return data;
 }
 
 function applyProfile(payload) {
   authState.payload = payload;
+  window.kafedraAuthContext = payload;
   document.documentElement.dataset.authRole = payload.role || '';
   document.body.classList.toggle('auth-staff', payload.role === 'staff');
   const personId = payload.user?.person?.id || '';
@@ -82,7 +111,9 @@ function applyProfile(payload) {
     current.value = personId;
     current.disabled = payload.role === 'staff';
   }
-  window.dispatchEvent(new CustomEvent('kafedra-auth-changed', { detail: payload }));
+  window.dispatchEvent(
+    new CustomEvent('kafedra-auth-changed', { detail: payload })
+  );
 }
 
 function observeProfileControl() {
@@ -91,12 +122,22 @@ function observeProfileControl() {
     const select = document.querySelector('#current-person-select');
     const personId = payload?.user?.person?.id;
     if (!select || !personId) return;
-    if ([...select.options].some((option) => option.value === personId)) select.value = personId;
+    if ([...select.options].some((option) => option.value === personId)) {
+      select.value = personId;
+    }
     select.disabled = payload.role === 'staff';
-    const actor = document.querySelector('#metric-correction-form select[name="actorPersonId"]');
-    if (actor) { actor.value = personId; actor.disabled = true; }
+    const actor = document.querySelector(
+      '#metric-correction-form select[name="actorPersonId"]'
+    );
+    if (actor) {
+      actor.value = personId;
+      actor.disabled = true;
+    }
   };
-  new MutationObserver(update).observe(document.documentElement, { childList: true, subtree: true });
+  new MutationObserver(update).observe(document.documentElement, {
+    childList: true,
+    subtree: true
+  });
   update();
 }
 
@@ -122,22 +163,42 @@ async function initializeAuth() {
 }
 
 function showPasswordDialog(required = false) {
-  const currentPassword = window.prompt(required ? 'Введите временный пароль:' : 'Введите текущий пароль:');
+  const currentPassword = window.prompt(
+    required ? 'Введите временный пароль:' : 'Введите текущий пароль:'
+  );
   if (currentPassword === null) return;
-  const newPassword = window.prompt('Введите новый пароль: не менее 12 символов, буквы и цифры.');
+  const newPassword = window.prompt(
+    'Введите новый пароль: не менее 12 символов, буквы и цифры.'
+  );
   if (newPassword === null) return;
   authJson('/api/auth/change-password', {
     method: 'POST',
     headers: { 'content-type': 'application/json' },
     body: JSON.stringify({ currentPassword, newPassword })
-  }).then(() => window.location.reload()).catch((error) => window.alert(error.message));
+  })
+    .then(() => window.location.reload())
+    .catch((error) => window.alert(error.message));
 }
 
 window.fetch = async function authenticatedFetch(input, init = {}) {
-  const response = await authBaseFetch(input, init);
-  const url = new URL(input instanceof Request ? input.url : String(input), window.location.origin);
-  if (response.status === 401 && url.origin === window.location.origin && !url.pathname.startsWith('/api/auth/')) {
+  const response = await authBaseFetch(input, requestWithCsrf(input, init));
+  const url = new URL(
+    input instanceof Request ? input.url : String(input),
+    window.location.origin
+  );
+  if (
+    response.status === 401
+    && url.origin === window.location.origin
+    && !url.pathname.startsWith('/api/auth/')
+  ) {
     showLogin('Сессия завершена. Войдите снова.');
+  }
+  if (response.status === 403 && url.origin === window.location.origin) {
+    const cloned = response.clone();
+    const data = await cloned.json().catch(() => null);
+    if (data?.error?.code === 'csrf_token_invalid') {
+      window.setTimeout(() => window.location.reload(), 50);
+    }
   }
   return response;
 };
@@ -158,9 +219,11 @@ document.addEventListener('submit', (event) => {
     method: 'POST',
     headers: { 'content-type': 'application/json' },
     body: JSON.stringify(values)
-  }).then(() => window.location.reload()).catch((error) => {
-    errorNode.textContent = error.message;
-  });
+  })
+    .then(() => window.location.reload())
+    .catch((error) => {
+      errorNode.textContent = error.message;
+    });
 });
 
 document.addEventListener('click', (event) => {

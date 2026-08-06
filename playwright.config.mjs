@@ -3,7 +3,8 @@ import { defineConfig, devices } from '@playwright/test';
 const baseIgnores = [
   '**/work-management.spec.mjs',
   '**/reports-science.spec.mjs',
-  '**/auth.spec.mjs'
+  '**/auth.spec.mjs',
+  '**/release-readiness.spec.mjs'
 ];
 
 export default defineConfig({
