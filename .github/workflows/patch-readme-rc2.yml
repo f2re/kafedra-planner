@@ -1,0 +1,56 @@
+name: Обновить README для rc.2
+
+on:
+  push:
+    branches:
+      - agent/backup-restore-safe-update
+    paths:
+      - .readme-rc2-ready
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          ref: agent/backup-restore-safe-update
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24.18.0
+      - name: Обновить статус и этапы
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          node --input-type=module <<'NODE'
+          import { readFileSync, writeFileSync } from 'node:fs';
+          const path = 'README.md';
+          let source = readFileSync(path, 'utf8');
+          source = source.replace(
+            /> Текущий статус: \*\*эксплуатационный прототип `0\.1\.0-alpha\.10`\*\*\.[^\n]*/,
+            '> Текущий статус: **release candidate `0.1.0-rc.2`**. Основные рабочие контуры, локальная авторизация, проверяемые резервные копии и автоматический откат обновления реализованы; перед стабильным релизом остаются объектные права и внешняя доставка уведомлений.'
+          );
+          source = source.replace(
+            /npm run bundle:verify -- release\/kafedra-planner-[^\s]+\.tar\.gz/,
+            'npm run bundle:verify -- release/kafedra-planner-0.1.0-rc.2.tar.gz'
+          );
+          source = source.replace(
+            /## Ближайшие этапы\n\n[\s\S]*?\nАрхитектура:/,
+            `## Ближайшие этапы до стабильного релиза\n\n1. Объектные права на документы, распоряжения, отчёты и научные материалы — issue #23.\n2. Персональная доставка напоминаний через SMTP и Telegram без дублирования — issue #25.\n3. Целевая эксплуатационная приёмка на Astra Linux/Debian с восстановлением из резервной копии.\n4. Выпуск стабильной версии после устранения замечаний приёмки.\n\nАрхитектура:`
+          );
+          writeFileSync(path, source);
+          NODE
+          grep -q '0.1.0-rc.2' README.md
+          rm -f .readme-rc2-ready .github/workflows/patch-readme-rc2.yml
+      - name: Зафиксировать README
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -A
+          git commit -m "Актуализировать README для release candidate rc.2"
+          git push origin HEAD:agent/backup-restore-safe-update
