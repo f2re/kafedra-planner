@@ -39,3 +39,5 @@ jobs:
         run: npm run test:browser:plan-fact
       - name: Проверить авторизацию и роли
         run: npm run test:browser:auth
+      - name: Проверить готовность release candidate
+        run: npm run test:browser:release
