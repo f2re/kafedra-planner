@@ -1,6 +1,6 @@
 import { AppError } from '../../../packages/core/src/errors.mjs';
 import { assertObjectAccess } from '../../../packages/access-control/src/service.mjs';
-import { planDocumentId } from '../../../packages/plans/src/service.mjs';
+import { planDocumentId, planItemDocumentId } from '../../../packages/plans/src/service.mjs';
 import { updatePlanItem, undoPlanItemCorrection } from '../../../packages/plans/src/corrections.mjs';
 import { readJson, sendJson } from './http-utils.mjs';
 
@@ -41,10 +41,24 @@ export function createPlanItemsRouter({ database }) {
     const path = url.pathname;
     const undoMatch = path.match(/^\/api\/plans\/([^/]+)\/items\/([^/]+)\/undo$/);
     const itemMatch = path.match(/^\/api\/plans\/([^/]+)\/items\/([^/]+)$/);
-    if (!undoMatch && !itemMatch) return false;
+    const calendarMatch = path.match(/^\/api\/calendar\/([^/]+)$/);
+    if (!undoMatch && !itemMatch && !(method === 'GET' && calendarMatch)) return false;
 
     const workspace = workspaceOf(database, request);
     const context = request.auth;
+
+    if (method === 'GET' && calendarMatch) {
+      const calendarId = decodeURIComponent(calendarMatch[1]);
+      const item = database.get(
+        'SELECT * FROM calendar_items WHERE workspace_id = ? AND id = ?', workspace.id, calendarId
+      );
+      if (!item || item.source_kind !== 'plan_item') return false;
+      const documentId = item.origin_document_id || planItemDocumentId(database, workspace.id, item.source_id);
+      if (!documentId) throw new AppError('plan_source_not_found', 'Исходный документ плана не найден.', 404);
+      assertObjectAccess(database, workspace.id, context, 'document', documentId, 'read');
+      return sendJson(response, 200, { ...item, source_document_id: documentId });
+    }
+
     const match = undoMatch || itemMatch;
     const planId = decodeURIComponent(match[1]);
     const itemId = decodeURIComponent(match[2]);
