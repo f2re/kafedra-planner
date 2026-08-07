@@ -578,7 +578,7 @@ const observer = new MutationObserver(() => {
   annotateDocumentRows();
   detectTemplateSource();
 });
-observer.observe(document.documentElement, { childList: true, subtree: true, attributes: true, attributeFilter: ['class'] });
+observer.observe(document.documentElement, { childList: true, subtree: true });
 
 document.addEventListener('click', async (event) => {
   const kind = event.target.closest('[data-filter-kind]');
