@@ -120,8 +120,13 @@ function confidenceOf(result) {
 }
 
 export function looksLikeDepartmentProtocol(text) {
-  const head = String(text || '').slice(0, 8000);
-  return /протокол/iu.test(head) && /(заседани|кафедр|повестк[аи]\s+дня|решили|постановили)/iu.test(head);
+  const lines = linesWithNumbers(text).filter((line) => line.text);
+  const heading = lines.slice(0, 12).map((line) => line.text).join('\n');
+  const head = lines.slice(0, 80).map((line) => line.text).join('\n');
+  const hasProtocolHeading = /(^|\n)\s*протокол(?:\s+заседания[^\n]*)?(?:\s*№\s*[\p{L}\d./-]+)?\s*(?:$|\n)/imu.test(heading);
+  if (!hasProtocolHeading) return false;
+  return /повестк[аи]\s+дня|слушали|решили|постановили|председатель|секретарь|присутствовали/iu.test(head)
+    || /протокол\s+заседания\s+кафедр/iu.test(heading);
 }
 
 export function extractDepartmentProtocol(text) {
