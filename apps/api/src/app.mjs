@@ -2,6 +2,7 @@ import { createServer } from 'node:http';
 import { randomUUID } from 'node:crypto';
 import { createRouter } from './router.mjs';
 import { createPlanFactRouter } from './plan-fact-router.mjs';
+import { createPlansRouter } from './plans-router.mjs';
 import { createAuthRouter } from './auth-router.mjs';
 import { resolveAuthContext } from '../../../packages/auth/src/service.mjs';
 import { authorizeApiRequest } from '../../../packages/auth/src/policy.mjs';
@@ -11,6 +12,7 @@ import { sendError, serveStatic } from './http-utils.mjs';
 export function createApp({ database, config, logger }) {
   const authRouter = createAuthRouter({ database, config, logger });
   const planFactRouter = createPlanFactRouter({ database, config, logger });
+  const plansRouter = createPlansRouter({ database, config, logger });
   const router = createRouter({ database, config, logger });
   return createServer(async (request, response) => {
     const requestId = randomUUID();
@@ -33,8 +35,11 @@ export function createApp({ database, config, logger }) {
         const authHandled = await authRouter(request, response, url, requestId);
         if (!authHandled) {
           authorizeApiRequest(request.auth, url.pathname);
-          const handled = await planFactRouter(request, response, url, requestId);
-          if (!handled) await router(request, response, url, requestId);
+          const planFactHandled = await planFactRouter(request, response, url, requestId);
+          if (!planFactHandled) {
+            const plansHandled = await plansRouter(request, response, url, requestId);
+            if (!plansHandled) await router(request, response, url, requestId);
+          }
         }
       } else if (!(await serveStatic(response, config.publicDir, url.pathname))) {
         if (!(await serveStatic(response, config.publicDir, '/index.html'))) response.end();
