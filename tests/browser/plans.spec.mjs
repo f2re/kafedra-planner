@@ -53,19 +53,29 @@ async function addTemplate(page, suffix) {
 
 async function generatePlan(page, suffix) {
   const today = await browserToday(page);
+  const eventTitle = `Заседание кафедры ${suffix}`;
   const card = page.locator('.plan-template-card', { hasText: `План кафедры ${suffix}` });
   await card.getByRole('button', { name: 'Использовать' }).click();
   await expect(page.getByRole('heading', { name: 'Сформировать план' })).toBeVisible();
   await page.locator('#gen-period').fill(String(today.year));
   const row = page.locator('[data-plan-row]').first();
-  await row.locator('[name="title"]').fill(`Заседание кафедры ${suffix}`);
+  await row.locator('[name="title"]').fill(eventTitle);
   await row.locator('[name="startsAt"]').fill(today.iso);
   await row.locator('[name="responsible"]').fill('Иванов Иван Иванович');
   await row.locator('[name="result"]').fill('Протокол заседания');
   await page.locator('#plan-generation-form').getByRole('button', { name: 'Сформировать DOCX' }).click();
   await expect(page.locator('#plans-dialog')).toBeHidden({ timeout: 30_000 });
-  await expect(page.locator('.plan-card', { hasText: `Заседание кафедры ${suffix}` })).toBeVisible({ timeout: 20_000 });
-  return today;
+
+  let generated = null;
+  await expect.poll(async () => {
+    const response = await page.request.get(`/api/plans?q=${encodeURIComponent(eventTitle)}`);
+    if (!response.ok()) return 0;
+    const data = await response.json();
+    generated = (data.items || [])[0] || null;
+    return data.items?.length || 0;
+  }, { timeout: 20_000 }).toBeGreaterThan(0);
+  await expect(page.locator(`[data-plan-id="${generated.id}"]`)).toBeVisible();
+  return { today, generated, eventTitle };
 }
 
 test('план из DOCX-шаблона формируется и показывает источник в календаре', async ({ page }, testInfo) => {
@@ -74,14 +84,13 @@ test('план из DOCX-шаблона формируется и показыв
   await openView(page, 'plans');
   await expect(page.locator('[data-view-panel="plans"] h2')).toHaveText('Планы');
   await addTemplate(page, suffix);
-  const today = await generatePlan(page, suffix);
+  const { today, generated, eventTitle } = await generatePlan(page, suffix);
 
-  const plansResponse = await page.request.get(`/api/plans?period=${today.year}`);
-  expect(plansResponse.ok()).toBeTruthy();
-  const plans = await plansResponse.json();
-  const generated = plans.items.find((item) => item.title.includes(String(today.year)));
-  expect(generated).toBeTruthy();
+  expect(generated.period_key).toBe(String(today.year));
   expect(generated.plan_scope).toBe('department');
+  const searchResponse = await page.request.get(`/api/plans?q=${encodeURIComponent(eventTitle)}`);
+  expect(searchResponse.ok()).toBeTruthy();
+  expect((await searchResponse.json()).items.some((item) => item.id === generated.id)).toBeTruthy();
 
   const sourceResponse = await page.request.get('/api/plans/calendar-sources');
   const sources = (await sourceResponse.json()).items;
