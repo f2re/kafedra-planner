@@ -13,6 +13,8 @@ import { proposeDirectiveWithLlama } from '../../../packages/ai/src/llama-client
 import { generateReportMatchCandidates } from '../../../packages/reports/src/service.mjs';
 import { looksLikeScientificMaterial, extractScientificMaterial } from '../../../packages/science/src/extractor.mjs';
 import { persistScientificItem } from '../../../packages/science/src/service.mjs';
+import { extractPlan, looksLikePlan } from '../../../packages/plans/src/extractor.mjs';
+import { persistPlan } from '../../../packages/plans/src/service.mjs';
 
 function insertReview(database, workspaceId, versionId, code, title, explanation, proposedAction, context = {}) {
   const existing = database.get(`
@@ -165,22 +167,35 @@ export async function processDocumentJob(database, payload, logger, config) {
     const llmResult = isDirective
       ? await proposeDirectiveWithLlama({ config, text, deterministic: directiveResult })
       : null;
+    const requestedPlan = [
+      'plan', 'department_plan', 'faculty_plan', 'personal_plan', 'unit_plan', 'organization_plan'
+    ].includes(payload.requestedType);
+    const isPlan = Boolean(text) && !isProtocol && !isDirective
+      && (requestedPlan || looksLikePlan(text, blocks, version.title));
+    const planResult = isPlan ? extractPlan({
+      text, blocks, title: version.title, requestedType: payload.requestedType
+    }) : null;
     const requestedScience = ['article','conference','grant','patent','project','nir_report','science'].includes(payload.requestedType);
-    const isScientific = Boolean(text) && !isProtocol && !isDirective
+    const isScientific = Boolean(text) && !isProtocol && !isDirective && !isPlan
       && (requestedScience || looksLikeScientificMaterial(text, version.title));
     const scienceResult = isScientific ? extractScientificMaterial(text, version.title) : null;
     let templateApplications = [];
     let persistedDirective = null;
+    let persistedPlan = null;
     let persistedScience = null;
     let finalType = isProtocol ? 'department_protocol'
       : isDirective ? directiveResult.kind
-        : isScientific ? scienceResult.kind : 'unknown';
-    let finalStatus = isProtocol || isDirective || isScientific ? 'processed' : 'needs_review';
-    let confidence = protocolResult?.confidence ?? directiveResult?.confidence ?? scienceResult?.confidence ?? null;
+        : isPlan ? planResult.documentType
+          : isScientific ? scienceResult.kind : 'unknown';
+    let finalStatus = isPlan
+      ? (planResult.requiresReview ? 'needs_review' : 'processed')
+      : (isProtocol || isDirective || isScientific ? 'processed' : 'needs_review');
+    let confidence = protocolResult?.confidence ?? directiveResult?.confidence ?? planResult?.confidence ?? scienceResult?.confidence ?? null;
     let extractorCode = isProtocol ? 'department-protocol'
       : isDirective ? 'directive-deterministic'
-        : isScientific ? 'science-deterministic' : extracted.extractor;
-    let extractorVersion = isProtocol ? '1' : isDirective ? '1' : isScientific ? '1' : extracted.version;
+        : isPlan ? 'plan-deterministic'
+          : isScientific ? 'science-deterministic' : extracted.extractor;
+    let extractorVersion = isProtocol ? '1' : isDirective ? '1' : isPlan ? '1' : isScientific ? '1' : extracted.version;
     const completedAt = new Date().toISOString();
 
     database.transaction(() => {
@@ -228,6 +243,14 @@ export async function processDocumentJob(database, payload, logger, config) {
               { directiveId: persistedDirective?.id, proposal: llmResult.output });
           }
         }
+      } else if (isPlan) {
+        persistedPlan = persistPlan(database, {
+          workspaceId: version.workspace_id,
+          documentVersionId: version.id,
+          documentTitle: version.title,
+          result: planResult,
+          now: completedAt
+        });
       } else if (isScientific) {
         persistedScience = persistScientificItem(database, {
           workspaceId: version.workspace_id,
@@ -293,6 +316,14 @@ export async function processDocumentJob(database, payload, logger, config) {
           documentNumber: directiveResult.documentNumber,
           assignmentCount: directiveResult.assignments.length
         } : null,
+        plan: planResult ? {
+          id: persistedPlan?.id || null,
+          kind: planResult.kind,
+          periodKind: planResult.periodKind,
+          periodKey: planResult.periodKey,
+          itemCount: planResult.items.length,
+          warnings: planResult.warnings
+        } : null,
         llm: llmResult ? { status: llmResult.status, model: llmResult.model || null, error: llmResult.error || null } : null,
         science: scienceResult ? {
           id: persistedScience?.id || null,
@@ -309,7 +340,7 @@ export async function processDocumentJob(database, payload, logger, config) {
       }),
       completedAt, extractionRunId);
     });
-    const reportMatches = text && !isProtocol && !isDirective
+    const reportMatches = text && !isProtocol && !isDirective && !isPlan
       ? generateReportMatchCandidates(database, version.workspace_id, version.id, completedAt)
       : [];
     logger.info('document processed', {
@@ -319,6 +350,7 @@ export async function processDocumentJob(database, payload, logger, config) {
       type: finalType,
       templates: templateApplications.length,
       reportMatches: reportMatches.length,
+      planId: persistedPlan?.id || null,
       scientificItemId: persistedScience?.id || null,
       ocrStatus: ocr.status,
       previewStatus: preview.status
