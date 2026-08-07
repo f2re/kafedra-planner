@@ -39,9 +39,11 @@ export function enqueueJob(database, {
   return job;
 }
 
-export function acquireJob(database, workerId, leaseSeconds, now = new Date()) {
+export function acquireJob(database, workerId, leaseSeconds, now = new Date(), { excludeKinds = [] } = {}) {
   const nowIso = now.toISOString();
   const leaseUntil = new Date(now.getTime() + leaseSeconds * 1000).toISOString();
+  const excluded = [...new Set((Array.isArray(excludeKinds) ? excludeKinds : []).map(String).filter(Boolean))];
+  const exclusion = excluded.length ? `AND kind NOT IN (${excluded.map(() => '?').join(', ')})` : '';
   return database.transaction(() => {
     const candidate = database.get(`
       SELECT id FROM jobs
@@ -49,9 +51,10 @@ export function acquireJob(database, workerId, leaseSeconds, now = new Date()) {
         status IN ('queued', 'retry')
         AND available_at <= ?
         AND (lease_until IS NULL OR lease_until < ?)
+        ${exclusion}
       ORDER BY priority DESC, created_at ASC
       LIMIT 1
-    `, nowIso, nowIso);
+    `, nowIso, nowIso, ...excluded);
     if (!candidate) return null;
     database.run(`
       UPDATE jobs

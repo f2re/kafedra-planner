@@ -6,6 +6,7 @@ import { sendTelegramMessage } from './telegram.mjs';
 
 const TIME_RE = /^(?:[01]\d|2[0-3]):[0-5]\d$/u;
 const WEEKDAY = { Mon: 1, Tue: 2, Wed: 3, Thu: 4, Fri: 5, Sat: 6, Sun: 7 };
+const DELIVERY_JOB_PRIORITY = 5;
 
 function flag(value) {
   return value === true || value === 1 || value === '1';
@@ -215,35 +216,37 @@ function audit(database, workspaceId, action, delivery, details, now) {
 }
 
 function createDelivery(database, { workspaceId, personId, notificationKey, channel, deliveryKind, destination, title, body, availableAt }, now) {
-  const existing = database.get(`
-    SELECT * FROM notification_deliveries
-    WHERE workspace_id = ? AND person_id = ? AND notification_key = ? AND channel = ?
-  `, workspaceId, personId, notificationKey, channel);
-  if (existing) return { delivery: existing, created: false };
-  const delivery = {
-    id: newId('delivery'), workspace_id: workspaceId, person_id: personId,
-    notification_key: notificationKey, channel, delivery_kind: deliveryKind,
-    destination, title, body, status: 'created', retry_sequence: 0,
-    attempt_count: 0, available_at: availableAt, provider_message_id: null,
-    last_error: null, created_at: now, updated_at: now, sent_at: null,
-    delivered_at: null, confirmed_at: null
-  };
-  database.run(`
-    INSERT INTO notification_deliveries(
-      id, workspace_id, person_id, notification_key, channel, delivery_kind,
-      destination, title, body, status, retry_sequence, attempt_count, available_at,
-      provider_message_id, last_error, created_at, updated_at, sent_at, delivered_at, confirmed_at
-    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-  `, ...Object.values(delivery));
-  enqueueJob(database, {
-    kind: 'deliver_notification', payload: { deliveryId: delivery.id }, priority: 20,
-    maxAttempts: 5, availableAt,
-    idempotencyKey: `notification-delivery:${delivery.id}:r0`
+  return database.transaction(() => {
+    const existing = database.get(`
+      SELECT * FROM notification_deliveries
+      WHERE workspace_id = ? AND person_id = ? AND notification_key = ? AND channel = ?
+    `, workspaceId, personId, notificationKey, channel);
+    if (existing) return { delivery: existing, created: false };
+    const delivery = {
+      id: newId('delivery'), workspace_id: workspaceId, person_id: personId,
+      notification_key: notificationKey, channel, delivery_kind: deliveryKind,
+      destination, title, body, status: 'created', retry_sequence: 0,
+      attempt_count: 0, available_at: availableAt, provider_message_id: null,
+      last_error: null, created_at: now, updated_at: now, sent_at: null,
+      delivered_at: null, confirmed_at: null
+    };
+    database.run(`
+      INSERT INTO notification_deliveries(
+        id, workspace_id, person_id, notification_key, channel, delivery_kind,
+        destination, title, body, status, retry_sequence, attempt_count, available_at,
+        provider_message_id, last_error, created_at, updated_at, sent_at, delivered_at, confirmed_at
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    `, ...Object.values(delivery));
+    enqueueJob(database, {
+      kind: 'deliver_notification', payload: { deliveryId: delivery.id }, priority: DELIVERY_JOB_PRIORITY,
+      maxAttempts: 5, availableAt,
+      idempotencyKey: `notification-delivery:${delivery.id}:r0`
+    });
+    audit(database, workspaceId, 'notification.delivery_created', delivery, {
+      channel, deliveryKind, destination: destinationHint(channel, destination), notificationKey
+    }, now);
+    return { delivery, created: true };
   });
-  audit(database, workspaceId, 'notification.delivery_created', delivery, {
-    channel, deliveryKind, destination: destinationHint(channel, destination), notificationKey
-  }, now);
-  return { delivery, created: true };
 }
 
 function digestText(items) {
@@ -262,7 +265,7 @@ function activeProfiles(database, config) {
     WHERE ndp.smtp_enabled = 1 OR ndp.telegram_enabled = 1
        OR ndp.daily_digest_enabled = 1 OR ndp.weekly_digest_enabled = 1
     ORDER BY ndp.workspace_id, p.display_name
-  `).map((row) => profilePayload(row, config));
+  `).map((row) => ({ ...profilePayload(row, config), workspaceId: row.workspace_id }));
 }
 
 export function materializeNotificationDeliveries(database, config, nowValue = new Date()) {
@@ -273,19 +276,17 @@ export function materializeNotificationDeliveries(database, config, nowValue = n
   const errors = [];
   for (const profile of activeProfiles(database, config)) {
     try {
-      const personal = listPersonalNotifications(database, database.get('SELECT workspace_id FROM people WHERE id = ?', profile.personId)?.workspace_id, {
+      const personal = listPersonalNotifications(database, profile.workspaceId, {
         personId: profile.personId, now, limit: 500
       });
       if (!personal) continue;
       const eligible = eligibleImmediate(personal.items, profile.personId);
-      const profileWorkspace = database.get('SELECT workspace_id FROM people WHERE id = ?', profile.personId)?.workspace_id;
-      if (!profileWorkspace) continue;
       const availableAt = nextAllowedAt(now, profile);
       if (profile.immediateEnabled) {
         for (const item of eligible) {
           for (const [channel, destination] of channels(profile, config)) {
             const result = createDelivery(database, {
-              workspaceId: profileWorkspace, personId: profile.personId,
+              workspaceId: profile.workspaceId, personId: profile.personId,
               notificationKey: item.key, channel, deliveryKind: 'immediate', destination,
               title: item.title, body: item.body || '', availableAt
             }, createdAt);
@@ -302,7 +303,7 @@ export function materializeNotificationDeliveries(database, config, nowValue = n
         const body = digestText(eligible);
         for (const [channel, destination] of channels(profile, config)) {
           const result = createDelivery(database, {
-            workspaceId: profileWorkspace, personId: profile.personId,
+            workspaceId: profile.workspaceId, personId: profile.personId,
             notificationKey: key, channel, deliveryKind: kind, destination,
             title, body, availableAt
           }, createdAt);
@@ -364,30 +365,57 @@ export async function processNotificationDeliveryJob(database, job, logger, conf
   } catch (error) {
     const failedAt = new Date().toISOString();
     const message = String(error?.message || error).slice(0, 1000);
-    database.run(`UPDATE notification_deliveries SET status = 'error', last_error = ?, updated_at = ? WHERE id = ?`, message, failedAt, delivery.id);
-    audit(database, delivery.workspace_id, 'notification.delivery_error', delivery, {
-      channel: delivery.channel, destination: destinationHint(delivery.channel, delivery.destination), error: message
-    }, failedAt);
+    const terminal = Number(job.attempts || 0) >= Number(job.max_attempts || 5);
+    database.run(`
+      UPDATE notification_deliveries
+      SET status = ?, last_error = ?, updated_at = ?
+      WHERE id = ?
+    `, terminal ? 'error' : 'created', message, failedAt, delivery.id);
+    audit(database, delivery.workspace_id,
+      terminal ? 'notification.delivery_error' : 'notification.delivery_attempt_failed', delivery, {
+        channel: delivery.channel,
+        destination: destinationHint(delivery.channel, delivery.destination),
+        error: message,
+        terminal,
+        attempt: Number(job.attempts || 0),
+        maxAttempts: Number(job.max_attempts || 5)
+      }, failedAt);
     throw error;
   }
 }
 
+function hasPendingDeliveryJob(database, deliveryId) {
+  return Boolean(database.get(`
+    SELECT 1 AS present
+    FROM jobs
+    WHERE kind = 'deliver_notification'
+      AND json_extract(payload_json, '$.deliveryId') = ?
+      AND status IN ('queued', 'retry', 'running')
+    LIMIT 1
+  `, deliveryId));
+}
+
 export function retryNotificationDelivery(database, workspaceId, deliveryId, now = new Date().toISOString()) {
-  const delivery = database.get(`SELECT * FROM notification_deliveries WHERE workspace_id = ? AND id = ?`, workspaceId, deliveryId);
-  if (!delivery) return null;
-  const sequence = Number(delivery.retry_sequence || 0) + 1;
-  database.run(`
-    UPDATE notification_deliveries SET status = 'created', retry_sequence = ?, last_error = NULL,
-      available_at = ?, updated_at = ? WHERE id = ?
-  `, sequence, now, now, delivery.id);
-  enqueueJob(database, {
-    kind: 'deliver_notification', payload: { deliveryId: delivery.id }, priority: 20,
-    maxAttempts: 5, availableAt: now,
-    idempotencyKey: `notification-delivery:${delivery.id}:r${sequence}`
+  return database.transaction(() => {
+    const delivery = database.get(`SELECT * FROM notification_deliveries WHERE workspace_id = ? AND id = ?`, workspaceId, deliveryId);
+    if (!delivery) return null;
+    if (delivery.status !== 'error' || hasPendingDeliveryJob(database, delivery.id)) {
+      throw new Error('notification_delivery_not_retryable');
+    }
+    const sequence = Number(delivery.retry_sequence || 0) + 1;
+    database.run(`
+      UPDATE notification_deliveries SET status = 'created', retry_sequence = ?, last_error = NULL,
+        available_at = ?, updated_at = ? WHERE id = ?
+    `, sequence, now, now, delivery.id);
+    enqueueJob(database, {
+      kind: 'deliver_notification', payload: { deliveryId: delivery.id }, priority: DELIVERY_JOB_PRIORITY,
+      maxAttempts: 5, availableAt: now,
+      idempotencyKey: `notification-delivery:${delivery.id}:r${sequence}`
+    });
+    const updated = database.get('SELECT * FROM notification_deliveries WHERE id = ?', delivery.id);
+    audit(database, workspaceId, 'notification.delivery_retried', updated, { sequence }, now);
+    return updated;
   });
-  const updated = database.get('SELECT * FROM notification_deliveries WHERE id = ?', delivery.id);
-  audit(database, workspaceId, 'notification.delivery_retried', updated, { sequence }, now);
-  return updated;
 }
 
 export function getDeliveryDiagnostics(database, workspaceId, config) {
@@ -408,9 +436,13 @@ export function getDeliveryDiagnostics(database, workspaceId, config) {
     ORDER BY updated_at DESC LIMIT 50
   `, workspaceId).map((row) => ({ ...row, destination: destinationHint(row.channel, row.destination) }));
   const queue = Object.fromEntries(database.all(`
-    SELECT status, COUNT(*) AS count FROM jobs
-    WHERE kind = 'deliver_notification' GROUP BY status
-  `).map((row) => [row.status, Number(row.count)]));
+    SELECT j.status, COUNT(*) AS count
+    FROM jobs j
+    JOIN notification_deliveries nd
+      ON nd.id = json_extract(j.payload_json, '$.deliveryId')
+    WHERE j.kind = 'deliver_notification' AND nd.workspace_id = ?
+    GROUP BY j.status
+  `, workspaceId).map((row) => [row.status, Number(row.count)]));
   const channelsConfigured = {
     smtp: Boolean(config.smtpHost && config.smtpFrom),
     telegram: Boolean(config.telegramBotToken)

@@ -55,7 +55,7 @@ async function fixture() {
   return { dir, database, workspace };
 }
 
-test('outbox создаётся один раз на уведомление и роль, повторная обработка не дублирует отправку', async () => {
+test('outbox создаётся атомарно один раз, автоматические повторы завершаются до ручного retry', async () => {
   const { dir, database, workspace } = await fixture();
   try {
     saveDeliveryProfile(database, workspace.id, 'delivery-owner', {
@@ -73,9 +73,8 @@ test('outbox создаётся один раз на уведомление и �
     assert.equal(first.created, 2);
     assert.equal(database.get(`SELECT COUNT(*) AS count FROM notification_deliveries`)?.count, 2);
     assert.equal(database.get(`SELECT COUNT(*) AS count FROM jobs WHERE kind = 'deliver_notification'`)?.count, 2);
-
-    const second = materializeNotificationDeliveries(database, baseConfig, now);
-    assert.equal(second.created, 0);
+    assert.equal(database.get(`SELECT MAX(priority) AS priority FROM jobs WHERE kind = 'deliver_notification'`)?.priority, 5);
+    assert.equal(materializeNotificationDeliveries(database, baseConfig, now).created, 0);
 
     const ownerDelivery = database.get(`SELECT * FROM notification_deliveries WHERE person_id = 'delivery-owner'`);
     assert.ok(ownerDelivery);
@@ -95,13 +94,32 @@ test('outbox создаётся один раз на уведомление и �
 
     setPersonalNotificationState(database, workspace.id, 'delivery-owner', ownerDelivery.notification_key, 'read', '2026-08-07T12:05:00.000Z');
     assert.equal(database.get('SELECT status FROM notification_deliveries WHERE id = ?', ownerDelivery.id).status, 'confirmed');
+    assert.throws(
+      () => retryNotificationDelivery(database, workspace.id, ownerDelivery.id, '2026-08-07T12:06:00.000Z'),
+      /notification_delivery_not_retryable/
+    );
 
     const managerDelivery = database.get(`SELECT * FROM notification_deliveries WHERE person_id = 'delivery-manager'`);
     const managerJob = database.get(`SELECT * FROM jobs WHERE json_extract(payload_json, '$.deliveryId') = ?`, managerDelivery.id);
-    await assert.rejects(() => processNotificationDeliveryJob(database, managerJob, null, baseConfig, {
+    await assert.rejects(() => processNotificationDeliveryJob(database, { ...managerJob, attempts: 1 }, null, baseConfig, {
+      smtp: async () => { throw new Error('mailbox_unavailable'); }
+    }), /mailbox_unavailable/);
+    const pendingDelivery = database.get('SELECT status, last_error FROM notification_deliveries WHERE id = ?', managerDelivery.id);
+    assert.equal(pendingDelivery.status, 'created');
+    assert.match(pendingDelivery.last_error, /mailbox_unavailable/);
+    assert.throws(
+      () => retryNotificationDelivery(database, workspace.id, managerDelivery.id, '2026-08-07T12:08:00.000Z'),
+      /notification_delivery_not_retryable/
+    );
+
+    await assert.rejects(() => processNotificationDeliveryJob(database, {
+      ...managerJob,
+      attempts: managerJob.max_attempts
+    }, null, baseConfig, {
       smtp: async () => { throw new Error('mailbox_unavailable'); }
     }), /mailbox_unavailable/);
     assert.equal(database.get('SELECT status FROM notification_deliveries WHERE id = ?', managerDelivery.id).status, 'error');
+    database.run(`UPDATE jobs SET status = 'failed', locked_by = NULL, lease_until = NULL WHERE id = ?`, managerJob.id);
     const retried = retryNotificationDelivery(database, workspace.id, managerDelivery.id, '2026-08-07T12:10:00.000Z');
     assert.equal(retried.retry_sequence, 1);
     assert.equal(retried.status, 'created');

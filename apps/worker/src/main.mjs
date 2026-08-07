@@ -39,7 +39,9 @@ while (!stopping) {
     }
   }
 
-  const job = acquireJob(database, workerId, config.workerLeaseSeconds);
+  const job = acquireJob(database, workerId, config.workerLeaseSeconds, new Date(), {
+    excludeKinds: config.notificationDeliveryEnabled ? [] : ['deliver_notification']
+  });
   if (!job) {
     await new Promise((resolve) => setTimeout(resolve, config.workerPollMs));
     continue;

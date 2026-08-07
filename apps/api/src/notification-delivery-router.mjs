@@ -12,14 +12,15 @@ import { readJson, sendJson } from './http-utils.mjs';
 function deliveryError(error) {
   const code = String(error?.message || error);
   const messages = {
-    notification_email_invalid: 'Укажите корректный адрес электронной почты.',
-    notification_telegram_chat_required: 'Укажите идентификатор чата Telegram.',
-    notification_daily_time_invalid: 'Проверьте время ежедневной сводки.',
-    notification_weekly_time_invalid: 'Проверьте время еженедельной сводки.',
-    notification_quiet_time_invalid: 'Проверьте границы тихих часов.',
-    notification_timezone_invalid: 'Укажите корректный часовой пояс, например Europe/Moscow.'
+    notification_email_invalid: ['Укажите корректный адрес электронной почты.', 400],
+    notification_telegram_chat_required: ['Укажите идентификатор чата Telegram.', 400],
+    notification_daily_time_invalid: ['Проверьте время ежедневной сводки.', 400],
+    notification_weekly_time_invalid: ['Проверьте время еженедельной сводки.', 400],
+    notification_quiet_time_invalid: ['Проверьте границы тихих часов.', 400],
+    notification_timezone_invalid: ['Укажите корректный часовой пояс, например Europe/Moscow.', 400],
+    notification_delivery_not_retryable: ['Повтор доступен только после завершения автоматических попыток доставки.', 409]
   };
-  return messages[code] ? new AppError(code, messages[code], 400) : error;
+  return messages[code] ? new AppError(code, messages[code][0], messages[code][1]) : error;
 }
 
 function workspaceId(request) {
@@ -95,8 +96,16 @@ export function createNotificationDeliveryRouter({ database, config }) {
     }
 
     if (method === 'POST' && retryMatch) {
+      if (!config.notificationDeliveryEnabled) {
+        throw new AppError('notification_delivery_disabled', 'Внешняя доставка выключена в конфигурации сервера.', 409);
+      }
       const deliveryId = decodeURIComponent(retryMatch[1]);
-      const delivery = retryNotificationDelivery(database, workspace, deliveryId);
+      let delivery;
+      try {
+        delivery = retryNotificationDelivery(database, workspace, deliveryId);
+      } catch (error) {
+        throw deliveryError(error);
+      }
       if (!delivery) throw new AppError('notification_delivery_not_found', 'Доставка не найдена.', 404);
       auditAction(database, {
         workspaceId: workspace,
