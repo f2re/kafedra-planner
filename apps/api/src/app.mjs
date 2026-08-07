@@ -35,7 +35,9 @@ export function createApp({ database, config, logger }) {
         const authHandled = await authRouter(request, response, url, requestId);
         if (!authHandled && !response.headersSent) {
           authorizeApiRequest(request.auth, url.pathname);
-          const accessHandled = await accessRouter(request, response, url, requestId);
+          const accessHandled = request.auth?.enabled
+            ? await accessRouter(request, response, url, requestId)
+            : false;
           if (!accessHandled && !response.headersSent) {
             const handled = await planFactRouter(request, response, url, requestId);
             if (!handled && !response.headersSent) await router(request, response, url, requestId);
