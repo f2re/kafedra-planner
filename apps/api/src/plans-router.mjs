@@ -3,6 +3,7 @@ import { AppError } from '../../../packages/core/src/errors.mjs';
 import { detectFormat } from '../../../packages/document-intake/src/formats.mjs';
 import { storeIncomingStream } from '../../../packages/document-intake/src/blob-store.mjs';
 import { registerDocument } from '../../../packages/storage/src/documents.mjs';
+import { getCalendarItem, listCalendarItems, listTasks } from '../../../packages/calendar/src/service.mjs';
 import { assertPersonScope, listManagedPeople } from '../../../packages/auth/src/policy.mjs';
 import {
   getPlan,
@@ -40,6 +41,13 @@ function integerParam(value, fallback, max = 1000) {
   return Math.max(1, Math.min(max, parsed));
 }
 
+function categoriesParam(url) {
+  return url.searchParams.getAll('category')
+    .flatMap((value) => String(value).split(','))
+    .map((value) => value.trim())
+    .filter(Boolean);
+}
+
 function planFilters(url) {
   return {
     q: url.searchParams.get('q') || '',
@@ -66,6 +74,26 @@ function visiblePersonalIds(database, workspaceId, context) {
 function planVisible(plan, allowedPersonalIds) {
   if (!plan || plan.plan_scope !== 'personal' || allowedPersonalIds === null) return true;
   return Boolean(plan.owner_person_id && allowedPersonalIds.includes(plan.owner_person_id));
+}
+
+function calendarItemVisible(database, item, allowedPersonalIds) {
+  if (!item || item.source_kind !== 'plan_item' || allowedPersonalIds === null) return true;
+  const plan = database.get(`
+    SELECT p.plan_scope, p.owner_person_id
+    FROM plan_items pi
+    JOIN plans p ON p.id = pi.plan_id
+    WHERE pi.id = ?
+  `, item.source_id);
+  return Boolean(plan && planVisible(plan, allowedPersonalIds));
+}
+
+function guardCalendarItem(database, workspaceId, itemId, allowedPersonalIds) {
+  const item = getCalendarItem(database, workspaceId, itemId);
+  if (!item) return null;
+  if (!calendarItemVisible(database, item, allowedPersonalIds)) {
+    throw new AppError('plan_calendar_forbidden', 'Нет доступа к сроку из этого личного плана.', 403);
+  }
+  return item;
 }
 
 function scopeHeader(request) {
@@ -166,9 +194,47 @@ export function createPlansRouter({ database, config, logger }) {
   return async function routePlans(request, response, url, requestId) {
     const method = request.method || 'GET';
     const path = url.pathname;
-    if (!path.startsWith('/api/plans') && !path.startsWith('/api/plan-templates')) return false;
+    const calendarGuarded = path === '/api/calendar'
+      || path === '/api/tasks'
+      || /^\/api\/calendar\/[^/]+(?:\/undo)?$/.test(path);
+    if (!path.startsWith('/api/plans') && !path.startsWith('/api/plan-templates') && !calendarGuarded) return false;
     const workspace = workspaceOf(database, request);
     const allowedPersonalIds = visiblePersonalIds(database, workspace.id, request.auth);
+
+    if (method === 'GET' && path === '/api/calendar') {
+      const items = listCalendarItems(database, workspace.id, {
+        from: url.searchParams.get('from'),
+        to: url.searchParams.get('to'),
+        kind: url.searchParams.get('kind'),
+        status: url.searchParams.get('status'),
+        categories: categoriesParam(url),
+        limit: integerParam(url.searchParams.get('limit'), 500, 2000)
+      }).filter((item) => calendarItemVisible(database, item, allowedPersonalIds));
+      sendJson(response, 200, { items });
+      return true;
+    }
+    if (method === 'GET' && path === '/api/tasks') {
+      const items = listTasks(database, workspace.id, {
+        categories: categoriesParam(url),
+        limit: integerParam(url.searchParams.get('limit'), 500, 2000)
+      }).filter((item) => calendarItemVisible(database, item, allowedPersonalIds));
+      sendJson(response, 200, { items });
+      return true;
+    }
+    const calendarUndoMatch = path.match(/^\/api\/calendar\/([^/]+)\/undo$/);
+    if (method === 'POST' && calendarUndoMatch) {
+      guardCalendarItem(database, workspace.id, decodeURIComponent(calendarUndoMatch[1]), allowedPersonalIds);
+      return false;
+    }
+    const calendarMatch = path.match(/^\/api\/calendar\/([^/]+)$/);
+    if (calendarMatch && ['GET', 'PATCH'].includes(method)) {
+      const item = guardCalendarItem(database, workspace.id, decodeURIComponent(calendarMatch[1]), allowedPersonalIds);
+      if (method === 'GET' && item) {
+        sendJson(response, 200, item);
+        return true;
+      }
+      return false;
+    }
 
     if (method === 'POST' && path === '/api/plans/file') {
       const result = await acceptFile(database, workspace, request, config);
