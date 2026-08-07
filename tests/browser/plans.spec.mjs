@@ -14,6 +14,21 @@ test.beforeEach(async ({ page }, testInfo) => {
   page.on('requestfailed', (request) => {
     console.log(`[plans:${testInfo.project.name}:requestfailed] ${request.method()} ${request.url()} ${request.failure()?.errorText || ''}`);
   });
+  page.on('request', (request) => {
+    if (/\/api\/(?:plan-documents\/[^/]+\/status|documents\/[^/]+)$/.test(new URL(request.url()).pathname)) {
+      console.log(`[plans:${testInfo.project.name}:poll:request] ${request.method()} ${new URL(request.url()).pathname}`);
+    }
+  });
+  page.on('response', async (response) => {
+    const pathname = new URL(response.url()).pathname;
+    if (!/\/api\/(?:plan-documents\/[^/]+\/status|documents\/[^/]+)$/.test(pathname)) return;
+    let status = '';
+    try {
+      const body = await response.clone().json();
+      status = body?.processing_status || body?.error?.code || '';
+    } catch {}
+    console.log(`[plans:${testInfo.project.name}:poll:response] ${response.status()} ${pathname} ${status}`);
+  });
 });
 
 function cell(text) {
