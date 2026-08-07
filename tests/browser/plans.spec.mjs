@@ -51,6 +51,26 @@ async function uploadThroughPlans(page, path) {
   await expect(page.locator('#plans-notice')).toContainText(/План загружен|Документ обработан|Обработка продолжается/, { timeout: 30_000 });
 }
 
+async function goToCalendarMonth(page, targetYear, targetMonth) {
+  const current = await page.evaluate(() => {
+    const date = new Date();
+    return { year: date.getFullYear(), month: date.getMonth() };
+  });
+  const delta = (targetYear - current.year) * 12 + (targetMonth - current.month);
+  const direction = Math.sign(delta);
+  const cursor = new Date(current.year, current.month, 1);
+  const button = page.locator(direction >= 0 ? '#next-period' : '#previous-period');
+  const title = page.locator('#calendar-title');
+  for (let index = 0; index < Math.abs(delta); index += 1) {
+    cursor.setMonth(cursor.getMonth() + direction);
+    const expected = new Intl.DateTimeFormat('ru-RU', { month: 'long', year: 'numeric' }).format(cursor);
+    await expect(button).toBeVisible();
+    await expect(button).toBeEnabled();
+    await button.click();
+    await expect(title).toHaveText(expected);
+  }
+}
+
 test('Планы: DOCX → новый период → календарь → источник', async ({ page }, testInfo) => {
   const dir = await mkdtemp(join(tmpdir(), `kafedra-plans-ui-${testInfo.project.name}-`));
   const sourcePath = join(dir, `План кафедры ${testInfo.project.name}.docx`);
@@ -75,13 +95,14 @@ test('Планы: DOCX → новый период → календарь → и
 
     await navigationButton(page, 'calendar').click();
     await expect(page.locator('[data-view-panel="calendar"]')).toBeVisible();
-    for (let index = 0; index < 13; index += 1) await page.locator('#next-period').click();
+    await goToCalendarMonth(page, 2027, 8);
     await expect(page.locator('#calendar-title')).toContainText(/сентябр/i);
     const event = page.getByRole('button', { name: 'Браузерное заседание кафедры', exact: true }).first();
     await expect(event).toBeVisible();
     await event.click();
     await expect(page.locator('#ux-inspector')).toBeVisible();
     await expect(page.locator('#ux-inspector-body')).toContainText('План кафедры · 2027/28');
+    await expect(page.locator('#ux-inspector-actions')).toContainText('Исходный документ');
     await page.locator('[data-open-plan-source]').click();
     await expect(page.locator('[data-view-panel="plans"]')).toBeVisible();
     await expect(page.locator('#plan-detail')).toContainText('2027/28');
