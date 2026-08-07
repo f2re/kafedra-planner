@@ -5,11 +5,12 @@ import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 import { Database } from '../packages/storage/src/database.mjs';
 import { ensureDefaultWorkspace } from '../packages/storage/src/bootstrap.mjs';
+import { listCalendarItems } from '../packages/calendar/src/service.mjs';
 import { persistPlan } from '../packages/plans/src/service.mjs';
 import { updatePlanItem, undoPlanItemCorrection } from '../packages/plans/src/corrections.mjs';
 import { search } from '../packages/storage/src/search.mjs';
 
-test('исправление пункта плана перестраивает календарь и поиск, но сохраняет исходное доказательство и отменяется', async () => {
+test('исправление пункта плана сохраняет доказательство и историю календаря и полностью отменяется', async () => {
   const dir = await mkdtemp(join(tmpdir(), 'kafedra-plan-correction-'));
   const database = new Database(join(dir, 'test.sqlite3'), { migrationsDir: resolve('migrations') });
   try {
@@ -69,31 +70,58 @@ test('исправление пункта плана перестраивает 
     assert.equal(updated.due_date, '2026-10-20');
     assert.equal(updated.correction.canUndo, true);
     assert.equal(database.get('SELECT evidence_json FROM plan_items WHERE id = ?', item.id).evidence_json, evidenceBefore);
-    const calendar = database.get("SELECT * FROM calendar_items WHERE source_kind='plan_item' AND source_id=?", item.id);
-    assert.equal(calendar.item_kind, 'task');
-    assert.equal(calendar.starts_at, '2026-10-20');
-    assert.equal(calendar.origin_document_id, 'doc_corr');
+    const firstCalendar = database.get("SELECT * FROM calendar_items WHERE source_kind='plan_item' AND source_id=?", item.id);
+    assert.equal(firstCalendar.item_kind, 'task');
+    assert.equal(firstCalendar.starts_at, '2026-10-20');
+    assert.equal(firstCalendar.origin_document_id, 'doc_corr');
     assert.equal(database.get("SELECT status FROM review_items WHERE issue_code='plan_items_without_date'").status, 'resolved');
     assert.ok(search(database, workspace.id, 'Петров', 20).some((row) => row.source_id === item.id));
-    const correctionAudit = database.get(
-      "SELECT * FROM audit_log WHERE action='plan.item.corrected' AND subject_id=?",
-      item.id
+
+    const shifted = updatePlanItem(database, workspace.id, plan.id, item.id, {
+      dueDate: '2026-10-21',
+      reason: 'Уточнён день контрольного срока'
+    }, null, '2026-08-07T07:05:30.000Z');
+    assert.equal(shifted.due_date, '2026-10-21');
+    const shiftedCalendar = database.get("SELECT * FROM calendar_items WHERE source_kind='plan_item' AND source_id=?", item.id);
+    assert.equal(shiftedCalendar.id, firstCalendar.id);
+    assert.equal(shiftedCalendar.starts_at, '2026-10-21');
+    assert.ok(database.get(
+      'SELECT COUNT(*) AS n FROM calendar_item_revisions WHERE calendar_item_id = ?', firstCalendar.id
+    ).n >= 1);
+
+    const oneStepBack = undoPlanItemCorrection(
+      database, workspace.id, plan.id, item.id, null, '2026-08-07T07:06:00.000Z'
     );
-    assert.ok(correctionAudit);
-    assert.equal(JSON.parse(correctionAudit.details_json).evidencePreserved, true);
+    assert.equal(oneStepBack.due_date, '2026-10-20');
+    assert.equal(database.get(
+      "SELECT id FROM calendar_items WHERE source_kind='plan_item' AND source_id=?", item.id
+    ).id, firstCalendar.id);
 
     const restored = undoPlanItemCorrection(
-      database, workspace.id, plan.id, item.id, null, '2026-08-07T07:06:00.000Z'
+      database, workspace.id, plan.id, item.id, null, '2026-08-07T07:07:00.000Z'
     );
     assert.equal(restored.due_date, null);
     assert.equal(database.get('SELECT evidence_json FROM plan_items WHERE id = ?', item.id).evidence_json, evidenceBefore);
-    assert.equal(database.get("SELECT COUNT(*) AS n FROM calendar_items WHERE source_kind='plan_item' AND source_id=?", item.id).n, 0);
+    const archivedCalendar = database.get("SELECT * FROM calendar_items WHERE source_kind='plan_item' AND source_id=?", item.id);
+    assert.equal(archivedCalendar.id, firstCalendar.id);
+    assert.equal(archivedCalendar.status, 'cancelled');
+    assert.ok(database.get(
+      'SELECT COUNT(*) AS n FROM calendar_item_revisions WHERE calendar_item_id = ?', firstCalendar.id
+    ).n >= 3);
+    assert.equal(listCalendarItems(database, workspace.id, {
+      from: '2026-01-01', to: '2026-12-31', limit: 100
+    }).some((row) => row.id === firstCalendar.id), false);
     assert.equal(database.get("SELECT status FROM review_items WHERE issue_code='plan_items_without_date'").status, 'open');
     assert.equal(search(database, workspace.id, 'Петров', 20).some((row) => row.source_id === item.id), false);
     assert.ok(database.get(
       "SELECT 1 AS ok FROM audit_log WHERE action='plan.item.correction_undone' AND subject_id=?",
       item.id
     ));
+    const correctionAudit = database.get(
+      "SELECT * FROM audit_log WHERE action='plan.item.corrected' AND subject_id=? ORDER BY created_at LIMIT 1",
+      item.id
+    );
+    assert.equal(JSON.parse(correctionAudit.details_json).evidencePreserved, true);
   } finally {
     database.close();
     await rm(dir, { recursive: true, force: true });
