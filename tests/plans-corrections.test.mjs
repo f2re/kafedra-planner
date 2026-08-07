@@ -5,12 +5,12 @@ import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 import { Database } from '../packages/storage/src/database.mjs';
 import { ensureDefaultWorkspace } from '../packages/storage/src/bootstrap.mjs';
-import { listCalendarItems } from '../packages/calendar/src/service.mjs';
+import { listCalendarItems, updateCalendarItem } from '../packages/calendar/src/service.mjs';
 import { persistPlan } from '../packages/plans/src/service.mjs';
 import { updatePlanItem, undoPlanItemCorrection } from '../packages/plans/src/corrections.mjs';
 import { search } from '../packages/storage/src/search.mjs';
 
-test('исправление пункта плана сохраняет доказательство и историю календаря и полностью отменяется', async () => {
+test('исправление пункта плана сохраняет доказательство, ручной перенос и историю календаря и полностью отменяется', async () => {
   const dir = await mkdtemp(join(tmpdir(), 'kafedra-plan-correction-'));
   const database = new Database(join(dir, 'test.sqlite3'), { migrationsDir: resolve('migrations') });
   try {
@@ -77,6 +77,20 @@ test('исправление пункта плана сохраняет дока
     assert.equal(database.get("SELECT status FROM review_items WHERE issue_code='plan_items_without_date'").status, 'resolved');
     assert.ok(search(database, workspace.id, 'Петров', 20).some((row) => row.source_id === item.id));
 
+    updateCalendarItem(database, workspace.id, firstCalendar.id, {
+      startsAt: '2026-10-22',
+      action: 'reschedule'
+    }, '2026-08-07T07:05:10.000Z');
+    assert.equal(database.get('SELECT starts_at FROM calendar_items WHERE id = ?', firstCalendar.id).starts_at, '2026-10-22');
+
+    const metadataOnly = updatePlanItem(database, workspace.id, plan.id, item.id, {
+      responsibleRaw: 'Сидоров Сидор Сидорович',
+      reason: 'Уточнён ответственный'
+    }, null, '2026-08-07T07:05:20.000Z');
+    assert.equal(metadataOnly.due_date, '2026-10-20');
+    assert.equal(database.get('SELECT starts_at FROM calendar_items WHERE id = ?', firstCalendar.id).starts_at, '2026-10-22');
+    assert.ok(search(database, workspace.id, 'Сидоров', 20).some((row) => row.source_id === item.id));
+
     const shifted = updatePlanItem(database, workspace.id, plan.id, item.id, {
       dueDate: '2026-10-21',
       reason: 'Уточнён день контрольного срока'
@@ -87,15 +101,19 @@ test('исправление пункта плана сохраняет дока
     assert.equal(shiftedCalendar.starts_at, '2026-10-21');
     assert.ok(database.get(
       'SELECT COUNT(*) AS n FROM calendar_item_revisions WHERE calendar_item_id = ?', firstCalendar.id
-    ).n >= 1);
+    ).n >= 3);
 
-    const oneStepBack = undoPlanItemCorrection(
+    const undoDate = undoPlanItemCorrection(
       database, workspace.id, plan.id, item.id, null, '2026-08-07T07:06:00.000Z'
     );
-    assert.equal(oneStepBack.due_date, '2026-10-20');
-    assert.equal(database.get(
-      "SELECT id FROM calendar_items WHERE source_kind='plan_item' AND source_id=?", item.id
-    ).id, firstCalendar.id);
+    assert.equal(undoDate.due_date, '2026-10-20');
+    assert.equal(database.get('SELECT starts_at FROM calendar_items WHERE id = ?', firstCalendar.id).starts_at, '2026-10-20');
+
+    const undoMetadata = undoPlanItemCorrection(
+      database, workspace.id, plan.id, item.id, null, '2026-08-07T07:06:30.000Z'
+    );
+    assert.equal(undoMetadata.responsible_raw, 'Петров Пётр Петрович');
+    assert.equal(database.get('SELECT starts_at FROM calendar_items WHERE id = ?', firstCalendar.id).starts_at, '2026-10-20');
 
     const restored = undoPlanItemCorrection(
       database, workspace.id, plan.id, item.id, null, '2026-08-07T07:07:00.000Z'
@@ -107,7 +125,7 @@ test('исправление пункта плана сохраняет дока
     assert.equal(archivedCalendar.status, 'cancelled');
     assert.ok(database.get(
       'SELECT COUNT(*) AS n FROM calendar_item_revisions WHERE calendar_item_id = ?', firstCalendar.id
-    ).n >= 3);
+    ).n >= 6);
     assert.equal(listCalendarItems(database, workspace.id, {
       from: '2026-01-01', to: '2026-12-31', limit: 100
     }).some((row) => row.id === firstCalendar.id), false);
