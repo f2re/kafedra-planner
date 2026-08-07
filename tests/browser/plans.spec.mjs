@@ -46,8 +46,8 @@ async function addTemplate(page, suffix) {
   await expect(page.getByRole('heading', { name: 'Проверить шаблон' })).toBeVisible({ timeout: 30_000 });
   await expect(page.locator('[name="yearToken"]')).toHaveValue('2025');
   await expect(page.locator('[name="tableIndex"]')).toHaveValue('1');
-  await page.locator('[name="name"]').fill(`План кафедры ${suffix}`);
-  await page.getByRole('button', { name: 'Сохранить шаблон' }).click();
+  await page.locator('#plan-template-settings [name="name"]').fill(`План кафедры ${suffix}`);
+  await page.locator('#plan-template-settings').getByRole('button', { name: 'Сохранить шаблон' }).click();
   await expect(page.getByText(`План кафедры ${suffix}`, { exact: true })).toBeVisible();
 }
 
@@ -62,7 +62,7 @@ async function generatePlan(page, suffix) {
   await row.locator('[name="startsAt"]').fill(today.iso);
   await row.locator('[name="responsible"]').fill('Иванов Иван Иванович');
   await row.locator('[name="result"]').fill('Протокол заседания');
-  await page.getByRole('button', { name: 'Сформировать DOCX' }).click();
+  await page.locator('#plan-generation-form').getByRole('button', { name: 'Сформировать DOCX' }).click();
   await expect(page.locator('#plans-dialog')).toBeHidden({ timeout: 30_000 });
   await expect(page.locator('.plan-card', { hasText: `Заседание кафедры ${suffix}` })).toBeVisible({ timeout: 20_000 });
   return today;
