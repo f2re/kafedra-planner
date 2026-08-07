@@ -46,6 +46,12 @@ cat > "$BUNDLE_ROOT/release.json" <<JSON
 }
 JSON
 
+UNSUPPORTED_ENTRY="$(find "$BUNDLE_ROOT" ! -type f ! -type d -print -quit)"
+if [[ -n "$UNSUPPORTED_ENTRY" ]]; then
+  echo "Release-комплект не должен содержать симлинки или специальные файлы: $UNSUPPORTED_ENTRY" >&2
+  exit 4
+fi
+
 (
   cd "$BUNDLE_ROOT"
   find . -type f ! -name manifest.sha256 -print0 | sort -z | xargs -0 sha256sum > manifest.sha256

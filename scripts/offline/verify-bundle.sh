@@ -18,21 +18,35 @@ elif [[ "${REQUIRE_ARCHIVE_SHA256:-false}" == "true" ]]; then
 fi
 
 LIST_FILE="$WORK_DIR/archive-list.txt"
+VERBOSE_LIST_FILE="$WORK_DIR/archive-verbose-list.txt"
 tar -tzf "$ARCHIVE" > "$LIST_FILE"
-[[ -s "$LIST_FILE" ]] || { echo "Архив пуст" >&2; exit 4; }
+tar -tvzf "$ARCHIVE" > "$VERBOSE_LIST_FILE"
+[[ -s "$LIST_FILE" && -s "$VERBOSE_LIST_FILE" ]] || { echo "Архив пуст" >&2; exit 4; }
+
+while IFS= read -r line; do
+  entry_type="${line:0:1}"
+  case "$entry_type" in
+    '-'|'d') ;;
+    *)
+      echo "Неподдерживаемый тип записи в release-архиве: $entry_type" >&2
+      exit 5
+      ;;
+  esac
+done < "$VERBOSE_LIST_FILE"
+
 while IFS= read -r entry; do
   clean="${entry#./}"
   if [[ "$clean" == /* || "$clean" == ".." || "$clean" == ../* || "$clean" == */../* || "$clean" == */.. ]]; then
     echo "Небезопасный путь в архиве: $entry" >&2
-    exit 5
+    exit 6
   fi
 done < "$LIST_FILE"
 mapfile -t TOP_LEVEL < <(sed 's#^\./##; s#/.*##' "$LIST_FILE" | sed '/^$/d' | sort -u)
-[[ "${#TOP_LEVEL[@]}" -eq 1 ]] || { echo "Архив должен содержать ровно один корневой каталог" >&2; exit 6; }
+[[ "${#TOP_LEVEL[@]}" -eq 1 ]] || { echo "Архив должен содержать ровно один корневой каталог" >&2; exit 7; }
 
 tar -xzf "$ARCHIVE" -C "$WORK_DIR"
 ROOT="$WORK_DIR/${TOP_LEVEL[0]}"
-[[ -d "$ROOT" && -f "$ROOT/manifest.sha256" && -f "$ROOT/release.json" ]] || { echo "Комплект неполон" >&2; exit 7; }
+[[ -d "$ROOT" && -f "$ROOT/manifest.sha256" && -f "$ROOT/release.json" ]] || { echo "Комплект неполон" >&2; exit 8; }
 (
   cd "$ROOT"
   sha256sum -c manifest.sha256
@@ -43,11 +57,11 @@ if [[ -x "$EMBEDDED_NODE" ]]; then
   NODE="$EMBEDDED_NODE"
 elif [[ "${REQUIRE_EMBEDDED_RUNTIME:-false}" == "true" ]]; then
   echo "В release-комплекте отсутствует встроенный runtime/node/bin/node" >&2
-  exit 8
+  exit 9
 else
   NODE="$(command -v node || true)"
 fi
-[[ -n "$NODE" ]] || { echo "Нет встроенного или системного Node.js" >&2; exit 9; }
+[[ -n "$NODE" ]] || { echo "Нет встроенного или системного Node.js" >&2; exit 10; }
 
 "$NODE" - "$ROOT" <<'NODE'
 const fs = require('node:fs');
@@ -76,7 +90,7 @@ process.stdout.write(`${JSON.stringify({
 NODE
 
 if [[ "${REQUIRE_EMBEDDED_RUNTIME:-false}" == "true" ]]; then
-  [[ "$NODE" == "$EMBEDDED_NODE" ]] || { echo "Smoke должен выполняться встроенным Node.js" >&2; exit 10; }
+  [[ "$NODE" == "$EMBEDDED_NODE" ]] || { echo "Smoke должен выполняться встроенным Node.js" >&2; exit 11; }
 fi
 
 "$NODE" --version
