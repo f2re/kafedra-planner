@@ -87,6 +87,22 @@ function calendarItemVisible(database, item, allowedPersonalIds) {
   return Boolean(plan && planVisible(plan, allowedPersonalIds));
 }
 
+function filterVisibleCalendarSources(database, workspaceId, sources, allowedPersonalIds) {
+  if (allowedPersonalIds === null) return sources;
+  const plans = new Map();
+  return sources.filter((source) => {
+    if (!plans.has(source.plan_id)) {
+      plans.set(source.plan_id, database.get(`
+        SELECT plan_scope, owner_person_id
+        FROM plans
+        WHERE workspace_id = ? AND id = ?
+      `, workspaceId, source.plan_id) || null);
+    }
+    const plan = plans.get(source.plan_id);
+    return Boolean(plan && planVisible(plan, allowedPersonalIds));
+  });
+}
+
 function guardCalendarItem(database, workspaceId, itemId, allowedPersonalIds) {
   const item = getCalendarItem(database, workspaceId, itemId);
   if (!item) return null;
@@ -249,9 +265,12 @@ export function createPlansRouter({ database, config, logger }) {
       return true;
     }
     if (method === 'GET' && path === '/api/plans/calendar-sources') {
-      const sourceByPlan = new Map(listPlans(database, workspace.id, { limit: 1000 }).map((item) => [item.id, item]));
-      const items = listPlanCalendarSources(database, workspace.id, integerParam(url.searchParams.get('limit'), 3000, 10000))
-        .filter((item) => planVisible(sourceByPlan.get(item.plan_id), allowedPersonalIds));
+      const items = filterVisibleCalendarSources(
+        database,
+        workspace.id,
+        listPlanCalendarSources(database, workspace.id, integerParam(url.searchParams.get('limit'), 3000, 10000)),
+        allowedPersonalIds
+      );
       sendJson(response, 200, { items });
       return true;
     }
