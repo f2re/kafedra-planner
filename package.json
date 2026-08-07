@@ -1,6 +1,6 @@
 {
   "name": "kafedra-planner",
-  "version": "0.1.0-rc.2",
+  "version": "0.1.0-rc.3",
   "private": true,
   "description": "Автономная платформа календаря, документов, решений, сроков и деятельности кафедры.",
   "type": "module",
@@ -27,6 +27,7 @@
     "test:browser:plan-fact-tools": "playwright test --config=playwright.plan-fact-tools.config.mjs",
     "test:browser:auth": "playwright test --config=playwright.auth.config.mjs",
     "test:browser:release": "playwright test --config=playwright.release.config.mjs",
+    "test:browser:acl": "playwright test --config=playwright.acl.config.mjs",
     "bundle:offline": "bash scripts/offline/build-bundle.sh",
     "bundle:verify": "bash scripts/offline/verify-bundle.sh"
   },
