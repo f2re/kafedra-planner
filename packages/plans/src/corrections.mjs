@@ -66,6 +66,10 @@ function snapshot(row) {
   };
 }
 
+function datesChanged(left, right) {
+  return ['starts_at', 'ends_at', 'due_date'].some((key) => (left?.[key] ?? null) !== (right?.[key] ?? null));
+}
+
 function itemForProjection(row) {
   return {
     title: row.title,
@@ -166,7 +170,7 @@ function calendarTargets(row) {
   return targets;
 }
 
-function syncCalendarProjection(database, row, now) {
+function syncCalendarProjection(database, row, now, { syncDates = true } = {}) {
   const plan = { id: row.plan_id, plan_kind: row.plan_kind, period_key: row.period_key };
   const existing = database.all(`
     SELECT * FROM calendar_items
@@ -197,8 +201,8 @@ function syncCalendarProjection(database, row, now) {
     used.add(current.id);
     updateCalendarItem(database, row.workspace_id, current.id, {
       title: target.title,
-      startsAt: target.startsAt,
-      endsAt: target.endsAt,
+      startsAt: syncDates ? target.startsAt : current.starts_at,
+      endsAt: syncDates ? target.endsAt : current.ends_at,
       allDay: true,
       category: categoryFor(row.direction),
       status: current.status === 'cancelled' ? target.status : current.status,
@@ -218,7 +222,7 @@ function syncCalendarProjection(database, row, now) {
   }
 }
 
-function rebuildProjection(database, row, now) {
+function rebuildProjection(database, row, now, options = {}) {
   deleteSearchProjection(database, row.workspace_id, row.id);
   database.run(`
     DELETE FROM entity_facets
@@ -243,7 +247,7 @@ function rebuildProjection(database, row, now) {
     locator: row.evidence?.locator || {}
   });
 
-  syncCalendarProjection(database, row, now);
+  syncCalendarProjection(database, row, now, options);
   syncMissingDateReview(database, row, now);
 }
 
@@ -273,7 +277,7 @@ function latestUndoableCorrection(database, workspaceId, itemId) {
           AND u.action = 'plan.item.correction_undone'
           AND json_extract(u.details_json, '$.correctionAuditId') = a.id
       )
-    ORDER BY a.created_at DESC, a.id DESC
+    ORDER BY a.created_at DESC, a.rowid DESC
     LIMIT 1
   `, workspaceId, itemId) || null;
 }
@@ -330,6 +334,7 @@ export function updatePlanItem(database, workspaceId, planId, itemId, body = {},
   const previousSnapshot = snapshot(current);
   const nextSnapshot = snapshot(next);
   if (JSON.stringify(previousSnapshot) === JSON.stringify(nextSnapshot)) return result(database, workspaceId, planId, itemId);
+  const syncDates = datesChanged(previousSnapshot, nextSnapshot);
 
   return database.transaction(() => {
     database.run(`
@@ -342,7 +347,7 @@ export function updatePlanItem(database, workspaceId, planId, itemId, body = {},
     next.responsible_raw, next.responsible_person_id, next.direction,
     next.expected_result, now, itemId, planId);
     const saved = context(database, workspaceId, planId, itemId);
-    rebuildProjection(database, saved, now);
+    rebuildProjection(database, saved, now, { syncDates });
     writeAudit(database, saved, 'plan.item.corrected', {
       previous: previousSnapshot,
       current: nextSnapshot,
@@ -363,6 +368,8 @@ export function undoPlanItemCorrection(database, workspaceId, planId, itemId, ac
   const details = parseJson(correction.details_json, {});
   const previous = details.previous;
   if (!previous || !previous.title) fail('plan_item_undo_invalid');
+  const currentSnapshot = snapshot(current);
+  const syncDates = datesChanged(currentSnapshot, previous);
 
   return database.transaction(() => {
     database.run(`
@@ -376,7 +383,7 @@ export function undoPlanItemCorrection(database, workspaceId, planId, itemId, ac
     previous.responsible_person_id ?? null, previous.direction || 'organizational',
     previous.expected_result ?? null, now, itemId, planId);
     const restored = context(database, workspaceId, planId, itemId);
-    rebuildProjection(database, restored, now);
+    rebuildProjection(database, restored, now, { syncDates });
     writeAudit(database, restored, 'plan.item.correction_undone', {
       correctionAuditId: correction.id,
       restored: snapshot(restored),
