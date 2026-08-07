@@ -4,6 +4,11 @@ import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 import { writeZipArchive } from '../../packages/plan-docx/src/archive.mjs';
 
+function observedApiPath(url) {
+  const pathname = new URL(url).pathname;
+  return /^\/api\/(?:plan-documents\/[^/]+\/status|documents\/[^/]+|plans(?:\/[^/]+)?)$/.test(pathname) ? pathname : null;
+}
+
 test.beforeEach(async ({ page }, testInfo) => {
   page.on('pageerror', (error) => console.log(`[plans:${testInfo.project.name}:pageerror] ${error.stack || error.message}`));
   page.on('console', (message) => {
@@ -15,19 +20,22 @@ test.beforeEach(async ({ page }, testInfo) => {
     console.log(`[plans:${testInfo.project.name}:requestfailed] ${request.method()} ${request.url()} ${request.failure()?.errorText || ''}`);
   });
   page.on('request', (request) => {
-    if (/\/api\/(?:plan-documents\/[^/]+\/status|documents\/[^/]+)$/.test(new URL(request.url()).pathname)) {
-      console.log(`[plans:${testInfo.project.name}:poll:request] ${request.method()} ${new URL(request.url()).pathname}`);
-    }
+    const pathname = observedApiPath(request.url());
+    if (pathname) console.log(`[plans:${testInfo.project.name}:api:request] ${request.method()} ${pathname}`);
   });
   page.on('response', async (response) => {
-    const pathname = new URL(response.url()).pathname;
-    if (!/\/api\/(?:plan-documents\/[^/]+\/status|documents\/[^/]+)$/.test(pathname)) return;
-    let status = '';
+    const pathname = observedApiPath(response.url());
+    if (!pathname) return;
+    let detail = '';
     try {
-      const body = await response.clone().json();
-      status = body?.processing_status || body?.error?.code || '';
+      const body = await response.json();
+      detail = body?.processing_status
+        || body?.error?.code
+        || (Array.isArray(body?.items) ? `items=${body.items.length}` : '')
+        || body?.id
+        || '';
     } catch {}
-    console.log(`[plans:${testInfo.project.name}:poll:response] ${response.status()} ${pathname} ${status}`);
+    console.log(`[plans:${testInfo.project.name}:api:response] ${response.status()} ${pathname} ${detail}`);
   });
 });
 
