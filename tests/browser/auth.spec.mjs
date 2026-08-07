@@ -24,6 +24,12 @@ async function visiblePlanCalendar(page) {
   return (await response.json()).items.filter((item) => item.source_kind === 'plan_item');
 }
 
+async function visiblePlanSources(page) {
+  const response = await page.request.get('/api/plans/calendar-sources?limit=10000');
+  expect(response.status()).toBe(200);
+  return (await response.json()).items;
+}
+
 test('сотрудник получает только личный контур, руководитель — подчинённых', async ({ page }) => {
   await login(page, 'staff', 'StaffPassword2026');
   const me = await (await page.request.get('/api/auth/me')).json();
@@ -39,6 +45,8 @@ test('сотрудник получает только личный контур
   expect(staffPlans.map((item) => item.title)).toEqual(['Личный план сотрудника']);
   const staffCalendar = await visiblePlanCalendar(page);
   expect(staffCalendar.map((item) => item.title)).toEqual(['Личное мероприятие сотрудника']);
+  const staffSources = await visiblePlanSources(page);
+  expect(staffSources.map((item) => item.plan_title)).toEqual(['Личный план сотрудника']);
 
   const adminDenied = await page.request.post('/api/admin/accounts', {
     data: {
@@ -69,4 +77,6 @@ test('сотрудник получает только личный контур
   expect(managerPlans.map((item) => item.title)).toEqual(['Личный план сотрудника']);
   const managerCalendar = await visiblePlanCalendar(page);
   expect(managerCalendar.map((item) => item.title)).toEqual(['Личное мероприятие сотрудника']);
+  const managerSources = await visiblePlanSources(page);
+  expect(managerSources.map((item) => item.plan_title)).toEqual(['Личный план сотрудника']);
 });
