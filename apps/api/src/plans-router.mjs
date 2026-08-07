@@ -69,7 +69,8 @@ function planVisible(plan, allowedPersonalIds) {
 }
 
 function scopeHeader(request) {
-  const value = String(request.headers['x-plan-scope'] || 'department').trim();
+  const value = String(request.headers['x-plan-scope'] || '').trim();
+  if (!value || value === 'auto') return null;
   if (!PLAN_SCOPES.has(value)) throw new AppError('plan_scope_invalid', 'Неизвестный вид плана.', 400);
   return value;
 }
@@ -141,7 +142,7 @@ async function acceptFile(database, workspace, request, config, { templateOnly =
       mediaType,
       detectedFormat: format,
       blob,
-      requestedType: templateOnly ? 'plan_template' : `${planScope}_plan`,
+      requestedType: templateOnly ? 'plan_template' : (planScope ? `${planScope}_plan` : 'plan'),
       idempotencyKey
     });
     if (result.jobId && !result.duplicateRequest) {
