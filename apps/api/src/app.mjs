@@ -33,12 +33,12 @@ export function createApp({ database, config, logger }) {
       if (url.pathname.startsWith('/api/')) {
         authorizeCsrfRequest(request, request.auth, url.pathname, config);
         const authHandled = await authRouter(request, response, url, requestId);
-        if (!authHandled) {
+        if (!authHandled && !response.headersSent) {
           authorizeApiRequest(request.auth, url.pathname);
           const accessHandled = await accessRouter(request, response, url, requestId);
-          if (!accessHandled) {
+          if (!accessHandled && !response.headersSent) {
             const handled = await planFactRouter(request, response, url, requestId);
-            if (!handled) await router(request, response, url, requestId);
+            if (!handled && !response.headersSent) await router(request, response, url, requestId);
           }
         }
       } else if (!(await serveStatic(response, config.publicDir, url.pathname))) {
