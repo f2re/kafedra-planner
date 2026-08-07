@@ -28,7 +28,7 @@ function planXml() {
   return `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
 <w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"><w:body>
 <w:p><w:r><w:t>ПЛАН РАБОТЫ КАФЕДРЫ</w:t></w:r></w:p>
-<w:p><w:r><w:t>на </w:t></w:r><w:r><w:t>2025</w:t></w:r><w:r><w:t>/</w:t></w:r><w:r><w:t>2026</w:t></w:r><w:r><w:t> учебный год</w:t></w:r></w:p>
+<w:p><w:r><w:t>на </w:t></w:r><w:r><w:t>2025</w:t></w:r><w:r><w:t> год</w:t></w:r></w:p>
 <w:tbl><w:tblPr><w:tblStyle w:val="TableGrid"/></w:tblPr>
 ${row(['№', 'Мероприятие', 'Срок проведения', 'Ответственный', 'Результат'])}
 ${row(['1', 'Браузерное заседание кафедры', '15 августа 2025', 'Иванов Иван Иванович', 'Протокол'])}
@@ -81,18 +81,18 @@ test('Планы: DOCX → новый период → календарь → и
     await uploadThroughPlans(page, sourcePath);
 
     const selected = page.locator('.plan-card.active');
-    await expect(selected).toContainText('2025/26', { timeout: 20_000 });
+    await expect(selected).toContainText('2025', { timeout: 20_000 });
     await expect(page.locator('#plan-detail')).toContainText('Браузерное заседание кафедры');
 
     await page.locator('[data-plan-generate-current]').click();
     await expect(page.locator('#plan-generate-modal')).toBeVisible({ timeout: 15_000 });
-    await expect(page.locator('#plan-generation-period')).toHaveValue('2026/27');
+    await expect(page.locator('#plan-generation-period')).toHaveValue('2026');
     await expect(page.locator('[data-generation-row]').first().locator('[name="startsAt"]')).toHaveValue('2026-08-15');
     await page.locator('#plan-generation-form button[type="submit"]').click();
 
-    await expect(page.locator('#plan-detail')).toContainText('2026/27', { timeout: 30_000 });
-    await page.locator('#plans-period').selectOption('2026/27');
-    await expect(page.locator('.plan-card').first()).toContainText('2026/27');
+    await expect(page.locator('#plan-detail')).toContainText('2026', { timeout: 30_000 });
+    await page.locator('#plans-period').selectOption('2026');
+    await expect(page.locator('.plan-card').first()).toContainText('2026');
 
     await navigationButton(page, 'calendar').click();
     await expect(page.locator('[data-view-panel="calendar"]')).toBeVisible();
@@ -102,11 +102,11 @@ test('Планы: DOCX → новый период → календарь → и
     await event.click();
     await expect(page.locator('#ux-inspector')).toBeVisible();
     await expect(page.locator('#ux-inspector-body')).toContainText('15 августа 2026');
-    await expect(page.locator('#ux-inspector-body')).toContainText('План кафедры · 2026/27');
+    await expect(page.locator('#ux-inspector-body')).toContainText('План кафедры · 2026');
     await expect(page.locator('#ux-inspector-actions')).toContainText('Исходный документ');
     await page.locator('[data-open-plan-source]').click();
     await expect(page.locator('[data-view-panel="plans"]')).toBeVisible();
-    await expect(page.locator('#plan-detail')).toContainText('2026/27');
+    await expect(page.locator('#plan-detail')).toContainText('2026');
     await expect(page.locator('#plan-detail')).toContainText('Браузерное заседание кафедры');
   } finally {
     await rm(dir, { recursive: true, force: true });
