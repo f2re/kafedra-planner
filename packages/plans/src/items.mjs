@@ -37,11 +37,13 @@ function rowLocator(row) {
 function itemFromRow(row, mapping, period) {
   const numberCell = cellAt(row, mapping, 'number');
   const titleCell = cellAt(row, mapping, 'title');
+  const descriptionCell = cellAt(row, mapping, 'description');
   const dateCell = cellAt(row, mapping, 'date');
   const deadlineCell = cellAt(row, mapping, 'deadline');
   const responsibleCell = cellAt(row, mapping, 'responsible');
   const directionCell = cellAt(row, mapping, 'direction');
   const resultCell = cellAt(row, mapping, 'result');
+  const statusCell = cellAt(row, mapping, 'status');
   const title = clean(titleCell?.text);
   if (!title || classifyHeader(title) || /^(?:итого|всего)$/iu.test(title)) return null;
 
@@ -56,18 +58,19 @@ function itemFromRow(row, mapping, period) {
   const direction = explicitDirection ? directionFor(explicitDirection) : directionFor(title);
   const itemNo = clean(numberCell?.text) || null;
   const timePresent = Boolean(startsAt || dueDate);
-  const fieldCount = [titleCell, dateCell, deadlineCell, responsibleCell, resultCell].filter(Boolean).length;
+  const fieldCount = [titleCell, descriptionCell, dateCell, deadlineCell, responsibleCell, resultCell].filter(Boolean).length;
   const confidence = clamp(0.45 + Math.min(0.25, fieldCount * 0.05) + (timePresent ? 0.2 : 0));
   const evidenceFields = {};
   for (const [name, cell] of Object.entries({
-    itemNo: numberCell, title: titleCell, date: dateCell, deadline: deadlineCell,
-    responsible: responsibleCell, direction: directionCell, expectedResult: resultCell
+    itemNo: numberCell, title: titleCell, description: descriptionCell, date: dateCell,
+    deadline: deadlineCell, responsible: responsibleCell, direction: directionCell,
+    expectedResult: resultCell, sourceStatus: statusCell
   })) {
     if (cell) evidenceFields[name] = { raw: cell.text, locator: cell.locator || rowLocator(row) };
   }
   return {
     sourceItemKey: sourceKey(row), itemNo, title,
-    description: null, startsAt, endsAt, dueDate,
+    description: clean(descriptionCell?.text) || null, startsAt, endsAt, dueDate,
     responsibleRaw, direction, expectedResult: clean(resultCell?.text) || null,
     confidence,
     evidence: { locator: rowLocator(row), fields: evidenceFields },
