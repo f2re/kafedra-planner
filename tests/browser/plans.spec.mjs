@@ -72,7 +72,7 @@ test('план из DOCX-шаблона формируется и показыв
   const suffix = `${testInfo.project.name}-${Date.now()}`;
   await page.goto('/');
   await openView(page, 'plans');
-  await expect(page.getByRole('heading', { name: 'Планы', exact: true })).toBeVisible();
+  await expect(page.locator('[data-view-panel="plans"] h2')).toHaveText('Планы');
   await addTemplate(page, suffix);
   const today = await generatePlan(page, suffix);
 
