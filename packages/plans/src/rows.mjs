@@ -77,6 +77,8 @@ export function classifyHeader(text) {
   if (/ответствен|исполнител|куратор/iu.test(value)) return 'responsible';
   if (/результат|форма\s+отчет|отчетн|подтвержден/iu.test(value)) return 'result';
   if (/направлен|раздел|вид\s+деятельност/iu.test(value)) return 'direction';
+  if (/примечан|комментар|описан/iu.test(value)) return 'description';
+  if (/отметк.*выполн|факт.*выполн|выполнено|статус/iu.test(value)) return 'status';
   if (/мероприят|наименован|содержан|вид\s+работ|задач|работа/iu.test(value)) return 'title';
   return null;
 }
