@@ -1,7 +1,8 @@
 import { newId } from '../../core/src/ids.mjs';
+import { updateCalendarItem } from '../../calendar/src/service.mjs';
 import { addSearchFragment } from '../../storage/src/search.mjs';
 import { addFacet, addReview, findPerson, insertCalendarItem } from './persist-helpers.mjs';
-import { parseJson, planKindLabel } from './shared.mjs';
+import { categoryFor, parseJson, planKindLabel, planLabel } from './shared.mjs';
 
 const DIRECTIONS = new Set(['science', 'education', 'organizational', 'everyday']);
 
@@ -138,14 +139,89 @@ function syncMissingDateReview(database, row, now) {
   );
 }
 
+function projectionDescription(plan, item) {
+  return [
+    `Источник: ${planLabel(plan)}`,
+    item.responsibleRaw ? `Ответственный: ${item.responsibleRaw}` : null,
+    item.expectedResult ? `Ожидаемый результат: ${item.expectedResult}` : null,
+    item.description || null
+  ].filter(Boolean).join('\n');
+}
+
+function calendarTargets(row) {
+  const item = itemForProjection(row);
+  const targets = [];
+  if (row.starts_at) {
+    targets.push({
+      kind: 'event', title: row.title, startsAt: row.starts_at, endsAt: row.ends_at || null,
+      status: 'confirmed', reminderMinutes: null, item
+    });
+  }
+  if (row.due_date) {
+    targets.push({
+      kind: 'task', title: row.starts_at ? `Срок: ${row.title}` : row.title,
+      startsAt: row.due_date, endsAt: null, status: 'open', reminderMinutes: 10080, item
+    });
+  }
+  return targets;
+}
+
+function syncCalendarProjection(database, row, now) {
+  const plan = { id: row.plan_id, plan_kind: row.plan_kind, period_key: row.period_key };
+  const existing = database.all(`
+    SELECT * FROM calendar_items
+    WHERE workspace_id = ? AND source_kind = 'plan_item' AND source_id = ?
+    ORDER BY created_at, id
+  `, row.workspace_id, row.id);
+  const used = new Set();
+
+  for (const target of calendarTargets(row)) {
+    const current = existing.find((candidate) => !used.has(candidate.id) && candidate.item_kind === target.kind);
+    if (!current) {
+      insertCalendarItem(database, {
+        workspaceId: row.workspace_id,
+        plan,
+        planItemId: row.id,
+        item: target.item,
+        documentId: row.source_document_id,
+        startsAt: target.startsAt,
+        endsAt: target.endsAt,
+        title: target.title,
+        kind: target.kind,
+        status: target.status,
+        reminderMinutes: target.reminderMinutes,
+        now
+      });
+      continue;
+    }
+    used.add(current.id);
+    updateCalendarItem(database, row.workspace_id, current.id, {
+      title: target.title,
+      startsAt: target.startsAt,
+      endsAt: target.endsAt,
+      allDay: true,
+      category: categoryFor(row.direction),
+      status: current.status === 'cancelled' ? target.status : current.status,
+      description: projectionDescription(plan, target.item),
+      kind: target.kind,
+      reminderMinutes: current.reminder_minutes ?? target.reminderMinutes,
+      action: 'plan_source_sync'
+    }, now);
+  }
+
+  for (const current of existing) {
+    if (used.has(current.id) || current.status === 'cancelled') continue;
+    updateCalendarItem(database, row.workspace_id, current.id, {
+      status: 'cancelled',
+      action: 'plan_source_removed'
+    }, now);
+  }
+}
+
 function rebuildProjection(database, row, now) {
   deleteSearchProjection(database, row.workspace_id, row.id);
   database.run(`
     DELETE FROM entity_facets
-    WHERE workspace_id = ? AND source_kind = 'plan_item' AND source_id = ?
-  `, row.workspace_id, row.id);
-  database.run(`
-    DELETE FROM calendar_items
     WHERE workspace_id = ? AND source_kind = 'plan_item' AND source_id = ?
   `, row.workspace_id, row.id);
 
@@ -167,24 +243,7 @@ function rebuildProjection(database, row, now) {
     locator: row.evidence?.locator || {}
   });
 
-  const plan = { id: row.plan_id, plan_kind: row.plan_kind, period_key: row.period_key };
-  const item = itemForProjection(row);
-  if (row.starts_at) {
-    insertCalendarItem(database, {
-      workspaceId: row.workspace_id, plan, planItemId: row.id, item,
-      documentId: row.source_document_id, startsAt: row.starts_at,
-      endsAt: row.ends_at || null, title: row.title, kind: 'event',
-      status: 'confirmed', reminderMinutes: null, now
-    });
-  }
-  if (row.due_date) {
-    insertCalendarItem(database, {
-      workspaceId: row.workspace_id, plan, planItemId: row.id, item,
-      documentId: row.source_document_id, startsAt: row.due_date,
-      title: row.starts_at ? `Срок: ${row.title}` : row.title, kind: 'task',
-      status: 'open', reminderMinutes: 10080, now
-    });
-  }
+  syncCalendarProjection(database, row, now);
   syncMissingDateReview(database, row, now);
 }
 
@@ -227,7 +286,7 @@ function result(database, workspaceId, planId, itemId) {
     ...row,
     calendar_items: database.all(`
       SELECT * FROM calendar_items
-      WHERE workspace_id = ? AND source_kind = 'plan_item' AND source_id = ?
+      WHERE workspace_id = ? AND source_kind = 'plan_item' AND source_id = ? AND status <> 'cancelled'
       ORDER BY starts_at, item_kind
     `, workspaceId, itemId),
     correction: {
