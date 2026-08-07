@@ -42,10 +42,27 @@ export function createPlanItemsRouter({ database }) {
     const undoMatch = path.match(/^\/api\/plans\/([^/]+)\/items\/([^/]+)\/undo$/);
     const itemMatch = path.match(/^\/api\/plans\/([^/]+)\/items\/([^/]+)$/);
     const calendarMatch = path.match(/^\/api\/calendar\/([^/]+)$/);
-    if (!undoMatch && !itemMatch && !(method === 'GET' && calendarMatch)) return false;
+    const documentStatusMatch = path.match(/^\/api\/plan-documents\/([^/]+)\/status$/);
+    if (!undoMatch && !itemMatch && !(method === 'GET' && calendarMatch)
+      && !(method === 'GET' && documentStatusMatch)) return false;
 
     const workspace = workspaceOf(database, request);
     const context = request.auth;
+
+    if (method === 'GET' && documentStatusMatch) {
+      const documentId = decodeURIComponent(documentStatusMatch[1]);
+      assertObjectAccess(database, workspace.id, context, 'document', documentId, 'read');
+      const row = database.get(`
+        SELECT d.id, d.document_type, d.status, d.updated_at,
+          dv.id AS version_id, dv.processing_status, dv.extraction_error,
+          dv.structure_status, dv.ocr_status, dv.preview_status
+        FROM documents d
+        JOIN document_versions dv ON dv.id = d.current_version_id
+        WHERE d.workspace_id = ? AND d.id = ?
+      `, workspace.id, documentId);
+      if (!row) throw new AppError('document_not_found', 'Документ не найден.', 404);
+      return sendJson(response, 200, row);
+    }
 
     if (method === 'GET' && calendarMatch) {
       const calendarId = decodeURIComponent(calendarMatch[1]);
