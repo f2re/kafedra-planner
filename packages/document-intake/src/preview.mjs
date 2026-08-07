@@ -6,6 +6,7 @@ import { isOfficeFormat } from './formats.mjs';
 import { storeGeneratedFile } from './blob-store.mjs';
 
 const execFileAsync = promisify(execFile);
+const PREVIEW_CONVERSION_TIMEOUT_MS = 12_000;
 
 function imageMediaType(originalName, mediaType) {
   if (String(mediaType || '').startsWith('image/')) return mediaType;
@@ -44,7 +45,12 @@ async function convertWithLibreOffice(sourcePath, {
         await execFileAsync(
           command,
           [`-env:UserInstallation=file://${join(directory, 'libreoffice-profile')}`, '--headless', '--convert-to', 'pdf', '--outdir', directory, input],
-          { encoding: 'utf8', timeout: 180_000, maxBuffer: 16 * 1024 * 1024 }
+          {
+            encoding: 'utf8',
+            timeout: PREVIEW_CONVERSION_TIMEOUT_MS,
+            killSignal: 'SIGKILL',
+            maxBuffer: 16 * 1024 * 1024
+          }
         );
         lastError = null;
         break;
@@ -54,11 +60,14 @@ async function convertWithLibreOffice(sourcePath, {
       }
     }
     if (lastError) {
+      const timedOut = Boolean(lastError?.killed) || lastError?.signal === 'SIGKILL';
       return {
         status: lastError?.code === 'ENOENT' ? 'unavailable' : 'failed',
         mediaType: null,
         blob: null,
-        error: String(lastError?.stderr || lastError?.message || lastError)
+        error: timedOut
+          ? `libreoffice_preview_timeout_${PREVIEW_CONVERSION_TIMEOUT_MS}ms`
+          : String(lastError?.stderr || lastError?.message || lastError)
       };
     }
     const pdf = (await readdir(directory)).find((name) => name.toLowerCase().endsWith('.pdf'));
