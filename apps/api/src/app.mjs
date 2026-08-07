@@ -4,6 +4,7 @@ import { createRouter } from './router.mjs';
 import { createPlanFactRouter } from './plan-fact-router.mjs';
 import { createPlansRouter } from './plans-router.mjs';
 import { createPlanItemsRouter } from './plan-items-router.mjs';
+import { createNotificationDeliveryRouter } from './notification-delivery-router.mjs';
 import { createAuthRouter } from './auth-router.mjs';
 import { createAccessRouter } from './access-router.mjs';
 import { resolveAuthContext } from '../../../packages/auth/src/service.mjs';
@@ -14,6 +15,7 @@ import { sendError, serveStatic } from './http-utils.mjs';
 export function createApp({ database, config, logger }) {
   const authRouter = createAuthRouter({ database, config, logger });
   const accessRouter = createAccessRouter({ database, config, logger });
+  const notificationDeliveryRouter = createNotificationDeliveryRouter({ database, config, logger });
   const planItemsRouter = createPlanItemsRouter({ database, config, logger });
   const plansRouter = createPlansRouter({ database, config, logger });
   const planFactRouter = createPlanFactRouter({ database, config, logger });
@@ -39,14 +41,17 @@ export function createApp({ database, config, logger }) {
         const authHandled = await authRouter(request, response, url, requestId);
         if (!authHandled && !response.headersSent) {
           authorizeApiRequest(request.auth, url.pathname);
-          const planItemHandled = await planItemsRouter(request, response, url, requestId);
-          const plansHandled = !planItemHandled && !response.headersSent
+          const notificationHandled = await notificationDeliveryRouter(request, response, url, requestId);
+          const planItemHandled = !notificationHandled && !response.headersSent
+            ? await planItemsRouter(request, response, url, requestId)
+            : false;
+          const plansHandled = !notificationHandled && !planItemHandled && !response.headersSent
             ? await plansRouter(request, response, url, requestId)
             : false;
-          const accessHandled = !planItemHandled && !plansHandled && !response.headersSent && request.auth?.enabled
+          const accessHandled = !notificationHandled && !planItemHandled && !plansHandled && !response.headersSent && request.auth?.enabled
             ? await accessRouter(request, response, url, requestId)
             : false;
-          if (!planItemHandled && !plansHandled && !accessHandled && !response.headersSent) {
+          if (!notificationHandled && !planItemHandled && !plansHandled && !accessHandled && !response.headersSent) {
             const handled = await planFactRouter(request, response, url, requestId);
             if (!handled && !response.headersSent) await router(request, response, url, requestId);
           }
