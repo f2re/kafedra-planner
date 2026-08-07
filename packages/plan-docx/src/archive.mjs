@@ -38,6 +38,10 @@ function safeEntryName(name) {
   return value;
 }
 
+function unzipPattern(name) {
+  return safeEntryName(name).replace(/([\[\]*?])/g, '\\$1');
+}
+
 function uint32(value, field) {
   if (!Number.isInteger(value) || value < 0 || value > UINT32_MAX) throw new Error(`zip_${field}_too_large`);
   return value;
@@ -146,8 +150,7 @@ export async function listZipEntries(path) {
 }
 
 export async function readZipEntry(path, name, { maxBuffer = 256 * 1024 * 1024 } = {}) {
-  const safeName = safeEntryName(name);
-  const { stdout } = await execFileAsync('unzip', ['-p', path, safeName], {
+  const { stdout } = await execFileAsync('unzip', ['-p', path, unzipPattern(name)], {
     encoding: 'buffer', maxBuffer
   });
   return Buffer.isBuffer(stdout) ? stdout : Buffer.from(stdout || '');

@@ -58,7 +58,7 @@ test('резервная копия проверяется и восстанав
     assert.equal(verified.status, 'ok');
     assert.equal((await stat(created.archivePath)).mode & 0o077, 0);
     assert.equal(verified.manifest.appVersion, '0.1.0-rc.2');
-    assert.equal(verified.manifest.schemaVersion, 13);
+    assert.equal(verified.manifest.schemaVersion, 14);
     assert.ok(verified.fileCount >= 4);
 
     const latest = await readLatestBackupStatus(backupDir);
