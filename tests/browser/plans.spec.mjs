@@ -4,6 +4,18 @@ import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 import { writeZipArchive } from '../../packages/plan-docx/src/archive.mjs';
 
+test.beforeEach(async ({ page }, testInfo) => {
+  page.on('pageerror', (error) => console.log(`[plans:${testInfo.project.name}:pageerror] ${error.stack || error.message}`));
+  page.on('console', (message) => {
+    if (['error', 'warning'].includes(message.type())) {
+      console.log(`[plans:${testInfo.project.name}:console:${message.type()}] ${message.text()}`);
+    }
+  });
+  page.on('requestfailed', (request) => {
+    console.log(`[plans:${testInfo.project.name}:requestfailed] ${request.method()} ${request.url()} ${request.failure()?.errorText || ''}`);
+  });
+});
+
 function cell(text) {
   return `<w:tc><w:tcPr><w:tcW w:w="1800" w:type="dxa"/></w:tcPr><w:p><w:r><w:rPr><w:sz w:val="20"/></w:rPr><w:t>${text}</w:t></w:r></w:p></w:tc>`;
 }
@@ -40,14 +52,24 @@ function navigationButton(page, view) {
 
 async function openPlans(page) {
   await page.goto('/');
+  await page.waitForFunction(() => typeof window.kafedraSetView === 'function', null, { timeout: 12_000 });
+  const panel = page.locator('[data-view-panel="plans"]');
   const trigger = navigationButton(page, 'plans');
   await expect(trigger).toBeVisible();
+  await expect(panel).toHaveCount(1);
   await trigger.click();
-  await expect(page.locator('[data-view-panel="plans"]')).toBeVisible();
+  await expect(panel).toBeVisible();
 }
 
 async function uploadThroughPlans(page, path) {
+  const responsePromise = page.waitForResponse(
+    (response) => response.url().endsWith('/api/documents') && response.request().method() === 'POST',
+    { timeout: 15_000 }
+  );
   await page.locator('#plans-upload-input').setInputFiles(path);
+  const response = await responsePromise;
+  console.log(`[plans:upload] POST /api/documents -> ${response.status()}`);
+  expect(response.ok()).toBeTruthy();
   await expect(page.locator('#plans-notice')).toContainText(/План загружен|Документ обработан|Обработка продолжается/, { timeout: 30_000 });
 }
 
