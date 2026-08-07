@@ -12,6 +12,18 @@ async function login(page, username, password) {
   await expect(page.locator('#auth-user-control')).toBeVisible();
 }
 
+async function visiblePlans(page) {
+  const response = await page.request.get('/api/plans?scope=personal');
+  expect(response.status()).toBe(200);
+  return (await response.json()).items;
+}
+
+async function visiblePlanCalendar(page) {
+  const response = await page.request.get('/api/calendar?from=2026-08-01&to=2026-08-31');
+  expect(response.status()).toBe(200);
+  return (await response.json()).items.filter((item) => item.source_kind === 'plan_item');
+}
+
 test('сотрудник получает только личный контур, руководитель — подчинённых', async ({ page }) => {
   await login(page, 'staff', 'StaffPassword2026');
   const me = await (await page.request.get('/api/auth/me')).json();
@@ -23,6 +35,11 @@ test('сотрудник получает только личный контур
   expect(own.status()).toBe(200);
   const foreign = await page.request.get('/api/personal-notifications?personId=person-manager');
   expect(foreign.status()).toBe(403);
+  const staffPlans = await visiblePlans(page);
+  expect(staffPlans.map((item) => item.title)).toEqual(['Личный план сотрудника']);
+  const staffCalendar = await visiblePlanCalendar(page);
+  expect(staffCalendar.map((item) => item.title)).toEqual(['Личное мероприятие сотрудника']);
+
   const adminDenied = await page.request.post('/api/admin/accounts', {
     data: {
       personId: 'person-outsider',
@@ -48,4 +65,8 @@ test('сотрудник получает только личный контур
   expect(subordinate.status()).toBe(200);
   const outsider = await page.request.get('/api/personal-notifications?personId=person-outsider');
   expect(outsider.status()).toBe(403);
+  const managerPlans = await visiblePlans(page);
+  expect(managerPlans.map((item) => item.title)).toEqual(['Личный план сотрудника']);
+  const managerCalendar = await visiblePlanCalendar(page);
+  expect(managerCalendar.map((item) => item.title)).toEqual(['Личное мероприятие сотрудника']);
 });
