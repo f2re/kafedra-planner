@@ -174,13 +174,8 @@ function ensurePlansUi() {
 function activatePlansView(planId = null) {
   ensurePlansUi();
   plansState.active = true;
-  $$p('.nav-item, .mobile-tab').forEach((button) => button.classList.toggle('active', button.dataset.view === 'plans'));
-  $$p('[data-view-panel]').forEach((panel) => panel.classList.toggle('active', panel.dataset.viewPanel === 'plans'));
-  if ($p('#page-title')) $p('#page-title').textContent = 'Планы';
-  if ($p('#page-subtitle')) $p('#page-subtitle').textContent = 'Рабочие планы, пункты, сроки и источники';
-  $p('#calendar-mode-switch')?.classList.add('hidden');
-  document.body.classList.remove('mobile-sidebar-open');
   if (planId) plansState.selectedPlanId = planId;
+  if (typeof window.kafedraSetView === 'function') window.kafedraSetView('plans');
   loadPlans().catch((error) => showPlanNotice(error.message));
 }
 
@@ -753,12 +748,6 @@ document.addEventListener('submit', (event) => {
     saveTemplateReview(event.target).catch((error) => showPlanNotice(error.message));
   }
 }, true);
-
-const plansObserver = new MutationObserver(() => {
-  ensurePlansUi();
-  patchPlanCalendarInspector();
-});
-plansObserver.observe(document.documentElement, { childList: true, subtree: true, attributes: true, attributeFilter: ['class'] });
 
 ensurePlansUi();
 bindFilterState();
