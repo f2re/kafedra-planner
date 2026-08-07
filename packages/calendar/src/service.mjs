@@ -108,6 +108,8 @@ export function listCalendarItems(database, workspaceId, {
   if (status) {
     clauses.push('status = ?');
     params.push(status);
+  } else {
+    clauses.push("status <> 'cancelled'");
   }
   const selectedCategories = normalizedCategories(categories);
   if (selectedCategories.length) {
