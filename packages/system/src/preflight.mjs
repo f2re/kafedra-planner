@@ -12,7 +12,7 @@ const REQUIREMENTS = Object.freeze([
   { id: 'pdftotext', names: ['pdftotext'], required: true, capability: 'pdf_text', label: 'извлечение текстового слоя PDF' },
   { id: 'pdftoppm', names: ['pdftoppm'], required: false, capability: 'ocr', label: 'преобразование страниц PDF для OCR' },
   { id: 'tesseract', names: ['tesseract'], required: false, capability: 'ocr', label: 'локальный OCR сканов' },
-  { id: 'libreoffice', names: ['soffice', 'libreoffice'], required: false, capability: 'office_preview', label: 'PDF-предпросмотр офисных документов', anyOf: true },
+  { id: 'libreoffice', names: ['soffice', 'libreoffice'], required: false, capability: 'office_preview', label: 'PDF-предпросмотр офисных документов' },
   { id: 'nginx', names: ['nginx'], required: false, capability: 'reverse_proxy', label: 'рекомендуемый локальный reverse proxy' }
 ]);
 
@@ -45,6 +45,17 @@ function checkRequirement(requirement, pathEnv) {
   };
 }
 
+function runtimeInfo() {
+  const header = typeof process.report?.getReport === 'function' ? process.report.getReport().header : {};
+  return {
+    nodeVersion: process.version,
+    platform: process.platform,
+    arch: process.arch,
+    glibcVersionRuntime: header?.glibcVersionRuntime || null,
+    glibcVersionCompiler: header?.glibcVersionCompiler || null
+  };
+}
+
 export function inspectSystem({ pathEnv = process.env.PATH, platform = process.platform } = {}) {
   const checks = REQUIREMENTS.map((requirement) => checkRequirement(requirement, pathEnv));
   const byId = new Map(checks.map((check) => [check.id, check]));
@@ -61,6 +72,7 @@ export function inspectSystem({ pathEnv = process.env.PATH, platform = process.p
   };
   return {
     platform,
+    runtime: runtimeInfo(),
     status: requiredMissing.length ? 'blocked' : optionalMissing.length ? 'degraded' : 'ready',
     requiredMissing,
     optionalMissing,
@@ -71,6 +83,8 @@ export function inspectSystem({ pathEnv = process.env.PATH, platform = process.p
 
 export function renderPreflight(result) {
   const lines = [];
+  const runtime = result.runtime || {};
+  lines.push(`Runtime: ${runtime.nodeVersion || process.version} · ${runtime.platform || process.platform}/${runtime.arch || process.arch}${runtime.glibcVersionRuntime ? ` · glibc ${runtime.glibcVersionRuntime}` : ''}`);
   if (result.status === 'ready') lines.push('Системные зависимости: готовы.');
   else if (result.status === 'degraded') lines.push('Системные зависимости: основная работа доступна, часть дополнительных функций отключена.');
   else lines.push('Системные зависимости: установка заблокирована — отсутствуют обязательные команды.');

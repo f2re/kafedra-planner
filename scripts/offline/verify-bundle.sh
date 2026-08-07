@@ -83,6 +83,13 @@ fi
 (
   cd "$ROOT/application"
   KAFEDRA_DATA_DIR="$WORK_DIR/data" "$NODE" scripts/smoke-test.mjs
-  "$NODE" scripts/system-preflight.mjs --json
+  PREFLIGHT_ARGS=(--json)
+  if [[ "${REQUIRE_SYSTEM_PREFLIGHT:-false}" == "true" ]]; then
+    PREFLIGHT_ARGS+=(--strict)
+  fi
+  if [[ "${REQUIRE_FULL_SYSTEM_PREFLIGHT:-false}" == "true" ]]; then
+    PREFLIGHT_ARGS+=(--require-full)
+  fi
+  "$NODE" scripts/system-preflight.mjs "${PREFLIGHT_ARGS[@]}"
 )
-echo "Комплект проверен"
+echo "Целостность и запуск автономного комплекта проверены. Состояние системных возможностей показано preflight выше."

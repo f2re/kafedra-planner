@@ -24,6 +24,9 @@ test('preflight блокирует установку при отсутстви�
     assert.equal(result.status, 'blocked');
     assert.deepEqual(result.requiredMissing, ['pdftotext']);
     assert.equal(result.capabilities.pdfText, false);
+    assert.equal(result.runtime.nodeVersion, process.version);
+    assert.equal(result.runtime.arch, process.arch);
+    assert.match(renderPreflight(result), /Runtime:/);
     assert.match(renderPreflight(result), /установка заблокирована/i);
   } finally {
     await rm(pathEnv, { recursive: true, force: true });
