@@ -12,7 +12,13 @@ async function login(page, username, password) {
   await expect(page.locator('#auth-user-control')).toBeVisible();
 }
 
-test('сотрудник получает только личный контур, руководитель — подчинённых', async ({ page }) => {
+async function logout(page) {
+  await page.locator('.auth-user-button').click();
+  await page.locator('[data-auth-action="logout"]').click();
+  await expect(page.locator('#auth-gate')).toBeVisible();
+}
+
+test('сотрудник получает личный контур и настраивает доставку, руководитель — подчинённых', async ({ page }) => {
   await login(page, 'staff', 'StaffPassword2026');
   const me = await (await page.request.get('/api/auth/me')).json();
   expect(me.authenticated).toBe(true);
@@ -34,8 +40,45 @@ test('сотрудник получает только личный контур
   expect(adminDenied.status()).toBe(403);
 
   await page.locator('.auth-user-button').click();
-  await page.locator('[data-auth-action="logout"]').click();
-  await expect(page.locator('#auth-gate')).toBeVisible();
+  await expect(page.locator('[data-auth-action="delivery"]')).toBeVisible();
+  await page.locator('[data-auth-action="delivery"]').click();
+  await expect(page.locator('#notification-delivery-panel')).toBeVisible();
+  await expect(page.locator('#delivery-availability')).toContainText('Почта: сервер готов');
+  await page.locator('#notification-delivery-form input[name="smtpEnabled"]').check();
+  await page.locator('#notification-delivery-form input[name="emailAddress"]').fill('staff@department.test');
+  await page.locator('#notification-delivery-form input[name="dailyDigestEnabled"]').check();
+  await page.locator('#notification-delivery-form input[name="dailyDigestTime"]').fill('08:30');
+  await page.locator('#notification-delivery-form input[name="quietHoursEnabled"]').check();
+  await page.locator('#notification-delivery-form input[name="quietStart"]').fill('21:30');
+  await page.locator('#notification-delivery-form input[name="quietEnd"]').fill('07:30');
+  await page.locator('#notification-delivery-form input[name="timezone"]').fill('Europe/Moscow');
+  await page.locator('#notification-delivery-form button[type="submit"]').click();
+  await expect(page.locator('#notification-delivery-status')).toContainText('Настройки сохранены');
+
+  const profile = await (await page.request.get('/api/notification-delivery/profile')).json();
+  expect(profile.profile.personId).toBe('person-staff');
+  expect(profile.profile.smtpEnabled).toBe(true);
+  expect(profile.profile.emailAddress).toBe('staff@department.test');
+  expect(profile.profile.dailyDigestTime).toBe('08:30');
+
+  const foreignAttempt = await page.evaluate(async () => {
+    const response = await fetch('/api/notification-delivery/profile', {
+      method: 'PUT',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({
+        personId: 'person-manager', smtpEnabled: true, emailAddress: 'still-staff@department.test',
+        immediateEnabled: true, quietHoursEnabled: false, timezone: 'Europe/Moscow'
+      })
+    });
+    return { status: response.status, body: await response.json() };
+  });
+  expect(foreignAttempt.status).toBe(200);
+  expect(foreignAttempt.body.profile.personId).toBe('person-staff');
+  const adminDiagnosticsDenied = await page.request.get('/api/admin/notification-delivery');
+  expect(adminDiagnosticsDenied.status()).toBe(403);
+  await page.locator('[data-delivery-close]').first().click();
+
+  await logout(page);
   await page.locator('#auth-login-form input[name="username"]').fill('manager');
   await page.locator('#auth-login-form input[name="password"]').fill('ManagerPass2026');
   await Promise.all([
@@ -48,4 +91,25 @@ test('сотрудник получает только личный контур
   expect(subordinate.status()).toBe(200);
   const outsider = await page.request.get('/api/personal-notifications?personId=person-outsider');
   expect(outsider.status()).toBe(403);
+  const managerAdminDenied = await page.request.get('/api/admin/notification-delivery');
+  expect(managerAdminDenied.status()).toBe(403);
+
+  await logout(page);
+  await page.locator('#auth-login-form input[name="username"]').fill('admin');
+  await page.locator('#auth-login-form input[name="password"]').fill('AdminPassword2026');
+  await Promise.all([
+    page.waitForLoadState('domcontentloaded'),
+    page.locator('#auth-login-form button[type="submit"]').click()
+  ]);
+  await expect(page.locator('#auth-user-control')).toBeVisible();
+  const diagnostics = await page.request.get('/api/admin/notification-delivery');
+  expect(diagnostics.status()).toBe(200);
+  const diagnosticsBody = await diagnostics.json();
+  expect(diagnosticsBody.channelsConfigured.smtp).toBe(true);
+  expect(diagnosticsBody.profiles).toBeGreaterThanOrEqual(1);
+
+  await page.locator('.auth-user-button').click();
+  await page.locator('[data-auth-action="delivery"]').click();
+  await expect(page.locator('#delivery-admin-section')).toBeVisible();
+  await expect(page.locator('#delivery-admin-summary')).toContainText('Профили');
 });

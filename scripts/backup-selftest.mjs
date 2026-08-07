@@ -15,7 +15,7 @@ try {
   await mkdir(join(sourceData, 'blobs'), { recursive: true });
   await mkdir(sourceApp, { recursive: true });
   await writeFile(join(sourceData, 'blobs', 'sample.bin'), Buffer.from('backup-selftest-blob'));
-  await writeFile(join(sourceApp, 'VERSION'), '0.1.0-rc.2\n');
+  await writeFile(join(sourceApp, 'VERSION'), '0.1.0-rc.3\n');
   await writeFile(join(sourceApp, 'application.txt'), 'self-contained application snapshot\n');
   await writeFile(configPath, 'KAFEDRA_TEST_BACKUP=true\n');
   await writeFile(keyPath, 'local-backup-key-material-2026');
@@ -23,7 +23,7 @@ try {
   const database = new DatabaseSync(databasePath);
   database.exec(`
     CREATE TABLE schema_migrations(version INTEGER PRIMARY KEY, name TEXT NOT NULL, applied_at TEXT NOT NULL) STRICT;
-    INSERT INTO schema_migrations VALUES (11, '011_release_candidate_security.sql', '2026-08-06T00:00:00.000Z');
+    INSERT INTO schema_migrations VALUES (15, '015_notification_delivery.sql', '2026-08-07T00:00:00.000Z');
     CREATE TABLE sample(id TEXT PRIMARY KEY, value TEXT NOT NULL) STRICT;
     INSERT INTO sample VALUES ('one', 'restorable');
   `);
@@ -43,7 +43,7 @@ try {
     reason: 'ci-selftest'
   });
   const verified = await verifyBackup({ archivePath: created.archivePath, keyFile: keyPath });
-  if (verified.status !== 'ok' || verified.manifest.schemaVersion !== 11) {
+  if (verified.status !== 'ok' || verified.manifest.schemaVersion !== 15) {
     throw new Error('Backup verification did not return expected schema.');
   }
 
@@ -79,7 +79,7 @@ try {
   if (!(await readFile(restoredConfig, 'utf8')).includes('KAFEDRA_TEST_BACKUP=true')) {
     throw new Error('Restored configuration differs from source.');
   }
-  if ((await readFile(join(restoredApp, 'VERSION'), 'utf8')).trim() !== '0.1.0-rc.2') {
+  if ((await readFile(join(restoredApp, 'VERSION'), 'utf8')).trim() !== '0.1.0-rc.3') {
     throw new Error('Restored application version differs from source.');
   }
   process.stdout.write(`${JSON.stringify({ status: 'ok', archive: created.archiveName, encrypted: created.encrypted })}\n`);

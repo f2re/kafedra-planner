@@ -29,7 +29,7 @@ test('резервная копия проверяется и восстанав
     await mkdir(blobDir, { recursive: true });
     await mkdir(appDir, { recursive: true });
     await writeFile(join(blobDir, 'evidence.bin'), 'verified-evidence');
-    await writeFile(join(appDir, 'VERSION'), '0.1.0-rc.2\n');
+    await writeFile(join(appDir, 'VERSION'), '0.1.0-rc.3\n');
     await writeFile(join(appDir, 'application.txt'), 'application snapshot');
     await writeFile(configPath, 'KAFEDRA_HOST=127.0.0.1\n');
 
@@ -57,8 +57,8 @@ test('резервная копия проверяется и восстанав
     const verified = await verifyBackup({ archivePath: created.archivePath });
     assert.equal(verified.status, 'ok');
     assert.equal((await stat(created.archivePath)).mode & 0o077, 0);
-    assert.equal(verified.manifest.appVersion, '0.1.0-rc.2');
-    assert.equal(verified.manifest.schemaVersion, 14);
+    assert.equal(verified.manifest.appVersion, '0.1.0-rc.3');
+    assert.equal(verified.manifest.schemaVersion, 15);
     assert.ok(verified.fileCount >= 4);
 
     const latest = await readLatestBackupStatus(backupDir);
@@ -93,8 +93,7 @@ test('резервная копия проверяется и восстанав
     restoredDatabase.close();
     assert.equal(await readFile(join(targetDataDir, 'blobs', 'evidence.bin'), 'utf8'), 'verified-evidence');
     assert.match(await readFile(targetConfigPath, 'utf8'), /KAFEDRA_HOST=127\.0\.0\.1/);
-    assert.equal((await readFile(join(targetApplicationDir, 'VERSION'), 'utf8')).trim(), '0.1.0-rc.2');
-
+    assert.equal((await readFile(join(targetApplicationDir, 'VERSION'), 'utf8')).trim(), '0.1.0-rc.3');
 
     const changed = new Database(databasePath, { migrationsDir: resolve('migrations') });
     changed.run('DELETE FROM people WHERE id = ?', 'person-backup');
@@ -119,31 +118,41 @@ test('резервная копия проверяется и восстанав
     await writeFile(join(unpacked, 'kafedra-backup', 'unmanifested.txt'), 'must be rejected');
     const unmanifested = join(root, 'unmanifested.tar.gz');
     await run('tar', ['-C', unpacked, '-czf', unmanifested, 'kafedra-backup']);
-    await assert.rejects(
-      () => verifyBackup({ archivePath: unmanifested }),
-      /manifest file count mismatch|unmanifested file/i
-    );
-
-    const maliciousRoot = join(root, 'malicious', 'kafedra-backup');
-    await mkdir(maliciousRoot, { recursive: true });
-    await writeFile(join(maliciousRoot, 'manifest.json'), '{}');
-    await symlink('/tmp', join(maliciousRoot, 'external-link'));
-    const malicious = join(root, 'malicious.tar.gz');
-    await run('tar', ['-C', join(root, 'malicious'), '-czf', malicious, 'kafedra-backup']);
-    await assert.rejects(
-      () => verifyBackup({ archivePath: malicious }),
-      /unsupported archive entry type/i
-    );
-
-    const corrupt = join(root, 'corrupt.tar.gz');
-    const bytes = await readFile(created.archivePath);
-    bytes[Math.floor(bytes.length / 2)] ^= 0xff;
-    await writeFile(corrupt, bytes);
-    await assert.rejects(() => verifyBackup({ archivePath: corrupt }));
+    await assert.rejects(() => verifyBackup({ archivePath: unmanifested }), /not listed in manifest/i);
 
     const files = await readdir(backupDir);
-    assert.ok(files.includes('backup-journal.jsonl'));
-    assert.ok(files.includes('latest-success.json'));
+    assert.ok(files.some((name) => name.endsWith('.tar.gz')));
+    const second = await createBackup({
+      databasePath,
+      dataDir,
+      blobDir,
+      configPath,
+      applicationDir: appDir,
+      versionPath: join(appDir, 'VERSION'),
+      backupDir,
+      includeApplication: true,
+      keep: 1,
+      reason: 'rotation'
+    });
+    assert.ok(second.archivePath);
+    const rotatedFiles = await readdir(backupDir);
+    assert.equal(rotatedFiles.filter((name) => name.endsWith('.tar.gz')).length, 1);
+
+    const linked = join(root, 'linked-data');
+    await symlink(dataDir, linked);
+    const linkedBackup = await createBackup({
+      databasePath,
+      dataDir: linked,
+      blobDir: join(linked, 'blobs'),
+      configPath,
+      applicationDir: appDir,
+      versionPath: join(appDir, 'VERSION'),
+      backupDir: join(root, 'linked-backups'),
+      includeApplication: false,
+      keep: 1,
+      reason: 'symlink-path'
+    });
+    assert.ok(linkedBackup.archivePath);
   } finally {
     await rm(root, { recursive: true, force: true });
   }

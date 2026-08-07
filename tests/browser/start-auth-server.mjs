@@ -19,6 +19,9 @@ const env = {
   KAFEDRA_AUTH_SECURE_COOKIES: 'false',
   KAFEDRA_OCR_ENABLED: 'false',
   KAFEDRA_PREVIEW_ENABLED: 'false',
+  KAFEDRA_NOTIFICATION_DELIVERY_ENABLED: 'true',
+  KAFEDRA_SMTP_HOST: '127.0.0.1',
+  KAFEDRA_SMTP_FROM: 'kafedra@test.local',
   KAFEDRA_LOG_LEVEL: 'error'
 };
 
