@@ -42,12 +42,20 @@ function requestMethod(input, init) {
   return String(init?.method || (input instanceof Request ? input.method : 'GET')).toUpperCase();
 }
 
-function requestHeaders(input, init) {
-  try {
-    if (init?.headers) return new Headers(init.headers);
-    if (input instanceof Request) return input.headers;
-  } catch {}
-  return new Headers();
+function requestHeader(input, init, name) {
+  const wanted = String(name || '').toLowerCase();
+  const headers = init?.headers;
+  if (headers instanceof Headers) return headers.get(name);
+  if (Array.isArray(headers)) {
+    const entry = headers.find(([key]) => String(key).toLowerCase() === wanted);
+    return entry ? String(entry[1]) : null;
+  }
+  if (headers && typeof headers === 'object') {
+    const key = Object.keys(headers).find((candidate) => candidate.toLowerCase() === wanted);
+    return key ? String(headers[key]) : null;
+  }
+  if (input instanceof Request) return input.headers.get(name);
+  return null;
 }
 
 function terminalDocumentStatus(status) {
@@ -79,7 +87,7 @@ window.fetch = async function viewBridgeFetch(input, init = {}) {
   const response = await beforeViewBridgeFetch(input, init);
   try {
     if (url.origin === window.location.origin && method === 'POST' && url.pathname === '/api/documents') {
-      const type = requestHeaders(input, init).get('x-document-type');
+      const type = requestHeader(input, init, 'x-document-type');
       if (type === 'plan') {
         const payload = await response.clone().json();
         if (payload.documentId) pendingPlanDocuments.add(payload.documentId);
