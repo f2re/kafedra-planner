@@ -15,7 +15,7 @@ const env = {
   KAFEDRA_OCR_ENABLED: 'false',
   KAFEDRA_PREVIEW_ENABLED: 'true',
   KAFEDRA_AUTH_ENABLED: 'false',
-  KAFEDRA_LOG_LEVEL: 'error'
+  KAFEDRA_LOG_LEVEL: process.env.KAFEDRA_BROWSER_LOG_LEVEL || 'info'
 };
 const api = spawn(process.execPath, ['apps/api/src/main.mjs'], { cwd: resolve('.'), env, stdio: 'inherit' });
 const worker = spawn(process.execPath, ['apps/worker/src/main.mjs'], { cwd: resolve('.'), env, stdio: 'inherit' });
