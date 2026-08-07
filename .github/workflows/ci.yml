@@ -43,3 +43,5 @@ jobs:
         run: npm run test:browser:auth
       - name: Проверить готовность release candidate
         run: npm run test:browser:release
+      - name: Проверить объектные права доступа
+        run: npm run test:browser:acl
