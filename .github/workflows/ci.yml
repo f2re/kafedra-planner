@@ -25,7 +25,22 @@ jobs:
       - run: npm run smoke
       - name: Проверить создание и полное восстановление резервной копии
         run: npm run backup:selftest
-      - run: bash -n scripts/offline/*.sh deploy/install.sh
+      - name: Проверить shell-сценарии поставки
+        run: bash -n scripts/offline/*.sh deploy/install.sh
+      - name: Проверить системный preflight
+        run: npm run preflight -- --json
+      - name: Собрать и проверить автономный комплект со встроенным Node
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          export NODE_RUNTIME_DIR="$(dirname "$(dirname "$(command -v node)")")"
+          export REQUIRE_NODE_RUNTIME=true
+          export OUT_DIR="$RUNNER_TEMP/kafedra-release"
+          ARCHIVE="$(npm run --silent bundle:offline)"
+          [[ -f "$ARCHIVE" ]]
+          [[ -f "$ARCHIVE.sha256" ]]
+          REQUIRE_EMBEDDED_RUNTIME=true REQUIRE_ARCHIVE_SHA256=true \
+            npm run --silent bundle:verify -- "$ARCHIVE"
 
   browser:
     runs-on: ubuntu-latest

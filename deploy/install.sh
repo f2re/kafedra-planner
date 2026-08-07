@@ -23,6 +23,8 @@ API_SERVICE="kafedra-planner-api.service"
 WORKER_SERVICE="kafedra-planner-worker.service"
 
 [[ -x "$RUNTIME_SOURCE/bin/node" ]] || { echo "В комплекте отсутствует runtime/node/bin/node" >&2; exit 3; }
+"$RUNTIME_SOURCE/bin/node" "$APP_SOURCE/scripts/system-preflight.mjs" --strict
+
 id kafedra-planner >/dev/null 2>&1 || useradd --system --home-dir "$DATA_DIR" --shell /usr/sbin/nologin kafedra-planner
 install -d -o root -g root -m 0755 "$APP_ROOT/releases"
 install -d -o kafedra-planner -g kafedra-planner -m 0700 "$DATA_DIR" "$DATA_DIR/blobs" "$DATA_DIR/tmp" "$BACKUP_DIR"
@@ -127,13 +129,6 @@ ensure_env_setting KAFEDRA_TELEGRAM_API_BASE https://api.telegram.org
 ensure_env_setting KAFEDRA_TELEGRAM_TIMEOUT_MS 15000
 chown root:kafedra-planner "$CONFIG_FILE"
 chmod 0640 "$CONFIG_FILE"
-
-for command in unzip pdftotext pdftoppm tesseract tar sha256sum curl; do
-  command -v "$command" >/dev/null 2>&1 || echo "Предупреждение: $command не найден; часть функций будет недоступна." >&2
-done
-if ! command -v soffice >/dev/null 2>&1 && ! command -v libreoffice >/dev/null 2>&1; then
-  echo "Предупреждение: LibreOffice не найден; предпросмотр DOCX/XLSX/ODT/ODS будет недоступен." >&2
-fi
 
 PREVIOUS_RELEASE=""
 if [[ -L "$APP_ROOT/current" || -d "$APP_ROOT/current" ]]; then
