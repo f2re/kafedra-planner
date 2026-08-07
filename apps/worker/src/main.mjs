@@ -4,7 +4,7 @@ import { createLogger } from '../../../packages/core/src/logger.mjs';
 import { Database } from '../../../packages/storage/src/database.mjs';
 import { ensureDefaultWorkspace } from '../../../packages/storage/src/bootstrap.mjs';
 import { acquireJob, completeJob, failJob } from '../../../packages/storage/src/jobs.mjs';
-import { dispatchJob } from './processor.mjs';
+import { dispatchJob } from './dispatcher.mjs';
 
 const config = loadConfig();
 const logger = createLogger(config.logLevel, { service: 'worker' });
