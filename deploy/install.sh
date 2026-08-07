@@ -96,7 +96,7 @@ ensure_env_setting KAFEDRA_AUTH_SECURE_COOKIES false
 chown root:kafedra-planner "$CONFIG_FILE"
 chmod 0640 "$CONFIG_FILE"
 
-for command in pdftotext pdftoppm tesseract tar sha256sum curl; do
+for command in unzip pdftotext pdftoppm tesseract tar sha256sum curl; do
   command -v "$command" >/dev/null 2>&1 || echo "Предупреждение: $command не найден; часть функций будет недоступна." >&2
 done
 if ! command -v soffice >/dev/null 2>&1 && ! command -v libreoffice >/dev/null 2>&1; then
