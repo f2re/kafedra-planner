@@ -4,11 +4,6 @@ import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 import { writeZipArchive } from '../../packages/plan-docx/src/archive.mjs';
 
-function observedApiPath(url) {
-  const pathname = new URL(url).pathname;
-  return /^\/api\/(?:plan-documents\/[^/]+\/status|documents\/[^/]+|plans(?:\/[^/]+)?)$/.test(pathname) ? pathname : null;
-}
-
 test.beforeEach(async ({ page }, testInfo) => {
   page.on('pageerror', (error) => console.log(`[plans:${testInfo.project.name}:pageerror] ${error.stack || error.message}`));
   page.on('console', (message) => {
@@ -18,24 +13,6 @@ test.beforeEach(async ({ page }, testInfo) => {
   });
   page.on('requestfailed', (request) => {
     console.log(`[plans:${testInfo.project.name}:requestfailed] ${request.method()} ${request.url()} ${request.failure()?.errorText || ''}`);
-  });
-  page.on('request', (request) => {
-    const pathname = observedApiPath(request.url());
-    if (pathname) console.log(`[plans:${testInfo.project.name}:api:request] ${request.method()} ${pathname}`);
-  });
-  page.on('response', async (response) => {
-    const pathname = observedApiPath(response.url());
-    if (!pathname) return;
-    let detail = '';
-    try {
-      const body = await response.json();
-      detail = body?.processing_status
-        || body?.error?.code
-        || (Array.isArray(body?.items) ? `items=${body.items.length}` : '')
-        || body?.id
-        || '';
-    } catch {}
-    console.log(`[plans:${testInfo.project.name}:api:response] ${response.status()} ${pathname} ${detail}`);
   });
 });
 
@@ -51,10 +28,10 @@ function planXml() {
   return `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
 <w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"><w:body>
 <w:p><w:r><w:t>ПЛАН РАБОТЫ КАФЕДРЫ</w:t></w:r></w:p>
-<w:p><w:r><w:t>на </w:t></w:r><w:r><w:t>2026</w:t></w:r><w:r><w:t>/</w:t></w:r><w:r><w:t>2027</w:t></w:r><w:r><w:t> учебный год</w:t></w:r></w:p>
+<w:p><w:r><w:t>на </w:t></w:r><w:r><w:t>2025</w:t></w:r><w:r><w:t>/</w:t></w:r><w:r><w:t>2026</w:t></w:r><w:r><w:t> учебный год</w:t></w:r></w:p>
 <w:tbl><w:tblPr><w:tblStyle w:val="TableGrid"/></w:tblPr>
 ${row(['№', 'Мероприятие', 'Срок проведения', 'Ответственный', 'Результат'])}
-${row(['1', 'Браузерное заседание кафедры', '15 сентября 2026', 'Иванов Иван Иванович', 'Протокол'])}
+${row(['1', 'Браузерное заседание кафедры', '15 августа 2025', 'Иванов Иван Иванович', 'Протокол'])}
 </w:tbl><w:sectPr/></w:body></w:document>`;
 }
 
@@ -91,7 +68,6 @@ async function uploadThroughPlans(page, path) {
   );
   await page.locator('#plans-upload-input').setInputFiles(path);
   const response = await responsePromise;
-  console.log(`[plans:upload] POST /api/documents -> ${response.status()}`);
   expect(response.ok()).toBeTruthy();
   await expect(page.locator('#plans-notice')).toContainText(/План загружен|Документ обработан|Обработка продолжается/, { timeout: 30_000 });
 }
@@ -105,30 +81,32 @@ test('Планы: DOCX → новый период → календарь → и
     await uploadThroughPlans(page, sourcePath);
 
     const selected = page.locator('.plan-card.active');
-    await expect(selected).toContainText('2026/27', { timeout: 20_000 });
+    await expect(selected).toContainText('2025/26', { timeout: 20_000 });
     await expect(page.locator('#plan-detail')).toContainText('Браузерное заседание кафедры');
 
     await page.locator('[data-plan-generate-current]').click();
     await expect(page.locator('#plan-generate-modal')).toBeVisible({ timeout: 15_000 });
-    await expect(page.locator('#plan-generation-period')).toHaveValue('2027/28');
-    await expect(page.locator('[data-generation-row]').first().locator('[name="startsAt"]')).toHaveValue('2027-09-15');
+    await expect(page.locator('#plan-generation-period')).toHaveValue('2026/27');
+    await expect(page.locator('[data-generation-row]').first().locator('[name="startsAt"]')).toHaveValue('2026-08-15');
     await page.locator('#plan-generation-form button[type="submit"]').click();
 
-    await expect(page.locator('#plan-detail')).toContainText('2027/28', { timeout: 30_000 });
-    await page.locator('#plans-period').selectOption('2027/28');
-    await expect(page.locator('.plan-card').first()).toContainText('2027/28');
+    await expect(page.locator('#plan-detail')).toContainText('2026/27', { timeout: 30_000 });
+    await page.locator('#plans-period').selectOption('2026/27');
+    await expect(page.locator('.plan-card').first()).toContainText('2026/27');
 
-    const calendarLink = page.locator('[data-plan-item-row]').filter({ hasText: 'Браузерное заседание кафедры' })
-      .locator('[data-plan-calendar-item]').first();
-    await expect(calendarLink).toBeVisible({ timeout: 15_000 });
-    await calendarLink.click();
+    await navigationButton(page, 'calendar').click();
+    await expect(page.locator('[data-view-panel="calendar"]')).toBeVisible();
+    await expect(page.locator('#calendar-title')).toContainText(/август/i);
+    const event = page.getByRole('button', { name: 'Браузерное заседание кафедры', exact: true }).first();
+    await expect(event).toBeVisible({ timeout: 15_000 });
+    await event.click();
     await expect(page.locator('#ux-inspector')).toBeVisible();
-    await expect(page.locator('#ux-inspector-body')).toContainText('15 сентября 2027');
-    await expect(page.locator('#ux-inspector-body')).toContainText('План кафедры · 2027/28');
+    await expect(page.locator('#ux-inspector-body')).toContainText('15 августа 2026');
+    await expect(page.locator('#ux-inspector-body')).toContainText('План кафедры · 2026/27');
     await expect(page.locator('#ux-inspector-actions')).toContainText('Исходный документ');
     await page.locator('[data-open-plan-source]').click();
     await expect(page.locator('[data-view-panel="plans"]')).toBeVisible();
-    await expect(page.locator('#plan-detail')).toContainText('2027/28');
+    await expect(page.locator('#plan-detail')).toContainText('2026/27');
     await expect(page.locator('#plan-detail')).toContainText('Браузерное заседание кафедры');
   } finally {
     await rm(dir, { recursive: true, force: true });
