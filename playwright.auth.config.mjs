@@ -1,11 +1,11 @@
-import { defineConfig } from '@playwright/test';
+import { defineConfig, devices } from '@playwright/test';
 
 const port = 4177;
 
 export default defineConfig({
   testDir: './tests/browser',
   testMatch: '**/auth.spec.mjs',
-  timeout: 60_000,
+  timeout: 75_000,
   expect: { timeout: 12_000 },
   fullyParallel: false,
   workers: 1,
@@ -14,8 +14,7 @@ export default defineConfig({
     baseURL: `http://127.0.0.1:${port}`,
     trace: 'retain-on-failure',
     screenshot: 'only-on-failure',
-    browserName: 'chromium',
-    viewport: { width: 1360, height: 900 }
+    browserName: 'chromium'
   },
   webServer: {
     command: `KAFEDRA_BROWSER_PORT=${port} node tests/browser/start-auth-server.mjs`,
@@ -23,5 +22,8 @@ export default defineConfig({
     reuseExistingServer: false,
     timeout: 120_000
   },
-  projects: [{ name: 'auth-desktop' }]
+  projects: [
+    { name: 'auth-desktop', use: { viewport: { width: 1360, height: 900 } } },
+    { name: 'auth-mobile', use: { ...devices['iPhone 15'] } }
+  ]
 });

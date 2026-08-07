@@ -29,7 +29,7 @@ test('резервная копия проверяется и восстанав
     await mkdir(blobDir, { recursive: true });
     await mkdir(appDir, { recursive: true });
     await writeFile(join(blobDir, 'evidence.bin'), 'verified-evidence');
-    await writeFile(join(appDir, 'VERSION'), '0.1.0-rc.2\n');
+    await writeFile(join(appDir, 'VERSION'), '0.1.0-rc.3\n');
     await writeFile(join(appDir, 'application.txt'), 'application snapshot');
     await writeFile(configPath, 'KAFEDRA_HOST=127.0.0.1\n');
 
@@ -57,8 +57,8 @@ test('резервная копия проверяется и восстанав
     const verified = await verifyBackup({ archivePath: created.archivePath });
     assert.equal(verified.status, 'ok');
     assert.equal((await stat(created.archivePath)).mode & 0o077, 0);
-    assert.equal(verified.manifest.appVersion, '0.1.0-rc.2');
-    assert.equal(verified.manifest.schemaVersion, 14);
+    assert.equal(verified.manifest.appVersion, '0.1.0-rc.3');
+    assert.equal(verified.manifest.schemaVersion, 15);
     assert.ok(verified.fileCount >= 4);
 
     const latest = await readLatestBackupStatus(backupDir);
@@ -93,7 +93,7 @@ test('резервная копия проверяется и восстанав
     restoredDatabase.close();
     assert.equal(await readFile(join(targetDataDir, 'blobs', 'evidence.bin'), 'utf8'), 'verified-evidence');
     assert.match(await readFile(targetConfigPath, 'utf8'), /KAFEDRA_HOST=127\.0\.0\.1/);
-    assert.equal((await readFile(join(targetApplicationDir, 'VERSION'), 'utf8')).trim(), '0.1.0-rc.2');
+    assert.equal((await readFile(join(targetApplicationDir, 'VERSION'), 'utf8')).trim(), '0.1.0-rc.3');
 
 
     const changed = new Database(databasePath, { migrationsDir: resolve('migrations') });

@@ -57,7 +57,17 @@ export function listPersonalNotifications(database, workspaceId, {
   const stateMap = states(database, workspaceId, personId);
   const base = listNotifications(database, workspaceId, { personId, now, limit: 500 })
     .filter((item) => !stateMap.get(item.key)?.dismissed_at)
-    .map((item) => ({ ...item, read: Boolean(stateMap.get(item.key)?.read_at) }));
+    .map((item) => {
+      const source = item.calendarItemId
+        ? database.get('SELECT source_kind, source_id FROM calendar_items WHERE workspace_id = ? AND id = ?', workspaceId, item.calendarItemId)
+        : null;
+      return {
+        ...item,
+        sourceKind: item.sourceKind || source?.source_kind || null,
+        sourceId: item.sourceId || source?.source_id || null,
+        read: Boolean(stateMap.get(item.key)?.read_at)
+      };
+    });
   const dashboard = listPlanFact(database, workspaceId, {
     ownerPersonId: personId,
     limit: 2000
@@ -81,13 +91,23 @@ export function setPersonalNotificationState(database, workspaceId, personId, no
   if (!person || !notificationKey) return false;
   const readAt = ['read', 'dismiss'].includes(action) ? now : null;
   const dismissedAt = action === 'dismiss' ? now : null;
-  database.run(`
-    INSERT INTO person_notification_states(
-      workspace_id, person_id, notification_key, read_at, dismissed_at
-    ) VALUES (?, ?, ?, ?, ?)
-    ON CONFLICT(workspace_id, person_id, notification_key) DO UPDATE SET
-      read_at = COALESCE(excluded.read_at, person_notification_states.read_at),
-      dismissed_at = COALESCE(excluded.dismissed_at, person_notification_states.dismissed_at)
-  `, workspaceId, personId, notificationKey, readAt, dismissedAt);
+  database.transaction(() => {
+    database.run(`
+      INSERT INTO person_notification_states(
+        workspace_id, person_id, notification_key, read_at, dismissed_at
+      ) VALUES (?, ?, ?, ?, ?)
+      ON CONFLICT(workspace_id, person_id, notification_key) DO UPDATE SET
+        read_at = COALESCE(excluded.read_at, person_notification_states.read_at),
+        dismissed_at = COALESCE(excluded.dismissed_at, person_notification_states.dismissed_at)
+    `, workspaceId, personId, notificationKey, readAt, dismissedAt);
+    if (readAt) {
+      database.run(`
+        UPDATE notification_deliveries
+        SET status = 'confirmed', confirmed_at = COALESCE(confirmed_at, ?), updated_at = ?
+        WHERE workspace_id = ? AND person_id = ? AND notification_key = ?
+          AND status IN ('sent', 'delivered')
+      `, now, now, workspaceId, personId, notificationKey);
+    }
+  });
   return true;
 }

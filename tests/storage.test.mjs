@@ -9,7 +9,7 @@ import { enqueueJob, acquireJob, completeJob } from '../packages/storage/src/job
 
 const migrationsDir = resolve('migrations');
 
-test('мигрирует базу и выполняет аренду задания', async () => {
+test('мигрирует базу, арендует задания и умеет приостанавливать отдельный вид работ', async () => {
   const dir = await mkdtemp(join(tmpdir(), 'kafedra-storage-'));
   const database = new Database(join(dir, 'test.sqlite3'), { migrationsDir });
   try {
@@ -24,6 +24,13 @@ test('мигрирует базу и выполняет аренду задан�
     assert.equal(acquireJob(database, 'worker-2', 60), null);
     completeJob(database, job.id);
     assert.equal(database.get('SELECT status FROM jobs WHERE id = ?', job.id).status, 'completed');
+
+    const paused = enqueueJob(database, { kind: 'deliver_notification', payload: { value: 3 }, priority: 100 });
+    const document = enqueueJob(database, { kind: 'process_document', payload: { value: 4 }, priority: 10 });
+    const next = acquireJob(database, 'worker-1', 60, new Date(), { excludeKinds: ['deliver_notification'] });
+    assert.equal(next.id, document.id);
+    assert.equal(database.get('SELECT status FROM jobs WHERE id = ?', paused.id).status, 'queued');
+    completeJob(database, document.id);
     assert.equal(database.quickCheck(), true);
   } finally {
     database.close();
