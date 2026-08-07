@@ -5,7 +5,7 @@ on:
   pull_request:
 
 concurrency:
-  group: ci-${{ github.workflow }}-${{ github.ref }}
+  group: ci-${{ github.workflow }}-${{ github.head_ref || github.ref_name }}
   cancel-in-progress: true
 
 permissions:
@@ -37,8 +37,10 @@ jobs:
         run: npm install --ignore-scripts --no-audit --no-fund
       - name: Установить Chromium
         run: npx playwright install --with-deps chromium
-      - name: Проверить desktop и mobile UX
-        run: npm run test:browser
+      - name: Проверить планы desktop и mobile
+        run: npm run test:browser:plans
+      - name: Проверить остальной desktop и mobile UX
+        run: npm run test:browser:core
       - name: Проверить отчёты, подтверждение и научный реестр
         run: npm run test:browser:reports-science
       - name: Проверить персональный план-факт
