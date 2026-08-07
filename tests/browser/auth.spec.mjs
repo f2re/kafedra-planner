@@ -107,9 +107,14 @@ test('сотрудник получает личный контур и наст�
   const diagnosticsBody = await diagnostics.json();
   expect(diagnosticsBody.channelsConfigured.smtp).toBe(true);
   expect(diagnosticsBody.profiles).toBeGreaterThanOrEqual(1);
+  expect(diagnosticsBody.counts.error).toBeGreaterThanOrEqual(1);
 
   await page.locator('.auth-user-button').click();
   await page.locator('[data-auth-action="delivery"]').click();
   await expect(page.locator('#delivery-admin-section')).toBeVisible();
   await expect(page.locator('#delivery-admin-summary')).toContainText('Профили');
+  const retry = page.locator('[data-delivery-retry]').first();
+  await expect(retry).toBeVisible();
+  await retry.click();
+  await expect(page.locator('#notification-delivery-status')).toContainText('Повторная отправка поставлена в очередь');
 });

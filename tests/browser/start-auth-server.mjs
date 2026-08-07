@@ -48,6 +48,17 @@ createAuthAccount(database, workspace.id, {
 createAuthAccount(database, workspace.id, {
   personId: 'person-admin', username: 'admin', password: 'AdminPassword2026', role: 'admin'
 }, now);
+for (const suffix of ['desktop', 'mobile']) {
+  database.run(`
+    INSERT INTO notification_deliveries(
+      id, workspace_id, person_id, notification_key, channel, delivery_kind,
+      destination, title, body, status, retry_sequence, attempt_count, available_at,
+      last_error, created_at, updated_at
+    ) VALUES (?, ?, 'person-staff', ?, 'smtp', 'immediate', 'staff@department.test',
+      'Тестовая ошибка доставки', 'Сообщение для проверки ручного повтора.', 'error', 0, 2, ?,
+      'smtp_connection_refused', ?, ?)
+  `, `browser-delivery-${suffix}`, workspace.id, `browser-error:${suffix}`, now, now, now);
+}
 database.close();
 
 const api = spawn(process.execPath, ['apps/api/src/main.mjs'], { cwd: resolve('.'), env, stdio: 'inherit' });
