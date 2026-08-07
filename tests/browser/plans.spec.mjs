@@ -93,6 +93,17 @@ test('Планы: DOCX → новый период → календарь → и
     await expect(page.locator('#plan-detail')).toContainText('2026', { timeout: 30_000 });
     await page.locator('#plans-period').selectOption('2026');
     await expect(page.locator('.plan-card').first()).toContainText('2026');
+    const generatedRow = page.locator('[data-plan-item-row]').filter({ hasText: 'Браузерное заседание кафедры' }).first();
+    await expect(generatedRow).toContainText(/15.*авг.*2026/i);
+
+    const calendarResponse = await page.request.get('/api/calendar?from=2026-08-01&to=2026-08-31&limit=2000');
+    expect(calendarResponse.ok()).toBeTruthy();
+    const calendarPayload = await calendarResponse.json();
+    expect((calendarPayload.items || []).some((item) =>
+      item.source_kind === 'plan_item'
+      && item.title === 'Браузерное заседание кафедры'
+      && String(item.starts_at).slice(0, 10) === '2026-08-15'
+    )).toBeTruthy();
 
     await navigationButton(page, 'calendar').click();
     await expect(page.locator('[data-view-panel="calendar"]')).toBeVisible();
