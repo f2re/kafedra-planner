@@ -9,6 +9,7 @@ const state = {
   notifications: [],
   reviewItems: [],
   refreshTimer: null,
+  calendarLoadSequence: 0,
   template: {
     step: 1,
     source: null,
@@ -20,6 +21,7 @@ const state = {
 
 const viewMeta = {
   calendar: ['Календарь', 'Все события, задачи и контрольные сроки'],
+  plans: ['Планы', 'Рабочие планы, пункты, сроки и источники'],
   documents: ['Документы', 'Оригиналы, результаты обработки и создание шаблонов'],
   templates: ['Шаблоны', 'Один раз покажите поля — дальше система извлекает их сама'],
   review: ['Проверка данных', 'Только вопросы, которые требуют решения человека'],
@@ -101,6 +103,10 @@ function toast(message) {
   toast.timer = setTimeout(() => element.classList.add('hidden'), 4200);
 }
 
+function runCalendarLoad() {
+  loadCalendar().catch((error) => toast(error.message || 'Не удалось обновить календарь.'));
+}
+
 function setView(view) {
   if (!viewMeta[view]) return;
   state.currentView = view;
@@ -111,12 +117,15 @@ function setView(view) {
   $('#page-subtitle').textContent = subtitle;
   $('#calendar-mode-switch').classList.toggle('hidden', view !== 'calendar');
   document.body.classList.remove('mobile-sidebar-open');
-  if (view === 'calendar') loadCalendar();
+  if (view === 'calendar') runCalendarLoad();
   if (view === 'documents') loadDocuments();
   if (view === 'templates') loadTemplates();
   if (view === 'review') loadReview();
   if (view === 'search') requestAnimationFrame(() => $('#search-input').focus());
+  window.dispatchEvent(new CustomEvent('kafedra:view-changed', { detail: { view } }));
 }
+
+window.kafedraSetView = setView;
 
 function setCalendarMode(mode) {
   if (!['month', 'week', 'tasks'].includes(mode)) return;
@@ -132,7 +141,7 @@ function setCalendarMode(mode) {
   $('#tasks-view').classList.toggle('hidden', mode !== 'tasks');
   $('#previous-period').disabled = mode === 'tasks';
   $('#next-period').disabled = mode === 'tasks';
-  loadCalendar();
+  runCalendarLoad();
 }
 
 async function loadHealth() {
@@ -174,20 +183,38 @@ function calendarEventHtml(event, className = 'calendar-event') {
   return `<button class="${className} ${escapeHtml(event.category)} ${escapeHtml(event.importance)} ${kind} ${event.status === 'completed' ? 'completed' : ''}" type="button" data-calendar-item="${escapeHtml(event.id)}" title="${escapeHtml(event.description || event.title)}">${escapeHtml(event.title)}</button>`;
 }
 
+function setCalendarTitle(mode, displayDate, range = null) {
+  if (mode === 'tasks') {
+    $('#calendar-title').textContent = 'Задачи';
+    return;
+  }
+  if (mode === 'week' && range) {
+    $('#calendar-title').textContent = `${dateLabel(localDateKey(range.start), { short: true })} — ${dateLabel(localDateKey(range.end), { short: true })}`;
+    return;
+  }
+  $('#calendar-title').textContent = new Intl.DateTimeFormat('ru-RU', { month: 'long', year: 'numeric' }).format(displayDate);
+}
+
 async function loadCalendar() {
-  if (state.calendarMode === 'tasks') {
+  const sequence = ++state.calendarLoadSequence;
+  const mode = state.calendarMode;
+  const displayDate = new Date(state.calendarDate);
+  if (mode === 'tasks') {
+    setCalendarTitle(mode, displayDate);
     const { items } = await api('/api/tasks?limit=2000');
+    if (sequence !== state.calendarLoadSequence) return;
     state.tasks = items;
     renderTasks();
-    $('#calendar-title').textContent = 'Задачи';
   } else {
-    const range = state.calendarMode === 'week' ? weekRange(state.calendarDate) : monthRange(state.calendarDate);
+    const range = mode === 'week' ? weekRange(displayDate) : monthRange(displayDate);
+    setCalendarTitle(mode, displayDate, range);
     const { items } = await api(`/api/calendar?from=${localDateKey(range.start)}&to=${localDateKey(range.end)}&limit=2000`);
+    if (sequence !== state.calendarLoadSequence) return;
     state.calendarItems = items;
-    if (state.calendarMode === 'week') renderWeek(range);
+    if (mode === 'week') renderWeek(range);
     else renderMonth(range);
   }
-  await loadCalendarContext();
+  if (sequence === state.calendarLoadSequence) await loadCalendarContext();
 }
 
 function renderMonth(range) {
@@ -672,14 +699,14 @@ $('#save-template').addEventListener('click', saveCurrentTemplate);
 $('#previous-period').addEventListener('click', () => {
   if (state.calendarMode === 'month') state.calendarDate.setMonth(state.calendarDate.getMonth() - 1);
   else state.calendarDate.setDate(state.calendarDate.getDate() - 7);
-  loadCalendar();
+  runCalendarLoad();
 });
 $('#next-period').addEventListener('click', () => {
   if (state.calendarMode === 'month') state.calendarDate.setMonth(state.calendarDate.getMonth() + 1);
   else state.calendarDate.setDate(state.calendarDate.getDate() + 7);
-  loadCalendar();
+  runCalendarLoad();
 });
-$('#today-period').addEventListener('click', () => { state.calendarDate = new Date(); loadCalendar(); });
+$('#today-period').addEventListener('click', () => { state.calendarDate = new Date(); runCalendarLoad(); });
 $('#notification-button').addEventListener('click', () => {
   const popover = $('#notification-popover');
   const opening = popover.classList.contains('hidden');

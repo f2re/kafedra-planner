@@ -1,11 +1,10 @@
-import { execFile } from 'node:child_process';
+import { spawn } from 'node:child_process';
 import { copyFile, mkdtemp, readdir, rm } from 'node:fs/promises';
 import { basename, extname, join } from 'node:path';
-import { promisify } from 'node:util';
 import { isOfficeFormat } from './formats.mjs';
 import { storeGeneratedFile } from './blob-store.mjs';
 
-const execFileAsync = promisify(execFile);
+const PREVIEW_CONVERSION_TIMEOUT_MS = 12_000;
 
 function imageMediaType(originalName, mediaType) {
   if (String(mediaType || '').startsWith('image/')) return mediaType;
@@ -28,6 +27,45 @@ function safeName(originalName, format) {
   return extname(base) ? base : `${base}.${format}`;
 }
 
+function runProcessGroup(command, args, timeoutMs) {
+  return new Promise((resolve, reject) => {
+    const child = spawn(command, args, {
+      detached: process.platform !== 'win32',
+      stdio: 'ignore'
+    });
+    let settled = false;
+    let timedOut = false;
+    const finish = (error = null) => {
+      if (settled) return;
+      settled = true;
+      clearTimeout(timer);
+      error ? reject(error) : resolve();
+    };
+    const timer = setTimeout(() => {
+      timedOut = true;
+      try {
+        if (process.platform !== 'win32' && child.pid) process.kill(-child.pid, 'SIGKILL');
+        else child.kill('SIGKILL');
+      } catch {}
+    }, timeoutMs);
+    timer.unref?.();
+    child.once('error', (error) => finish(error));
+    child.once('exit', (code, signal) => {
+      if (timedOut) {
+        const error = new Error(`libreoffice_preview_timeout_${timeoutMs}ms`);
+        error.code = 'ETIMEDOUT';
+        error.signal = signal || 'SIGKILL';
+        return finish(error);
+      }
+      if (code === 0) return finish();
+      const error = new Error(`libreoffice_preview_exit_${code ?? 'signal'}`);
+      error.code = code;
+      error.signal = signal;
+      return finish(error);
+    });
+  });
+}
+
 async function convertWithLibreOffice(sourcePath, {
   originalName,
   format,
@@ -41,10 +79,10 @@ async function convertWithLibreOffice(sourcePath, {
     let lastError = null;
     for (const command of ['soffice', 'libreoffice']) {
       try {
-        await execFileAsync(
+        await runProcessGroup(
           command,
           [`-env:UserInstallation=file://${join(directory, 'libreoffice-profile')}`, '--headless', '--convert-to', 'pdf', '--outdir', directory, input],
-          { encoding: 'utf8', timeout: 180_000, maxBuffer: 16 * 1024 * 1024 }
+          PREVIEW_CONVERSION_TIMEOUT_MS
         );
         lastError = null;
         break;
@@ -58,7 +96,7 @@ async function convertWithLibreOffice(sourcePath, {
         status: lastError?.code === 'ENOENT' ? 'unavailable' : 'failed',
         mediaType: null,
         blob: null,
-        error: String(lastError?.stderr || lastError?.message || lastError)
+        error: String(lastError?.message || lastError)
       };
     }
     const pdf = (await readdir(directory)).find((name) => name.toLowerCase().endsWith('.pdf'));
