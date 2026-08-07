@@ -31,9 +31,16 @@ async function createPlanDocx(path) {
   });
 }
 
+function navigationButton(page, view) {
+  const mobile = Number(page.viewportSize()?.width || 0) <= 720;
+  return mobile
+    ? page.locator(`.mobile-tab[data-view="${view}"]`)
+    : page.locator(`.nav-item[data-view="${view}"]`);
+}
+
 async function openPlans(page) {
   await page.goto('/');
-  const trigger = page.locator('[data-view="plans"]:visible').first();
+  const trigger = navigationButton(page, 'plans');
   await expect(trigger).toBeVisible();
   await trigger.click();
   await expect(page.locator('[data-view-panel="plans"]')).toBeVisible();
@@ -66,8 +73,7 @@ test('Планы: DOCX → новый период → календарь → и
     await page.locator('#plans-period').selectOption('2027/28');
     await expect(page.locator('.plan-card').first()).toContainText('2027/28');
 
-    const calendarTrigger = page.locator('[data-view="calendar"]:visible').first();
-    await calendarTrigger.click();
+    await navigationButton(page, 'calendar').click();
     await expect(page.locator('[data-view-panel="calendar"]')).toBeVisible();
     for (let index = 0; index < 13; index += 1) await page.locator('#next-period').click();
     await expect(page.locator('#calendar-title')).toContainText(/сентябр/i);
