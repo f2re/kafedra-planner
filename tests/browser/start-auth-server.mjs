@@ -5,6 +5,7 @@ import { join, resolve } from 'node:path';
 import { Database } from '../../packages/storage/src/database.mjs';
 import { ensureDefaultWorkspace } from '../../packages/storage/src/bootstrap.mjs';
 import { createAuthAccount } from '../../packages/auth/src/service.mjs';
+import { persistPlan } from '../../packages/plans/src/service.mjs';
 
 const port = String(process.env.KAFEDRA_BROWSER_PORT || '4177');
 const dataDir = mkdtempSync(join(tmpdir(), `kafedra-auth-browser-${port}-`));
@@ -45,6 +46,69 @@ createAuthAccount(database, workspace.id, {
 createAuthAccount(database, workspace.id, {
   personId: 'person-admin', username: 'admin', password: 'AdminPassword2026', role: 'admin'
 }, now);
+
+function seedPersonalPlan({ key, ownerPersonId, ownerRaw, title, itemTitle }) {
+  const blob = `auth-plan-${key}`;
+  const documentId = `auth-plan-doc-${key}`;
+  const versionId = `auth-plan-version-${key}`;
+  database.run(`
+    INSERT INTO file_blobs(sha256, size_bytes, media_type, storage_path, created_at)
+    VALUES (?, 1, 'text/plain', ?, ?)
+  `, blob, join(dataDir, `${key}.txt`), now);
+  database.run(`
+    INSERT INTO documents(
+      id, workspace_id, title, document_type, status, current_version_id, created_at, updated_at
+    ) VALUES (?, ?, ?, 'personal_plan', 'processed', NULL, ?, ?)
+  `, documentId, workspace.id, title, now, now);
+  database.run(`
+    INSERT INTO document_versions(
+      id, document_id, version_no, blob_sha256, original_name, media_type,
+      detected_format, processing_status, uploaded_at
+    ) VALUES (?, ?, 1, ?, ?, 'text/plain', 'txt', 'processed', ?)
+  `, versionId, documentId, blob, `${key}.txt`, now);
+  database.run('UPDATE documents SET current_version_id = ? WHERE id = ?', versionId, documentId);
+  return persistPlan(database, {
+    workspaceId: workspace.id,
+    documentVersionId: versionId,
+    documentTitle: title,
+    now,
+    result: {
+      title,
+      planScope: 'personal',
+      periodKind: 'calendar_year',
+      periodKey: '2026',
+      ownerPersonId,
+      ownerRaw,
+      confidence: 1,
+      evidence: { kind: 'auth_fixture' },
+      items: [{
+        sourceRowKey: `fixture:${key}:1`,
+        itemNo: '1',
+        title: itemTitle,
+        startsAt: '2026-08-07',
+        endsAt: null,
+        dueDate: null,
+        itemKind: 'event',
+        direction: 'organizational',
+        responsibleRaw: ownerRaw,
+        expectedResult: null,
+        importance: 'normal',
+        confidence: 1,
+        evidence: { kind: 'auth_fixture', line: 1 }
+      }]
+    }
+  });
+}
+
+seedPersonalPlan({
+  key: 'staff', ownerPersonId: 'person-staff', ownerRaw: 'Сидоров Сергей Сергеевич',
+  title: 'Личный план сотрудника', itemTitle: 'Личное мероприятие сотрудника'
+});
+seedPersonalPlan({
+  key: 'outsider', ownerPersonId: 'person-outsider', ownerRaw: 'Иванов Иван Иванович',
+  title: 'Личный план постороннего', itemTitle: 'Личное мероприятие постороннего'
+});
+
 database.close();
 
 const api = spawn(process.execPath, ['apps/api/src/main.mjs'], { cwd: resolve('.'), env, stdio: 'inherit' });
