@@ -57,16 +57,24 @@ test('объектная ACL закрывает прямой URL и поиск �
   const me = await (await page.request.get('/api/auth/me')).json();
   expect(me.csrfToken).toBeTruthy();
 
-  const documentGrant = await page.request.put('/api/admin/access/document/doc-outsider', {
-    headers: { 'x-csrf-token': me.csrfToken },
-    data: {
-      ownerPersonId: 'person-outsider',
-      accessScope: 'restricted',
-      grants: [{ personId: 'person-staff', role: 'reader' }]
-    }
-  });
-  expect(documentGrant.status()).toBe(200);
-  const documentExplanation = await documentGrant.json();
+  await page.locator('.auth-user-button').click();
+  await page.locator('[data-auth-action="admin"]').click();
+  await expect(page.locator('#admin-access-panel')).toBeVisible();
+  await expect(page.locator('#admin-object-access')).toBeVisible();
+  await page.locator('#admin-object-kind').selectOption('document');
+  await page.locator('#admin-object-id').fill('doc-outsider');
+  await page.locator('#admin-object-load').click();
+  await expect(page.locator('#admin-object-summary')).toContainText('Чужой документ');
+  await expect(page.locator('#admin-object-owner')).toHaveValue('person-outsider');
+  const staffGrant = page.locator('[data-acl-person-id="person-staff"]');
+  await staffGrant.locator('[data-acl-enabled]').check();
+  await staffGrant.locator('[data-acl-role]').selectOption('reader');
+  await page.locator('#admin-object-save').click();
+  await expect(page.locator('#admin-access-status')).toContainText('Права объекта сохранены');
+
+  const documentExplanation = await (await page.request.get(
+    '/api/admin/access/document/doc-outsider'
+  )).json();
   expect(documentExplanation.policy.owner_person_id).toBe('person-outsider');
   expect(documentExplanation.grants.some((grant) =>
     grant.person_id === 'person-staff' && grant.access_role === 'reader'
@@ -82,6 +90,7 @@ test('объектная ACL закрывает прямой URL и поиск �
   });
   expect(scienceGrant.status()).toBe(200);
 
+  await page.locator('[data-admin-close]').click();
   await logout(page);
   await login(page, 'staff', 'StaffPassword2026');
   expect((await page.request.get('/api/documents/doc-outsider')).status()).toBe(200);
