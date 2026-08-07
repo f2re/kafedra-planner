@@ -12,6 +12,12 @@ const CRC_TABLE = (() => {
   return table;
 })();
 
+const DIRECTION_LABELS = {
+  organizational: 'Организация',
+  education: 'Образование',
+  science: 'Наука'
+};
+
 function crc32(buffer) {
   let crc = 0xffffffff;
   for (const byte of buffer) crc = CRC_TABLE[(crc ^ byte) & 0xff] ^ (crc >>> 8);
@@ -141,6 +147,11 @@ function itemDate(item) {
   return start;
 }
 
+function directionText(item) {
+  if (item.directionLabel) return item.directionLabel;
+  return DIRECTION_LABELS[item.direction] || item.direction || '';
+}
+
 function replaceCellText(cellXml, value) {
   const escaped = escapeXml(value);
   let replaced = false;
@@ -163,7 +174,7 @@ function fillRow(rowXml, columnMap, item, index) {
     due: formatDate(item.dueDate),
     responsible: item.responsible || item.responsibleRaw || '',
     result: item.result || item.expectedResult || '',
-    direction: item.directionLabel || item.direction || ''
+    direction: directionText(item)
   };
   let cellIndex = 0;
   return String(rowXml).replace(/<w:tc\b[\s\S]*?<\/w:tc>/gi, (cellXml) => {
