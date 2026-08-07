@@ -80,7 +80,7 @@ export function detectPlanPeriod(text, hint = {}) {
   }
 
   const source = String(text || '');
-  const academic = source.match(/\b(20\d{2})\s*[/–—-]\s*(20\d{2}|\d{2})\s*(?:учебн\w*\s+год\w*)?/iu);
+  const academic = source.match(/\b(20\d{2})\s*[/–—-]\s*(20\d{2}|\d{2})\s*(?:учебн[а-яё]*\s+год[а-яё]*)?/iu);
   if (academic) {
     return {
       kind: 'academic_year',
@@ -89,8 +89,8 @@ export function detectPlanPeriod(text, hint = {}) {
       source: 'document'
     };
   }
-  const calendar = source.match(/(?:\bна\s+|\bза\s+|\bплан\w*\s+(?:работ\w*\s+)?(?:на\s+)?)\b(20\d{2})\s*(?:г(?:од|ода)?\.?\b)?/iu)
-    || source.match(/\b(20\d{2})\s+год\b/iu);
+  const calendar = source.match(/(?:^|\s)(?:на\s+|за\s+|план[а-яё]*\s+(?:работ[а-яё]*\s+)?(?:на\s+)?)(20\d{2})\s*(?:г(?:од|ода)?\.?)?/iu)
+    || source.match(/(20\d{2})\s+год(?:а)?/iu);
   if (calendar) {
     return {
       kind: 'calendar_year',
@@ -117,10 +117,10 @@ export function detectPlanScope(text, title = '', hint = {}) {
   const requested = scopeFromRequested(hint.requestedType);
   if (requested) return requested;
   const source = normalized(`${title}\n${text}`);
-  if (/\b(индивидуальн|личн)\w*\s+план\b/u.test(source)) return 'personal';
-  if (/\bплан\w*\s+(?:работ\w*\s+)?факультет/u.test(source) || /\bфакультет\w*\s+план/u.test(source)) return 'faculty';
-  if (/\bплан\w*\s+(?:работ\w*\s+)?кафедр/u.test(source) || /\bкафедр\w*\s+план/u.test(source)) return 'department';
-  if (/\b(университет|институт|организаци)\w*\b/u.test(source) && /\bплан/u.test(source)) return 'organization';
+  if (/(индивидуальн|личн)[а-я]*\s+план/u.test(source)) return 'personal';
+  if (/план[а-я]*\s+(?:работ[а-я]*\s+)?факультет/u.test(source) || /факультет[а-я]*\s+план/u.test(source)) return 'faculty';
+  if (/план[а-я]*\s+(?:работ[а-я]*\s+)?кафедр/u.test(source) || /кафедр[а-я]*\s+план/u.test(source)) return 'department';
+  if (/(университет|институт|организаци)[а-я]*/u.test(source) && /план/u.test(source)) return 'organization';
   return 'unit';
 }
 
@@ -134,12 +134,12 @@ function headerKind(value) {
   const text = normalized(value);
   if (!text) return null;
   if (/^(№|n\b|номер|п\/?п)/u.test(text)) return 'number';
-  if (/(срок\w*\s+(исполн|выполн|сдач)|контрольн\w*\s+срок|дата\s+исполн)/u.test(text)) return 'due';
+  if (/(срок[а-я]*\s+(исполн|выполн|сдач)|контрольн[а-я]*\s+срок|дата\s+исполн)/u.test(text)) return 'due';
   if (/(ответствен|исполнител|соисполнител)/u.test(text)) return 'responsible';
-  if (/(ожидаем\w*\s+результат|форма\s+отчет|отчетност|результат)/u.test(text)) return 'result';
+  if (/(ожидаем[а-я]*\s+результат|форма\s+отчет|отчетност|результат)/u.test(text)) return 'result';
   if (/(направлен|раздел|вид\s+деятельност)/u.test(text)) return 'direction';
   if (/(дата|сроки?\s+проведен|период|время\s+проведен)/u.test(text)) return 'date';
-  if (/(наименован\w*\s+(мероприят|работ)|мероприят|содержание\s+работ|вид\s+работ|задач|работы)/u.test(text)) return 'title';
+  if (/(наименован[а-я]*\s+(мероприят|работ)|мероприят|содержание\s+работ|вид\s+работ|задач|работы)/u.test(text)) return 'title';
   return null;
 }
 
@@ -323,13 +323,13 @@ function fallbackItems(text, period) {
   lines.forEach((line, index) => {
     const clean = line.trim();
     if (clean.length < 8 || headerKind(clean)) return;
-    const date = dateFromCell(clean, period, { due: /\bдо\s+/iu.test(clean) });
+    const date = dateFromCell(clean, period, { due: /до\s+/iu.test(clean) });
     if (!date) return;
     const numbered = clean.match(/^\s*(\d+(?:\.\d+)*)[.)]?\s+(.+)$/u);
     let title = numbered ? numbered[2] : clean;
     title = title.replace(date.raw, '').replace(/\s{2,}/g, ' ').replace(/[;,–—-]+\s*$/u, '').trim();
     if (title.length < 4) return;
-    const due = /\b(до|срок|представить|сдать|завершить)\b/iu.test(clean);
+    const due = /(до|срок|представить|сдать|завершить)/iu.test(clean);
     items.push({
       sourceRowKey: `text:line:${index + 1}`,
       itemNo: numbered?.[1] || null,
@@ -352,16 +352,16 @@ function fallbackItems(text, period) {
 
 function titleFromText(text, documentTitle) {
   const lines = String(text || '').split(/\r?\n/).map((line) => line.trim()).filter(Boolean);
-  const candidate = lines.find((line) => /\bплан\b/iu.test(line) && line.length <= 240);
+  const candidate = lines.find((line) => /(^|[^а-яё])план([^а-яё]|$)/iu.test(line) && line.length <= 240);
   return candidate || documentTitle || 'План';
 }
 
 export function looksLikePlan(text, title = '', blocks = []) {
   const source = normalized(`${title}\n${text}`);
   let score = 0;
-  if (/\bплан\b/u.test(normalized(title))) score += 2;
-  if (/\bплан\w*\s+(работ|мероприят|деятельност|кафедр|факультет)/u.test(source)) score += 3;
-  if (/\b(индивидуальн|личн)\w*\s+план/u.test(source)) score += 3;
+  if (/(^|[^а-яё])план([^а-яё]|$)/u.test(normalized(title))) score += 2;
+  if (/план[а-я]*\s+(работ|мероприят|деятельност|кафедр|факультет)/u.test(source)) score += 3;
+  if (/(индивидуальн|личн)[а-я]*\s+план/u.test(source)) score += 3;
   const table = detectTable(blocks);
   if (table) score += 4;
   return score >= 5;
