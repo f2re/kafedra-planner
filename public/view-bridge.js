@@ -1,16 +1,5 @@
 const pendingPlanDocuments = new Set();
 
-function nativeViewNavigation(event) {
-  const view = event.target?.closest?.('[data-view]');
-  if (view && typeof window.kafedraSetView === 'function') {
-    window.kafedraSetView(view.dataset.view);
-  }
-  const plansSource = event.target?.closest?.('[data-open-plan-source]');
-  if (plansSource && typeof window.kafedraSetView === 'function') {
-    window.kafedraSetView('plans');
-  }
-}
-
 function requestMethod(input, init) {
   return String(init?.method || (input instanceof Request ? input.method : 'GET')).toUpperCase();
 }
@@ -77,5 +66,3 @@ window.fetch = async function viewBridgeFetch(input, init = {}) {
   } catch {}
   return response;
 };
-
-window.addEventListener('click', nativeViewNavigation, true);
