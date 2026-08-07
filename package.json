@@ -23,7 +23,7 @@
     "smoke": "node scripts/smoke-test.mjs",
     "test:browser": "npm run test:browser:plans && npm run test:browser:core",
     "test:browser:plans": "playwright test tests/browser/plans.spec.mjs",
-    "test:browser:core": "playwright test --grep-invert '^Планы:'",
+    "test:browser:core": "playwright test --grep-invert 'Планы:'",
     "test:browser:reports-science": "playwright test --config=playwright.reports-science.config.mjs",
     "test:browser:plan-fact": "playwright test --config=playwright.plan-fact.config.mjs && playwright test --config=playwright.plan-fact-tools.config.mjs",
     "test:browser:plan-fact-tools": "playwright test --config=playwright.plan-fact-tools.config.mjs",
