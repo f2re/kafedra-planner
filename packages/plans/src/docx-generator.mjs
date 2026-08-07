@@ -100,13 +100,17 @@ function runBuffer(command, args) {
   });
 }
 
+function unzipLiteralPattern(name) {
+  return String(name).replace(/([\\[*?])/g, '\\$1');
+}
+
 export async function readDocxEntries(sourcePath, maxBytes = 128 * 1024 * 1024) {
   const listing = (await runBuffer('unzip', ['-Z1', sourcePath])).toString('utf8');
   const names = listing.split(/\r?\n/).map((item) => item.trim()).filter((item) => item && !item.endsWith('/'));
   const entries = [];
   let total = 0;
   for (const name of names) {
-    const data = await runBuffer('unzip', ['-p', sourcePath, name]);
+    const data = await runBuffer('unzip', ['-p', sourcePath, unzipLiteralPattern(name)]);
     total += data.length;
     if (total > maxBytes) {
       const error = new Error('plan_template_unpacked_too_large');
