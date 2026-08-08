@@ -55,7 +55,10 @@ async function fixture() {
   await mkdir(backupDir, { recursive: true });
   await mkdir(applicationDir, { recursive: true });
   await writeFile(join(applicationDir, 'VERSION'), '0.1.0-rc.3\n');
+  const backupPath = join(backupDir, 'kafedra-test.kpb');
+  await writeFile(backupPath, 'encrypted-backup-fixture');
   await writeFile(join(backupDir, 'latest-success.json'), JSON.stringify({
+    archivePath: backupPath,
     archiveName: 'kafedra-test.kpb', createdAt: '2026-08-07T12:00:00.000Z',
     verifiedAt: '2026-08-07T12:01:00.000Z', schemaVersion: 15,
     appVersion: '0.1.0-rc.3', encrypted: true
@@ -76,10 +79,10 @@ async function fixture() {
     VALUES ('acceptance-doc', ?, 'Контрольный документ', 'processed', '2026-08-07T12:00:00.000Z', '2026-08-07T12:00:00.000Z')
   `, workspace.id);
   database.close();
-  return { root, dataDir, blobDir, backupDir, applicationDir, databasePath, blobPath };
+  return { root, dataDir, blobDir, backupDir, applicationDir, databasePath, blobPath, backupPath };
 }
 
-test('акт подтверждает SQLite, immutable blobs, backup и systemd hardening без секретов', async () => {
+test('акт подтверждает SQLite, logical digest, immutable blobs, backup и systemd hardening без секретов', async () => {
   const item = await fixture();
   try {
     const evidence = await collectAcceptanceEvidence({
@@ -93,16 +96,23 @@ test('акт подтверждает SQLite, immutable blobs, backup и systemd
       services: ['kafedra-planner-api.service', 'kafedra-planner-worker.service'],
       osReleasePath: join(item.root, 'missing-os-release')
     });
+    assert.equal(evidence.formatVersion, 2);
     assert.equal(evidence.acceptance.status, 'pass');
     assert.equal(evidence.database.quickCheck, 'ok');
     assert.equal(evidence.database.schemaVersion, 15);
+    assert.equal(evidence.database.missingStableTables.length, 0);
+    assert.equal(evidence.database.stableTableCounts.documents, 1);
+    assert.match(evidence.database.stableDigest, /^[a-f0-9]{64}$/u);
+    assert.match(evidence.database.stableTableDigests.documents, /^[a-f0-9]{64}$/u);
     assert.equal(evidence.database.blobs.count, 1);
     assert.equal(evidence.database.blobs.verified, 1);
     assert.equal(evidence.database.blobs.missing.length, 0);
     assert.equal(evidence.database.blobs.mismatched.length, 0);
     assert.equal(evidence.services.every((service) => service.hardened), true);
     assert.equal(evidence.backup.encrypted, true);
+    assert.equal(evidence.backup.archivePresent, true);
     assert.equal(evidence.backup.archiveName, 'kafedra-test.kpb');
+    assert.match(evidence.backup.archiveSha256, /^[a-f0-9]{64}$/u);
     const serialized = JSON.stringify(evidence);
     assert.equal(serialized.includes('SMTP_PASSWORD'), false);
     assert.equal(serialized.includes('TELEGRAM_BOT_TOKEN'), false);
@@ -114,7 +124,7 @@ test('акт подтверждает SQLite, immutable blobs, backup и systemd
   }
 });
 
-test('повреждение blob делает акт fail, а compare выявляет изменение immutable-снимка', async () => {
+test('изменение данных при том же числе строк и повреждение blob выявляются независимо', async () => {
   const item = await fixture();
   try {
     const before = await collectAcceptanceEvidence({
@@ -128,7 +138,12 @@ test('повреждение blob делает акт fail, а compare выяв�
       services: ['kafedra-planner-api.service', 'kafedra-planner-worker.service'],
       osReleasePath: join(item.root, 'missing-os-release')
     });
+
+    const database = new Database(item.databasePath);
+    database.run("UPDATE documents SET title = 'Подменённый документ' WHERE id = 'acceptance-doc'");
+    database.close();
     await writeFile(item.blobPath, 'tampered-evidence');
+
     const after = await collectAcceptanceEvidence({
       databasePath: item.databasePath,
       dataDir: item.dataDir,
@@ -141,11 +156,36 @@ test('повреждение blob делает акт fail, а compare выяв�
       osReleasePath: join(item.root, 'missing-os-release')
     });
     assert.equal(after.acceptance.status, 'fail');
+    assert.equal(after.database.stableTableCounts.documents, before.database.stableTableCounts.documents);
+    assert.notEqual(after.database.stableTableDigests.documents, before.database.stableTableDigests.documents);
     assert.equal(after.database.blobs.mismatched.length, 1);
     assert.ok(after.acceptance.failures.some((value) => value.startsWith('blob_mismatch:')));
     const comparison = compareAcceptanceEvidence(before, after);
     assert.equal(comparison.status, 'different');
-    assert.ok(comparison.differences.some((item) => item.field === 'database.blobs.digest'));
+    assert.ok(comparison.differences.some((entry) => entry.field === 'database.stableDigest'));
+    assert.ok(comparison.differences.some((entry) => entry.field === 'database.blobs.digest'));
+  } finally {
+    await rm(item.root, { recursive: true, force: true });
+  }
+});
+
+test('полная приёмка блокируется без проверенного зашифрованного архива', async () => {
+  const item = await fixture();
+  try {
+    await rm(item.backupPath, { force: true });
+    const evidence = await collectAcceptanceEvidence({
+      databasePath: item.databasePath,
+      dataDir: item.dataDir,
+      backupDir: item.backupDir,
+      applicationDir: item.applicationDir,
+      requireFull: true,
+      runner: fakeRunner,
+      preflightResult: fullPreflight(),
+      services: ['kafedra-planner-api.service', 'kafedra-planner-worker.service'],
+      osReleasePath: join(item.root, 'missing-os-release')
+    });
+    assert.equal(evidence.acceptance.status, 'fail');
+    assert.ok(evidence.acceptance.failures.includes('backup_missing'));
   } finally {
     await rm(item.root, { recursive: true, force: true });
   }
