@@ -163,7 +163,9 @@ export async function processDocumentJob(database, payload, logger, config) {
     const protocolResult = isProtocol ? extractDepartmentProtocol(text) : null;
     const requestedDirective = ['directive', 'order', 'decree'].includes(payload.requestedType);
     const isDirective = Boolean(text) && !isProtocol && (requestedDirective || looksLikeDirective(text));
-    const directiveResult = isDirective ? extractDirective(text) : null;
+    const directiveResult = isDirective
+      ? extractDirective(text, { requestedType: requestedDirective ? payload.requestedType : null })
+      : null;
     const llmResult = isDirective
       ? await proposeDirectiveWithLlama({ config, text, deterministic: directiveResult })
       : null;
@@ -195,7 +197,7 @@ export async function processDocumentJob(database, payload, logger, config) {
       : isDirective ? 'directive-deterministic'
         : isPlan ? 'plan-deterministic'
           : isScientific ? 'science-deterministic' : extracted.extractor;
-    let extractorVersion = isProtocol ? '1' : isDirective ? '1' : isPlan ? '1' : isScientific ? '1' : extracted.version;
+    let extractorVersion = isProtocol ? '1' : isDirective ? '2' : isPlan ? '1' : isScientific ? '1' : extracted.version;
     const completedAt = new Date().toISOString();
 
     database.transaction(() => {
@@ -324,7 +326,12 @@ export async function processDocumentJob(database, payload, logger, config) {
           itemCount: planResult.items.length,
           warnings: planResult.warnings
         } : null,
-        llm: llmResult ? { status: llmResult.status, model: llmResult.model || null, error: llmResult.error || null } : null,
+        llm: llmResult ? {
+          status: llmResult.status,
+          model: llmResult.model || null,
+          promptVersion: llmResult.promptVersion || null,
+          error: llmResult.error || null
+        } : null,
         science: scienceResult ? {
           id: persistedScience?.id || null,
           kind: scienceResult.kind,

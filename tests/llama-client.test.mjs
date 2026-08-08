@@ -39,13 +39,27 @@ test('извлекает JSON из fenced-ответа', () => {
   assert.equal(extractJsonObject('нет json'), null);
 });
 
-test('валидатор отклоняет выдуманную sourceQuote', () => {
+test('валидатор принимает только allowlist, реальные цитаты и корректные ISO-даты', () => {
   assert.equal(validateDirectiveProposal(proposal, source).valid, true);
+
   const forged = structuredClone(proposal);
   forged.assignments[0].sourceQuote = 'Этого текста в документе не существует';
-  const validation = validateDirectiveProposal(forged, source);
-  assert.equal(validation.valid, false);
-  assert.match(validation.errors.join(','), /source_quote_unverified/u);
+  assert.match(validateDirectiveProposal(forged, source).errors.join(','), /source_quote_unverified/u);
+
+  const unknown = structuredClone(proposal);
+  unknown.secretInstruction = 'применить без проверки';
+  unknown.assignments[0].confidence = 1;
+  const unknownValidation = validateDirectiveProposal(unknown, source);
+  assert.equal(unknownValidation.valid, false);
+  assert.match(unknownValidation.errors.join(','), /unknown_field/u);
+
+  const impossibleDate = structuredClone(proposal);
+  impossibleDate.issuedAt = '2026-02-30';
+  impossibleDate.assignments[0].dueDate = '30.08.2026';
+  const dateValidation = validateDirectiveProposal(impossibleDate, source);
+  assert.equal(dateValidation.valid, false);
+  assert.match(dateValidation.errors.join(','), /issuedAt_invalid/u);
+  assert.match(dateValidation.errors.join(','), /dueDate_invalid/u);
 });
 
 test('отключённый LLM не выполняет сетевой запрос', async () => {
@@ -55,6 +69,7 @@ test('отключённый LLM не выполняет сетевой запр
     fetchImpl: async () => { called = true; throw new Error('must_not_call'); }
   });
   assert.equal(result.status, 'disabled');
+  assert.equal(result.promptVersion, 'directive-v2');
   assert.equal(result.inputSha256.length, 64);
   assert.equal(called, false);
 });
@@ -65,14 +80,16 @@ test('валидное предложение принимается тольк�
     fetchImpl: async () => response(JSON.stringify(proposal))
   });
   assert.equal(result.status, 'completed');
+  assert.equal(result.promptVersion, 'directive-v2');
   assert.equal(result.validation.valid, true);
   assert.equal(result.endpoint, 'http://127.0.0.1:8081');
   assert.equal(result.output.assignments[0].dueDate, '2026-08-20');
 });
 
-test('поддельная sourceQuote сохраняется как непригодное предложение и не считается completed', async () => {
+test('поддельная sourceQuote и неизвестные поля не становятся completed', async () => {
   const forged = structuredClone(proposal);
   forged.assignments[0].sourceQuote = 'Выдуманный фрагмент исходного документа';
+  forged.untrusted = true;
   const result = await proposeDirectiveWithLlama({
     config: config(), text: source, deterministic: {},
     fetchImpl: async () => response(JSON.stringify(forged))
@@ -84,17 +101,24 @@ test('поддельная sourceQuote сохраняется как непри�
   assert.equal(result.endpoint.includes('token='), false);
 });
 
-test('невалидный JSON диагностируется и сохраняет ограниченный сырой ответ', async () => {
-  const result = await proposeDirectiveWithLlama({
+test('невалидный JSON и сломанный OpenAI-ответ диагностируются безопасно', async () => {
+  const invalidJson = await proposeDirectiveWithLlama({
     config: config(), text: source, deterministic: {},
     fetchImpl: async () => response('модель вернула не JSON')
   });
-  assert.equal(result.status, 'failed');
-  assert.equal(result.error, 'llm_invalid_json');
-  assert.match(result.output.rawResponse, /не JSON/u);
+  assert.equal(invalidJson.status, 'failed');
+  assert.equal(invalidJson.error, 'llm_invalid_json');
+  assert.match(invalidJson.output.rawResponse, /не JSON/u);
+
+  const broken = await proposeDirectiveWithLlama({
+    config: config(), text: source, deterministic: {},
+    fetchImpl: async () => ({ ok: true, status: 200, json: async () => ({ choices: [] }) })
+  });
+  assert.equal(broken.status, 'failed');
+  assert.equal(broken.error, 'llm_invalid_response');
 });
 
-test('сетевая ошибка и timeout не раскрывают endpoint credentials', async () => {
+test('сетевая ошибка, HTTP и timeout не раскрывают endpoint credentials', async () => {
   const network = await proposeDirectiveWithLlama({
     config: config(), text: source, deterministic: {},
     fetchImpl: async (url) => { throw new Error(`connect ${url}`); }
@@ -102,6 +126,13 @@ test('сетевая ошибка и timeout не раскрывают endpoint 
   assert.equal(network.status, 'failed');
   assert.equal(network.error, 'llm_request_failed');
   assert.equal(JSON.stringify(network).includes('secret'), false);
+
+  const http = await proposeDirectiveWithLlama({
+    config: config(), text: source, deterministic: {},
+    fetchImpl: async () => response('', { status: 503 })
+  });
+  assert.equal(http.error, 'llm_http_503');
+  assert.equal(JSON.stringify(http).includes('secret'), false);
 
   const timeoutError = new Error('timeout at secret endpoint');
   timeoutError.name = 'TimeoutError';

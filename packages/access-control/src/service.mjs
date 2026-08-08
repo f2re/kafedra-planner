@@ -40,12 +40,22 @@ function objectRow(database, workspaceId, objectKind, objectId) {
   return null;
 }
 
+function relationForAssignmentRole(role, prefix = '') {
+  if (role === 'controller') return `${prefix}controller`;
+  if (role === 'observer') return `${prefix}observer`;
+  return `${prefix}executor`;
+}
+
 function peopleForDocument(database, workspaceId, documentId) {
   return database.all(`
     WITH related(person_id, relation, priority) AS (
       SELECT ae.person_id,
-        CASE WHEN ae.role = 'controller' THEN 'controller' ELSE 'assignment_executor' END,
-        CASE WHEN ae.role = 'controller' THEN 30 ELSE 20 END
+        CASE
+          WHEN ae.role = 'controller' THEN 'controller'
+          WHEN ae.role = 'observer' THEN 'observer'
+          ELSE 'assignment_executor'
+        END,
+        CASE WHEN ae.role = 'controller' THEN 30 WHEN ae.role = 'observer' THEN 10 ELSE 20 END
       FROM document_versions dv
       JOIN assignment_evidence ev ON ev.document_version_id = dv.id
       JOIN assignments a ON a.id = ev.assignment_id AND a.workspace_id = ?
@@ -53,8 +63,12 @@ function peopleForDocument(database, workspaceId, documentId) {
       WHERE dv.document_id = ? AND ae.person_id IS NOT NULL
       UNION ALL
       SELECT ae.person_id,
-        CASE WHEN ae.role = 'controller' THEN 'directive_controller' ELSE 'directive_executor' END,
-        CASE WHEN ae.role = 'controller' THEN 30 ELSE 10 END
+        CASE
+          WHEN ae.role = 'controller' THEN 'directive_controller'
+          WHEN ae.role = 'observer' THEN 'directive_observer'
+          ELSE 'directive_executor'
+        END,
+        CASE WHEN ae.role = 'controller' THEN 30 WHEN ae.role = 'observer' THEN 10 ELSE 20 END
       FROM document_versions dv
       JOIN directives d ON d.source_document_version_id = dv.id AND d.workspace_id = ?
       JOIN assignments a ON a.directive_id = d.id
@@ -83,15 +97,17 @@ function peopleForDocument(database, workspaceId, documentId) {
 
 function peopleForDirective(database, workspaceId, directiveId) {
   return database.all(`
-    SELECT ae.person_id,
-      CASE WHEN ae.role = 'controller' THEN 'controller' ELSE 'executor' END AS relation,
-      CASE WHEN ae.role = 'controller' THEN 30 ELSE 10 END AS priority
+    SELECT ae.person_id, ae.role
     FROM assignments a
     JOIN assignment_executors ae ON ae.assignment_id = a.id
     WHERE a.workspace_id = ? AND a.directive_id = ? AND ae.person_id IS NOT NULL
     GROUP BY ae.person_id, ae.role
-    ORDER BY priority DESC, ae.person_id
-  `, workspaceId, directiveId);
+    ORDER BY ae.person_id
+  `, workspaceId, directiveId).map((row) => ({
+    person_id: row.person_id,
+    relation: relationForAssignmentRole(row.role),
+    priority: row.role === 'controller' ? 30 : row.role === 'observer' ? 10 : 20
+  })).sort((a, b) => b.priority - a.priority || a.person_id.localeCompare(b.person_id));
 }
 
 function peopleForScience(database, workspaceId, itemId) {
@@ -114,7 +130,8 @@ function relatedPeople(database, workspaceId, objectKind, objectId) {
 function roleForRelatedPerson(relation) {
   if (relation.includes('author')) return 'owner';
   if (relation.includes('controller')) return 'controller';
-  if (relation === 'assignment_executor') return 'editor';
+  if (relation.includes('observer')) return 'reader';
+  if (relation.includes('executor')) return 'editor';
   return 'reader';
 }
 
@@ -231,9 +248,7 @@ export function resolveObjectAccess(
 export function assertObjectAccess(database, workspaceId, context, objectKind, objectId, action = 'read') {
   const access = resolveObjectAccess(database, workspaceId, context, objectKind, objectId, action);
   if (access.notFound) throw new AppError('object_not_found', 'Объект не найден.', 404);
-  if (!access.allowed) {
-    throw new AppError('object_access_forbidden', 'Нет доступа к этому объекту.', 403);
-  }
+  if (!access.allowed) throw new AppError('object_access_forbidden', 'Нет доступа к этому объекту.', 403);
   return access;
 }
 
@@ -265,9 +280,11 @@ export function assignmentAccess(database, workspaceId, context, assignmentId, a
     SELECT person_id, role FROM assignment_executors
     WHERE assignment_id = ? AND person_id IS NOT NULL
   `, assignmentId);
+  const ownRoles = people.filter((row) => row.person_id === context.personId).map((row) => row.role);
   let role = 'none';
-  if (people.some((row) => row.person_id === context.personId)) role = 'editor';
-  if (people.some((row) => row.person_id === context.personId && row.role === 'controller')) role = 'controller';
+  if (ownRoles.some((item) => item === 'observer')) role = 'reader';
+  if (ownRoles.some((item) => ['executor', 'coexecutor'].includes(item))) role = 'editor';
+  if (ownRoles.some((item) => item === 'controller')) role = 'controller';
   if (context.role === 'manager' && people.some((row) =>
     managesPerson(database, workspaceId, context.personId, row.person_id)
   )) role = 'controller';
@@ -281,6 +298,19 @@ export function assertAssignmentAccess(database, workspaceId, context, assignmen
   return access;
 }
 
+function periodicTaskReadable(database, workspaceId, context, taskId) {
+  const task = database.get(`
+    SELECT owner_person_id, manager_person_id FROM periodic_tasks
+    WHERE workspace_id = ? AND id = ?
+  `, workspaceId, taskId);
+  if (!task) return false;
+  if (!context?.enabled || context.role === 'admin') return true;
+  if ([task.owner_person_id, task.manager_person_id].includes(context.personId)) return true;
+  return context.role === 'manager'
+    && task.owner_person_id
+    && managesPerson(database, workspaceId, context.personId, task.owner_person_id);
+}
+
 export function canReadSearchResult(database, workspaceId, context, result) {
   const kind = String(result.source_kind || result.sourceKind || '');
   const sourceId = String(result.source_id || result.sourceId || '');
@@ -288,6 +318,7 @@ export function canReadSearchResult(database, workspaceId, context, result) {
   if (kind === 'directive') return resolveObjectAccess(database, workspaceId, context, 'directive', sourceId).allowed;
   if (kind === 'scientific_item') return resolveObjectAccess(database, workspaceId, context, 'scientific_item', sourceId).allowed;
   if (kind === 'assignment') return assignmentAccess(database, workspaceId, context, sourceId).allowed;
+  if (kind === 'periodic_task') return periodicTaskReadable(database, workspaceId, context, sourceId);
   if (kind === 'document_version') {
     const documentId = documentIdForVersion(database, workspaceId, sourceId);
     return Boolean(documentId && resolveObjectAccess(database, workspaceId, context, 'document', documentId).allowed);
@@ -318,17 +349,8 @@ export function canReadCalendarItem(database, workspaceId, context, item) {
   const sourceId = String(item.source_id || item.sourceId || '');
   if (sourceKind === 'assignment') return assignmentAccess(database, workspaceId, context, sourceId).allowed;
   if (sourceKind === 'directive') return resolveObjectAccess(database, workspaceId, context, 'directive', sourceId).allowed;
-  if (sourceKind === 'periodic_task') {
-    const task = database.get(`
-      SELECT owner_person_id, manager_person_id FROM periodic_tasks
-      WHERE workspace_id = ? AND id = ?
-    `, workspaceId, sourceId);
-    if (!task) return false;
-    if (!context?.enabled || context.role === 'admin') return true;
-    if ([task.owner_person_id, task.manager_person_id].includes(context.personId)) return true;
-    return context.role === 'manager'
-      && task.owner_person_id
-      && managesPerson(database, workspaceId, context.personId, task.owner_person_id);
+  if (['periodic_task', 'periodic_task_plan'].includes(sourceKind)) {
+    return periodicTaskReadable(database, workspaceId, context, sourceId);
   }
   return true;
 }
