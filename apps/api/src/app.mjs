@@ -7,6 +7,7 @@ import { createPlanItemsRouter } from './plan-items-router.mjs';
 import { createNotificationDeliveryRouter } from './notification-delivery-router.mjs';
 import { createAssignmentResponsibilityRouter } from './assignment-responsibility-router.mjs';
 import { createPeriodicTasksRouter } from './periodic-tasks-router.mjs';
+import { createSearchRouter } from './search-router.mjs';
 import { createAuthRouter } from './auth-router.mjs';
 import { createAccessRouter } from './access-router.mjs';
 import { resolveAuthContext } from '../../../packages/auth/src/service.mjs';
@@ -20,6 +21,7 @@ export function createApp({ database, config, logger }) {
   const notificationDeliveryRouter = createNotificationDeliveryRouter({ database, config, logger });
   const assignmentResponsibilityRouter = createAssignmentResponsibilityRouter({ database, config, logger });
   const periodicTasksRouter = createPeriodicTasksRouter({ database, config, logger });
+  const searchRouter = createSearchRouter({ database, config, logger });
   const planItemsRouter = createPlanItemsRouter({ database, config, logger });
   const plansRouter = createPlansRouter({ database, config, logger });
   const planFactRouter = createPlanFactRouter({ database, config, logger });
@@ -52,16 +54,19 @@ export function createApp({ database, config, logger }) {
           const periodicHandled = !notificationHandled && !responsibilityHandled && !response.headersSent
             ? await periodicTasksRouter(request, response, url, requestId)
             : false;
-          const planItemHandled = !notificationHandled && !responsibilityHandled && !periodicHandled && !response.headersSent
+          const searchHandled = !notificationHandled && !responsibilityHandled && !periodicHandled && !response.headersSent
+            ? await searchRouter(request, response, url, requestId)
+            : false;
+          const planItemHandled = !notificationHandled && !responsibilityHandled && !periodicHandled && !searchHandled && !response.headersSent
             ? await planItemsRouter(request, response, url, requestId)
             : false;
-          const plansHandled = !notificationHandled && !responsibilityHandled && !periodicHandled && !planItemHandled && !response.headersSent
+          const plansHandled = !notificationHandled && !responsibilityHandled && !periodicHandled && !searchHandled && !planItemHandled && !response.headersSent
             ? await plansRouter(request, response, url, requestId)
             : false;
-          const accessHandled = !notificationHandled && !responsibilityHandled && !periodicHandled && !planItemHandled && !plansHandled && !response.headersSent && request.auth?.enabled
+          const accessHandled = !notificationHandled && !responsibilityHandled && !periodicHandled && !searchHandled && !planItemHandled && !plansHandled && !response.headersSent && request.auth?.enabled
             ? await accessRouter(request, response, url, requestId)
             : false;
-          if (!notificationHandled && !responsibilityHandled && !periodicHandled && !planItemHandled && !plansHandled && !accessHandled && !response.headersSent) {
+          if (!notificationHandled && !responsibilityHandled && !periodicHandled && !searchHandled && !planItemHandled && !plansHandled && !accessHandled && !response.headersSent) {
             const handled = await planFactRouter(request, response, url, requestId);
             if (!handled && !response.headersSent) await router(request, response, url, requestId);
           }
