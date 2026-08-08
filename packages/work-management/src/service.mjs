@@ -133,20 +133,26 @@ export function createPerson(database, workspaceId, body, now = new Date().toISO
 }
 
 function persistExecutor(database, workspaceId, assignmentId, raw, role, now) {
-  if (!raw) return;
-  const person = findPerson(database, workspaceId, raw);
+  if (!raw) return null;
+  const cleanRaw = String(raw).trim();
+  const person = findPerson(database, workspaceId, cleanRaw);
   database.run(`
     INSERT OR IGNORE INTO assignment_executors(
       assignment_id, person_id, executor_raw, role, created_at
     ) VALUES (?, ?, ?, ?, ?)
-  `, assignmentId, person?.id || null, String(raw).trim(), role, now);
-  addFacet(database, workspaceId, 'assignment', assignmentId, role, raw, now);
-  if (!person && role === 'executor') {
-    review(database, workspaceId, 'assignment', assignmentId, 'executor_unresolved',
-      'Не удалось однозначно определить исполнителя',
-      `В документе указан исполнитель «${raw}», но точного сотрудника в справочнике нет.`,
-      'Выберите сотрудника или добавьте его в справочник.', { raw }, now);
+  `, assignmentId, person?.id || null, cleanRaw, role, now);
+  addFacet(database, workspaceId, 'assignment', assignmentId, role, cleanRaw, now);
+
+  if (!person) {
+    const normalized = normalizePersonName(cleanRaw).replace(/\s+/gu, '_').slice(0, 80) || 'unknown';
+    const issueCode = role === 'executor' ? 'executor_unresolved' : `${role}_unresolved:${normalized}`;
+    const roleTitle = role === 'coexecutor' ? 'соисполнителя' : role === 'controller' ? 'контролирующего' : 'исполнителя';
+    review(database, workspaceId, 'assignment', assignmentId, issueCode,
+      `Не удалось однозначно определить ${roleTitle}`,
+      `В документе указан ${roleTitle} «${cleanRaw}», но точного сотрудника в справочнике нет.`,
+      'Выберите сотрудника или добавьте его в справочник.', { raw: cleanRaw, role }, now);
   }
+  return person;
 }
 
 export function persistDirective(database, {
@@ -202,7 +208,17 @@ export function persistDirective(database, {
       item.expectedResult || null, item.reportRequired === false ? 0 : 1,
       item.confidence || 0, JSON.stringify(item.evidence || {}), now, now);
 
-      persistExecutor(database, workspaceId, assignmentId, item.executorRaw, 'executor', now);
+      if (item.executorRaw) {
+        persistExecutor(database, workspaceId, assignmentId, item.executorRaw, 'executor', now);
+      } else {
+        review(database, workspaceId, 'assignment', assignmentId, 'executor_missing',
+          'У поручения не определён основной исполнитель', item.instructionText,
+          'Укажите исполнителя; поручение уже сохранено и не потеряется.',
+          { directiveId, sourceItemNo: item.itemNo }, now);
+      }
+      for (const raw of item.coexecutorRaws || []) {
+        persistExecutor(database, workspaceId, assignmentId, raw, 'coexecutor', now);
+      }
       persistExecutor(database, workspaceId, assignmentId, item.controllerRaw, 'controller', now);
       addFacet(database, workspaceId, 'assignment', assignmentId, 'date', item.dueDate, now);
       addFacet(database, workspaceId, 'assignment', assignmentId, 'direction', item.direction || result.direction, now);
@@ -214,7 +230,13 @@ export function persistDirective(database, {
         sourceId: assignmentId,
         documentVersionId,
         title: item.title,
-        content: [item.instructionText, item.executorRaw, item.controllerRaw, item.expectedResult].filter(Boolean).join('\n'),
+        content: [
+          item.instructionText,
+          item.executorRaw,
+          ...(item.coexecutorRaws || []),
+          item.controllerRaw,
+          item.expectedResult
+        ].filter(Boolean).join('\n'),
         locator: item.evidence?.locator || {}
       });
 
@@ -464,9 +486,10 @@ export function recordLlmRun(database, workspaceId, documentVersionId, result, n
       id, workspace_id, document_version_id, purpose, endpoint, model,
       prompt_version, input_sha256, status, response_json, error_message,
       duration_ms, created_at, completed_at
-    ) VALUES (?, ?, ?, 'directive_enrichment', ?, ?, 'directive-v1', ?, ?, ?, ?, ?, ?, ?)
+    ) VALUES (?, ?, ?, 'directive_enrichment', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
   `, id, workspaceId, documentVersionId, result.endpoint || null, result.model || null,
-  result.inputSha256, result.status, result.output ? JSON.stringify(result.output) : null,
+  result.promptVersion || 'directive-v2', result.inputSha256, result.status,
+  result.output ? JSON.stringify(result.output) : null,
   result.error || null, result.durationMs || null, now,
   ['completed', 'failed', 'disabled'].includes(result.status) ? now : null);
   return id;
