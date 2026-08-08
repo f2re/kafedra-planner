@@ -1,6 +1,5 @@
 const searchState = { timer: null, request: 0 };
 const qs = (selector, root = document) => root.querySelector(selector);
-const qsa = (selector, root = document) => [...root.querySelectorAll(selector)];
 
 function escapeHtml(value) {
   return String(value ?? '')
@@ -99,8 +98,8 @@ function render(payload) {
 function activeFilters() {
   const form = qs('#search-filters');
   const params = new URLSearchParams();
-  const q = qs('#search-input')?.value.trim() || '';
-  if (q) params.set('q', q);
+  const query = qs('#search-input')?.value.trim() || '';
+  if (query) params.set('q', query);
   for (const [key, value] of new FormData(form)) if (String(value).trim()) params.set(key, String(value).trim());
   params.set('limit', '100');
   return params;
@@ -110,13 +109,22 @@ function hasCriteria(params) {
   return [...params.keys()].some((key) => key !== 'limit');
 }
 
+function renderEmptyPrompt() {
+  const target = qs('#search-results');
+  const count = qs('#search-count');
+  if (count) count.textContent = '';
+  if (target) {
+    target.className = 'search-results empty-state';
+    target.textContent = 'Введите текст или выберите один из фильтров.';
+  }
+}
+
 async function performSearch() {
   const params = activeFilters();
   const target = qs('#search-results');
   if (!hasCriteria(params)) {
-    qs('#search-count').textContent = '';
-    target.className = 'search-results empty-state';
-    target.textContent = 'Введите текст или выберите один из фильтров.';
+    ++searchState.request;
+    renderEmptyPrompt();
     return;
   }
   const sequence = ++searchState.request;
@@ -137,6 +145,22 @@ function scheduleSearch() {
   searchState.timer = setTimeout(() => performSearch().catch(() => {}), 220);
 }
 
+function resetSearch() {
+  clearTimeout(searchState.timer);
+  ++searchState.request;
+  const query = qs('#search-input');
+  if (query) query.value = '';
+  const filters = qs('#search-filters');
+  filters?.reset();
+  if (filters) {
+    for (const field of filters.querySelectorAll('input,select,textarea')) {
+      if (field instanceof HTMLInputElement && ['checkbox', 'radio'].includes(field.type)) field.checked = false;
+      else field.value = '';
+    }
+  }
+  renderEmptyPrompt();
+}
+
 ensureStyles();
 ensureUi();
 
@@ -147,6 +171,4 @@ qs('#search-form')?.addEventListener('submit', (event) => {
 qs('#search-input')?.addEventListener('input', scheduleSearch);
 qs('#search-filters')?.addEventListener('input', scheduleSearch);
 qs('#search-filters')?.addEventListener('change', () => performSearch().catch(() => {}));
-qs('[data-search-reset]')?.addEventListener('click', () => {
-  qs('#search-form')?.reset(); qs('#search-filters')?.reset(); performSearch().catch(() => {});
-});
+qs('[data-search-reset]')?.addEventListener('click', resetSearch);
