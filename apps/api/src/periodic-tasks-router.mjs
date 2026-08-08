@@ -6,6 +6,11 @@ import {
   listPeriodicTasksV2,
   updatePeriodicTaskV2
 } from '../../../packages/work-management/src/periodic-tasks.mjs';
+import {
+  attachPeriodicTaskReport,
+  getPeriodicTaskReports,
+  reviewPeriodicTaskReport
+} from '../../../packages/work-management/src/periodic-task-reports.mjs';
 import { readJson, sendJson } from './http-utils.mjs';
 
 function workspaceId(database, request) {
@@ -32,6 +37,20 @@ function manageable(database, workspaceId, context, task) {
     && managesPerson(database, workspaceId, context.personId, task.owner_person_id);
 }
 
+function canAttachReport(database, workspaceId, context, task) {
+  if (!context?.enabled || context.role === 'admin') return true;
+  if ([task.owner_person_id, task.manager_person_id].includes(context.personId)) return true;
+  return context.role === 'manager' && task.owner_person_id
+    && managesPerson(database, workspaceId, context.personId, task.owner_person_id);
+}
+
+function canReviewReport(database, workspaceId, context, task) {
+  if (!context?.enabled || context.role === 'admin') return true;
+  if (task.manager_person_id === context.personId) return true;
+  return context.role === 'manager' && task.owner_person_id
+    && managesPerson(database, workspaceId, context.personId, task.owner_person_id);
+}
+
 function canCreate(database, workspaceId, context, body) {
   if (!context?.enabled || context.role === 'admin') return true;
   if (!body.ownerPersonId) return false;
@@ -53,6 +72,12 @@ function taskError(error) {
   if (code === 'periodic_task_owner_invalid') return new AppError(code, 'Выбранный сотрудник не найден.', 400);
   if (code === 'periodic_task_manager_invalid') return new AppError(code, 'Выбранный руководитель не найден.', 400);
   if (code === 'periodic_task_reason_required') return new AppError(code, 'Кратко укажите причину переноса или изменения.', 400);
+  if (code === 'periodic_report_document_required') return new AppError(code, 'Выберите отчётный документ.', 400);
+  if (code === 'periodic_report_document_not_found') return new AppError(code, 'Отчётный документ не найден.', 404);
+  if (code === 'periodic_report_document_not_ready') return new AppError(code, 'Отчётный документ ещё обрабатывается. Дождитесь завершения.', 409);
+  if (code === 'periodic_report_review_action_invalid') return new AppError(code, 'Допустимы подтверждение или возврат на доработку.', 400);
+  if (code === 'periodic_report_evidence_missing') return new AppError(code, 'Нет отчёта, ожидающего проверки.', 409);
+  if (code === 'periodic_report_already_reviewed') return new AppError(code, 'Этот отчёт уже проверен.', 409);
   return error;
 }
 
@@ -69,6 +94,10 @@ function filters(url) {
   };
 }
 
+function withReports(database, workspace, task) {
+  return { ...task, reports: getPeriodicTaskReports(database, workspace, task.id) || [] };
+}
+
 export function createPeriodicTasksRouter({ database }) {
   return async function routePeriodicTasks(request, response, url) {
     const method = request.method || 'GET';
@@ -80,7 +109,8 @@ export function createPeriodicTasksRouter({ database }) {
     if (url.pathname === '/api/periodic-tasks') {
       if (method === 'GET') {
         const items = listPeriodicTasksV2(database, workspace, filters(url))
-          .filter((item) => visible(database, workspace, context, item));
+          .filter((item) => visible(database, workspace, context, item))
+          .map((item) => withReports(database, workspace, item));
         return sendJson(response, 200, { items });
       }
       if (method === 'POST') {
@@ -89,14 +119,39 @@ export function createPeriodicTasksRouter({ database }) {
           throw new AppError('periodic_task_scope_forbidden', 'Нельзя создать задачу для этого сотрудника.', 403);
         }
         try {
-          return sendJson(response, 201, createPeriodicTaskV2(database, workspace, body, {
+          return sendJson(response, 201, withReports(database, workspace, createPeriodicTaskV2(database, workspace, body, {
             actorPersonId: context.personId || null
-          }));
+          })));
         } catch (error) {
           throw taskError(error);
         }
       }
       return false;
+    }
+
+    const reportMatch = url.pathname.match(/^\/api\/periodic-tasks\/([^/]+)\/(report|review)$/);
+    if (reportMatch && method === 'POST') {
+      const taskId = decodeURIComponent(reportMatch[1]);
+      const task = getPeriodicTaskV2(database, workspace, taskId);
+      if (!task) throw new AppError('periodic_task_not_found', 'Периодическая задача не найдена.', 404);
+      if (!visible(database, workspace, context, task)) {
+        throw new AppError('periodic_task_scope_forbidden', 'Нет доступа к этой задаче.', 403);
+      }
+      if (reportMatch[2] === 'report' && !canAttachReport(database, workspace, context, task)) {
+        throw new AppError('periodic_report_scope_forbidden', 'Нельзя приложить отчёт к этой задаче.', 403);
+      }
+      if (reportMatch[2] === 'review' && !canReviewReport(database, workspace, context, task)) {
+        throw new AppError('periodic_report_review_forbidden', 'Подтвердить результат может только руководитель.', 403);
+      }
+      try {
+        const body = await readJson(request);
+        const result = reportMatch[2] === 'report'
+          ? attachPeriodicTaskReport(database, workspace, taskId, body, { actorPersonId: context.personId || null })
+          : reviewPeriodicTaskReport(database, workspace, taskId, body, { actorPersonId: context.personId || null });
+        return sendJson(response, 200, result);
+      } catch (error) {
+        throw taskError(error);
+      }
     }
 
     const match = url.pathname.match(/^\/api\/periodic-tasks\/([^/]+)$/);
@@ -107,14 +162,14 @@ export function createPeriodicTasksRouter({ database }) {
     if (!visible(database, workspace, context, current)) {
       throw new AppError('periodic_task_scope_forbidden', 'Нет доступа к этой задаче.', 403);
     }
-    if (method === 'GET') return sendJson(response, 200, current);
+    if (method === 'GET') return sendJson(response, 200, withReports(database, workspace, current));
     if (!manageable(database, workspace, context, current)) {
       throw new AppError('periodic_task_control_forbidden', 'Переносить и делегировать эту задачу может только руководитель.', 403);
     }
     try {
-      return sendJson(response, 200, updatePeriodicTaskV2(database, workspace, taskId, await readJson(request), {
+      return sendJson(response, 200, withReports(database, workspace, updatePeriodicTaskV2(database, workspace, taskId, await readJson(request), {
         actorPersonId: context.personId || null
-      }));
+      })));
     } catch (error) {
       throw taskError(error);
     }
