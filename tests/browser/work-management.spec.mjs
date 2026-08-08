@@ -81,3 +81,58 @@ test('распоряжение создаёт поручение, ответст
   await refreshed.locator('.work-responsibility > summary').click();
   await expect(refreshed.locator('.work-history')).toContainText('Перераспределение нагрузки');
 });
+
+test('периодическая задача разделяет плановый рубеж и контрольный срок, перенос виден в истории', async ({ page }, testInfo) => {
+  test.skip(!['workflow-desktop', 'workflow-mobile'].includes(testInfo.project.name), 'Рабочий поток запускается в изолированных workflow-проектах');
+  const mobile = testInfo.project.name === 'workflow-mobile';
+  const suffix = mobile ? 'моб' : 'деск';
+  const owner = await createPerson(page, `Сотрудник Периодический ${suffix}`);
+  const manager = await createPerson(page, `Руководитель Периодический ${suffix}`);
+
+  await page.goto('/');
+  await viewButton(page, 'work', mobile).click();
+  const form = page.locator('#periodic-task-form');
+  await expect(form).toBeVisible();
+  await form.locator('input[name="title"]').fill(`Контрольная задача ${suffix}`);
+  await form.locator('select[name="ownerPersonId"]').selectOption(owner.id);
+  await form.locator('select[name="managerPersonId"]').selectOption(manager.id);
+  await form.locator('select[name="periodKind"]').selectOption('semester');
+  await form.locator('input[name="periodKey"]').fill('2026-1');
+  await form.locator('input[name="startsAt"]').fill('2026-08-12');
+  await form.locator('input[name="dueDate"]').fill('2026-08-25');
+  await form.locator('select[name="direction"]').selectOption('science');
+  await form.locator('textarea[name="expectedResult"]').fill('Проверенный отчёт');
+  await form.getByRole('button', { name: 'Создать задачу' }).click();
+
+  const periodicCard = page.locator('#work-results [data-work-kind="periodic_task"]').filter({ hasText: `Контрольная задача ${suffix}` }).first();
+  await expect(periodicCard).toBeVisible();
+  await expect(periodicCard).toContainText('2026-08-25');
+  const periodicId = await periodicCard.getAttribute('data-work-id');
+  expect(periodicId).toBeTruthy();
+  await periodicCard.click();
+
+  const inspector = page.locator('#ux-inspector-body');
+  await expect(inspector).toContainText('Плановый рубеж: 2026-08-12');
+  await expect(inspector).toContainText('Контрольный срок: 2026-08-25');
+  const edit = inspector.locator('[data-periodic-edit-form]');
+  await expect(edit).toBeVisible();
+  await edit.locator('input[name="startsAt"]').fill('2026-08-15');
+  await edit.locator('input[name="dueDate"]').fill('2026-08-30');
+  await edit.locator('input[name="reason"]').fill('Срок уточнён руководителем');
+  await edit.getByRole('button', { name: 'Сохранить изменения' }).click();
+
+  await expect.poll(async () => {
+    const response = await page.request.get(`/api/periodic-tasks/${periodicId}`);
+    if (!response.ok()) return null;
+    const body = await response.json();
+    return { planned: body.starts_at, due: body.due_date, reason: body.history?.[0]?.reason };
+  }).toEqual({ planned: '2026-08-15', due: '2026-08-30', reason: 'Срок уточнён руководителем' });
+
+  await expect(page.locator('#ux-inspector-body')).toContainText('Срок уточнён руководителем');
+  const calendar = await page.request.get('/api/calendar?from=2026-08-01&to=2026-09-05&limit=2000');
+  expect(calendar.ok()).toBeTruthy();
+  const calendarItems = (await calendar.json()).items.filter((item) => item.source_id === periodicId);
+  expect(calendarItems.find((item) => item.source_kind === 'periodic_task')?.starts_at).toBe('2026-08-30');
+  expect(calendarItems.find((item) => item.source_kind === 'periodic_task_plan')?.starts_at).toBe('2026-08-15');
+  expect(calendarItems.find((item) => item.source_kind === 'periodic_task_plan')?.reminder_minutes).toBeNull();
+});
