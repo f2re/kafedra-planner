@@ -68,7 +68,7 @@ function peopleForDocument(database, workspaceId, documentId) {
           WHEN ae.role = 'observer' THEN 'directive_observer'
           ELSE 'directive_executor'
         END,
-        CASE WHEN ae.role = 'controller' THEN 30 ELSE 10 END
+        CASE WHEN ae.role = 'controller' THEN 30 WHEN ae.role = 'observer' THEN 10 ELSE 20 END
       FROM document_versions dv
       JOIN directives d ON d.source_document_version_id = dv.id AND d.workspace_id = ?
       JOIN assignments a ON a.directive_id = d.id
@@ -131,7 +131,7 @@ function roleForRelatedPerson(relation) {
   if (relation.includes('author')) return 'owner';
   if (relation.includes('controller')) return 'controller';
   if (relation.includes('observer')) return 'reader';
-  if (relation === 'assignment_executor') return 'editor';
+  if (relation.includes('executor')) return 'editor';
   return 'reader';
 }
 
@@ -248,9 +248,7 @@ export function resolveObjectAccess(
 export function assertObjectAccess(database, workspaceId, context, objectKind, objectId, action = 'read') {
   const access = resolveObjectAccess(database, workspaceId, context, objectKind, objectId, action);
   if (access.notFound) throw new AppError('object_not_found', 'Объект не найден.', 404);
-  if (!access.allowed) {
-    throw new AppError('object_access_forbidden', 'Нет доступа к этому объекту.', 403);
-  }
+  if (!access.allowed) throw new AppError('object_access_forbidden', 'Нет доступа к этому объекту.', 403);
   return access;
 }
 
@@ -300,6 +298,19 @@ export function assertAssignmentAccess(database, workspaceId, context, assignmen
   return access;
 }
 
+function periodicTaskReadable(database, workspaceId, context, taskId) {
+  const task = database.get(`
+    SELECT owner_person_id, manager_person_id FROM periodic_tasks
+    WHERE workspace_id = ? AND id = ?
+  `, workspaceId, taskId);
+  if (!task) return false;
+  if (!context?.enabled || context.role === 'admin') return true;
+  if ([task.owner_person_id, task.manager_person_id].includes(context.personId)) return true;
+  return context.role === 'manager'
+    && task.owner_person_id
+    && managesPerson(database, workspaceId, context.personId, task.owner_person_id);
+}
+
 export function canReadSearchResult(database, workspaceId, context, result) {
   const kind = String(result.source_kind || result.sourceKind || '');
   const sourceId = String(result.source_id || result.sourceId || '');
@@ -307,6 +318,7 @@ export function canReadSearchResult(database, workspaceId, context, result) {
   if (kind === 'directive') return resolveObjectAccess(database, workspaceId, context, 'directive', sourceId).allowed;
   if (kind === 'scientific_item') return resolveObjectAccess(database, workspaceId, context, 'scientific_item', sourceId).allowed;
   if (kind === 'assignment') return assignmentAccess(database, workspaceId, context, sourceId).allowed;
+  if (kind === 'periodic_task') return periodicTaskReadable(database, workspaceId, context, sourceId);
   if (kind === 'document_version') {
     const documentId = documentIdForVersion(database, workspaceId, sourceId);
     return Boolean(documentId && resolveObjectAccess(database, workspaceId, context, 'document', documentId).allowed);
@@ -337,17 +349,8 @@ export function canReadCalendarItem(database, workspaceId, context, item) {
   const sourceId = String(item.source_id || item.sourceId || '');
   if (sourceKind === 'assignment') return assignmentAccess(database, workspaceId, context, sourceId).allowed;
   if (sourceKind === 'directive') return resolveObjectAccess(database, workspaceId, context, 'directive', sourceId).allowed;
-  if (sourceKind === 'periodic_task') {
-    const task = database.get(`
-      SELECT owner_person_id, manager_person_id FROM periodic_tasks
-      WHERE workspace_id = ? AND id = ?
-    `, workspaceId, sourceId);
-    if (!task) return false;
-    if (!context?.enabled || context.role === 'admin') return true;
-    if ([task.owner_person_id, task.manager_person_id].includes(context.personId)) return true;
-    return context.role === 'manager'
-      && task.owner_person_id
-      && managesPerson(database, workspaceId, context.personId, task.owner_person_id);
+  if (['periodic_task', 'periodic_task_plan'].includes(sourceKind)) {
+    return periodicTaskReadable(database, workspaceId, context, sourceId);
   }
   return true;
 }
