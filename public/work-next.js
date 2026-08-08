@@ -81,19 +81,87 @@ async function loadWork() {
   renderPeopleOptions(); renderWork(data);
 }
 
+function currentPersonId() {
+  return window.kafedraAuthContext?.user?.person?.id || '';
+}
+
+function canControlResponsibility(responsibility) {
+  const auth = window.kafedraAuthContext;
+  if (!auth?.authEnabled) return true;
+  if (['manager', 'admin'].includes(auth.role)) return true;
+  return Boolean(currentPersonId() && responsibility?.controller?.person_id === currentPersonId());
+}
+
+function personSelect(name, selectedId, emptyLabel) {
+  return `<select name="${esc(name)}"><option value="">${esc(emptyLabel)}</option>${workState.people.map((person) =>
+    `<option value="${esc(person.id)}"${person.id === selectedId ? ' selected' : ''}>${esc(person.display_name)}</option>`
+  ).join('')}</select>`;
+}
+
+function peopleChecks(name, selectedIds) {
+  const selected = new Set(selectedIds || []);
+  return `<div class="work-people-checks">${workState.people.map((person) => `<label><input type="checkbox" name="${esc(name)}" value="${esc(person.id)}"${selected.has(person.id) ? ' checked' : ''}><span>${esc(person.display_name)}</span></label>`).join('')}</div>`;
+}
+
+function roleNames(responsibility) {
+  const primary = responsibility?.executor?.display_name || responsibility?.executor?.executor_raw || 'не назначен';
+  const co = (responsibility?.coexecutors || []).map((item) => item.display_name || item.executor_raw).join(', ');
+  const controller = responsibility?.controller?.display_name || responsibility?.controller?.executor_raw || 'не назначен';
+  const observers = (responsibility?.observers || []).map((item) => item.display_name || item.executor_raw).join(', ');
+  return { primary, co, controller, observers };
+}
+
+function responsibilityHistoryHtml(history) {
+  if (!history?.length) return '<div class="work-history-empty">Изменений ответственности ещё не было.</div>';
+  return `<ol class="work-history">${history.map((item) => `<li><strong>${esc(item.reason || 'Изменение ответственности')}</strong><span>${esc(String(item.createdAt || '').replace('T',' ').replace('Z',' UTC'))}</span></li>`).join('')}</ol>`;
+}
+
+function responsibilityEditor(a, responsibility) {
+  if (!responsibility) return '';
+  const names = roleNames(responsibility);
+  const summary = `<div class="work-responsibility-summary"><span><b>Поручил:</b> ${esc(responsibility.delegatorRaw || 'не указан в основании')}</span><span><b>Ответственный:</b> ${esc(names.primary)}</span>${names.co ? `<span><b>Соисполнители:</b> ${esc(names.co)}</span>` : ''}<span><b>Контроль:</b> ${esc(names.controller)}</span>${names.observers ? `<span><b>Наблюдатели:</b> ${esc(names.observers)}</span>` : ''}</div>`;
+  if (!canControlResponsibility(responsibility)) {
+    return `<details class="work-responsibility"><summary>Ответственность</summary>${summary}${responsibilityHistoryHtml(responsibility.history)}</details>`;
+  }
+  return `<details class="work-responsibility"><summary>Ответственность и история</summary>${summary}
+    <form data-responsibility-form>
+      <div class="work-responsibility-grid">
+        <label class="field"><span>Основной исполнитель</span>${personSelect('executorPersonId', responsibility.executor?.person_id || '', 'Не назначен')}</label>
+        <label class="field"><span>Контролирующий</span>${personSelect('controllerPersonId', responsibility.controller?.person_id || '', 'Не назначен')}</label>
+        <fieldset><legend>Соисполнители</legend>${peopleChecks('coexecutorPersonIds', (responsibility.coexecutors || []).map((item) => item.person_id))}</fieldset>
+        <fieldset><legend>Наблюдатели</legend>${peopleChecks('observerPersonIds', (responsibility.observers || []).map((item) => item.person_id))}</fieldset>
+        <label class="field full"><span>Причина изменения</span><input name="reason" required minlength="3" placeholder="Например: перераспределение нагрузки"></label>
+      </div>
+      <div class="work-responsibility-actions"><button class="secondary-button" type="submit">Сохранить ответственность</button><span data-responsibility-error role="alert"></span></div>
+    </form>${responsibilityHistoryHtml(responsibility.history)}</details>`;
+}
+
 async function showDirective(id) {
   const item = await workApi(`/api/directives/${encodeURIComponent(id)}`);
+  const responsibilityPairs = await Promise.all((item.assignments || []).map(async (assignment) => {
+    try {
+      return [assignment.id, await workApi(`/api/assignments/${encodeURIComponent(assignment.id)}/responsibility`)];
+    } catch {
+      return [assignment.id, null];
+    }
+  }));
+  const responsibilities = Object.fromEntries(responsibilityPairs);
   const inspector = q('#ux-inspector'); const body = q('#ux-inspector-body');
   if (!inspector || !body) return;
   body.innerHTML = `<div class="work-inspector-grid"><section class="inspector-section"><div class="eyebrow">${esc(item.directive_kind)}</div><h2>${esc(item.title)}</h2><p>№ ${esc(item.document_number || 'не указан')} · ${esc(item.issued_at || 'дата не указана')}</p><p>${esc(item.issuer_raw || '')}</p><button class="secondary-button" type="button" data-inspector-document="${esc(item.source_document_id)}">Открыть оригинал</button></section>
-  <section class="inspector-section"><h3>Поручения</h3>${item.assignments.map((a)=>assignmentHtml(a)).join('') || '<div class="empty-state">Поручений не найдено.</div>'}</section></div>`;
+  <section class="inspector-section"><h3>Поручения</h3>${item.assignments.map((a)=>assignmentHtml(a, responsibilities[a.id])).join('') || '<div class="empty-state">Поручений не найдено.</div>'}</section></div>`;
   inspector.classList.remove('hidden'); q('#sheet-backdrop')?.classList.remove('hidden');
 }
 
-function assignmentHtml(a) {
-  const executors = a.executors.map((e)=>e.display_name || e.executor_raw).join(', ') || 'не назначен';
+function assignmentHtml(a, responsibility) {
+  const names = roleNames(responsibility || {
+    executor: a.executors.find((item) => item.role === 'executor'),
+    coexecutors: a.executors.filter((item) => item.role === 'coexecutor'),
+    controller: a.executors.find((item) => item.role === 'controller'),
+    observers: a.executors.filter((item) => item.role === 'observer')
+  });
   const docs = ['<option value="">Выберите отчётный документ</option>', ...workState.documents.map((d)=>`<option value="${esc(d.id)}">${esc(d.title)}</option>`)].join('');
-  return `<article class="work-assignment" data-assignment-id="${esc(a.id)}"><header><strong>${esc(a.title)}</strong><span>${esc(a.due_date || 'без срока')}</span></header><div class="work-executors">Исполнители: ${esc(executors)} · состояние: ${esc(a.status)}</div><p>${esc(a.instruction_text)}</p><form class="work-report-form" data-report-form><select name="documentId">${docs}</select><button class="secondary-button" type="submit">Приложить отчёт</button></form></article>`;
+  return `<article class="work-assignment" data-assignment-id="${esc(a.id)}" data-directive-id="${esc(a.directive_id || '')}"><header><strong>${esc(a.title)}</strong><span>${esc(a.due_date || 'без срока')}</span></header><div class="work-executors">Ответственный: ${esc(names.primary)}${names.co ? ` · соисполнители: ${esc(names.co)}` : ''} · состояние: ${esc(a.status)}</div><p>${esc(a.instruction_text)}</p>${responsibilityEditor(a, responsibility)}<form class="work-report-form" data-report-form><select name="documentId">${docs}</select><button class="secondary-button" type="submit">Приложить отчёт</button></form></article>`;
 }
 
 async function showAssignment(id) {
@@ -116,6 +184,30 @@ document.addEventListener('submit', async (event) => {
     const body = Object.fromEntries(new FormData(event.target));
     await workApi('/api/periodic-tasks', { method:'POST', headers:{'content-type':'application/json'}, body:JSON.stringify(body) });
     event.target.reset(); await loadWork();
+  }
+  const responsibilityForm = event.target.closest('[data-responsibility-form]');
+  if (responsibilityForm) {
+    event.preventDefault();
+    const assignment = responsibilityForm.closest('[data-assignment-id]');
+    const form = new FormData(responsibilityForm);
+    const body = {
+      executorPersonId: form.get('executorPersonId') || null,
+      controllerPersonId: form.get('controllerPersonId') || null,
+      coexecutorPersonIds: form.getAll('coexecutorPersonIds'),
+      observerPersonIds: form.getAll('observerPersonIds'),
+      reason: form.get('reason')
+    };
+    const error = q('[data-responsibility-error]', responsibilityForm);
+    if (error) error.textContent = '';
+    try {
+      await workApi(`/api/assignments/${encodeURIComponent(assignment.dataset.assignmentId)}/responsibility`, {
+        method:'PUT', headers:{'content-type':'application/json'}, body:JSON.stringify(body)
+      });
+      await showDirective(assignment.dataset.directiveId);
+      await loadWork();
+    } catch (exception) {
+      if (error) error.textContent = exception.message;
+    }
   }
   const reportForm = event.target.closest('[data-report-form]');
   if (reportForm) {
