@@ -6,11 +6,16 @@ async function createPerson(page, displayName) {
   return await response.json();
 }
 
+function viewButton(page, view, mobile) {
+  return mobile
+    ? page.locator(`.mobile-tab[data-view="${view}"]`).first()
+    : page.locator(`.nav-item[data-view="${view}"]`).first();
+}
+
 test('распоряжение создаёт поручение, ответственность меняется inline и сохраняет историю', async ({ page }, testInfo) => {
   test.skip(!['workflow-desktop', 'workflow-mobile'].includes(testInfo.project.name), 'Рабочий поток запускается в изолированных workflow-проектах');
   const mobile = testInfo.project.name === 'workflow-mobile';
   const number = mobile ? '48-р' : '47-р';
-  const uploadKey = mobile ? 'workflow-directive-mobile' : 'workflow-directive-desktop';
 
   const ivanov = await createPerson(page, 'Иванов Иван Иванович');
   const petrov = await createPerson(page, 'Петров Пётр Петрович');
@@ -18,7 +23,7 @@ test('распоряжение создаёт поручение, ответст
   const orlov = await createPerson(page, 'Орлов Олег Олегович');
 
   await page.goto('/');
-  await page.locator('button[data-view="documents"]:visible').first().click();
+  await viewButton(page, 'documents', mobile).click();
   await page.locator('#file-input').setInputFiles({
     name: `rasporyazhenie-${number}.txt`, mimeType: 'text/plain',
     buffer: Buffer.from(`РАСПОРЯЖЕНИЕ\nот 5 августа 2026 года № ${number}\nО подготовке отчёта\nРАСПОРЯЖАЮСЬ:\n1. Подготовить отчёт по НИР до 20 августа 2026 года. Ответственный: Иванов Иван Иванович.\nДиректор А.А. Смирнов`, 'utf8')
@@ -29,14 +34,15 @@ test('распоряжение создаёт поручение, ответст
     return (await response.json()).items?.find((item) => item.document_number === number)?.id || null;
   }, { timeout: 30_000 }).not.toBeNull();
 
-  await page.locator('button[data-view="work"]:visible').first().click();
+  await viewButton(page, 'work', mobile).click();
   await expect(page.locator('[data-view-panel="work"]')).toBeVisible();
   const card = page.locator('#work-results [data-work-kind="directive"]').filter({ hasText: number }).first();
-  await expect(card).toContainText('Подготовить отчёт');
+  await expect(card).toBeVisible();
   await card.click();
 
   const assignment = page.locator('#ux-inspector .work-assignment').first();
   await expect(assignment).toBeVisible();
+  await expect(assignment).toContainText('Подготовить отчёт');
   const assignmentId = await assignment.getAttribute('data-assignment-id');
   expect(assignmentId).toBeTruthy();
   await expect(assignment).toContainText('Иванов Иван Иванович');
