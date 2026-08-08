@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-import { mkdir, readFile, writeFile } from 'node:fs/promises';
+import { chmod, mkdir, readFile, writeFile } from 'node:fs/promises';
 import { dirname, resolve } from 'node:path';
 import {
   collectAcceptanceEvidence,
@@ -48,6 +48,7 @@ async function writeJson(path, payload) {
   const absolute = resolve(path);
   await mkdir(dirname(absolute), { recursive: true });
   await writeFile(absolute, `${JSON.stringify(payload, null, 2)}\n`, { mode: 0o600 });
+  await chmod(absolute, 0o600);
   return absolute;
 }
 
@@ -92,6 +93,7 @@ if (command === 'compare') {
     status: evidence.acceptance.status,
     output: outputPath,
     schemaVersion: evidence.database.schemaVersion,
+    stableDigest: evidence.database.stableDigest,
     blobs: evidence.database.blobs.count,
     failures: evidence.acceptance.failures,
     warnings: evidence.acceptance.warnings
