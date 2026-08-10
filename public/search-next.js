@@ -1,4 +1,4 @@
-const searchState = { timer: null, request: 0 };
+const searchState = { timer: null, request: 0, controller: null };
 const qs = (selector, root = document) => root.querySelector(selector);
 
 function escapeHtml(value) {
@@ -119,34 +119,61 @@ function renderEmptyPrompt() {
   }
 }
 
+function cancelPendingSearch() {
+  clearTimeout(searchState.timer);
+  searchState.timer = null;
+  searchState.controller?.abort();
+  searchState.controller = null;
+}
+
 async function performSearch() {
+  clearTimeout(searchState.timer);
+  searchState.timer = null;
   const params = activeFilters();
   const target = qs('#search-results');
+  const sequence = ++searchState.request;
+  searchState.controller?.abort();
+  searchState.controller = null;
   if (!hasCriteria(params)) {
-    ++searchState.request;
     renderEmptyPrompt();
     return;
   }
-  const sequence = ++searchState.request;
+
+  const controller = new AbortController();
+  searchState.controller = controller;
   target.className = 'search-results empty-state';
   target.textContent = 'Поиск…';
-  const response = await fetch(`/api/search?${params}`);
-  const payload = await response.json().catch(() => ({}));
-  if (sequence !== searchState.request) return;
-  if (!response.ok) {
-    target.textContent = payload?.error?.message || `Ошибка поиска (${response.status})`;
-    return;
+  try {
+    const response = await fetch(`/api/search?${params}`, { signal: controller.signal });
+    const payload = await response.json().catch(() => ({}));
+    if (sequence !== searchState.request || controller.signal.aborted) return;
+    if (!response.ok) {
+      target.textContent = payload?.error?.message || `Ошибка поиска (${response.status})`;
+      return;
+    }
+    render(payload);
+  } catch (error) {
+    if (sequence !== searchState.request || controller.signal.aborted || error?.name === 'AbortError') return;
+    target.className = 'search-results empty-state';
+    target.textContent = 'Не удалось выполнить поиск. Проверьте соединение и повторите.';
+    const count = qs('#search-count');
+    if (count) count.textContent = '';
+  } finally {
+    if (searchState.controller === controller) searchState.controller = null;
   }
-  render(payload);
 }
 
 function scheduleSearch() {
-  clearTimeout(searchState.timer);
-  searchState.timer = setTimeout(() => performSearch().catch(() => {}), 220);
+  cancelPendingSearch();
+  ++searchState.request;
+  searchState.timer = setTimeout(() => {
+    searchState.timer = null;
+    performSearch();
+  }, 220);
 }
 
 function resetSearch() {
-  clearTimeout(searchState.timer);
+  cancelPendingSearch();
   ++searchState.request;
   const query = qs('#search-input');
   if (query) query.value = '';
@@ -161,14 +188,18 @@ function resetSearch() {
   renderEmptyPrompt();
 }
 
+function submitSearch(event) {
+  event.preventDefault();
+  event.stopImmediatePropagation();
+  performSearch();
+}
+
 ensureStyles();
 ensureUi();
 
-qs('#search-form')?.addEventListener('submit', (event) => {
-  event.preventDefault(); event.stopImmediatePropagation();
-  performSearch().catch(() => {});
-}, true);
+qs('#search-form')?.addEventListener('submit', submitSearch, true);
+qs('#search-filters')?.addEventListener('submit', submitSearch, true);
 qs('#search-input')?.addEventListener('input', scheduleSearch);
 qs('#search-filters')?.addEventListener('input', scheduleSearch);
-qs('#search-filters')?.addEventListener('change', () => performSearch().catch(() => {}));
+qs('#search-filters')?.addEventListener('change', scheduleSearch);
 qs('[data-search-reset]')?.addEventListener('click', resetSearch);

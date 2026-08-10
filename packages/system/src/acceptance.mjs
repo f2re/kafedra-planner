@@ -14,7 +14,7 @@ const STABLE_TABLES = [
   'document_templates', 'template_extractions', 'calendar_item_revisions', 'template_drafts',
   'document_blocks', 'extraction_value_overrides',
   'people', 'directives', 'assignments', 'assignment_executors', 'assignment_updates',
-  'assignment_evidence', 'periodic_tasks', 'llm_extraction_runs',
+  'assignment_evidence', 'periodic_tasks', 'periodic_task_evidence', 'llm_extraction_runs',
   'report_match_candidates',
   'scientific_items', 'scientific_item_authors', 'scientific_item_classifications', 'scientific_item_evidence',
   'report_fact_extractions', 'assignment_plan_metrics', 'assignment_outcomes', 'assignment_metric_observations',
