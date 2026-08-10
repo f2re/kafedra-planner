@@ -23,7 +23,7 @@ try {
   const database = new DatabaseSync(databasePath);
   database.exec(`
     CREATE TABLE schema_migrations(version INTEGER PRIMARY KEY, name TEXT NOT NULL, applied_at TEXT NOT NULL) STRICT;
-    INSERT INTO schema_migrations VALUES (15, '015_notification_delivery.sql', '2026-08-07T00:00:00.000Z');
+    INSERT INTO schema_migrations VALUES (16, '016_periodic_task_reports.sql', '2026-08-07T00:00:00.000Z');
     CREATE TABLE sample(id TEXT PRIMARY KEY, value TEXT NOT NULL) STRICT;
     INSERT INTO sample VALUES ('one', 'restorable');
   `);
@@ -43,7 +43,7 @@ try {
     reason: 'ci-selftest'
   });
   const verified = await verifyBackup({ archivePath: created.archivePath, keyFile: keyPath });
-  if (verified.status !== 'ok' || verified.manifest.schemaVersion !== 15) {
+  if (verified.status !== 'ok' || verified.manifest.schemaVersion !== 16) {
     throw new Error('Backup verification did not return expected schema.');
   }
 

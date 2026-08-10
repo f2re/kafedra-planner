@@ -1,7 +1,13 @@
 import { createHash } from 'node:crypto';
 
-const PROMPT_VERSION = 'directive-v1';
+const PROMPT_VERSION = 'directive-v2';
 const ALLOWED_KINDS = new Set(['decree', 'directive', 'order']);
+const TOP_LEVEL_FIELDS = new Set([
+  'kind', 'documentNumber', 'issuedAt', 'issuerRaw', 'title', 'direction', 'assignments'
+]);
+const ASSIGNMENT_FIELDS = new Set([
+  'itemNo', 'title', 'instructionText', 'dueDate', 'executors', 'controller', 'expectedResult', 'sourceQuote'
+]);
 
 export function extractJsonObject(value) {
   const text = String(value || '').trim();
@@ -26,15 +32,32 @@ function stringOrNull(value, max = 5000) {
   return value === null || value === undefined || (typeof value === 'string' && value.length <= max);
 }
 
+function validIsoDateOrNull(value) {
+  if (value === null || value === undefined || value === '') return true;
+  if (typeof value !== 'string' || !/^\d{4}-\d{2}-\d{2}$/u.test(value)) return false;
+  const [year, month, day] = value.split('-').map(Number);
+  const date = new Date(Date.UTC(year, month - 1, day));
+  return date.getUTCFullYear() === year && date.getUTCMonth() === month - 1 && date.getUTCDate() === day;
+}
+
+function unknownFields(value, allowed) {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return [];
+  return Object.keys(value).filter((key) => !allowed.has(key));
+}
+
 export function validateDirectiveProposal(output, sourceText) {
   const errors = [];
   if (!output || typeof output !== 'object' || Array.isArray(output)) {
     return { valid: false, errors: ['proposal_not_object'] };
   }
+
+  for (const field of unknownFields(output, TOP_LEVEL_FIELDS)) errors.push(`unknown_field:${field}`);
   if (output.kind !== null && output.kind !== undefined && !ALLOWED_KINDS.has(output.kind)) errors.push('kind_invalid');
-  for (const field of ['documentNumber', 'issuedAt', 'issuerRaw', 'title', 'direction']) {
+  for (const field of ['documentNumber', 'issuerRaw', 'title', 'direction']) {
     if (!stringOrNull(output[field], 1000)) errors.push(`${field}_invalid`);
   }
+  if (!stringOrNull(output.issuedAt, 32) || !validIsoDateOrNull(output.issuedAt)) errors.push('issuedAt_invalid');
+
   if (!Array.isArray(output.assignments) || output.assignments.length > 100) {
     errors.push('assignments_invalid');
   } else {
@@ -43,10 +66,14 @@ export function validateDirectiveProposal(output, sourceText) {
         errors.push(`assignment_${index}_invalid`);
         return;
       }
-      for (const field of ['itemNo', 'title', 'instructionText', 'dueDate', 'controller', 'expectedResult', 'sourceQuote']) {
+      for (const field of unknownFields(item, ASSIGNMENT_FIELDS)) errors.push(`assignment_${index}_unknown_field:${field}`);
+      for (const field of ['itemNo', 'title', 'instructionText', 'controller', 'expectedResult', 'sourceQuote']) {
         if (!stringOrNull(item[field], field === 'instructionText' || field === 'sourceQuote' ? 12000 : 2000)) {
           errors.push(`assignment_${index}_${field}_invalid`);
         }
+      }
+      if (!stringOrNull(item.dueDate, 32) || !validIsoDateOrNull(item.dueDate)) {
+        errors.push(`assignment_${index}_dueDate_invalid`);
       }
       if (!Array.isArray(item.executors) || item.executors.length > 20 || item.executors.some((value) => typeof value !== 'string' || value.length > 500)) {
         errors.push(`assignment_${index}_executors_invalid`);
@@ -60,7 +87,8 @@ export function validateDirectiveProposal(output, sourceText) {
 export function directivePrompt(text, deterministic) {
   return [
     'Извлеки структуру российского распорядительного документа.',
-    'Верни только JSON. Не выдумывай отсутствующие сведения.',
+    'Верни только JSON. Не выдумывай отсутствующие сведения и не добавляй поля вне указанной схемы.',
+    'Даты возвращай только как YYYY-MM-DD либо null.',
     'Каждое предложенное поле должно иметь опору в исходном документе.',
     'Для каждого элемента assignments поле sourceQuote обязательно и должно быть точным фрагментом входного документа длиной не менее 8 символов.',
     'Схема: {kind, documentNumber, issuedAt, issuerRaw, title, direction, assignments:[{itemNo,title,instructionText,dueDate,executors,controller,expectedResult,sourceQuote}]}.',
@@ -92,7 +120,7 @@ function safeFailure(error) {
   const code = String(error?.code || '').toLowerCase();
   if (name.includes('timeout') || name === 'aborterror' || code.includes('timeout') || code === 'abort_err') return 'llm_timeout';
   const message = String(error?.message || '');
-  if (/^llm_(?:http_\d+|invalid_json|unverified_proposal)$/u.test(message)) return message;
+  if (/^llm_(?:http_\d+|invalid_json|invalid_response|unverified_proposal)$/u.test(message)) return message;
   return 'llm_request_failed';
 }
 
@@ -126,6 +154,7 @@ export async function proposeDirectiveWithLlama({ config, text, deterministic, f
     if (!response.ok) throw new Error(`llm_http_${response.status}`);
     const payload = await response.json();
     const content = payload?.choices?.[0]?.message?.content;
+    if (typeof content !== 'string') throw new Error('llm_invalid_response');
     const output = extractJsonObject(content);
     if (!output) {
       return {

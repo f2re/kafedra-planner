@@ -32,6 +32,22 @@ test('распознаёт отношение факт к плану и не з�
   assert.equal(over.progressPercent, 100);
 });
 
+test('распознаёт согласованные формы выполнения и проценты без обязательного разделителя', () => {
+  const cases = [
+    ['Работа выполнена частично. Выполнение 60%.', 'partial', 60],
+    ['Работы выполнены полностью. Выполнение: 100%.', 'completed', 100],
+    ['Работа выполнена частично. Выполнение на 60%.', 'partial', 60]
+  ];
+
+  for (const [body, state, progress] of cases) {
+    const text = `ОТЧЁТ\n${body}`;
+    assert.equal(looksLikeReportFacts(text, 'Отчёт'), true);
+    const result = extractReportFacts(text, 'Отчёт');
+    assert.equal(result.resultState, state);
+    assert.equal(result.progressPercent, progress);
+  }
+});
+
 test('не считает произвольный документ отчётом без отчётных признаков', () => {
   assert.equal(looksLikeReportFacts('Общий информационный материал без результатов', 'Справочный материал'), false);
   assert.equal(looksLikeReportFacts('Факт: 4\nПоручение выполнено', 'Отчёт'), true);

@@ -27,7 +27,7 @@ const METRIC_WORDS = new Map([
 
 const NAME_STOP_WORDS = new Set([
   'план', 'факт', 'целевой', 'цель', 'значение', 'показатель', 'показателя',
-  'выполнено', 'выполнены', 'подготовлено', 'проведено', 'опубликовано',
+  'выполнен', 'выполнена', 'выполнено', 'выполнены', 'выполнение', 'подготовлено', 'проведено', 'опубликовано',
   'направлено', 'разработано', 'достигнуто', 'не', 'менее', 'необходимое',
   'количество', 'всего', 'итого', 'за', 'период'
 ]);
@@ -165,7 +165,7 @@ function parseInlinePlanFact(map, line, lineNumber) {
 }
 
 function parseRatioLine(map, line, lineNumber) {
-  const match = line.match(new RegExp(`(?:выполнено|подготовлено|проведено|опубликовано|достигнуто)\\s*[:—–-]?\\s*(${NUMBER_PATTERN})\\s+из\\s+(${NUMBER_PATTERN})\\s*(.*)$`, 'iu'));
+  const match = line.match(new RegExp(`(?:выполнен(?:а|о|ы)?|подготовлено|проведено|опубликовано|достигнуто)\\s*[:—–-]?\\s*(${NUMBER_PATTERN})\\s+из\\s+(${NUMBER_PATTERN})\\s*(.*)$`, 'iu'));
   if (!match) return false;
   const actual = asNumber(match[1]);
   const target = asNumber(match[2]);
@@ -184,7 +184,7 @@ function parseRatioLine(map, line, lineNumber) {
 function parseMarkerLine(map, line, lineNumber, mode) {
   const marker = mode === 'plan'
     ? '(?:план|целев(?:ое|ой)\\s+значение|цель|не\\s+менее)'
-    : '(?:факт|фактически|выполнено|подготовлено|проведено|опубликовано|направлено|разработано|достигнуто)';
+    : '(?:факт|фактически|выполнен(?:а|о|ы)?|выполнение|подготовлено|проведено|опубликовано|направлено|разработано|достигнуто)';
   const match = line.match(new RegExp(`${marker}\\s*[:—–-]?\\s*(${NUMBER_PATTERN})\\s*(.*)$`, 'iu'));
   if (!match) return false;
   const parsed = parseNumberValue(`${match[1]} ${match[2]}`);
@@ -225,19 +225,22 @@ function detectResultState(text) {
   const value = String(text || '').toLocaleLowerCase('ru-RU').replaceAll('ё', 'е');
   if (/(?:отменено|поручение\s+отменено|исполнение\s+прекращено)/u.test(value)) return 'cancelled';
   if (/(?:срок\s+перенесен|перенесено\s+на|срок\s+продлен|исполнение\s+продлено)/u.test(value)) return 'postponed';
-  if (/(?:выполнено\s+частично|частично\s+выполнено|не\s+в\s+полном\s+объеме|требуется\s+доработка)/u.test(value)) return 'partial';
-  if (/(?:поручение\s+выполнено|выполнено\s+полностью|результат\s+достигнут|работы\s+завершены)/u.test(value)) return 'completed';
+  if (/(?:выполнен(?:а|о|ы)?\s+частично|частично\s+выполнен(?:а|о|ы)?|не\s+в\s+полном\s+объеме|требуется\s+доработка)/u.test(value)) return 'partial';
+  if (/(?:поручение\s+выполнен(?:а|о|ы)?|выполнен(?:а|о|ы)?\s+полностью|результат\s+достигнут|работы\s+завершены)/u.test(value)) return 'completed';
   return 'unknown';
 }
 
 function resultSummary(text) {
   const lines = String(text || '').split(/\r?\n/).map(cleanText).filter(Boolean);
-  const line = lines.find((item) => /(?:поручение|результат|выполнено|частично|перенес|отменено|итог)/iu.test(item));
+  const line = lines.find((item) => /(?:поручение|результат|выполнен(?:а|о|ы)?|выполнение|частично|перенес|отменено|итог)/iu.test(item));
   return line?.slice(0, 500) || lines[0]?.slice(0, 500) || null;
 }
 
 function explicitProgress(text) {
-  const match = String(text || '').match(new RegExp(`(?:выполнено|готовность|исполнение|прогресс)\\s*(?:на|:)\\s*(${NUMBER_PATTERN})\\s*%`, 'iu'));
+  const match = String(text || '').match(new RegExp(
+    `(?:выполнен(?:а|о|ы)?|выполнение|готовность|исполнение|прогресс)\\s*(?:(?:на|:)\\s*)?(${NUMBER_PATTERN})\\s*%`,
+    'iu'
+  ));
   const value = match ? asNumber(match[1]) : null;
   return value === null ? null : Math.max(0, Math.min(100, value));
 }
@@ -259,7 +262,7 @@ export function extractPlanMetrics(text) {
 export function looksLikeReportFacts(text, title = '') {
   const haystack = `${title}\n${text}`.toLocaleLowerCase('ru-RU').replaceAll('ё', 'е');
   const reportMarker = /(?:^|\s)(?:отчет|справка|акт|доклад)(?=$|\s|[.,;:])/u.test(haystack);
-  const resultMarker = /(?:план\s*[:—–-]|факт\s*[:—–-]|поручение\s+выполнено|выполнено\s+частично|выполнено\s+\d+\s+из\s+\d+)/u.test(haystack);
+  const resultMarker = /(?:план\s*[:—–-]|факт\s*[:—–-]|поручение\s+выполнен(?:а|о|ы)?|выполнен(?:а|о|ы)?\s+(?:частично|полностью)|выполнение\s*(?:(?:на|:)\s*)?\d+(?:[.,]\d+)?\s*%|выполнен(?:а|о|ы)?\s+\d+\s+из\s+\d+)/u.test(haystack);
   return reportMarker && resultMarker;
 }
 

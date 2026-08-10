@@ -300,6 +300,7 @@ export function listNotifications(database, workspaceId, {
   const notifications = [];
 
   for (const item of items) {
+    if (item.source_kind === 'periodic_task_plan') continue;
     if (item.status === 'completed' || item.status === 'cancelled') continue;
     const start = asIsoDateTime(item.starts_at);
     if (!start) continue;

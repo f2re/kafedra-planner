@@ -41,6 +41,11 @@ export default defineConfig({
       name: 'workflow-desktop',
       testMatch: '**/work-management.spec.mjs',
       use: { browserName: 'chromium', viewport: { width: 1440, height: 980 } }
+    },
+    {
+      name: 'workflow-mobile',
+      testMatch: '**/work-management.spec.mjs',
+      use: { ...devices['iPhone 15'], browserName: 'chromium' }
     }
   ]
 });

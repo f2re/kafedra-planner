@@ -2,16 +2,17 @@ import { firstRussianDate } from '../../protocols/src/russian-date.mjs';
 
 const ALLOWED_KINDS = new Set(['decree', 'directive', 'order']);
 const KIND_PATTERNS = [
-  ['decree', /\bуказ\b/iu],
-  ['directive', /\bраспоряжени[ея]\b/iu],
-  ['order', /\bприказ\b/iu]
+  ['decree', /(?:^|[^\p{L}])указ(?:$|[^\p{L}])/iu],
+  ['directive', /(?:^|[^\p{L}])распоряжени[ея](?:$|[^\p{L}])/iu],
+  ['order', /(?:^|[^\p{L}])приказ(?:$|[^\p{L}])/iu]
 ];
 const COMMAND_MARKER = /^(?:приказываю|распоряжаюсь|поручаю|обязываю|постановляю)\s*:?[\s]*(.*)$/iu;
 const NUMBERED_ITEM = /^\s*(\d+(?:\.\d+)*)[.)]\s+(.+)$/u;
-const ACTION_PATTERN = /(?:поручить|обязать|обеспечить|подготовить|представить|направить|организовать|разработать|сформировать|утвердить|разместить|назначить|провести|выполнить|предоставить|доложить|осуществить|установить|принять|создать)\w*/iu;
+const WORD_TAIL = '[\\p{L}\\p{M}-]*';
+const ACTION_PATTERN = /(?:поручить|обязать|обеспечить|подготовить|представить|направить|организовать|разработать|сформировать|утвердить|разместить|назначить|провести|выполнить|предоставить|доложить|осуществить|установить|принять|создать)[\p{L}\p{M}-]*/iu;
 const FOOTER_PATTERN = /^(?:с\s+(?:приказом|распоряжением|указом)\s+ознакомлен|основание\s*:)/iu;
-const SIGNATURE_ROLE_PATTERN = /^(?:ректор|директор|начальник|заведующ(?:ий|ая)|председатель)\b/iu;
-const INITIALS_NAME_PATTERN = /(?:(?:[А-ЯЁ]\.){1,2}\s*[А-ЯЁ][а-яё-]+|[А-ЯЁ][а-яё-]+\s+(?:[А-ЯЁ]\.){1,2})/u;
+const SIGNATURE_ROLE_PATTERN = /^(?:(?:врио|и\.?\s*о\.?)\s+)?(?:ректор|проректор|директор|заместитель\s+директора|начальник|заместитель\s+начальника|руководитель|заведующ(?:ий|ая)|председатель|министр|заместитель\s+министра|командир)(?:\s|$)/iu;
+const SIGNATURE_NAME_PATTERN = /(?:(?:[А-ЯЁ]\.){1,2}\s*[А-ЯЁ][а-яё-]+|[А-ЯЁ][а-яё-]+\s+(?:[А-ЯЁ]\.){1,2}|[А-ЯЁ][а-яё-]+\s+[А-ЯЁ][а-яё-]+\s+[А-ЯЁ][а-яё-]+)/u;
 
 function normalize(value) {
   return String(value || '').replaceAll('\r\n', '\n').replaceAll('\r', '\n').trim();
@@ -34,7 +35,7 @@ function cleanPersonRaw(value) {
   return String(value || '')
     .trim()
     .replace(/^[–—-]+|[;,]+$/gu, '')
-    .replace(/(?<=[а-яё])\.$/u, '')
+    .replace(/(?<=[а-яё])\.$/iu, '')
     .trim();
 }
 
@@ -73,11 +74,18 @@ function issuedAt(lines) {
 }
 
 function issuer(lines) {
-  const candidates = lines.filter((line) => /(?:ректор|директор|руководител|начальник|заведующ|председател)\w*/iu.test(line.text));
-  if (!candidates.length) return null;
-  const explicit = candidates.find((line) => /(?:подписал|издал|руководитель|ректор|директор)\s*[:—-]/iu.test(line.text));
-  const selected = explicit || candidates.at(-1);
-  return { value: selected.text.slice(0, 300), evidence: lineEvidence(selected, selected.text.slice(0, 300)) };
+  const signatures = lines.filter((line) => SIGNATURE_ROLE_PATTERN.test(line.text) && SIGNATURE_NAME_PATTERN.test(line.text));
+  const selectedSignature = signatures.at(-1);
+  if (selectedSignature) {
+    return {
+      value: selectedSignature.text.slice(0, 300),
+      evidence: lineEvidence(selectedSignature, selectedSignature.text.slice(0, 300))
+    };
+  }
+
+  const explicit = lines.find((line) => /^(?:издатель|руководитель|подписал|подписант)\s*[:—-]\s*.+/iu.test(line.text));
+  if (!explicit) return null;
+  return { value: explicit.text.slice(0, 300), evidence: lineEvidence(explicit, explicit.text.slice(0, 300)) };
 }
 
 function titleOf(lines, markerIndex) {
@@ -95,7 +103,7 @@ function titleOf(lines, markerIndex) {
 
 function isSignatureOrFooter(text) {
   if (FOOTER_PATTERN.test(text)) return true;
-  return SIGNATURE_ROLE_PATTERN.test(text) && INITIALS_NAME_PATTERN.test(text) && !ACTION_PATTERN.test(text);
+  return SIGNATURE_ROLE_PATTERN.test(text) && SIGNATURE_NAME_PATTERN.test(text) && !ACTION_PATTERN.test(text);
 }
 
 function sourceLines(lines, markerIndex) {
@@ -150,7 +158,10 @@ function splitAssignmentItems(lines, markerIndex) {
 }
 
 function captureSegment(text, labelPattern) {
-  const pattern = new RegExp(`(?:${labelPattern})\\s*[:—-]\\s*(.+?)(?=(?:\\.\\s+(?:контроль|срок|результат|ожидаем|соисполнител|ответственн|исполнител)\\w*\\b)|$)`, 'iu');
+  const pattern = new RegExp(
+    `(?:${labelPattern})\\s*[:—-]\\s*(.+?)(?=(?:\\.\\s+(?:контроль|срок|результат|ожидаем|соисполнител|ответственн|исполнител)${WORD_TAIL})|$)`,
+    'iu'
+  );
   const match = pattern.exec(text);
   return match?.[1]?.trim().replace(/[;,]+$/u, '') || null;
 }
@@ -189,19 +200,19 @@ function expectedResult(text) {
   const action = ACTION_PATTERN.exec(clean);
   if (!action) return null;
   const tail = clean.slice(action.index);
-  const boundary = /\.\s+(?:ответственн|исполнител|соисполнител|контроль|срок)\w*/iu.exec(tail);
+  const boundary = /\.\s+(?:ответственн|исполнител|соисполнител|контроль|срок)[\p{L}\p{M}-]*/iu.exec(tail);
   return (boundary ? tail.slice(0, boundary.index) : tail).trim().slice(0, 700) || null;
 }
 
 export function classifyDirection(text) {
   const value = normalized(text);
   const rules = [
-    ['science', /(?:научн|нир|публикац|стать|конференц|грант|патент|исследован)\w*/u],
-    ['education', /(?:учебн|образоват|дисциплин|практик|гиа|студент|методическ)\w*/u],
-    ['personnel', /(?:кадр|прием|увольнен|назначен|отпуск|штат|должност)\w*/u],
-    ['safety', /(?:безопасност|охран[аы]\s+труда|пожарн|антитеррор|инструктаж)\w*/u],
-    ['finance', /(?:финанс|бюджет|закупк|оплат|смет|договор)\w*/u],
-    ['digital', /(?:информационн|цифров|систем|сайт|программ|баз[аы]\s+данных)\w*/u]
+    ['science', /(?:научн|нир|публикац|стать|конференц|грант|патент|исследован)[\p{L}\p{M}-]*/u],
+    ['education', /(?:учебн|образоват|дисциплин|практик|гиа|студент|методическ)[\p{L}\p{M}-]*/u],
+    ['personnel', /(?:кадр|прием|увольнен|назначен|отпуск|штат|должност)[\p{L}\p{M}-]*/u],
+    ['safety', /(?:безопасност|охран[аы]\s+труда|пожарн|антитеррор|инструктаж)[\p{L}\p{M}-]*/u],
+    ['finance', /(?:финанс|бюджет|закупк|оплат|смет|договор)[\p{L}\p{M}-]*/u],
+    ['digital', /(?:информационн|цифров|систем|сайт|программ|баз[аы]\s+данных)[\p{L}\p{M}-]*/u]
   ];
   return rules.find(([, pattern]) => pattern.test(value))?.[0] || 'organizational';
 }
@@ -225,14 +236,15 @@ export function looksLikeDirective(text) {
   const kind = directiveKind(lines);
   if (!kind) return false;
   const marker = lines.findIndex((line) => COMMAND_MARKER.test(line.text));
-  return marker >= 0 || /(?:поручить|контроль\s+за\s+исполнением|ответственн)\w*/iu.test(normalize(text));
+  return marker >= 0 || /(?:поручить|контроль\s+за\s+исполнением|ответственн)[\p{L}\p{M}-]*/iu.test(normalize(text));
 }
 
 export function extractDirective(text, { requestedType = null } = {}) {
   const lines = linesOf(text);
   const kind = directiveKind(lines, requestedType) || { value: 'directive', evidence: null };
   const markerIndex = lines.findIndex((line) => COMMAND_MARKER.test(line.text));
-  const issued = issuedAt(lines);
+  const headerLines = markerIndex >= 0 ? lines.slice(0, markerIndex) : lines.slice(0, 40);
+  const issued = issuedAt(headerLines);
   const assignments = splitAssignmentItems(lines, markerIndex).map((item) => {
     const instruction = item.parts.join(' ').replace(/\s+/g, ' ').trim();
     const due = firstRussianDate(instruction);
@@ -251,7 +263,7 @@ export function extractDirective(text, { requestedType = null } = {}) {
       direction: classifyDirection(instruction),
       priority: /(?:срочно|незамедлительно|неотложно)/iu.test(instruction) ? 'high' : 'normal',
       expectedResult: expectedResult(instruction),
-      reportRequired: /(?:отчет|отчёт|доклад|справк|акт|представить|направить)\w*/iu.test(instruction),
+      reportRequired: /(?:отчет|отчёт|доклад|справк|акт|представить|направить)[\p{L}\p{M}-]*/iu.test(instruction),
       confidence: assignmentConfidence({ dueDate: due?.value, executor: responsibility.executorRaw, instruction }),
       evidence: {
         locator,
@@ -268,7 +280,7 @@ export function extractDirective(text, { requestedType = null } = {}) {
   });
 
   const title = titleOf(lines, markerIndex);
-  const number = documentNumber(lines);
+  const number = documentNumber(headerLines);
   const issuerResult = issuer(lines);
   let confidence = 0.35;
   if (kind.value) confidence += 0.15;
