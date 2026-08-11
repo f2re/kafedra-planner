@@ -21,15 +21,13 @@ mapfile -d '' debs < <(find "$WORK" -maxdepth 1 -type f -name '*.deb' -print0 | 
 args=()
 for deb in "${debs[@]}"; do args+=("./$(basename "$deb")"); done
 cut -f2 "$PACKAGE_ROOT/packages.tsv" | tail -n +2 | LC_ALL=C sort -u > "$WORK/included.txt"
-info "Проверяем автономный APT-план (${#debs[@]} .deb), без удаления"
+info "Проверяем автономный APT-план (${#debs[@]} .deb), без удаления и recommends"
 (
   cd "$WORK"
-  # --simulate ничего не скачивает. --no-download здесь намеренно не используется:
-  # на Debian APT с этим сочетанием может ошибочно требовать fetch даже когда все
-  # локальные .deb переданы явно. После симуляции каждый запланированный пакет
-  # всё равно сверяется с inventory bundle, а реальная установка ниже жёстко
-  # использует --no-download.
-  LC_ALL=C DEBIAN_FRONTEND=noninteractive apt-get --simulate --no-remove install -- "${args[@]}" > package-plan.txt
+  # --simulate ничего не скачивает. Политика --no-install-recommends обязана
+  # совпадать с collect-os-packages.sh, иначе APT добавит пакеты, которые
+  # намеренно не входят в минимальное dependency closure.
+  LC_ALL=C DEBIAN_FRONTEND=noninteractive apt-get --simulate --no-remove --no-install-recommends install -- "${args[@]}" > package-plan.txt
   sed -n -E 's/^Inst ([^ ]+).*/\1/p' package-plan.txt | sed -E 's/:[a-z0-9-]+$//' | LC_ALL=C sort -u > planned.txt
   comm -23 planned.txt included.txt > missing.txt
   if [[ -s missing.txt ]]; then
@@ -44,7 +42,7 @@ fi
 info "Устанавливаем системные зависимости из bundle; сетевые загрузки запрещены"
 (
   cd "$WORK"
-  LC_ALL=C DEBIAN_FRONTEND=noninteractive apt-get --no-download --no-remove --yes install -- "${args[@]}"
+  LC_ALL=C DEBIAN_FRONTEND=noninteractive apt-get --no-download --no-remove --no-install-recommends --yes install -- "${args[@]}"
 )
 DPKG_AUDIT="$(dpkg --audit || true)"
 [[ -z "$DPKG_AUDIT" ]] || die "После установки пакетная база нецелостна: $DPKG_AUDIT"
