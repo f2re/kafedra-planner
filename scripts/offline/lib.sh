@@ -75,7 +75,7 @@ verify_os_package_set() (
   : > "$validation/inventory"; : > "$validation/package-names"
   while IFS=$'\t' read -r sha package version arch filename extra; do
     [[ -n "$sha$package$version$arch$filename$extra" ]] || continue
-    [[ -z "$extra" && "$sha" =~ ^[a-f0-9]{64}$ && "$filename" =~ ^[A-Za-z0-9][A-Za-z0-9.+:~_-]*\.deb$ ]] || die "Некорректная строка packages.tsv"
+    [[ -z "$extra" && "$sha" =~ ^[a-f0-9]{64}$ && "$filename" =~ ^[A-Za-z0-9][A-Za-z0-9.+:%~_-]*\.deb$ ]] || die "Некорректная строка packages.tsv"
     [[ "$package" =~ ^[a-z0-9][a-z0-9+.-]*$ && -n "$version" ]] || die "Некорректные metadata пакета $filename"
     [[ "$arch" == all || "$arch" == "$expected_arch" ]] || die "Чужая архитектура $filename: $arch"
     [[ -f "$root/$filename" && ! -L "$root/$filename" ]] || die "Не найден $filename"
