@@ -107,7 +107,7 @@ npm run bundle:offline
 3. проверяет Node runtime, `deployment.json`, managed Python и точный OS profile;
 4. проверяет текущие OCR/PDF/Office capabilities;
 5. если они уже готовы — не трогает системные пакеты;
-6. иначе проверяет APT plan и устанавливает **только** `.deb` из bundle с `--no-download --no-remove`;
+6. иначе строит из bundled `.deb` временный изолированный `file:` APT repository, отключает все внешние sources, сверяет planned packages с inventory bundle и устанавливает зависимости только из этого локального repository;
 7. повторно проверяет Tesseract, `rus+eng`, Poppler, LibreOffice и Python;
 8. создаёт immutable release через staging + atomic rename;
 9. сохраняет существующий config/data и перед update делает проверенный backup;
