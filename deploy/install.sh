@@ -15,7 +15,8 @@ else
 fi
 VERSION="$(tr -d '[:space:]' < "$APP_SOURCE/VERSION")"
 APP_ROOT="/opt/kafedra-planner"
-RELEASE_DIR="$APP_ROOT/releases/$VERSION"
+RELEASE_ID="$VERSION"
+RELEASE_DIR=""
 DATA_DIR="/var/lib/kafedra-planner"
 BACKUP_DIR="/var/backups/kafedra-planner"
 CONFIG_DIR="/etc/kafedra-planner"
@@ -23,6 +24,14 @@ CONFIG_FILE="$CONFIG_DIR/kafedra-planner.env"
 API_SERVICE="kafedra-planner-api.service"
 WORKER_SERVICE="kafedra-planner-worker.service"
 [[ -x "$RUNTIME_SOURCE/bin/node" ]] || { echo "В комплекте отсутствует runtime/node/bin/node" >&2; exit 3; }
+if command -v ldd >/dev/null 2>&1; then
+  RUNTIME_LDD="$(ldd "$RUNTIME_SOURCE/bin/node" 2>&1 || true)"
+  if grep -q 'not found' <<<"$RUNTIME_LDD"; then
+    echo "Встроенный Node.js несовместим с библиотеками этой ОС:" >&2
+    printf '%s\n' "$RUNTIME_LDD" >&2
+    exit 3
+  fi
+fi
 if [[ "$IS_BUNDLE" == true ]]; then
   [[ -f "$BUNDLE_ROOT/manifest.sha256" && -f "$BUNDLE_ROOT/release.json" ]] || {
     echo "В автономном комплекте отсутствует manifest.sha256 или release.json" >&2
@@ -84,23 +93,70 @@ if [[ "$IS_BUNDLE" == true ]]; then
     --root "$BUNDLE_ROOT"
 fi
 "$RUNTIME_SOURCE/bin/node" "$APP_SOURCE/scripts/system-preflight.mjs" --strict
+
+# Семантическая VERSION описывает продукт, а каталог release должен различать
+# разные сборки одной и той же RC-версии. Иначе обновление main с неизменённым
+# VERSION блокируется сообщением «версия уже установлена».
+if [[ "$IS_BUNDLE" == true ]]; then
+  readarray -t RELEASE_META < <("$RUNTIME_SOURCE/bin/node" - "$BUNDLE_ROOT/release.json" <<'NODE'
+const fs = require('node:fs');
+const release = JSON.parse(fs.readFileSync(process.argv[2], 'utf8'));
+process.stdout.write(`${release.gitCommit || ''}\n${release.nodeVersion || ''}\n`);
+NODE
+  )
+  RELEASE_GIT_COMMIT="${RELEASE_META[0]:-}"
+  RELEASE_NODE_VERSION="${RELEASE_META[1]:-}"
+  if [[ "$RELEASE_GIT_COMMIT" =~ ^[0-9a-f]{7,64}$ ]]; then
+    RELEASE_ID="${VERSION}-${RELEASE_GIT_COMMIT:0:12}-node${RELEASE_NODE_VERSION#v}"
+  else
+    RELEASE_FINGERPRINT="$(sha256sum "$BUNDLE_ROOT/manifest.sha256" | awk '{print substr($1,1,12)}')"
+    RELEASE_ID="${VERSION}-${RELEASE_FINGERPRINT}-node${RELEASE_NODE_VERSION#v}"
+  fi
+elif command -v git >/dev/null 2>&1; then
+  SOURCE_COMMIT="$(git -C "$APP_SOURCE" rev-parse HEAD 2>/dev/null || true)"
+  [[ ! "$SOURCE_COMMIT" =~ ^[0-9a-f]{7,64}$ ]] || RELEASE_ID="${VERSION}-${SOURCE_COMMIT:0:12}"
+fi
+RELEASE_DIR="$APP_ROOT/releases/$RELEASE_ID"
+REUSE_RELEASE=false
+if [[ -e "$RELEASE_DIR" ]]; then
+  CURRENT_RELEASE="$(readlink -f "$APP_ROOT/current" 2>/dev/null || true)"
+  if [[ "$IS_BUNDLE" == true && -f "$RELEASE_DIR/release.json" ]] && cmp -s "$BUNDLE_ROOT/release.json" "$RELEASE_DIR/release.json"; then
+    REUSE_RELEASE=true
+    if [[ "$CURRENT_RELEASE" == "$RELEASE_DIR" ]]; then
+      echo "Релиз $RELEASE_ID уже выбран как current; повторно проверяю миграции, службы и health-check."
+    else
+      echo "Релиз $RELEASE_ID уже скопирован; повторяю безопасное переключение/миграцию."
+    fi
+  else
+    echo "Каталог релиза уже существует, но его содержимое не совпадает: $RELEASE_DIR" >&2
+    exit 4
+  fi
+fi
+
 id kafedra-planner >/dev/null 2>&1 || useradd --system --home-dir "$DATA_DIR" --shell /usr/sbin/nologin kafedra-planner
 install -d -o root -g root -m 0755 "$APP_ROOT/releases"
 install -d -o kafedra-planner -g kafedra-planner -m 0700 "$DATA_DIR" "$DATA_DIR/blobs" "$DATA_DIR/tmp" "$BACKUP_DIR"
 install -d -o root -g kafedra-planner -m 0750 "$CONFIG_DIR"
-if [[ -e "$RELEASE_DIR" ]]; then
-  echo "Версия $VERSION уже установлена: $RELEASE_DIR" >&2
-  exit 4
+STAGING_RELEASE=""
+cleanup_staging_release() {
+  [[ -z "$STAGING_RELEASE" ]] || rm -rf "$STAGING_RELEASE"
+}
+trap cleanup_staging_release EXIT
+if [[ "$REUSE_RELEASE" == false ]]; then
+  STAGING_RELEASE="$APP_ROOT/releases/.${RELEASE_ID}.staging.$$"
+  rm -rf "$STAGING_RELEASE"
+  mkdir -p "$STAGING_RELEASE"
+  cp -a "$APP_SOURCE/." "$STAGING_RELEASE/"
+  mkdir -p "$STAGING_RELEASE/runtime"
+  cp -a "$RUNTIME_SOURCE" "$STAGING_RELEASE/runtime/node"
+  if [[ "$IS_BUNDLE" == true ]]; then
+    install -m 0644 "$BUNDLE_ROOT/release.json" "$STAGING_RELEASE/release.json"
+  fi
+  chown -R root:root "$STAGING_RELEASE"
+  chmod -R go-w "$STAGING_RELEASE"
+  mv "$STAGING_RELEASE" "$RELEASE_DIR"
+  STAGING_RELEASE=""
 fi
-mkdir -p "$RELEASE_DIR"
-cp -a "$APP_SOURCE/." "$RELEASE_DIR/"
-mkdir -p "$RELEASE_DIR/runtime"
-cp -a "$RUNTIME_SOURCE" "$RELEASE_DIR/runtime/node"
-if [[ "$IS_BUNDLE" == true ]]; then
-  install -m 0644 "$BUNDLE_ROOT/release.json" "$RELEASE_DIR/release.json"
-fi
-chown -R root:root "$RELEASE_DIR"
-chmod -R go-w "$RELEASE_DIR"
 if [[ ! -f "$CONFIG_FILE" ]]; then
   cat > "$CONFIG_FILE" <<ENV
 KAFEDRA_HOST=127.0.0.1
@@ -188,6 +244,10 @@ ensure_env_setting KAFEDRA_TELEGRAM_API_BASE https://api.telegram.org
 ensure_env_setting KAFEDRA_TELEGRAM_TIMEOUT_MS 15000
 chown root:kafedra-planner "$CONFIG_FILE"
 chmod 0640 "$CONFIG_FILE"
+API_UNIT_EXISTED=false
+WORKER_UNIT_EXISTED=false
+[[ -f "/etc/systemd/system/$API_SERVICE" ]] && API_UNIT_EXISTED=true
+[[ -f "/etc/systemd/system/$WORKER_SERVICE" ]] && WORKER_UNIT_EXISTED=true
 PREVIOUS_RELEASE=""
 if [[ -L "$APP_ROOT/current" || -d "$APP_ROOT/current" ]]; then
   PREVIOUS_RELEASE="$(readlink -f "$APP_ROOT/current" 2>/dev/null || true)"
@@ -234,6 +294,10 @@ rollback_installation() {
     fi
   else
     rm -f "$APP_ROOT/current"
+    systemctl disable "$API_SERVICE" "$WORKER_SERVICE" >/dev/null 2>&1 || true
+    [[ "$API_UNIT_EXISTED" == true ]] || rm -f "/etc/systemd/system/$API_SERVICE"
+    [[ "$WORKER_UNIT_EXISTED" == true ]] || rm -f "/etc/systemd/system/$WORKER_SERVICE"
+    systemctl daemon-reload >/dev/null 2>&1 || true
   fi
   echo "Автоматический откат завершён. Неуспешная версия оставлена в $RELEASE_DIR для диагностики." >&2
   exit "$status"
@@ -272,12 +336,34 @@ runuser -u kafedra-planner -- env \
   KAFEDRA_SKIP_AUTO_BACKUP=true \
   "$RELEASE_DIR/runtime/node/bin/node" "$RELEASE_DIR/scripts/migrate.mjs"
 systemctl enable --now "$API_SERVICE" "$WORKER_SERVICE"
-sleep 2
 load_environment
-curl --fail --silent "http://127.0.0.1:${KAFEDRA_PORT:-8080}/api/system/health" >/dev/null || {
-  journalctl -u "$API_SERVICE" -n 50 --no-pager >&2
-  false
+health_request() {
+  KAFEDRA_PORT="${KAFEDRA_PORT:-8080}" "$RELEASE_DIR/runtime/node/bin/node" -e '
+const http = require("node:http");
+const port = Number(process.env.KAFEDRA_PORT || 8080);
+const request = http.get({ host: "127.0.0.1", port, path: "/api/system/health", timeout: 3000 }, (response) => {
+  response.resume();
+  process.exitCode = response.statusCode >= 200 && response.statusCode < 300 ? 0 : 1;
+});
+request.on("timeout", () => request.destroy(new Error("timeout")));
+request.on("error", () => { process.exitCode = 1; });
+'
 }
+HEALTH_OK=false
+for _attempt in {1..15}; do
+  if systemctl is-active --quiet "$API_SERVICE" \
+    && systemctl is-active --quiet "$WORKER_SERVICE" \
+    && health_request; then
+    HEALTH_OK=true
+    break
+  fi
+  sleep 1
+done
+if [[ "$HEALTH_OK" != true ]]; then
+  echo "Службы не вышли в рабочее состояние после установки." >&2
+  journalctl -u "$API_SERVICE" -u "$WORKER_SERVICE" -n 80 --no-pager >&2 || true
+  false
+fi
 trap - ERR
-echo "Установлена версия $VERSION"
+echo "Установлен релиз $RELEASE_ID (версия $VERSION)"
 [[ -n "$BACKUP_ARCHIVE" ]] && echo "Точка отката: $BACKUP_ARCHIVE"

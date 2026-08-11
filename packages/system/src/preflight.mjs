@@ -4,7 +4,6 @@ import { delimiter, join } from 'node:path';
 const REQUIREMENTS = Object.freeze([
   { id: 'tar', names: ['tar'], required: true, capability: 'backup', label: 'архивирование резервных копий' },
   { id: 'sha256sum', names: ['sha256sum'], required: true, capability: 'integrity', label: 'проверка контрольных сумм' },
-  { id: 'curl', names: ['curl'], required: true, capability: 'install', label: 'health-check после установки' },
   { id: 'systemctl', names: ['systemctl'], required: true, capability: 'install', label: 'управление systemd-службами' },
   { id: 'runuser', names: ['runuser'], required: true, capability: 'install', label: 'запуск миграций от системного пользователя' },
   { id: 'useradd', names: ['useradd'], required: true, capability: 'install', label: 'создание системного пользователя' },
@@ -63,7 +62,7 @@ export function inspectSystem({ pathEnv = process.env.PATH, platform = process.p
   const optionalMissing = checks.filter((check) => !check.required && !check.available).map((check) => check.id);
   const capabilities = {
     backup: Boolean(byId.get('tar')?.available && byId.get('sha256sum')?.available),
-    serviceInstall: Boolean(byId.get('curl')?.available && byId.get('systemctl')?.available && byId.get('runuser')?.available && byId.get('useradd')?.available),
+    serviceInstall: Boolean(byId.get('systemctl')?.available && byId.get('runuser')?.available && byId.get('useradd')?.available),
     officeExtract: Boolean(byId.get('unzip')?.available),
     pdfText: Boolean(byId.get('pdftotext')?.available),
     ocr: Boolean(byId.get('pdftoppm')?.available && byId.get('tesseract')?.available),
