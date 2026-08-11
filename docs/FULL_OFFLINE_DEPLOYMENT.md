@@ -16,7 +16,7 @@
 - полное APT dependency closure, а не список «установите сами»;
 - metadata целевой ОС и package inventory;
 - строгая проверка closure;
-- установка через локальные `.deb` с запретом network download;
+- установка через изолированный локальный `file:` APT repository без внешних sources;
 - один installer для install/update.
 
 ## Что взято из «Бориса по парам»
@@ -58,7 +58,9 @@ CI дополнен отдельным Debian 12 acceptance layer. Он:
 
 - собирает full bundle внутри `node:24-bookworm`;
 - собирает полный `.deb` closure;
-- устанавливает его с `apt-get --no-download`;
+- строит временный локальный `file:` APT repository и отключает внешние sources;
+- проверяет, что весь APT plan покрывается package inventory bundle;
+- устанавливает Tesseract/Poppler/LibreOffice только из локального repository;
 - проверяет Tesseract `rus+eng`, Poppler, LibreOffice и managed Python;
 - запускает migration/admin scripts из `/tmp`, чтобы cwd больше не мог маскировать ошибку;
 - вручную поднимает API+worker в контейнере и проверяет HTTP health;
