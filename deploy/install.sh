@@ -1,9 +1,10 @@
 #!/usr/bin/env bash
 set -Eeuo pipefail
-
 [[ "${EUID:-$(id -u)}" -eq 0 ]] || { echo "Установку необходимо запускать от root" >&2; exit 2; }
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+IS_BUNDLE=false
 if [[ -d "$SCRIPT_DIR/application" && -d "$SCRIPT_DIR/runtime" ]]; then
+  IS_BUNDLE=true
   BUNDLE_ROOT="$SCRIPT_DIR"
   APP_SOURCE="$BUNDLE_ROOT/application"
   RUNTIME_SOURCE="$BUNDLE_ROOT/runtime/node"
@@ -21,15 +22,72 @@ CONFIG_DIR="/etc/kafedra-planner"
 CONFIG_FILE="$CONFIG_DIR/kafedra-planner.env"
 API_SERVICE="kafedra-planner-api.service"
 WORKER_SERVICE="kafedra-planner-worker.service"
-
 [[ -x "$RUNTIME_SOURCE/bin/node" ]] || { echo "В комплекте отсутствует runtime/node/bin/node" >&2; exit 3; }
+if [[ "$IS_BUNDLE" == true ]]; then
+  [[ -f "$BUNDLE_ROOT/manifest.sha256" && -f "$BUNDLE_ROOT/release.json" ]] || {
+    echo "В автономном комплекте отсутствует manifest.sha256 или release.json" >&2
+    exit 3
+  }
+  echo "Проверка целостности автономного комплекта..."
+  (
+    VERIFY_WORK_DIR="$(mktemp -d)"
+    trap 'rm -rf "$VERIFY_WORK_DIR"' EXIT
+    for command in sha256sum find sort uniq cmp; do
+      command -v "$command" >/dev/null 2>&1 || {
+        echo "Для проверки комплекта отсутствует команда $command" >&2
+        exit 3
+      }
+    done
+    UNSUPPORTED_ENTRY="$(find "$BUNDLE_ROOT" ! -type f ! -type d -print -quit)"
+    [[ -z "$UNSUPPORTED_ENTRY" ]] || {
+      echo "Автономный комплект содержит симлинк или специальный файл: $UNSUPPORTED_ENTRY" >&2
+      exit 3
+    }
+    MANIFEST_PATHS="$VERIFY_WORK_DIR/manifest-paths.txt"
+    ACTUAL_PATHS="$VERIFY_WORK_DIR/actual-paths.txt"
+    while IFS= read -r line; do
+      [[ "$line" =~ ^[0-9a-fA-F]{64}[[:space:]][\ \*](\./)?(.+)$ ]] || {
+        echo "Некорректная строка manifest.sha256" >&2
+        exit 3
+      }
+      path="${BASH_REMATCH[2]}"
+      if [[ "$path" == /* || "$path" == ".." || "$path" == ../* || "$path" == */../* || "$path" == */.. || "$path" =~ [[:cntrl:]\\] ]]; then
+        echo "Небезопасный путь в manifest.sha256: $path" >&2
+        exit 3
+      fi
+      printf '%s\n' "$path"
+    done < "$BUNDLE_ROOT/manifest.sha256" | LC_ALL=C sort > "$MANIFEST_PATHS"
+    DUPLICATE="$(uniq -d "$MANIFEST_PATHS" | head -n 1 || true)"
+    [[ -z "$DUPLICATE" ]] || {
+      echo "Повтор пути в manifest.sha256: $DUPLICATE" >&2
+      exit 3
+    }
+    (
+      cd "$BUNDLE_ROOT"
+      LC_ALL=C find . -type f ! -path './manifest.sha256' -printf '%P\n' | LC_ALL=C sort
+    ) > "$ACTUAL_PATHS"
+    cmp -s "$MANIFEST_PATHS" "$ACTUAL_PATHS" || {
+      echo "manifest.sha256 не перечисляет в точности все файлы комплекта" >&2
+      exit 3
+    }
+    if ! (
+      cd "$BUNDLE_ROOT"
+      sha256sum -c --strict manifest.sha256
+    ) > "$VERIFY_WORK_DIR/manifest-check.txt" 2>&1; then
+      cat "$VERIFY_WORK_DIR/manifest-check.txt" >&2
+      exit 3
+    fi
+    echo "Внутренний manifest: OK ($(wc -l < "$MANIFEST_PATHS") файлов)"
+  )
+  "$RUNTIME_SOURCE/bin/node" \
+    "$APP_SOURCE/scripts/offline/runtime-contract.mjs" verify-bundle \
+    --root "$BUNDLE_ROOT"
+fi
 "$RUNTIME_SOURCE/bin/node" "$APP_SOURCE/scripts/system-preflight.mjs" --strict
-
 id kafedra-planner >/dev/null 2>&1 || useradd --system --home-dir "$DATA_DIR" --shell /usr/sbin/nologin kafedra-planner
 install -d -o root -g root -m 0755 "$APP_ROOT/releases"
 install -d -o kafedra-planner -g kafedra-planner -m 0700 "$DATA_DIR" "$DATA_DIR/blobs" "$DATA_DIR/tmp" "$BACKUP_DIR"
 install -d -o root -g kafedra-planner -m 0750 "$CONFIG_DIR"
-
 if [[ -e "$RELEASE_DIR" ]]; then
   echo "Версия $VERSION уже установлена: $RELEASE_DIR" >&2
   exit 4
@@ -38,9 +96,11 @@ mkdir -p "$RELEASE_DIR"
 cp -a "$APP_SOURCE/." "$RELEASE_DIR/"
 mkdir -p "$RELEASE_DIR/runtime"
 cp -a "$RUNTIME_SOURCE" "$RELEASE_DIR/runtime/node"
+if [[ "$IS_BUNDLE" == true ]]; then
+  install -m 0644 "$BUNDLE_ROOT/release.json" "$RELEASE_DIR/release.json"
+fi
 chown -R root:root "$RELEASE_DIR"
 chmod -R go-w "$RELEASE_DIR"
-
 if [[ ! -f "$CONFIG_FILE" ]]; then
   cat > "$CONFIG_FILE" <<ENV
 KAFEDRA_HOST=127.0.0.1
@@ -95,7 +155,6 @@ ENV
   chown root:kafedra-planner "$CONFIG_FILE"
   chmod 0640 "$CONFIG_FILE"
 fi
-
 ensure_env_setting() {
   local name="$1" value="$2"
   grep -qE "^${name}=" "$CONFIG_FILE" || printf '%s=%s\n' "$name" "$value" >> "$CONFIG_FILE"
@@ -129,7 +188,6 @@ ensure_env_setting KAFEDRA_TELEGRAM_API_BASE https://api.telegram.org
 ensure_env_setting KAFEDRA_TELEGRAM_TIMEOUT_MS 15000
 chown root:kafedra-planner "$CONFIG_FILE"
 chmod 0640 "$CONFIG_FILE"
-
 PREVIOUS_RELEASE=""
 if [[ -L "$APP_ROOT/current" || -d "$APP_ROOT/current" ]]; then
   PREVIOUS_RELEASE="$(readlink -f "$APP_ROOT/current" 2>/dev/null || true)"
@@ -147,7 +205,6 @@ load_environment() {
   source "$CONFIG_FILE"
   set +a
 }
-
 rollback_installation() {
   local status=$?
   [[ "$ROLLBACK_STARTED" == false ]] || exit "$status"
@@ -182,7 +239,6 @@ rollback_installation() {
   exit "$status"
 }
 trap rollback_installation ERR
-
 systemctl stop "$API_SERVICE" "$WORKER_SERVICE" >/dev/null 2>&1 || true
 load_environment
 if [[ -f "$DATA_DIR/kafedra-planner.sqlite3" ]]; then
@@ -202,7 +258,6 @@ if [[ -f "$DATA_DIR/kafedra-planner.sqlite3" ]]; then
   chmod 0700 "$BACKUP_DIR"
   echo "Создана и проверена резервная копия: $BACKUP_ARCHIVE"
 fi
-
 ln -sfn "$RELEASE_DIR" "$APP_ROOT/current.new"
 mv -Tf "$APP_ROOT/current.new" "$APP_ROOT/current"
 install -m 0644 "$RELEASE_DIR/deploy/systemd/kafedra-planner-api.service" /etc/systemd/system/
