@@ -53,7 +53,6 @@ jobs:
       - name: Установить инструменты браузерной проверки
         run: npm install --ignore-scripts --no-audit --no-fund
       - name: Сохранить lockfile для первичной фиксации зависимостей
-        if: hashFiles('package-lock.json') == ''
         uses: actions/upload-artifact@v4
         with:
           name: package-lock-${{ github.sha }}
