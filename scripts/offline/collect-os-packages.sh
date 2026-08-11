@@ -19,7 +19,7 @@ for c in apt-get awk dpkg dpkg-deb find sha256sum sort sed; do require_command "
 [[ -f "$PACKAGE_LIST" ]] || die "Не найден список пакетов: $PACKAGE_LIST"
 mapfile -t profile < <(detect_os_profile /etc/os-release)
 [[ "${profile[0]}" == astra || "${profile[1]}" == debian ]] || die "Полный bundle собирается на reference Debian/Astra той же версии, что target"
-mapfile -t packages < <(sed -E 's/[[:space:]]*#.*$//' "$PACKAGE_LIST" | awk '{$1=$1} NF {print}' | LC_ALL=C sort -u)
+mapfile -t packages < <(sed -E 's/[[:space:]]*#.*$//' "$PACKAGE_LIST" | awk 'NF { $1=$1; print }' | LC_ALL=C sort -u)
 ((${#packages[@]})) || die "Список пакетов пуст"
 for p in "${packages[@]}"; do [[ "$p" =~ ^[a-z0-9][a-z0-9+.-]*$ ]] || die "Некорректный пакет: $p"; done
 mkdir -p "$OUTPUT"; OUTPUT="$(absolute_path "$OUTPUT")"
