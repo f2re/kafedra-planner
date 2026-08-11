@@ -31,8 +31,11 @@
     "test:browser:auth": "playwright test --config=playwright.auth.config.mjs",
     "test:browser:release": "playwright test --config=playwright.release.config.mjs",
     "test:browser:acl": "playwright test --config=playwright.acl.config.mjs",
-    "bundle:offline": "bash scripts/offline/build-bundle.sh",
-    "bundle:verify": "bash scripts/offline/verify-bundle.sh"
+    "bundle:offline": "bash scripts/offline/build-full-bundle.sh",
+    "bundle:verify": "bash scripts/offline/verify-bundle.sh",
+    "bundle:offline:runtime": "bash scripts/offline/build-bundle.sh",
+    "bundle:collect-os": "bash scripts/offline/collect-os-packages.sh",
+    "offline:doctor": "bash scripts/offline/doctor.sh"
   },
   "devDependencies": {
     "@playwright/test": "1.62.1"

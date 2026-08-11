@@ -1,187 +1,156 @@
-# Автономная поставка и установка
+# Полная автономная поставка Kafedra Planner
 
-## Два разных Node.js
+## Нормальный сценарий
 
-В процессе сборки есть две разные роли, их нельзя смешивать:
+`npm run bundle:offline` теперь означает **полный target-specific комплект**, а не архив исходников с Node.js.
 
-- **host Node** запускает `npm` и `scripts/offline/build-bundle.sh` на машине разработчика или CI;
-- **runtime поставки** находится внутри `runtime/node/bin/node` и запускает приложение на целевом сервере.
-
-Приложение поддерживает Node.js `>=24.15.0 <25`. Это runtime-контракт серверного приложения. Версия host Node сборщика может отличаться. В частности, локальный Node.js 25 не должен сам по себе блокировать создание архива.
-
-Для воспроизводимости bundle закреплён на конкретном runtime Node.js **24.19.0 LTS**. Версия, URL официальных архивов и SHA-256 для Linux x64/arm64 находятся в `package.json` в `kafedra.offlineRuntime`. Один и тот же commit поэтому не получает случайно другой Node runtime в зависимости от PATH сборщика.
-
-## Что входит в bundle
-
-Штатный archive содержит:
-
-- application code, миграции и web assets;
-- `deploy/install.sh` и systemd units;
-- документацию;
-- встроенный Linux Node.js 24.19.0 и его LICENSE;
-- `release.json` с Git commit, runtime metadata и SHA-256 Node binary;
-- полный внутренний `manifest.sha256`;
-- внешний `<archive>.sha256`.
-
-`node_modules` в production bundle не требуется: production-код не имеет внешних npm runtime imports. Playwright является только devDependency CI.
-
-Системные пакеты ОС не складываются в один универсальный tar.gz. Poppler, Tesseract, LibreOffice, systemd и их `.deb` зависят от конкретного Debian/Astra выпуска. Для полностью изолированной установки чистой ОС этот слой должен быть подготовлен отдельно как репозиторий или проверенный набор пакетов целевой ОС.
-
-## Обычная сборка
+Сборка выполняется на эталонной Debian или Astra Linux той же версии и архитектуры, что целевой сервер:
 
 ```bash
 npm run bundle:offline
 ```
 
-Алгоритм выбора runtime:
-
-1. если указан `NODE_RUNTIME_DIR` или `NODE_BINARY`, проверяется этот runtime;
-2. иначе проверяется подходящий runtime в локальном cache;
-3. если cache пуст, сборщик загружает закреплённый официальный архив Node.js 24.19.0, проверяет его по SHA-256 из `package.json` и помещает минимальный runtime в cache;
-4. host Node в bundle не копируется, если он не является ровно тем закреплённым runtime, который прошёл контракт.
-
-Cache по умолчанию находится в `${XDG_CACHE_HOME:-$HOME/.cache}/kafedra-planner/node`. Путь можно изменить:
-
-```bash
-KAFEDRA_RUNTIME_CACHE_DIR=/srv/kafedra-cache/node npm run bundle:offline
-```
-
-Источник официального архива можно заменить контролируемым HTTPS mirror:
-
-```bash
-NODE_DIST_BASE_URL=https://mirror.example/node npm run bundle:offline
-```
-
-Digest при этом остаётся закреплённым в репозитории и проверяется до распаковки.
-
-### Полностью offline builder
-
-На машине сборки без Интернета заранее распакуйте проверенный официальный Node 24.19.0 и передайте каталог:
-
-```bash
-NODE_RUNTIME_DIR=/opt/build-runtimes/node-v24.19.0-linux-x64 \
-  npm run bundle:offline
-```
-
-Либо один раз наполните `KAFEDRA_RUNTIME_CACHE_DIR` в подключённой среде и перенесите cache. Сеть на целевой машине установки не требуется.
-
-## Git provenance
-
-Release bundle по умолчанию нельзя собрать из Git worktree с незакоммиченными изменениями: в таком случае нельзя доказать, какому commit соответствует содержимое архива.
-
-Для диагностической нерелизной сборки допускается явный override:
-
-```bash
-ALLOW_DIRTY_BUNDLE=true npm run bundle:offline
-```
-
-В этом режиме `gitCommit` в `release.json` не выдаётся за достоверный commit.
-
-## Проверка архива
-
-```bash
-npm run bundle:verify -- release/kafedra-planner-0.1.0-rc.3.tar.gz
-```
-
-Verifier проверяет:
-
-- внешний SHA-256;
-- безопасную структуру tar без symlink/special entries и path traversal;
-- полный внутренний manifest без пропусков, дублей и лишних файлов;
-- совпадение `VERSION`, `package.json`, `release.json`;
-- закреплённую версию Node runtime, архитектуру, размер и SHA-256 бинарника;
-- наличие SQLite, ICU/ru-RU и OpenSSL в runtime;
-- совпадение корневого и application installer;
-- smoke-test именно встроенным Node;
-- system preflight, если он не отключён для изолированного build-check.
-
-## Почему Node 24 LTS
-
-Production storage использует встроенный `node:sqlite`. Нижняя граница Node 24.15.0 соответствует линии, где SQLite API в Node 24 получил статус release candidate. Верхняя граница `<25` является эксплуатационной политикой: production runtime не перескакивает автоматически между major и остаётся на LTS-линии.
-
-Конкретный pin 24.19.0 не является требованием исходного кода. Это версия **поставляемого бинарника**, выбранная для воспроизводимости, security/bugfix обновлений LTS и одинаковой диагностики. Обновление pin выполняется отдельно: изменяются версия и официальные SHA-256, после чего проходят минимальная Node 24.15 проверка, основной CI и полная offline сборка.
-
-## Системный preflight целевой машины
-
-До системных изменений installer проверяет runtime и обязательные команды. Минимальный профиль требует:
-
-- `tar` и `sha256sum`;
-- `systemctl`, `runuser`, `useradd`;
-- `unzip`;
-- `pdftotext`.
-
-`curl` не требуется: health-check выполняется встроенным `node:http`.
-
-Дополнительные возможности:
-
-- `pdftoppm` + `tesseract` — OCR;
-- `soffice`/`libreoffice` — preview офисных документов;
-- `nginx` — рекомендуемый reverse proxy.
-
-Проверка:
-
-```bash
-runtime/node/bin/node application/scripts/system-preflight.mjs --strict
-runtime/node/bin/node application/scripts/system-preflight.mjs --require-full
-```
-
-Установщик также запускает `ldd runtime/node/bin/node` до исполнения runtime и блокирует установку при неразрешённых динамических зависимостях.
-
-## Установка и обновление
-
-```bash
-sha256sum -c kafedra-planner-0.1.0-rc.3.tar.gz.sha256
-tar -xzf kafedra-planner-0.1.0-rc.3.tar.gz
-cd kafedra-planner-0.1.0-rc.3
-sudo ./install.sh
-```
-
-`VERSION` является semantic version продукта и больше не используется как единственный ID каталога. Release path для достоверного bundle имеет вид:
+Результат в `release/`:
 
 ```text
-/opt/kafedra-planner/releases/<VERSION>-<commit12>-node<runtime>
+kafedra-planner-<version>-<os>-<version>-<arch>.tar.gz
+kafedra-planner-<...>.tar.gz.sha256
+install-kafedra-planner.sh
+README-INSTALL.txt
 ```
 
-Это позволяет ставить несколько commits одной `0.1.0-rc.3`, что особенно важно во время RC-разработки.
-
-Install/update flow:
-
-1. проверяет manifest, release metadata, runtime и system preflight до изменений;
-2. формирует build-specific release ID;
-3. копирует приложение во временный `.staging.<pid>`;
-4. атомарно переименовывает staging в финальный release;
-5. перед переключением существующей базы создаёт и проверяет backup;
-6. атомарно переключает `current`;
-7. выполняет миграции;
-8. включает обе systemd-службы;
-9. ждёт готовности API и worker и проверяет HTTP `/api/system/health` через встроенный Node;
-10. при ошибке восстанавливает предыдущий release и backup.
-
-Повторный запуск того же installer идемпотентен: уже распакованный идентичный release переиспользуется, но миграции, обе службы и health-check проверяются снова. Это позволяет безопасно повторить команду после прерванного запуска.
-
-## CI release-gate
-
-CI использует три уровня:
-
-1. **минимальный runtime** — unit/check/smoke на Node 24.15.0, чтобы нижняя граница `engines.node` была реальной;
-2. **основной LTS** — `.nvmrc` и браузерные проверки на закреплённой Node 24.19.0;
-3. **offline builder regression** — host Node отличается от runtime поставки. Сборщик обязан создать bundle с Node 24.19.0, а не скопировать host Node.
-
-Готовый архив публикуется только после unit/browser gates и повторной проверки bundle.
-
-## Эксплуатационная граница
-
-Ubuntu CI доказывает приложение, структуру поставки и build/update contracts. Он не доказывает бинарную совместимость с конкретной Astra Linux, работу конкретных версий LibreOffice/Poppler/Tesseract или RTO восстановления.
-
-Для целевой приёмки необходимо зафиксировать:
+На целевой машине все три обязательных файла кладутся в один каталог и запускается одна команда:
 
 ```bash
-cat /etc/os-release
-ldd runtime/node/bin/node
-runtime/node/bin/node application/scripts/system-preflight.mjs --json
-sha256sum kafedra-planner-*.tar.gz
+sudo ./install-kafedra-planner.sh
 ```
 
-а также реальные install/update/rollback, OCR/preview и backup/restore на выбранном выпуске Debian/Astra Linux.
+Интернет на целевой машине не требуется. Установщик не задаёт вопросов конфигурации и не выполняет `npm install`/`pip install`.
 
-Сводка решений аудита: [`RUNTIME_DEPLOY_AUDIT.md`](RUNTIME_DEPLOY_AUDIT.md).
+## Что входит внутрь
+
+Полный архив содержит:
+
+- приложение, миграции, static UI и systemd units;
+- закреплённый Node.js 24 LTS;
+- managed CPython runtime для локального распознавания;
+- Python OCR adapter `scripts/recognition/ocr.py`;
+- полное транзитивное замыкание `.deb` для целевой ОС;
+- Tesseract и языки `rus`/`eng`;
+- Poppler (`pdftotext`, `pdftoppm`);
+- LibreOffice Writer/Calc/Core;
+- системные CLI, необходимые installer (`tar`, `coreutils`, `util-linux`, `passwd`, `systemd`, `unzip`);
+- шрифты для предсказуемого офисного preview;
+- `release.json`, `deployment.json`, внутренний manifest и внешний SHA-256.
+
+Python не использует пакеты из пользовательского `site-packages`. В текущем OCR-контуре сторонние Python wheels не нужны: Tesseract/Poppler устанавливаются как пакеты ОС, а bundled CPython является управляемым orchestration runtime. Это устраняет зависимость от `/usr/bin/python`, venv пользователя, pyenv и сети.
+
+## Почему bundle привязан к ОС
+
+`.deb` нельзя безопасно считать универсальными между Debian 12, Astra 1.7, Astra 1.8 и другими выпусками. Поэтому full bundle хранит точный профиль:
+
+- OS family и `ID`;
+- `VERSION_ID`;
+- Debian architecture;
+- полный inventory package/version/architecture/SHA-256.
+
+Installer откажется ставить package closure на другую ОС. Для каждой реально поддерживаемой целевой ОС строится собственный artifact на эталонной VM этой ОС.
+
+## Как собираются системные пакеты
+
+`config/offline/os-packages.txt` содержит только верхнеуровневые требования. `scripts/offline/collect-os-packages.sh` запускает APT с пустой package status database и `--no-install-recommends`, поэтому скачиваются не только непосредственные `.deb`, а полное транзитивное замыкание.
+
+В набор записываются:
+
+```text
+manifest.sha256
+packages.tsv
+requested-packages.txt
+source-os.env
+*.deb
+```
+
+Перед упаковкой проверяются контрольные суммы, exact inventory, architecture, наличие каждого requested package и отсутствие двух версий одного package.
+
+Повторная сборка использует cache. Для принудительного обновления closure:
+
+```bash
+npm run bundle:offline -- --refresh-os-packages
+```
+
+Если нужно предварительно обновить APT indexes:
+
+```bash
+sudo apt-get update
+npm run bundle:offline -- --refresh-os-packages
+```
+
+## Полностью отключённая сборочная машина
+
+Сеть нужна только для первоначального наполнения cache Node/.deb. Если эталонная VM сама air-gapped, заранее передайте:
+
+```bash
+KAFEDRA_PYTHON_RUNTIME_DIR=/srv/kafedra-cache/python \
+KAFEDRA_OS_PACKAGES_DIR=/srv/kafedra-cache/os-packages \
+NODE_RUNTIME_DIR=/srv/kafedra-cache/node \
+npm run bundle:offline
+```
+
+Каждый переданный слой всё равно проходит тот же contract verification.
+
+## Что делает installer
+
+`sudo ./install-kafedra-planner.sh` последовательно:
+
+1. проверяет внешний SHA-256 и безопасно распаковывает archive;
+2. проверяет полный внутренний `manifest.sha256`;
+3. проверяет Node runtime, `deployment.json`, managed Python и точный OS profile;
+4. проверяет текущие OCR/PDF/Office capabilities;
+5. если они уже готовы — не трогает системные пакеты;
+6. иначе проверяет APT plan и устанавливает **только** `.deb` из bundle с `--no-download --no-remove`;
+7. повторно проверяет Tesseract, `rus+eng`, Poppler, LibreOffice и Python;
+8. создаёт immutable release через staging + atomic rename;
+9. сохраняет существующий config/data и перед update делает проверенный backup;
+10. атомарно переключает `current` и выполняет миграции;
+11. на чистой системе автоматически создаёт `admin` со случайным временным паролем и обязательной сменой пароля;
+12. сохраняет первый пароль только в `/root/kafedra-planner-first-login.txt` с mode `0600`;
+13. включает API и worker;
+14. проверяет обе службы, HTTP health и полный offline doctor;
+15. при ошибке возвращает прежний release/data/systemd state.
+
+Новый full deployment слушает `0.0.0.0:8080`, поэтому приложение доступно из локальной сети без обязательного nginx. Reverse proxy можно добавить отдельно, если нужен TLS/единый внешний endpoint.
+
+## Обновление
+
+Тот же файл installer используется и для обновления:
+
+```bash
+sudo ./install-kafedra-planner.sh
+```
+
+Semantic `VERSION` и build identity разделены, поэтому два разных commit одной RC-версии устанавливаются как разные release и могут быть откатаны независимо.
+
+Системный package layer не переустанавливается при каждом update: если full preflight и OCR doctor уже зелёные, APT шаг пропускается.
+
+## Диагностика после установки
+
+```bash
+sudo /opt/kafedra-planner/current/scripts/offline/doctor.sh
+systemctl status kafedra-planner-api kafedra-planner-worker --no-pager -l
+```
+
+Файл первого входа создаётся только если в базе ещё нет активного администратора:
+
+```bash
+sudo cat /root/kafedra-planner-first-login.txt
+```
+
+## Runtime-only bundle
+
+Для инженерной диагностики сохранён старый более компактный профиль:
+
+```bash
+npm run bundle:offline:runtime
+```
+
+Он содержит приложение + Node.js, но **не является полной поставкой целевой ОС**: Python OCR runtime и `.deb` closure в нём отсутствуют. Для эксплуатационной установки используется только `npm run bundle:offline`.

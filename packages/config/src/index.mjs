@@ -67,8 +67,8 @@ export function loadConfig(env = process.env, cwd = process.cwd()) {
     telegramBotToken: String(env.KAFEDRA_TELEGRAM_BOT_TOKEN || '').trim(),
     telegramApiBase: String(env.KAFEDRA_TELEGRAM_API_BASE || 'https://api.telegram.org').trim() || 'https://api.telegram.org',
     telegramTimeoutMs: integer(env.KAFEDRA_TELEGRAM_TIMEOUT_MS, 15_000, { min: 1_000, max: 120_000 }),
-    publicDir: resolve(cwd, 'public'),
-    migrationsDir: resolve(cwd, 'migrations'),
+    publicDir: resolve(applicationDir, 'public'),
+    migrationsDir: resolve(applicationDir, 'migrations'),
     logLevel: env.KAFEDRA_LOG_LEVEL || 'info'
   });
 }

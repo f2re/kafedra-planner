@@ -1,0 +1,16 @@
+# Full offline capabilities for Debian/Astra reference builds.
+tar
+coreutils
+util-linux
+passwd
+systemd
+unzip
+poppler-utils
+tesseract-ocr
+tesseract-ocr-rus
+tesseract-ocr-eng
+libreoffice-core
+libreoffice-writer
+libreoffice-calc
+fontconfig
+fonts-dejavu-core

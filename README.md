@@ -285,12 +285,19 @@ docs/                   архитектура, UX-контракт и план 
 
 ## Автономный комплект
 
+Полный bundle собирается на эталонной Debian/Astra той же версии и архитектуры, что целевой сервер:
+
 ```bash
 npm run bundle:offline
-npm run bundle:verify -- release/kafedra-planner-0.1.0-rc.3.tar.gz
 ```
 
-Сборщик формирует манифест SHA-256. Поддержка конкретной версии Astra Linux объявляется только после целевой установки, smoke-test и акта восстановления резервной копии.
+В `release/` появляются архив, SHA-256, `install-kafedra-planner.sh` и краткая инструкция. На целевой машине обычная установка/обновление — одна команда:
+
+```bash
+sudo ./install-kafedra-planner.sh
+```
+
+В full bundle входят Node.js 24 LTS, managed CPython для распознавания и полное `.deb`-замыкание Tesseract `rus+eng`, Poppler, LibreOffice и системных CLI. `npm`, `pip`, system Python и Интернет на target не требуются. Инженерный runtime-only архив сохранён как `npm run bundle:offline:runtime`. Подробности: [`docs/OFFLINE_INSTALL.md`](docs/OFFLINE_INSTALL.md).
 
 ## Ближайшие этапы до стабильного релиза
 
@@ -324,7 +331,7 @@ Playwright-проверки запускают реальный Chromium для 
 
 ## Авторизация и роли
 
-Авторизация включена по умолчанию. Локальные аккаунты связаны со справочником сотрудников; поддержаны роли сотрудника, руководителя и администратора. Первый администратор создаётся командой `npm run auth:create-admin`. Подробности: [`docs/AUTHORIZATION.md`](docs/AUTHORIZATION.md).
+Авторизация включена по умолчанию. Локальные аккаунты связаны со справочником сотрудников; поддержаны роли сотрудника, руководителя и администратора. При первой полной offline-установке администратор создаётся автоматически; временный пароль сохраняется только в `/root/kafedra-planner-first-login.txt`. Для development остаётся команда `npm run auth:create-admin`. Подробности: [`docs/AUTHORIZATION.md`](docs/AUTHORIZATION.md).
 
 ## Release candidate 0.1.0-rc.3
 
