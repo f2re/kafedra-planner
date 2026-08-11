@@ -1,163 +1,187 @@
-# Автономная поставка и предварительная проверка
+# Автономная поставка и установка
 
-## Что считается release-комплектом
+## Два разных Node.js
 
-Промышленный архив Kafedra Planner содержит приложение, миграции, документацию, установщик, манифест SHA-256 и встроенный исполняемый файл Node.js 24. Целевая машина не скачивает npm-пакеты, CDN-ресурсы или Node.js из Интернета.
+В процессе сборки есть две разные роли, их нельзя смешивать:
 
-Архив сопровождается внешним файлом `<archive>.sha256`. Внутри находится `manifest.sha256`, который перечисляет каждый обычный файл комплекта, включая встроенный runtime. `release.json` содержит формат комплекта, версию приложения, Git commit, полный диапазон `engines.node`, версию, платформу, архитектуру, размер и SHA-256 бинарника Node.js.
+- **host Node** запускает `npm` и `scripts/offline/build-bundle.sh` на машине разработчика или CI;
+- **runtime поставки** находится внутри `runtime/node/bin/node` и запускает приложение на целевом сервере.
 
-Архив около 400 КБ является неполным исходным комплектом и не считается offline bundle: в нём отсутствует встроенный runtime, а штатный `install.sh` такой архив не устанавливает. Размер исправного архива для Linux x64 обычно составляет десятки мегабайт, поскольку один бинарник Node.js занимает существенно больше исходного кода приложения.
+Приложение поддерживает Node.js `>=24.15.0 <25`. Это runtime-контракт серверного приложения. Версия host Node сборщика может отличаться. В частности, локальный Node.js 25 не должен сам по себе блокировать создание архива.
 
-Системные пакеты ОС в общий архив намеренно не включаются. `systemd`, Poppler, Tesseract, LibreOffice и их зависимости различаются между выпусками Debian/Astra Linux; их наличие проверяет preflight целевой машины. Приложение и Node.js при этом полностью автономны.
+Для воспроизводимости bundle закреплён на конкретном runtime Node.js **24.19.0 LTS**. Версия, URL официальных архивов и SHA-256 для Linux x64/arm64 находятся в `package.json` в `kafedra.offlineRuntime`. Один и тот же commit поэтому не получает случайно другой Node runtime в зависимости от PATH сборщика.
 
-## Сборка
+## Что входит в bundle
 
-Штатная команда:
+Штатный archive содержит:
+
+- application code, миграции и web assets;
+- `deploy/install.sh` и systemd units;
+- документацию;
+- встроенный Linux Node.js 24.19.0 и его LICENSE;
+- `release.json` с Git commit, runtime metadata и SHA-256 Node binary;
+- полный внутренний `manifest.sha256`;
+- внешний `<archive>.sha256`.
+
+`node_modules` в production bundle не требуется: production-код не имеет внешних npm runtime imports. Playwright является только devDependency CI.
+
+Системные пакеты ОС не складываются в один универсальный tar.gz. Poppler, Tesseract, LibreOffice, systemd и их `.deb` зависят от конкретного Debian/Astra выпуска. Для полностью изолированной установки чистой ОС этот слой должен быть подготовлен отдельно как репозиторий или проверенный набор пакетов целевой ОС.
+
+## Обычная сборка
 
 ```bash
 npm run bundle:offline
 ```
 
-Сборщик автоматически использует тот Node.js, которым запущен `npm`, и выполняет жёсткие проверки:
+Алгоритм выбора runtime:
 
-- версия соответствует `package.json`, сейчас `>=24.15.0 <25`;
-- платформа — Linux, архитектура — x64 или arm64;
-- исполняемый файл является полноценным runtime, а не малым системным launcher, зависящим от `libnode.so`;
-- найдена лицензия Node.js;
-- после упаковки архив сразу проходит verifier и smoke-test встроенным Node.js.
+1. если указан `NODE_RUNTIME_DIR` или `NODE_BINARY`, проверяется этот runtime;
+2. иначе проверяется подходящий runtime в локальном cache;
+3. если cache пуст, сборщик загружает закреплённый официальный архив Node.js 24.19.0, проверяет его по SHA-256 из `package.json` и помещает минимальный runtime в cache;
+4. host Node в bundle не копируется, если он не является ровно тем закреплённым runtime, который прошёл контракт.
 
-При несовместимом или неполном runtime команда завершается ошибкой и не оставляет «успешный» 400-КБ архив.
-
-Для контролируемой сборки с отдельно распакованным официальным runtime:
+Cache по умолчанию находится в `${XDG_CACHE_HOME:-$HOME/.cache}/kafedra-planner/node`. Путь можно изменить:
 
 ```bash
-export NODE_RUNTIME_DIR=/path/to/node-v24-linux-x64
-npm run bundle:offline
+KAFEDRA_RUNTIME_CACHE_DIR=/srv/kafedra-cache/node npm run bundle:offline
 ```
 
-Если лицензия хранится нестандартно:
+Источник официального архива можно заменить контролируемым HTTPS mirror:
 
 ```bash
-export NODE_LICENSE_FILE=/path/to/node/LICENSE
-npm run bundle:offline
+NODE_DIST_BASE_URL=https://mirror.example/node npm run bundle:offline
 ```
 
-В архив копируется минимальный runtime: `runtime/node/bin/node` и лицензия. `npm`, `node_modules`, компилятор и заголовки на целевой машине не требуются. CI запускает именно обычную команду без специальных флагов, проверяет минимальный размер и структуру и публикует готовые `.tar.gz` и `.sha256` как артефакт каждого успешного push в `main`.
+Digest при этом остаётся закреплённым в репозитории и проверяется до распаковки.
+
+### Полностью offline builder
+
+На машине сборки без Интернета заранее распакуйте проверенный официальный Node 24.19.0 и передайте каталог:
+
+```bash
+NODE_RUNTIME_DIR=/opt/build-runtimes/node-v24.19.0-linux-x64 \
+  npm run bundle:offline
+```
+
+Либо один раз наполните `KAFEDRA_RUNTIME_CACHE_DIR` в подключённой среде и перенесите cache. Сеть на целевой машине установки не требуется.
+
+## Git provenance
+
+Release bundle по умолчанию нельзя собрать из Git worktree с незакоммиченными изменениями: в таком случае нельзя доказать, какому commit соответствует содержимое архива.
+
+Для диагностической нерелизной сборки допускается явный override:
+
+```bash
+ALLOW_DIRTY_BUNDLE=true npm run bundle:offline
+```
+
+В этом режиме `gitCommit` в `release.json` не выдаётся за достоверный commit.
 
 ## Проверка архива
-
-Перед переносом на сервер и перед запуском от `root`:
 
 ```bash
 npm run bundle:verify -- release/kafedra-planner-0.1.0-rc.3.tar.gz
 ```
 
-Внешний `<archive>.sha256` и встроенный Node.js обязательны по умолчанию. Проверяются:
+Verifier проверяет:
 
-- внешний SHA-256 архива;
-- отсутствие симлинков, специальных файлов, небезопасных путей и нескольких корневых каталогов;
-- обязательные каталоги приложения, миграции, systemd units, установщик и runtime;
-- точное соответствие `manifest.sha256` всем файлам архива, без пропусков и лишних записей;
-- совпадение `VERSION`, `package.json` и `release.json`;
-- соответствие Node.js полному диапазону `engines.node`;
-- размер и SHA-256 встроенного бинарника Node.js;
-- smoke-test из распакованного архива именно встроенным Node.js;
-- системный preflight машины.
+- внешний SHA-256;
+- безопасную структуру tar без symlink/special entries и path traversal;
+- полный внутренний manifest без пропусков, дублей и лишних файлов;
+- совпадение `VERSION`, `package.json`, `release.json`;
+- закреплённую версию Node runtime, архитектуру, размер и SHA-256 бинарника;
+- наличие SQLite, ICU/ru-RU и OpenSSL в runtime;
+- совпадение корневого и application installer;
+- smoke-test именно встроенным Node;
+- system preflight, если он не отключён для изолированного build-check.
 
-Только для изолированных негативных тестов допускается отключить проверку внешнего файла:
+## Почему Node 24 LTS
 
-```bash
-REQUIRE_ARCHIVE_SHA256=false npm run bundle:verify -- test-fixture.tar.gz
-```
+Production storage использует встроенный `node:sqlite`. Нижняя граница Node 24.15.0 соответствует линии, где SQLite API в Node 24 получил статус release candidate. Верхняя граница `<25` является эксплуатационной политикой: production runtime не перескакивает автоматически между major и остаётся на LTS-линии.
 
-Проверка целостности архива и готовность ОС — разные условия. Валидный архив может быть проверен на машине, где ещё не установлены OCR или LibreOffice. Итог verifier отдельно показывает результат preflight.
+Конкретный pin 24.19.0 не является требованием исходного кода. Это версия **поставляемого бинарника**, выбранная для воспроизводимости, security/bugfix обновлений LTS и одинаковой диагностики. Обновление pin выполняется отдельно: изменяются версия и официальные SHA-256, после чего проходят минимальная Node 24.15 проверка, основной CI и полная offline сборка.
 
-## Обязательные команды целевой системы
+## Системный preflight целевой машины
 
-Штатный `install.sh` проверяет внутренний манифест, метаданные runtime и `system-preflight.mjs --strict` **до** создания пользователя, каталогов, копирования release и изменения systemd. Установка блокируется при отсутствии:
+До системных изменений installer проверяет runtime и обязательные команды. Минимальный профиль требует:
 
-- `tar`;
-- `sha256sum`;
-- `curl`;
-- `systemctl`;
-- `runuser`;
-- `useradd`;
+- `tar` и `sha256sum`;
+- `systemctl`, `runuser`, `useradd`;
 - `unzip`;
 - `pdftotext`.
 
-Для Debian эти команды обычно предоставляют `tar`, `coreutils`, `curl`, `systemd`, `util-linux`, `passwd`, `unzip` и `poppler-utils`. На Astra Linux конкретные названия и версии пакетов фиксируются в акте приёмки, а не предполагаются по Debian.
+`curl` не требуется: health-check выполняется встроенным `node:http`.
 
-## Полный функциональный профиль
+Дополнительные возможности:
 
-Для штатного OCR и предпросмотра офисных документов дополнительно нужны:
+- `pdftoppm` + `tesseract` — OCR;
+- `soffice`/`libreoffice` — preview офисных документов;
+- `nginx` — рекомендуемый reverse proxy.
 
-- `pdftoppm`;
-- `tesseract` и языковые данные `rus`/`eng`;
-- `soffice` или `libreoffice`.
-
-Nginx рекомендуется как локальный reverse proxy, но не является условием запуска API: приложение слушает `127.0.0.1` и может использовать иной контролируемый reverse proxy.
-
-Проверка минимального профиля:
+Проверка:
 
 ```bash
 runtime/node/bin/node application/scripts/system-preflight.mjs --strict
-```
-
-Проверка полного профиля перед эксплуатационной приёмкой:
-
-```bash
 runtime/node/bin/node application/scripts/system-preflight.mjs --require-full
 ```
 
-Одновременно с verifier:
+Установщик также запускает `ldd runtime/node/bin/node` до исполнения runtime и блокирует установку при неразрешённых динамических зависимостях.
+
+## Установка и обновление
 
 ```bash
-REQUIRE_SYSTEM_PREFLIGHT=true \
-REQUIRE_FULL_SYSTEM_PREFLIGHT=true \
-npm run bundle:verify -- /path/to/archive.tar.gz
-```
-
-## Установка
-
-После проверки SHA-256 и системных зависимостей:
-
-```bash
+sha256sum -c kafedra-planner-0.1.0-rc.3.tar.gz.sha256
 tar -xzf kafedra-planner-0.1.0-rc.3.tar.gz
 cd kafedra-planner-0.1.0-rc.3
 sudo ./install.sh
 ```
 
-Установщик:
+`VERSION` является semantic version продукта и больше не используется как единственный ID каталога. Release path для достоверного bundle имеет вид:
 
-1. проверяет внутренний manifest, `release.json`, встроенный Node и обязательные системные команды;
-2. создаёт системного пользователя и защищённые каталоги;
-3. сохраняет release и метаданные сборки в `/opt/kafedra-planner/releases/<version>`;
-4. перед обновлением действующей установки создаёт и проверяет backup;
-5. переключает `current`, выполняет миграции и запускает systemd-службы;
-6. выполняет health-check;
-7. при любой ошибке обновления восстанавливает данные и предыдущий release.
-
-Предварительная проверка находится до первого изменения системы. Неподготовленная машина получает понятный список недостающих компонентов, а не частично установленный продукт.
-
-## Что CI доказывает, а что нет
-
-Ubuntu CI доказывает:
-
-- обычная команда `npm run bundle:offline` не может создать source-only архив;
-- наличие и запуск встроенного совместимого Node.js;
-- SHA-256 архива и полный внутренний manifest;
-- миграции, smoke и автоматические тесты;
-- публикацию готового комплекта для скачивания из успешного workflow run;
-- корректность preflight-контракта.
-
-CI **не доказывает** бинарную совместимость встроенного Node с конкретным выпуском Astra Linux, реальную работу версий LibreOffice/Poppler/Tesseract на нём, systemd hardening, права каталогов, RTO восстановления или rollback на действующем сервере.
-
-Эти свойства принимаются только на целевой машине. В акте необходимо сохранить вывод:
-
-```bash
-runtime/node/bin/node application/scripts/system-preflight.mjs --json
-cat /etc/os-release
-ldd runtime/node/bin/node
+```text
+/opt/kafedra-planner/releases/<VERSION>-<commit12>-node<runtime>
 ```
 
-Также фиксируются SHA-256 архива, Git commit, версии системных пакетов и результат backup/restore/rollback.
+Это позволяет ставить несколько commits одной `0.1.0-rc.3`, что особенно важно во время RC-разработки.
+
+Install/update flow:
+
+1. проверяет manifest, release metadata, runtime и system preflight до изменений;
+2. формирует build-specific release ID;
+3. копирует приложение во временный `.staging.<pid>`;
+4. атомарно переименовывает staging в финальный release;
+5. перед переключением существующей базы создаёт и проверяет backup;
+6. атомарно переключает `current`;
+7. выполняет миграции;
+8. включает обе systemd-службы;
+9. ждёт готовности API и worker и проверяет HTTP `/api/system/health` через встроенный Node;
+10. при ошибке восстанавливает предыдущий release и backup.
+
+Повторный запуск того же installer идемпотентен: уже распакованный идентичный release переиспользуется, но миграции, обе службы и health-check проверяются снова. Это позволяет безопасно повторить команду после прерванного запуска.
+
+## CI release-gate
+
+CI использует три уровня:
+
+1. **минимальный runtime** — unit/check/smoke на Node 24.15.0, чтобы нижняя граница `engines.node` была реальной;
+2. **основной LTS** — `.nvmrc` и браузерные проверки на закреплённой Node 24.19.0;
+3. **offline builder regression** — host Node отличается от runtime поставки. Сборщик обязан создать bundle с Node 24.19.0, а не скопировать host Node.
+
+Готовый архив публикуется только после unit/browser gates и повторной проверки bundle.
+
+## Эксплуатационная граница
+
+Ubuntu CI доказывает приложение, структуру поставки и build/update contracts. Он не доказывает бинарную совместимость с конкретной Astra Linux, работу конкретных версий LibreOffice/Poppler/Tesseract или RTO восстановления.
+
+Для целевой приёмки необходимо зафиксировать:
+
+```bash
+cat /etc/os-release
+ldd runtime/node/bin/node
+runtime/node/bin/node application/scripts/system-preflight.mjs --json
+sha256sum kafedra-planner-*.tar.gz
+```
+
+а также реальные install/update/rollback, OCR/preview и backup/restore на выбранном выпуске Debian/Astra Linux.
+
+Сводка решений аудита: [`RUNTIME_DEPLOY_AUDIT.md`](RUNTIME_DEPLOY_AUDIT.md).

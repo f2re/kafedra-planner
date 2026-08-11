@@ -14,13 +14,25 @@ permissions:
   contents: read
 
 jobs:
+  node_minimum:
+    name: Минимальный Node 24.15
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24.15.0
+      - run: npm run check
+      - run: npm test
+      - run: npm run smoke
+
   test:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with:
-          node-version: 24.18.0
+          node-version-file: .nvmrc
       - run: npm run check
       - run: npm test
       - run: npm run smoke
@@ -31,16 +43,23 @@ jobs:
       - name: Проверить системный preflight
         run: npm run preflight -- --json
 
-
   browser:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with:
-          node-version: 24.18.0
+          node-version-file: .nvmrc
       - name: Установить инструменты браузерной проверки
         run: npm install --ignore-scripts --no-audit --no-fund
+      - name: Сохранить lockfile для первичной фиксации зависимостей
+        if: hashFiles('package-lock.json') == ''
+        uses: actions/upload-artifact@v4
+        with:
+          name: package-lock-${{ github.sha }}
+          path: package-lock.json
+          if-no-files-found: error
+          retention-days: 1
       - name: Установить Chromium
         run: npx playwright install --with-deps chromium
       - name: Проверить планы desktop и mobile
@@ -60,14 +79,16 @@ jobs:
 
   offline_bundle:
     name: Автономный комплект
-    needs: [test, browser]
+    needs: [node_minimum, test, browser]
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+      # Регрессия пользовательского сценария: host Node отличается от runtime поставки.
+      # Node 25 здесь используется только для запуска build-скрипта и никогда не попадает в bundle.
       - uses: actions/setup-node@v4
         with:
-          node-version: 24.18.0
-      - name: Собрать автономный комплект штатной командой
+          node-version: 25.6.0
+      - name: Собрать автономный комплект с отдельным LTS runtime
         shell: bash
         run: |
           set -Eeuo pipefail

@@ -85,9 +85,43 @@ function requiredNodeEngine(packageJson) {
   return engine.trim();
 }
 
+export function requiredOfflineNodeVersion(packageJson) {
+  const value = packageJson?.kafedra?.offlineRuntime?.node;
+  if (typeof value !== 'string' || !value.trim()) {
+    fail('В package.json отсутствует kafedra.offlineRuntime.node');
+  }
+  const normalized = value.trim().replace(/^v/u, '');
+  parseVersion(normalized);
+  const engine = requiredNodeEngine(packageJson);
+  if (!satisfiesNodeEngine(normalized, engine)) {
+    fail(`Версия offline runtime ${normalized} не входит в engines.node ${engine}`);
+  }
+  return normalized;
+}
+
+export function requiredOfflineRuntimePolicy(packageJson) {
+  const version = requiredOfflineNodeVersion(packageJson);
+  const runtime = packageJson?.kafedra?.offlineRuntime;
+  const distBaseUrl = String(runtime?.distBaseUrl || '').trim().replace(/\/+$/u, '');
+  if (!/^https:\/\//u.test(distBaseUrl)) fail('kafedra.offlineRuntime.distBaseUrl должен использовать HTTPS');
+  const archives = {};
+  for (const arch of ['x64', 'arm64']) {
+    const key = `linux-${arch}`;
+    const item = runtime?.archives?.[key];
+    const expectedFile = `node-v${version}-linux-${arch}.tar.gz`;
+    if (!item || item.file !== expectedFile) fail(`Для ${key} ожидается архив ${expectedFile}`);
+    if (typeof item.sha256 !== 'string' || !/^[0-9a-f]{64}$/iu.test(item.sha256)) {
+      fail(`Для ${key} отсутствует корректный SHA-256`);
+    }
+    archives[key] = { file: item.file, sha256: item.sha256.toLowerCase() };
+  }
+  return { version, distBaseUrl, archives };
+}
+
 async function inspectRuntime({ packageJsonPath, runtimePath }) {
   const packageJson = await readJson(packageJsonPath);
   const engine = requiredNodeEngine(packageJson);
+  const preferredVersion = requiredOfflineRuntimePolicy(packageJson).version;
   const runtimeRealPath = await realpath(runtimePath);
   const processRealPath = await realpath(process.execPath);
   if (runtimeRealPath !== processRealPath) {
@@ -101,6 +135,9 @@ async function inspectRuntime({ packageJsonPath, runtimePath }) {
   }
   if (!satisfiesNodeEngine(process.version, engine)) {
     fail(`Node.js ${process.version} не соответствует engines.node ${engine}`);
+  }
+  if (process.version.replace(/^v/u, '') !== preferredVersion) {
+    fail(`Offline bundle закреплён на Node.js ${preferredVersion}, получен ${process.version}. Это версия runtime внутри поставки, а не требование к Node.js на машине сборки.`);
   }
   const runtimeStat = await stat(runtimeRealPath);
   if (!runtimeStat.isFile()) fail(`Runtime не является обычным файлом: ${runtimeRealPath}`);
@@ -120,6 +157,7 @@ async function inspectRuntime({ packageJsonPath, runtimePath }) {
   const report = typeof process.report?.getReport === 'function' ? process.report.getReport() : null;
   return {
     engine,
+    preferredVersion,
     version: process.version,
     platform: process.platform,
     arch: process.arch,
@@ -174,6 +212,7 @@ async function writeRelease(options) {
     nodeRuntime: {
       path: RUNTIME_RELATIVE_PATH,
       engine: runtime.engine,
+      preferredVersion: runtime.preferredVersion,
       version: runtime.version,
       platform: runtime.platform,
       arch: runtime.arch,
@@ -226,6 +265,7 @@ async function verifyBundle(root) {
   const checks = [
     ['path', expected.path, RUNTIME_RELATIVE_PATH],
     ['engine', expected.engine, runtime.engine],
+    ['preferredVersion', expected.preferredVersion, runtime.preferredVersion],
     ['version', expected.version, runtime.version],
     ['platform', expected.platform, runtime.platform],
     ['arch', expected.arch, runtime.arch],

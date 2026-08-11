@@ -35,6 +35,23 @@
     "bundle:verify": "bash scripts/offline/verify-bundle.sh"
   },
   "devDependencies": {
-    "@playwright/test": "1.61.1"
+    "@playwright/test": "1.62.1"
+  },
+  "kafedra": {
+    "offlineRuntime": {
+      "node": "24.19.0",
+      "channel": "24 LTS",
+      "distBaseUrl": "https://nodejs.org/dist",
+      "archives": {
+        "linux-x64": {
+          "file": "node-v24.19.0-linux-x64.tar.gz",
+          "sha256": "f625d97cd707df4ff96254916fbc5ff014f09c09effe5a1e0ca8f6d41a8789d4"
+        },
+        "linux-arm64": {
+          "file": "node-v24.19.0-linux-arm64.tar.gz",
+          "sha256": "d28c8a5bf0a808f0ed434a1dce8c54ae98f0371c0bd86ac58abc613f73e6643f"
+        }
+      }
+    }
   }
 }
