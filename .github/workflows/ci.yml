@@ -38,8 +38,10 @@ jobs:
       - run: npm run smoke
       - name: Проверить создание и полное восстановление резервной копии
         run: npm run backup:selftest
-      - name: Проверить shell-сценарии поставки
-        run: bash -n scripts/offline/*.sh deploy/install.sh
+      - name: Проверить shell/Python-сценарии поставки
+        run: |
+          bash -n scripts/offline/*.sh deploy/install.sh
+          python3 -m py_compile scripts/offline/python-runtime.py scripts/recognition/ocr.py
       - name: Проверить системный preflight
         run: npm run preflight -- --json
 
@@ -70,34 +72,91 @@ jobs:
       - name: Проверить объектные права доступа
         run: npm run test:browser:acl
 
-  offline_bundle:
-    name: Автономный комплект
-    needs: [node_minimum, test, browser]
+  host_node_25:
+    name: Сборщик под host Node 25.6
+    needs: [test]
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      # Регрессия пользовательского сценария: host Node отличается от runtime поставки.
-      # Node 25 здесь используется только для запуска build-скрипта и никогда не попадает в bundle.
       - uses: actions/setup-node@v4
         with:
           node-version: 25.6.0
-      - name: Собрать автономный комплект с отдельным LTS runtime
+      - name: Проверить разделение host Node и runtime поставки
         shell: bash
         run: |
           set -Eeuo pipefail
-          export OUT_DIR="$RUNNER_TEMP/kafedra-release"
-          ARCHIVE="$(npm run --silent bundle:offline)"
+          export OUT_DIR="$RUNNER_TEMP/kafedra-runtime-only"
+          ARCHIVE="$(npm run --silent bundle:offline:runtime)"
+          [[ -f "$ARCHIVE" && -f "$ARCHIVE.sha256" ]]
+          REQUIRE_ARCHIVE_SHA256=true SKIP_SYSTEM_PREFLIGHT=true npm run --silent bundle:verify -- "$ARCHIVE"
+
+  offline_bundle:
+    name: Full offline Debian 12
+    needs: [node_minimum, test, browser, host_node_25]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Собрать и проверить полный Debian 12 bundle
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          OUT="$RUNNER_TEMP/kafedra-full"
+          mkdir -p "$OUT"
+          docker run --rm \
+            -e GITHUB_SHA="$GITHUB_SHA" \
+            -v "$GITHUB_WORKSPACE:/src:ro" \
+            -v "$OUT:/out" \
+            node:24-bookworm bash -lc '
+              set -Eeuo pipefail
+              apt-get update
+              DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends \
+                python3 ca-certificates curl xz-utils binutils
+              cd /src
+              OUT_DIR=/out KAFEDRA_FULL_BUNDLE_CACHE_DIR=/tmp/kafedra-cache \
+                bash scripts/offline/build-full-bundle.sh
+              ARCHIVE="$(find /out -maxdepth 1 -type f -name "kafedra-planner-*.tar.gz" -print -quit)"
+              [[ -f "$ARCHIVE" && -f "$ARCHIVE.sha256" ]]
+              mkdir -p /tmp/kafedra-bundle
+              tar -xzf "$ARCHIVE" -C /tmp/kafedra-bundle
+              BUNDLE="$(find /tmp/kafedra-bundle -mindepth 1 -maxdepth 1 -type d -print -quit)"
+              bash "$BUNDLE/application/scripts/offline/install-os-packages.sh" "$BUNDLE/os-packages"
+              "$BUNDLE/runtime/node/bin/node" "$BUNDLE/application/scripts/system-preflight.mjs" --require-full
+              "$BUNDLE/runtime/python/python" "$BUNDLE/application/scripts/recognition/ocr.py" doctor --languages rus+eng
+              DATA=/tmp/kafedra-data
+              mkdir -p "$DATA"
+              export KAFEDRA_APPLICATION_DIR="$BUNDLE/application"
+              export KAFEDRA_DATA_DIR="$DATA"
+              export KAFEDRA_DATABASE_PATH="$DATA/kafedra-planner.sqlite3"
+              export KAFEDRA_RECOGNITION_PYTHON="$BUNDLE/runtime/python/python"
+              export KAFEDRA_RECOGNITION_SCRIPT="$BUNDLE/application/scripts/recognition/ocr.py"
+              export KAFEDRA_HOST=127.0.0.1
+              export KAFEDRA_PORT=18080
+              cd /tmp
+              "$BUNDLE/runtime/node/bin/node" "$BUNDLE/application/scripts/migrate.mjs"
+              ADMIN_JSON="$("$BUNDLE/runtime/node/bin/node" "$BUNDLE/application/scripts/ensure-initial-admin.mjs")"
+              "$BUNDLE/runtime/node/bin/node" -e "const v=JSON.parse(process.argv[1]); if(!v.created||v.username!==\"admin\") process.exit(1)" "$ADMIN_JSON"
+              cd "$BUNDLE/application"
+              "$BUNDLE/runtime/node/bin/node" apps/api/src/main.mjs >/tmp/kafedra-api.log 2>&1 & API_PID=$!
+              "$BUNDLE/runtime/node/bin/node" apps/worker/src/main.mjs >/tmp/kafedra-worker.log 2>&1 & WORKER_PID=$!
+              cleanup(){ kill "$API_PID" "$WORKER_PID" >/dev/null 2>&1 || true; }
+              trap cleanup EXIT
+              READY=0
+              for i in $(seq 1 20); do
+                if KAFEDRA_PORT=18080 "$BUNDLE/runtime/node/bin/node" -e '\''const http=require("node:http");const r=http.get({host:"127.0.0.1",port:18080,path:"/api/system/health"},x=>{x.resume();process.exit(x.statusCode>=200&&x.statusCode<300?0:1)});r.on("error",()=>process.exit(1));'\''; then READY=1; break; fi
+                sleep 1
+              done
+              if [[ "$READY" != 1 ]]; then cat /tmp/kafedra-api.log /tmp/kafedra-worker.log >&2; exit 1; fi
+            '
+          ARCHIVE="$(find "$OUT" -maxdepth 1 -type f -name 'kafedra-planner-*.tar.gz' -print -quit)"
           [[ -f "$ARCHIVE" ]]
-          [[ -f "$ARCHIVE.sha256" ]]
-          [[ "$(stat -c %s "$ARCHIVE")" -gt 20000000 ]]
-          tar -tzf "$ARCHIVE" > "$RUNNER_TEMP/kafedra-release-entries.txt"
-          grep -q '/runtime/node/bin/node$' "$RUNNER_TEMP/kafedra-release-entries.txt"
-          REQUIRE_ARCHIVE_SHA256=true npm run --silent bundle:verify -- "$ARCHIVE"
-      - name: Опубликовать готовый offline bundle
+          [[ "$(stat -c %s "$ARCHIVE")" -gt 50000000 ]]
+          [[ -x "$OUT/install-kafedra-planner.sh" ]]
+          [[ -f "$OUT/README-INSTALL.txt" ]]
+      - name: Опубликовать готовый full offline bundle
         if: (github.event_name == 'push' || github.event_name == 'workflow_dispatch') && github.ref == 'refs/heads/main'
         uses: actions/upload-artifact@v4
         with:
-          name: kafedra-planner-offline-${{ github.sha }}
-          path: ${{ runner.temp }}/kafedra-release/kafedra-planner-*.tar.gz*
+          name: kafedra-planner-full-offline-${{ github.sha }}
+          path: ${{ runner.temp }}/kafedra-full/*
           if-no-files-found: error
           retention-days: 30

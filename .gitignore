@@ -2,6 +2,11 @@ node_modules/
 data/
 dist/
 release/
+.offline-cache/
+.cache/kafedra-planner/
+__pycache__/
+*.pyc
+*.pyo
 *.log
 *.sqlite3
 *.sqlite3-shm
