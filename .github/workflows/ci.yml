@@ -50,15 +50,9 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version-file: .nvmrc
+          cache: npm
       - name: Установить инструменты браузерной проверки
-        run: npm install --ignore-scripts --no-audit --no-fund
-      - name: Сохранить lockfile для первичной фиксации зависимостей
-        uses: actions/upload-artifact@v4
-        with:
-          name: package-lock-${{ github.sha }}
-          path: package-lock.json
-          if-no-files-found: error
-          retention-days: 1
+        run: npm ci --ignore-scripts --no-audit --no-fund
       - name: Установить Chromium
         run: npx playwright install --with-deps chromium
       - name: Проверить планы desktop и mobile
