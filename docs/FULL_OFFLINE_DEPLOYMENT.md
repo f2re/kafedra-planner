@@ -1,67 +1,98 @@
 # Аудит полного offline deployment
 
-Дата: 2026-08-11.
+Дата первоначального контура: 2026-08-11. Последняя корректировка APT-политики: 2026-08-12.
 
-## Почему прежняя поставка была неполной
+## Исходная проблема
 
-Предыдущий `kafedra-planner` bundle решал только одну часть задачи — приложение со встроенным Node.js. На целевой машине оставались внешние предположения: Tesseract, русский language pack, Poppler, LibreOffice и первый администратор. Python runtime вообще отсутствовал, потому что OCR был реализован как прямой запуск системного `tesseract` из Node.js.
+Первый full bundle устранил внешние зависимости приложения, но сделал системный package layer слишком жёстким: `.deb` собирались как точный слепок reference Debian/Astra и installer при необходимости OCR/PDF/Office отключал штатные APT sources target-системы. На чистом Debian acceptance это воспроизводимо, но на реально обновлённой Astra одна и та же версия ОС может иметь другой набор актуальных package revisions.
 
-Отдельный дефект deployment находился в `loadConfig()`: `migrationsDir` и `publicDir` вычислялись от текущего working directory процесса. Systemd маскировал это `WorkingDirectory=/opt/kafedra-planner/current`, но installer запускает migration script из распакованного bundle. Поэтому на target он мог искать `./migrations` не в новом release и падать до запуска службы.
+Дополнительный риск создавали две детали:
 
-## Что взято из Docomator
+- верхнеуровневый package profile включал базовые пакеты ОС (`systemd`, `coreutils`, `util-linux`, `passwd`, `tar`), хотя приложение не должно управлять версиями базового userspace;
+- OS package cache мог переиспользоваться между release-сборками без явного решения оператора, поэтому новый архив мог наследовать старые `.deb`.
 
-Из `docomator` перенесён принцип target-specific full bundle:
+## Текущий принцип
 
-- сборка на reference Debian/Astra той же версии;
-- полное APT dependency closure, а не список «установите сами»;
-- metadata целевой ОС и package inventory;
-- строгая проверка closure;
-- установка через изолированный локальный `file:` APT repository без внешних sources;
-- один installer для install/update.
+Версии `.deb` остаются в inventory только как доказательство содержимого автономного fallback. Они **не являются install pins**.
 
-## Что взято из «Бориса по парам»
+Нормальная установка системных возможностей теперь использует такую последовательность:
 
-Из `planer-solving` перенесён принцип managed Python runtime:
+```text
+full preflight не пройден
+        ↓
+dpkg --audit
+        ↓
+штатный APT target-системы
+apt-get install <package names>
+(simulate → download-only → install)
+        ↓ при недоступном repository до изменения dpkg
+локальный file: repository из bundle
+apt-get install <package names>
+        ↓
+full preflight + OCR doctor
+```
 
-- Python runtime принадлежит приложению, а не пользовательскому shell;
-- systemd не зависит от pyenv/venv/home пользователя;
-- runtime экспортируется вместе со stdlib и необходимыми shared libraries;
-- target не выполняет `pip install`;
-- Python проходит probe до активации release.
+Ни одна ветка не формирует `package=version` и не запускает `apt --fix-broken` автоматически.
 
-В Kafedra Planner wheelhouse пока не нужен: OCR adapter использует только Python stdlib, а Tesseract/Poppler поставляются `.deb`. Если появятся реальные Python runtime dependencies, к этому слою можно добавить wheelhouse без изменения install flow.
+`download-only` перед обычной установкой принципиален: если network/repository target-системы недоступен, это выясняется до изменения dpkg, поэтому auto-mode может безопасно перейти к bundled fallback. Если реальная APT-установка уже начала изменять систему и завершилась ошибкой, installer останавливается и не пытается поверх неё выполнять второй package transaction.
 
-## Новый контракт
-
-Полный bundle имеет три runtime-layer:
+## Что входит в full bundle
 
 ```text
 application/       код и миграции
 runtime/node/      Node.js 24 LTS
 runtime/python/    managed CPython
-os-packages/       exact Debian/Astra .deb closure
+os-packages/       проверяемый .deb fallback для application capabilities
+deployment.json    связь runtime и OS profile
+manifest.sha256    контроль всех файлов
 ```
 
-`deployment.json` связывает Python runtime и OS package profile с архивом. `manifest.sha256` защищает каждый файл.
+Верхнеуровневый список `config/offline/os-packages.txt` содержит только application capabilities: unzip, Poppler, Tesseract, LibreOffice и шрифты. Базовые пакеты ОС не запрашиваются приложением как собственные зависимости. При этом полное fallback-замыкание может содержать отдельные системные `.deb` транзитивно; APT использует их только если установленная target-версия не удовлетворяет зависимости.
 
-Нормальная эксплуатационная команда теперь одна:
+## Сборка package layer
+
+Сборщик не задаёт версии пакетов. `collect-os-packages.sh` получает текущие APT candidates reference-системы по именам пакетов и сохраняет полный offline closure с SHA-256 inventory.
+
+Release-сборка по умолчанию пересобирает этот слой заново. Старый cache используется только при явном `--reuse-os-packages`, причём его `requested-packages.txt` должен совпадать с текущим profile. Это устраняет молчаливое попадание устаревшего package cache в новый release.
+
+Если нужно обновить APT indexes самой reference VM:
 
 ```bash
-sudo ./install-kafedra-planner.sh
+sudo npm run bundle:offline -- --apt-update
 ```
 
-Installer не спрашивает путь к Python, не просит вручную установить OCR, не требует npm/pip и не требует ручного создания первого admin.
+Для air-gapped reference VM разрешён явно подготовленный cache:
 
-## Автоматические проверки
+```bash
+KAFEDRA_OS_PACKAGES_DIR=/srv/kafedra-cache/os-packages \
+npm run bundle:offline -- --reuse-os-packages
+```
 
-CI дополнен отдельным Debian 12 acceptance layer. Он:
+## Режимы target installer
 
-- собирает full bundle внутри `node:24-bookworm`;
-- собирает полный `.deb` closure;
-- строит временный локальный `file:` APT repository и отключает внешние sources;
-- проверяет, что весь APT plan покрывается package inventory bundle;
-- устанавливает Tesseract/Poppler/LibreOffice только из локального repository;
-- проверяет Tesseract `rus+eng`, Poppler, LibreOffice и managed Python;
-- запускает migration/admin scripts из `/tmp`, чтобы cwd больше не мог маскировать ошибку;
-- вручную поднимает API+worker в контейнере и проверяет HTTP health;
-- публикует full artifact только после этих проверок.
+По умолчанию используется `KAFEDRA_APT_MODE=auto`.
+
+- `auto` — штатный APT target-системы без version pinning, затем offline fallback;
+- `system` — только штатные APT sources, полезно для диагностики;
+- `bundle` — только bundled `file:` repository, гарантированный air-gap режим.
+
+Для полностью отключённой машины:
+
+```bash
+sudo KAFEDRA_APT_MODE=bundle ./install-kafedra-planner.sh
+```
+
+Интернет по-прежнему не является обязательным условием эксплуатации.
+
+## CI acceptance
+
+Debian 12 gate обязан проверять оба resolver-path:
+
+- full bundle собирается на чистом `node:24-bookworm`;
+- `requested-packages.txt` не содержит version expressions и не запрашивает базовый userspace как top-level application packages;
+- `KAFEDRA_APT_MODE=system ... --check-only` подтверждает обычный APT plan по именам пакетов;
+- `KAFEDRA_APT_MODE=bundle` реально устанавливает зависимости только из bundled repository;
+- после установки проходят Tesseract `rus+eng`, Poppler, LibreOffice, managed Python, migrations, initial admin и HTTP health;
+- на push в `main` публикуется проверенный full artifact.
+
+Реальная эксплуатационная приёмка Astra остаётся отдельным обязательным этапом #27: Debian CI не подменяет запуск на целевой Astra Linux.
