@@ -119,7 +119,20 @@ jobs:
               mkdir -p /tmp/kafedra-bundle
               tar -xzf "$ARCHIVE" -C /tmp/kafedra-bundle
               BUNDLE="$(find /tmp/kafedra-bundle -mindepth 1 -maxdepth 1 -type d -print -quit)"
-              bash "$BUNDLE/application/scripts/offline/install-os-packages.sh" "$BUNDLE/os-packages"
+
+              # package inventory хранит версии для integrity, но requested set должен
+              # содержать только имена и не должен управлять базовым userspace ОС.
+              ! grep -Eq "=" "$BUNDLE/os-packages/requested-packages.txt"
+              for package in systemd coreutils util-linux passwd tar; do
+                ! grep -Fxq "$package" "$BUNDLE/os-packages/requested-packages.txt"
+              done
+
+              # Проверяем оба пути: обычный APT target-системы и настоящий air-gap fallback.
+              KAFEDRA_APT_MODE=system bash "$BUNDLE/application/scripts/offline/install-os-packages.sh" \
+                "$BUNDLE/os-packages" --check-only
+              KAFEDRA_APT_MODE=bundle bash "$BUNDLE/application/scripts/offline/install-os-packages.sh" \
+                "$BUNDLE/os-packages"
+
               "$BUNDLE/runtime/node/bin/node" "$BUNDLE/application/scripts/system-preflight.mjs" --require-full
               "$BUNDLE/runtime/python/python" "$BUNDLE/application/scripts/recognition/ocr.py" doctor --languages rus+eng
               DATA=/tmp/kafedra-data
