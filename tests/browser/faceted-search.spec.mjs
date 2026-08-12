@@ -12,25 +12,28 @@ async function resetAcrossMobileReflow(page, resetButton) {
       touchPoints: [{ ...point, radiusX: 2, radiusY: 2, force: 1, id: 1 }]
     });
     touchActive = true;
-    await page.evaluate(({ x, y, width, height }) => {
+    const shiftedBox = await page.evaluate(() => {
       const button = document.querySelector('[data-search-reset]');
-      button.style.transform = 'translateY(-120px)';
-      const blocker = document.createElement('div');
-      blocker.id = 'search-reset-reflow-blocker';
-      blocker.style.cssText = `position:fixed;left:${x}px;top:${y}px;width:${width}px;height:${height}px;z-index:9999`;
-      document.body.append(blocker);
-    }, box);
+      const actions = button?.closest('.search-filter-actions');
+      if (!button || !actions) return null;
+      const spacer = document.createElement('div');
+      spacer.id = 'search-reset-reflow-blocker';
+      spacer.setAttribute('aria-hidden', 'true');
+      for (let index = 0; index < 40; index += 1) spacer.append(document.createElement('br'));
+      actions.before(spacer);
+      const rect = button.getBoundingClientRect();
+      return { x: rect.x, y: rect.y, width: rect.width, height: rect.height };
+    });
+    if (!shiftedBox || Math.abs(shiftedBox.y - box.y) < 40) {
+      throw new Error('Мобильная компоновка не изменилась во время активного касания.');
+    }
     await session.send('Input.dispatchTouchEvent', { type: 'touchEnd', touchPoints: [] });
     touchActive = false;
   } finally {
     if (touchActive) {
       await session.send('Input.dispatchTouchEvent', { type: 'touchCancel', touchPoints: [] }).catch(() => {});
     }
-    await page.evaluate(() => {
-      const button = document.querySelector('[data-search-reset]');
-      if (button) button.style.transform = '';
-      document.querySelector('#search-reset-reflow-blocker')?.remove();
-    }).catch(() => {});
+    await page.evaluate(() => document.querySelector('#search-reset-reflow-blocker')?.remove()).catch(() => {});
     await session.detach().catch(() => {});
   }
 }
