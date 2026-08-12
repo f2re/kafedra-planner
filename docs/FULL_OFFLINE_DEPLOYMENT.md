@@ -1,6 +1,6 @@
 # Аудит полного offline deployment
 
-Дата первоначального контура: 2026-08-11. Последняя корректировка APT-политики: 2026-08-12.
+Дата первоначального контура: 2026-08-11. Последняя корректировка APT-политики и end-to-end проверки: 2026-08-12.
 
 ## Исходная проблема
 
@@ -86,13 +86,38 @@ sudo KAFEDRA_APT_MODE=bundle ./install-kafedra-planner.sh
 
 ## CI acceptance
 
-Debian 12 gate обязан проверять оба resolver-path:
+Debian 12 gate проверяет package layer и реальный пользовательский installer в два этапа.
 
-- full bundle собирается на чистом `node:24-bookworm`;
+Сначала full bundle собирается на чистом `node:24-bookworm` и проверяется на уровне содержимого/runtime:
+
 - `requested-packages.txt` не содержит version expressions и не запрашивает базовый userspace как top-level application packages;
 - `KAFEDRA_APT_MODE=system ... --check-only` подтверждает обычный APT plan по именам пакетов;
 - `KAFEDRA_APT_MODE=bundle` реально устанавливает зависимости только из bundled repository;
-- после установки проходят Tesseract `rus+eng`, Poppler, LibreOffice, managed Python, migrations, initial admin и HTTP health;
-- на push в `main` публикуется проверенный full artifact.
+- проходят Tesseract `rus+eng`, Poppler, LibreOffice, managed Python, migrations, initial admin и HTTP health.
 
-Реальная эксплуатационная приёмка Astra остаётся отдельным обязательным этапом #27: Debian CI не подменяет запуск на целевой Astra Linux.
+Затем `scripts/offline/systemd-deploy-selftest.sh` создаёт отдельную чистую Debian 12 reference-среду с настоящим systemd. Docker используется только как disposable CI-изоляция и не входит в production/runtime. После подготовки базовой ОС сеть target-контейнера полностью отключается. В него копируются только четыре файла, которые получает оператор:
+
+```text
+kafedra-planner-<version>-<profile>.tar.gz
+kafedra-planner-<...>.tar.gz.sha256
+install-kafedra-planner.sh
+README-INSTALL.txt
+```
+
+Selftest запускает именно `install-kafedra-planner.sh` в `KAFEDRA_APT_MODE=bundle` и проверяет:
+
+- внешний SHA-256 и безопасную распаковку wrapper;
+- полный `deploy/install.sh`, создание системного пользователя, каталогов и config;
+- установку application dependencies без сети;
+- immutable release и `current` symlink;
+- миграции и создание первого администратора;
+- права `0640` на config и `0600` на first-login file;
+- настоящие systemd units: enabled + active API/worker;
+- итоговый `offline/doctor.sh` и HTTP health;
+- повторный запуск того же installer как idempotent update;
+- отсутствие второго release и повторной генерации first-login credentials;
+- создание проверенной pre-update backup при повторной установке.
+
+Только после этих проверок на push в `main` публикуется full artifact.
+
+Реальная эксплуатационная приёмка Astra остаётся отдельным обязательным этапом #27: Debian CI не подменяет запуск на целевой Astra Linux, но теперь проверяет весь операторский install/update flow, а не только отдельные внутренние компоненты bundle.
