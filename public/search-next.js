@@ -185,6 +185,7 @@ function resetSearch() {
       else field.value = '';
     }
   }
+  if (document.activeElement instanceof HTMLElement) document.activeElement.blur();
   renderEmptyPrompt();
 }
 
@@ -202,4 +203,37 @@ qs('#search-filters')?.addEventListener('submit', submitSearch, true);
 qs('#search-input')?.addEventListener('input', scheduleSearch);
 qs('#search-filters')?.addEventListener('input', scheduleSearch);
 qs('#search-filters')?.addEventListener('change', scheduleSearch);
-qs('[data-search-reset]')?.addEventListener('click', resetSearch);
+const resetButton = qs('[data-search-reset]');
+let resetPointer = null;
+
+function releaseResetPointer(event) {
+  if (event.currentTarget.hasPointerCapture?.(event.pointerId)) {
+    event.currentTarget.releasePointerCapture(event.pointerId);
+  }
+  resetPointer = null;
+}
+
+resetButton?.addEventListener('pointerdown', (event) => {
+  if (!event.isPrimary || event.button !== 0) return;
+  resetPointer = { pointerId: event.pointerId, x: event.clientX, y: event.clientY, moved: false };
+  event.currentTarget.setPointerCapture?.(event.pointerId);
+});
+resetButton?.addEventListener('pointermove', (event) => {
+  if (!resetPointer || resetPointer.pointerId !== event.pointerId) return;
+  if (Math.hypot(event.clientX - resetPointer.x, event.clientY - resetPointer.y) > 12) resetPointer.moved = true;
+});
+resetButton?.addEventListener('pointerup', (event) => {
+  if (!resetPointer || resetPointer.pointerId !== event.pointerId) return;
+  const shouldReset = !resetPointer.moved;
+  releaseResetPointer(event);
+  if (shouldReset) resetSearch();
+});
+resetButton?.addEventListener('pointercancel', (event) => {
+  if (resetPointer?.pointerId === event.pointerId) releaseResetPointer(event);
+});
+resetButton?.addEventListener('lostpointercapture', (event) => {
+  if (resetPointer?.pointerId === event.pointerId) resetPointer = null;
+});
+resetButton?.addEventListener('click', (event) => {
+  if (event.detail === 0 || !window.PointerEvent) resetSearch();
+});
