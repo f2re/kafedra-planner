@@ -1,5 +1,40 @@
 import { test, expect } from '@playwright/test';
 
+async function resetAcrossMobileReflow(page, resetButton) {
+  const box = await resetButton.boundingBox();
+  if (!box) throw new Error('Кнопка сброса недоступна для мобильной проверки.');
+  const point = { x: box.x + box.width / 2, y: box.y + box.height / 2 };
+  const session = await page.context().newCDPSession(page);
+  let touchActive = false;
+  try {
+    await session.send('Input.dispatchTouchEvent', {
+      type: 'touchStart',
+      touchPoints: [{ ...point, radiusX: 2, radiusY: 2, force: 1, id: 1 }]
+    });
+    touchActive = true;
+    await page.evaluate(({ x, y, width, height }) => {
+      const button = document.querySelector('[data-search-reset]');
+      button.style.transform = 'translateY(-120px)';
+      const blocker = document.createElement('div');
+      blocker.id = 'search-reset-reflow-blocker';
+      blocker.style.cssText = `position:fixed;left:${x}px;top:${y}px;width:${width}px;height:${height}px;z-index:9999`;
+      document.body.append(blocker);
+    }, box);
+    await session.send('Input.dispatchTouchEvent', { type: 'touchEnd', touchPoints: [] });
+    touchActive = false;
+  } finally {
+    if (touchActive) {
+      await session.send('Input.dispatchTouchEvent', { type: 'touchCancel', touchPoints: [] }).catch(() => {});
+    }
+    await page.evaluate(() => {
+      const button = document.querySelector('[data-search-reset]');
+      if (button) button.style.transform = '';
+      document.querySelector('#search-reset-reflow-blocker')?.remove();
+    }).catch(() => {});
+    await session.detach().catch(() => {});
+  }
+}
+
 test('единый поиск фильтрует периодическую задачу без текстового запроса и сбрасывается одним действием', async ({ page }, testInfo) => {
   const suffix = testInfo.project.name.includes('mobile') ? 'моб' : 'деск';
   const searchText = `проверка поиска ${suffix}`;
@@ -34,8 +69,13 @@ test('единый поиск фильтрует периодическую за
   await expect(result).toContainText('2026-1');
   await expect(page.locator('#search-count')).toContainText('Найдено:');
 
-  await filters.getByRole('button', { name: 'Сбросить' }).click();
+  const resetButton = filters.getByRole('button', { name: 'Сбросить' });
+  if (testInfo.project.name.includes('mobile')) await resetAcrossMobileReflow(page, resetButton);
+  else await resetButton.click();
   await expect(page.locator('#search-results')).toContainText('Введите текст или выберите один из фильтров');
+  await expect(filters.locator('select[name="sourceKind"]')).toHaveValue('');
+  await expect(filters.locator('input[name="person"]')).toHaveValue('');
+  await expect(filters.locator('input[name="period"]')).toHaveValue('');
 
   const searchInput = page.locator('#search-input');
   await page.evaluate((match) => {
@@ -67,7 +107,7 @@ test('единый поиск фильтрует периодическую за
 
   await searchInput.fill(searchText);
   await page.waitForFunction(() => window.__searchAbortHarness?.started === true);
-  await filters.getByRole('button', { name: 'Сбросить' }).click();
+  await resetButton.click();
   const aborted = await page.evaluate(() => window.__searchAbortHarness?.signal?.aborted === true);
   expect(aborted).toBe(true);
   await page.waitForTimeout(300);
@@ -76,4 +116,8 @@ test('единый поиск фильтрует периодическую за
 
   await searchInput.fill(searchText);
   await expect(result).toBeVisible();
+  await resetButton.focus();
+  await page.keyboard.press('Enter');
+  await expect(page.locator('#search-results')).toContainText('Введите текст или выберите один из фильтров');
+  await expect(searchInput).toHaveValue('');
 });
