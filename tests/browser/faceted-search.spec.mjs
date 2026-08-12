@@ -1,9 +1,27 @@
 import { test, expect } from '@playwright/test';
 
 async function resetAcrossMobileReflow(page, resetButton) {
+  await resetButton.scrollIntoViewIfNeeded();
   const box = await resetButton.boundingBox();
   if (!box) throw new Error('Кнопка сброса недоступна для мобильной проверки.');
   const point = { x: box.x + box.width / 2, y: box.y + box.height / 2 };
+  const viewport = page.viewportSize();
+  if (!viewport || point.x < 0 || point.x >= viewport.width || point.y < 0 || point.y >= viewport.height) {
+    throw new Error('Кнопка сброса после прокрутки осталась вне мобильного viewport.');
+  }
+  const hitReset = await page.evaluate(({ x, y }) => {
+    const button = document.querySelector('[data-search-reset]');
+    return document.elementFromPoint(x, y)?.closest('[data-search-reset]') === button;
+  }, point);
+  if (!hitReset) throw new Error('Кнопка сброса перекрыта в точке мобильного касания.');
+
+  await page.evaluate(() => {
+    window.__searchResetPointerDown = null;
+    document.querySelector('[data-search-reset]')?.addEventListener('pointerdown', (event) => {
+      window.__searchResetPointerDown = { pointerId: event.pointerId, button: event.button, isPrimary: event.isPrimary };
+    }, { capture: true, once: true });
+  });
+
   const session = await page.context().newCDPSession(page);
   let touchActive = false;
   try {
@@ -12,6 +30,16 @@ async function resetAcrossMobileReflow(page, resetButton) {
       touchPoints: [{ ...point, radiusX: 2, radiusY: 2, force: 1, id: 1 }]
     });
     touchActive = true;
+    const pointerDown = await page.evaluate(() => window.__searchResetPointerDown);
+    if (!pointerDown?.isPrimary || pointerDown.button !== 0) {
+      throw new Error(`Мобильное касание не породило ожидаемый primary pointerdown: ${JSON.stringify(pointerDown)}`);
+    }
+    const captured = await page.evaluate((pointerId) => {
+      const button = document.querySelector('[data-search-reset]');
+      return Boolean(button?.hasPointerCapture?.(pointerId));
+    }, pointerDown.pointerId);
+    if (!captured) throw new Error('Кнопка сброса не захватила активный pointer до перестроения интерфейса.');
+
     const shiftedBox = await page.evaluate(() => {
       const button = document.querySelector('[data-search-reset]');
       const actions = button?.closest('.search-filter-actions');
@@ -33,7 +61,10 @@ async function resetAcrossMobileReflow(page, resetButton) {
     if (touchActive) {
       await session.send('Input.dispatchTouchEvent', { type: 'touchCancel', touchPoints: [] }).catch(() => {});
     }
-    await page.evaluate(() => document.querySelector('#search-reset-reflow-blocker')?.remove()).catch(() => {});
+    await page.evaluate(() => {
+      document.querySelector('#search-reset-reflow-blocker')?.remove();
+      delete window.__searchResetPointerDown;
+    }).catch(() => {});
     await session.detach().catch(() => {});
   }
 }
