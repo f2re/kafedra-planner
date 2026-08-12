@@ -110,7 +110,7 @@ jobs:
               set -Eeuo pipefail
               apt-get update
               DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends \
-                python3 ca-certificates curl xz-utils binutils
+                python3 ca-certificates curl xz-utils binutils systemd
               cd /src
               OUT_DIR=/out KAFEDRA_FULL_BUNDLE_CACHE_DIR=/tmp/kafedra-cache \
                 bash scripts/offline/build-full-bundle.sh

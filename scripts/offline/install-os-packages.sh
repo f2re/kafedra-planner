@@ -50,7 +50,10 @@ done
 
 WORK="$(mktemp -d /tmp/kafedra-apt.XXXXXX)"
 trap 'rm -rf "$WORK"' EXIT
+# apt drops privileges to _apt for downloads; allow traversal of the temporary cache.
+chmod 0755 "$WORK"
 mkdir -p "$WORK/system-archives/partial"
+chmod 0755 "$WORK/system-archives" "$WORK/system-archives/partial"
 SYSTEM_APT_OPTIONS=(
   -o "Dir::Cache::archives=$WORK/system-archives"
   -o "Acquire::Retries=1"
@@ -126,6 +129,7 @@ done
 gzip -n -9 -c "$PACKAGES_INDEX" > "$REPO/Packages.gz"
 printf 'deb [trusted=yes] file:%s ./\n' "$REPO" > "$WORK/bundle-sources.list"
 mkdir -p "$WORK/bundle-lists/partial" "$WORK/bundle-archives/partial"
+chmod 0755 "$REPO" "$WORK/bundle-lists" "$WORK/bundle-lists/partial" "$WORK/bundle-archives" "$WORK/bundle-archives/partial"
 BUNDLE_APT_OPTIONS=(
   -o "Dir::Etc::sourcelist=$WORK/bundle-sources.list"
   -o "Dir::Etc::sourceparts=-"
