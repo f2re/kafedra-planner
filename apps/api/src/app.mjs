@@ -4,6 +4,7 @@ import { createRouter } from './router.mjs';
 import { createPlanFactRouter } from './plan-fact-router.mjs';
 import { createPlansRouter } from './plans-router.mjs';
 import { createPlanItemsRouter } from './plan-items-router.mjs';
+import { createMeetingsRouter } from './meetings-router.mjs';
 import { createNotificationDeliveryRouter } from './notification-delivery-router.mjs';
 import { createAssignmentResponsibilityRouter } from './assignment-responsibility-router.mjs';
 import { createPeriodicTasksRouter } from './periodic-tasks-router.mjs';
@@ -24,6 +25,7 @@ export function createApp({ database, config, logger }) {
   const searchRouter = createSearchRouter({ database, config, logger });
   const planItemsRouter = createPlanItemsRouter({ database, config, logger });
   const plansRouter = createPlansRouter({ database, config, logger });
+  const meetingsRouter = createMeetingsRouter({ database, config, logger });
   const planFactRouter = createPlanFactRouter({ database, config, logger });
   const router = createRouter({ database, config, logger });
   return createServer(async (request, response) => {
@@ -63,10 +65,13 @@ export function createApp({ database, config, logger }) {
           const plansHandled = !notificationHandled && !responsibilityHandled && !periodicHandled && !searchHandled && !planItemHandled && !response.headersSent
             ? await plansRouter(request, response, url, requestId)
             : false;
-          const accessHandled = !notificationHandled && !responsibilityHandled && !periodicHandled && !searchHandled && !planItemHandled && !plansHandled && !response.headersSent && request.auth?.enabled
+          const meetingsHandled = !notificationHandled && !responsibilityHandled && !periodicHandled && !searchHandled && !planItemHandled && !plansHandled && !response.headersSent
+            ? await meetingsRouter(request, response, url, requestId)
+            : false;
+          const accessHandled = !notificationHandled && !responsibilityHandled && !periodicHandled && !searchHandled && !planItemHandled && !plansHandled && !meetingsHandled && !response.headersSent && request.auth?.enabled
             ? await accessRouter(request, response, url, requestId)
             : false;
-          if (!notificationHandled && !responsibilityHandled && !periodicHandled && !searchHandled && !planItemHandled && !plansHandled && !accessHandled && !response.headersSent) {
+          if (!notificationHandled && !responsibilityHandled && !periodicHandled && !searchHandled && !planItemHandled && !plansHandled && !meetingsHandled && !accessHandled && !response.headersSent) {
             const handled = await planFactRouter(request, response, url, requestId);
             if (!handled && !response.headersSent) await router(request, response, url, requestId);
           }
