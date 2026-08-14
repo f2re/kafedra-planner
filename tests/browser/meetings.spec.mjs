@@ -53,6 +53,9 @@ async function addQuestion(page, number) {
 }
 
 test('Заседания: настройки → 8 вопросов → выписка по №4 и №8 → протокол', async ({ page }, testInfo) => {
+  const mobile = testInfo.project.name === 'mobile';
+  const protocolNumber = mobile ? '8' : '7';
+  const meetingDate = mobile ? '2026-09-16' : '2026-09-15';
   const dir = await mkdtemp(join(tmpdir(), `kafedra-meetings-ui-${testInfo.project.name}-`));
   const protocolPath = join(dir, 'Шаблон протокола.docx');
   const extractPath = join(dir, 'Шаблон выписки.docx');
@@ -76,14 +79,14 @@ test('Заседания: настройки → 8 вопросов → выпи
     await page.locator('[data-meeting-template-upload="protocol"]').setInputFiles({
       name: 'Шаблон протокола.docx', mimeType: DOCX_TYPE, buffer: await readFile(protocolPath)
     });
-    await expect(page.locator('[name="protocolTemplateVersionId"] option')).toHaveCount(2);
     await expect(page.locator('[name="protocolTemplateVersionId"]')).not.toHaveValue('');
+    await expect(page.locator('[name="protocolTemplateVersionId"] option').filter({ hasText: 'Шаблон протокола.docx' })).toHaveCount(1);
 
     await page.locator('[data-meeting-template-upload="extract"]').setInputFiles({
       name: 'Шаблон выписки.docx', mimeType: DOCX_TYPE, buffer: await readFile(extractPath)
     });
-    await expect(page.locator('[name="extractTemplateVersionId"] option')).toHaveCount(3);
     await expect(page.locator('[name="extractTemplateVersionId"]')).not.toHaveValue('');
+    await expect(page.locator('[name="extractTemplateVersionId"] option').filter({ hasText: 'Шаблон выписки.docx' })).toHaveCount(1);
 
     await page.locator('[name="quorum"]').fill('5');
     await page.locator('[name="chairpersonPersonId"]').selectOption(chair.id);
@@ -94,10 +97,10 @@ test('Заседания: настройки → 8 вопросов → выпи
     await expect(page.locator('#meeting-settings-summary')).toContainText('Петрова Анна Сергеевна');
 
     await page.locator('#meeting-create-button').click();
-    await page.locator('#meeting-create-form [name="meetingDate"]').fill('2026-09-15');
-    await page.locator('#meeting-create-form [name="protocolNumber"]').fill('7');
+    await page.locator('#meeting-create-form [name="meetingDate"]').fill(meetingDate);
+    await page.locator('#meeting-create-form [name="protocolNumber"]').fill(protocolNumber);
     await page.locator('#meeting-create-form button[type="submit"]').click();
-    await expect(page.locator('#meeting-detail')).toContainText('Протокол №7');
+    await expect(page.locator('#meeting-detail')).toContainText(`Протокол №${protocolNumber}`);
     await expect(page.locator('#meeting-detail')).toContainText('Петрова Анна Сергеевна');
 
     for (let number = 1; number <= 8; number += 1) await addQuestion(page, number);
@@ -116,8 +119,9 @@ test('Заседания: настройки → 8 вопросов → выпи
     const meetingResponse = await page.request.get('/api/meetings');
     expect(meetingResponse.ok()).toBeTruthy();
     const meetings = await meetingResponse.json();
-    expect(meetings.items).toHaveLength(1);
-    const detailResponse = await page.request.get(`/api/meetings/${encodeURIComponent(meetings.items[0].id)}`);
+    const createdMeeting = meetings.items.find((item) => item.protocol_number === protocolNumber && item.meeting_date === meetingDate);
+    expect(createdMeeting).toBeTruthy();
+    const detailResponse = await page.request.get(`/api/meetings/${encodeURIComponent(createdMeeting.id)}`);
     expect(detailResponse.ok()).toBeTruthy();
     const detail = await detailResponse.json();
     expect(detail.agenda.map((item) => item.item_no)).toEqual([1, 2, 3, 4, 5, 6, 7, 8]);
