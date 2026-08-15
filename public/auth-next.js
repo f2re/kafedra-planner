@@ -122,7 +122,7 @@ function observeProfileControl() {
     const select = document.querySelector('#current-person-select');
     const personId = payload?.user?.person?.id;
     if (!select || !personId) return;
-    if ([...select.options].some((option) => option.value === personId)) {
+    if (payload.role === 'staff' && [...select.options].some((option) => option.value === personId)) {
       select.value = personId;
     }
     select.disabled = payload.role === 'staff';
