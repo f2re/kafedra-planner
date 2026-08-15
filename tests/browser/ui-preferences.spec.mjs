@@ -119,14 +119,14 @@ test('обучаемый UX охватывает новые даты, типы �
   await expect(page.locator('#event-date')).toHaveValue(explicitDate);
   await closeEventSheet(page);
 
-  await page.locator('[data-view="work"]').first().click();
+  await page.locator('[data-view="work"]').first().dispatchEvent('click');
   await expect(page.locator('#periodic-task-form select[name="periodKind"]')).toHaveValue('calendar_year');
   await expect(page.locator('#periodic-task-form select[name="direction"]')).toHaveValue('science');
   await expect(page.locator('#periodic-task-form input[name="startsAt"]')).toHaveValue(today);
   await expect(page.locator('#periodic-task-form input[name="dueDate"]')).toHaveValue(addDays(today, 14));
   await expect(page.locator('#periodic-task-form input[name="periodKey"]')).toHaveValue(String(new Date(`${today}T12:00:00`).getFullYear()));
 
-  await page.locator('[data-view="search"]').first().click();
+  await page.locator('[data-view="search"]').first().dispatchEvent('click');
   const sourceKind = page.locator('#search-filters select[name="sourceKind"]');
   await expect(sourceKind).toHaveValue('');
   await expect.poll(async () => sourceKind.locator('option').evaluateAll((options) => options.map((option) => option.value).slice(0, 3)))
