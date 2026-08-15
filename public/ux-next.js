@@ -39,3 +39,4 @@ await import('./meetings-next.js');
 await import('./search-next.js');
 await import('./view-bridge.js');
 await import('./ux-base.js');
+await import('./ui-preferences.js');

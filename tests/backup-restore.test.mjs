@@ -58,7 +58,7 @@ test('резервная копия проверяется и восстанав
     assert.equal(verified.status, 'ok');
     assert.equal((await stat(created.archivePath)).mode & 0o077, 0);
     assert.equal(verified.manifest.appVersion, '0.1.0-rc.3');
-    assert.equal(verified.manifest.schemaVersion, 17);
+    assert.equal(verified.manifest.schemaVersion, 18);
     assert.ok(verified.fileCount >= 4);
 
     const latest = await readLatestBackupStatus(backupDir);
@@ -94,7 +94,6 @@ test('резервная копия проверяется и восстанав
     assert.equal(await readFile(join(targetDataDir, 'blobs', 'evidence.bin'), 'utf8'), 'verified-evidence');
     assert.match(await readFile(targetConfigPath, 'utf8'), /KAFEDRA_HOST=127\.0\.0\.1/);
     assert.equal((await readFile(join(targetApplicationDir, 'VERSION'), 'utf8')).trim(), '0.1.0-rc.3');
-
 
     const changed = new Database(databasePath, { migrationsDir: resolve('migrations') });
     changed.run('DELETE FROM people WHERE id = ?', 'person-backup');
