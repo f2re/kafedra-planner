@@ -87,6 +87,22 @@ test('сотрудник получает личный контур и наст�
   ]);
   await expect(page.locator('#auth-user-control')).toBeVisible();
 
+  const managerProfile = page.locator('#current-person-select');
+  await expect(managerProfile).toBeEnabled();
+  await expect(managerProfile.locator('option[value="person-staff"]')).toHaveCount(1);
+  await managerProfile.selectOption('person-staff');
+  await expect(managerProfile).toHaveValue('person-staff');
+  await page.evaluate(() => {
+    const marker = document.createElement('span');
+    marker.hidden = true;
+    document.body.append(marker);
+    marker.remove();
+  });
+  await expect(managerProfile).toHaveValue('person-staff');
+  await page.reload();
+  await expect(page.locator('#auth-user-control')).toBeVisible();
+  await expect(page.locator('#current-person-select')).toHaveValue('person-staff');
+
   const subordinate = await page.request.get('/api/personal-notifications?personId=person-staff');
   expect(subordinate.status()).toBe(200);
   const outsider = await page.request.get('/api/personal-notifications?personId=person-outsider');
