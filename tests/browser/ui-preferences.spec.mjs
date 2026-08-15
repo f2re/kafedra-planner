@@ -42,6 +42,14 @@ async function selectNativeWithKeyboard(locator, value) {
   await expect(locator).toHaveValue(value);
 }
 
+async function changeDateWithKeyboard(locator) {
+  const before = await locator.inputValue();
+  await locator.focus();
+  await locator.press('ArrowUp');
+  await expect.poll(() => locator.inputValue()).not.toBe(before);
+  return locator.inputValue();
+}
+
 test('обучаемый UX охватывает новые даты, типы и фильтры, но не перестраивает интерфейс', async ({ page }) => {
   await page.addInitScript((seed) => {
     localStorage.setItem('kafedra-ui-preferences-v2', JSON.stringify(seed));
@@ -61,11 +69,13 @@ test('обучаемый UX охватывает новые даты, типы �
   await expect(page.locator('#event-category')).toHaveValue('science');
   await expect(page.locator('#event-importance')).toHaveValue('high');
   await expect(page.locator('#event-reminder')).toHaveValue('1440');
-  await expect(page.locator('#event-date')).toHaveValue(addDays(today, 7));
+  const learnedDate = addDays(today, 7);
+  await expect(page.locator('#event-date')).toHaveValue(learnedDate);
 
   await page.locator('#event-title').fill('Проверка общего обучаемого UX');
   await selectNativeWithKeyboard(page.locator('#event-category'), 'education');
-  await page.locator('#event-date').fill(today);
+  const userDate = await changeDateWithKeyboard(page.locator('#event-date'));
+  expect(userDate).not.toBe(learnedDate);
   await page.locator('#event-form button[type="submit"]').click();
   await expect(page.locator('#event-sheet')).toHaveClass(/hidden/);
 
@@ -83,7 +93,7 @@ test('обучаемый UX охватывает новые даты, типы �
   const saved = (await tasksResponse.json()).items.find((item) => item.title === 'Проверка общего обучаемого UX');
   expect(saved).toBeTruthy();
   expect(saved.category).toBe('education');
-  expect(String(saved.starts_at).slice(0, 10)).toBe(today);
+  expect(String(saved.starts_at).slice(0, 10)).toBe(userDate);
 
   await page.evaluate(({ id, date }) => {
     document.querySelector('#event-form').reset();
@@ -92,9 +102,9 @@ test('обучаемый UX охватывает новые даты, типы �
     document.querySelector('#event-date').value = date;
     document.querySelector('#event-kind').value = 'task';
     document.querySelector('#event-sheet').classList.remove('hidden');
-  }, { id: saved.id, date: today });
+  }, { id: saved.id, date: userDate });
   await expect(page.locator('#event-category')).toHaveValue('education');
-  await expect(page.locator('#event-date')).toHaveValue(today);
+  await expect(page.locator('#event-date')).toHaveValue(userDate);
   await page.locator('#event-sheet [data-close-sheet]').click();
 
   await page.locator('[data-calendar-mode="month"]').dispatchEvent('click');
