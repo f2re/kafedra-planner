@@ -487,7 +487,12 @@ function markTrustedControl(event) {
   if (binding.record === 'immediate') {
     element.dataset.uiPreferenceTouchedSession = '1';
     const choice = choiceFromElement(element, binding);
-    if (choice) persistChoices([choice], binding.key.replaceAll('.', '-'));
+    if (choice) {
+      const signature = JSON.stringify([choice.key, choice.value]);
+      if (element.dataset.uiPreferenceImmediateSignature === signature) return;
+      element.dataset.uiPreferenceImmediateSignature = signature;
+      persistChoices([choice], binding.key.replaceAll('.', '-'));
+    }
   }
 }
 
