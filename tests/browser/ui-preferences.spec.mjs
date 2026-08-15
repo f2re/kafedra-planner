@@ -50,6 +50,11 @@ async function changeDateWithKeyboard(locator) {
   return locator.inputValue();
 }
 
+async function closeEventSheet(page) {
+  await page.locator('#event-sheet').getByRole('button', { name: 'Закрыть' }).click();
+  await expect(page.locator('#event-sheet')).toHaveClass(/hidden/);
+}
+
 test('обучаемый UX охватывает новые даты, типы и фильтры, но не перестраивает интерфейс', async ({ page }) => {
   await page.addInitScript((seed) => {
     localStorage.setItem('kafedra-ui-preferences-v2', JSON.stringify(seed));
@@ -105,14 +110,14 @@ test('обучаемый UX охватывает новые даты, типы �
   }, { id: saved.id, date: userDate });
   await expect(page.locator('#event-category')).toHaveValue('education');
   await expect(page.locator('#event-date')).toHaveValue(userDate);
-  await page.locator('#event-sheet [data-close-sheet]').click();
+  await closeEventSheet(page);
 
   await page.locator('[data-calendar-mode="month"]').dispatchEvent('click');
   const addOnDay = page.locator('[data-new-on-date]').first();
   const explicitDate = await addOnDay.getAttribute('data-new-on-date');
   await addOnDay.click();
   await expect(page.locator('#event-date')).toHaveValue(explicitDate);
-  await page.locator('#event-sheet [data-close-sheet]').click();
+  await closeEventSheet(page);
 
   await page.locator('[data-view="work"]').first().click();
   await expect(page.locator('#periodic-task-form select[name="periodKind"]')).toHaveValue('calendar_year');
