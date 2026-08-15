@@ -1,4 +1,5 @@
 import { $$m, escMeeting, meetingApi } from './meetings-state.js';
+import { planMeetingLinkLabel } from './meeting-labels.js';
 
 export function invalidatePlanMeetingLink(sourceId) {
   if (!sourceId) return;
@@ -28,8 +29,8 @@ export async function decoratePlanMeetingLinks() {
       if (!links.length) continue;
       const cell = row.querySelector('td:nth-child(2)');
       if (!cell || cell.querySelector('.plan-meeting-links')) continue;
-      cell.insertAdjacentHTML('beforeend', `<div class="plan-meeting-links"><span>Рассмотрено:</span>${links.map((link) =>
-        `<button type="button" data-open-linked-meeting="${escMeeting(link.meeting_id)}">протокол №${escMeeting(link.protocol_number || '—')} · вопрос ${Number(link.item_no)}</button>`
+      cell.insertAdjacentHTML('beforeend', `<div class="plan-meeting-links"><span>Рассмотрено на заседании кафедры:</span>${links.map((link) =>
+        `<button type="button" data-open-linked-meeting="${escMeeting(link.meeting_id)}">${escMeeting(planMeetingLinkLabel(link))}</button>`
       ).join('')}</div>`);
     }
   } catch {
