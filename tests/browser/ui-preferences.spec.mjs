@@ -78,9 +78,9 @@ test('обучаемый UX охватывает новые даты, типы �
   expect(afterCalendar['calendar.mode'][0].count).toBe(5);
   expect(afterCalendar['calendar.new.date_offset']?.some((item) => /^\d{4}-\d{2}-\d{2}$/u.test(item.value))).toBeFalsy();
 
-  const calendarResponse = await page.request.get(`/api/calendar?from=${today}&to=${today}&limit=100`);
-  expect(calendarResponse.ok()).toBeTruthy();
-  const saved = (await calendarResponse.json()).items.find((item) => item.title === 'Проверка общего обучаемого UX');
+  const tasksResponse = await page.request.get('/api/tasks?limit=100');
+  expect(tasksResponse.ok()).toBeTruthy();
+  const saved = (await tasksResponse.json()).items.find((item) => item.title === 'Проверка общего обучаемого UX');
   expect(saved).toBeTruthy();
   expect(saved.category).toBe('education');
   expect(String(saved.starts_at).slice(0, 10)).toBe(today);
