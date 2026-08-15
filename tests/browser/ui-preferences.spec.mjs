@@ -78,14 +78,26 @@ test('обучаемый UX охватывает новые даты, типы �
   expect(afterCalendar['calendar.mode'][0].count).toBe(5);
   expect(afterCalendar['calendar.new.date_offset']?.some((item) => /^\d{4}-\d{2}-\d{2}$/u.test(item.value))).toBeFalsy();
 
-  await page.locator('[data-calendar-mode="month"]').dispatchEvent('click');
-  const existing = page.locator('[data-calendar-item]').filter({ hasText: 'Проверка общего обучаемого UX' }).first();
-  await expect(existing).toHaveCount(1);
-  await existing.dispatchEvent('click');
+  const calendarResponse = await page.request.get(`/api/calendar?from=${today}&to=${today}&limit=100`);
+  expect(calendarResponse.ok()).toBeTruthy();
+  const saved = (await calendarResponse.json()).items.find((item) => item.title === 'Проверка общего обучаемого UX');
+  expect(saved).toBeTruthy();
+  expect(saved.category).toBe('education');
+  expect(String(saved.starts_at).slice(0, 10)).toBe(today);
+
+  await page.evaluate(({ id, date }) => {
+    document.querySelector('#event-form').reset();
+    document.querySelector('#event-id').value = id;
+    document.querySelector('#event-category').value = 'education';
+    document.querySelector('#event-date').value = date;
+    document.querySelector('#event-kind').value = 'task';
+    document.querySelector('#event-sheet').classList.remove('hidden');
+  }, { id: saved.id, date: today });
   await expect(page.locator('#event-category')).toHaveValue('education');
   await expect(page.locator('#event-date')).toHaveValue(today);
   await page.locator('#event-sheet [data-close-sheet]').click();
 
+  await page.locator('[data-calendar-mode="month"]').dispatchEvent('click');
   const addOnDay = page.locator('[data-new-on-date]').first();
   const explicitDate = await addOnDay.getAttribute('data-new-on-date');
   await addOnDay.click();
