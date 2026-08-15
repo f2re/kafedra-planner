@@ -113,7 +113,7 @@ test('обучаемый UX охватывает новые даты, типы �
   await closeEventSheet(page);
 
   await page.locator('[data-calendar-mode="month"]').dispatchEvent('click');
-  const addOnDay = page.locator('[data-new-on-date]').first();
+  const addOnDay = page.locator('[data-new-on-date]:visible').first();
   const explicitDate = await addOnDay.getAttribute('data-new-on-date');
   await addOnDay.click();
   await expect(page.locator('#event-date')).toHaveValue(explicitDate);
