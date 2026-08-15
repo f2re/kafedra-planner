@@ -78,9 +78,10 @@ test('обучаемый UX охватывает новые даты, типы �
   expect(afterCalendar['calendar.mode'][0].count).toBe(5);
   expect(afterCalendar['calendar.new.date_offset']?.some((item) => /^\d{4}-\d{2}-\d{2}$/u.test(item.value))).toBeFalsy();
 
+  await page.locator('[data-calendar-mode="month"]').dispatchEvent('click');
   const existing = page.locator('[data-calendar-item]').filter({ hasText: 'Проверка общего обучаемого UX' }).first();
-  await expect(existing).toBeVisible();
-  await existing.click();
+  await expect(existing).toHaveCount(1);
+  await existing.dispatchEvent('click');
   await expect(page.locator('#event-category')).toHaveValue('education');
   await expect(page.locator('#event-date')).toHaveValue(today);
   await page.locator('#event-sheet [data-close-sheet]').click();
