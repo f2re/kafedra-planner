@@ -18,6 +18,17 @@ async function logout(page) {
   await expect(page.locator('#auth-gate')).toBeVisible();
 }
 
+async function selectNativeWithKeyboard(locator, value) {
+  const values = await locator.locator('option').evaluateAll((options) => options.map((option) => option.value));
+  const index = values.indexOf(value);
+  expect(index).toBeGreaterThanOrEqual(0);
+  await locator.focus();
+  await locator.press('Home');
+  for (let step = 0; step < index; step += 1) await locator.press('ArrowDown');
+  await locator.press('Enter');
+  await expect(locator).toHaveValue(value);
+}
+
 test('сотрудник получает личный контур и настраивает доставку, руководитель — подчинённых', async ({ page }) => {
   await login(page, 'staff', 'StaffPassword2026');
   const me = await (await page.request.get('/api/auth/me')).json();
@@ -86,6 +97,21 @@ test('сотрудник получает личный контур и наст�
     page.locator('#auth-login-form button[type="submit"]').click()
   ]);
   await expect(page.locator('#auth-user-control')).toBeVisible();
+
+  const managerProfile = page.locator('#current-person-select');
+  await expect(managerProfile).toBeEnabled();
+  await expect(managerProfile.locator('option[value="person-staff"]')).toHaveCount(1);
+  await selectNativeWithKeyboard(managerProfile, 'person-staff');
+  await page.evaluate(() => {
+    const marker = document.createElement('span');
+    marker.hidden = true;
+    document.body.append(marker);
+    marker.remove();
+  });
+  await expect(managerProfile).toHaveValue('person-staff');
+  await page.reload();
+  await expect(page.locator('#auth-user-control')).toBeVisible();
+  await expect(page.locator('#current-person-select')).toHaveValue('person-staff');
 
   const subordinate = await page.request.get('/api/personal-notifications?personId=person-staff');
   expect(subordinate.status()).toBe(200);

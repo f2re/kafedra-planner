@@ -84,18 +84,67 @@ test('обучаемые defaults считают только уникальны
         { key: 'template.document.type', value: 'directive_document' }
       ]
     });
+    recordUiPreferences(database, workspace.id, 'account_main', {
+      interactionId: 'global-ux-1', choices: [
+        { key: 'calendar.new.date_offset', value: 'd:7' },
+        { key: 'meeting.new.date_offset', value: 'd:-2' },
+        { key: 'work.periodic.start_offset', value: 'none' },
+        { key: 'work.periodic.due_offset', value: 'd:14' },
+        { key: 'template.field.type', value: 'date' },
+        { key: 'template.field.strategy', value: 'next_line' },
+        { key: 'work.periodic.period_kind', value: 'academic_year' },
+        { key: 'work.periodic.direction', value: 'science' },
+        { key: 'work.periodic.owner', value: 'person_ivanov' },
+        { key: 'work.responsibility.controller', value: 'person_petrov' },
+        { key: 'profile.current_person', value: '' },
+        { key: 'search.filter.status', value: 'completed' },
+        { key: 'plans.filter.period', value: '2026/27' },
+        { key: 'calendar.filter.categories', value: 'education,science' },
+        { key: 'admin.object.kind', value: 'scientific_item' }
+      ]
+    });
+
     const defaults = listUiPreferences(database, workspace.id, 'account_main', [
-      'calendar.new.category', 'calendar.new.reminder', 'template.field.required', 'template.document.type'
+      'calendar.new.category', 'calendar.new.reminder', 'template.field.required', 'template.document.type',
+      'calendar.new.date_offset', 'meeting.new.date_offset', 'work.periodic.start_offset', 'work.periodic.due_offset',
+      'template.field.type', 'template.field.strategy', 'work.periodic.period_kind', 'work.periodic.direction',
+      'work.periodic.owner', 'work.responsibility.controller', 'profile.current_person', 'search.filter.status',
+      'plans.filter.period', 'calendar.filter.categories', 'admin.object.kind'
     ]);
     assert.equal(defaults['calendar.new.category'][0].value, 'science');
     assert.equal(defaults['calendar.new.reminder'][0].value, '1440');
     assert.equal(defaults['template.field.required'][0].value, '0');
     assert.equal(defaults['template.document.type'][0].value, 'directive_document');
+    assert.equal(defaults['calendar.new.date_offset'][0].value, 'd:7');
+    assert.equal(defaults['meeting.new.date_offset'][0].value, 'd:-2');
+    assert.equal(defaults['work.periodic.start_offset'][0].value, 'none');
+    assert.equal(defaults['work.periodic.due_offset'][0].value, 'd:14');
+    assert.equal(defaults['template.field.type'][0].value, 'date');
+    assert.equal(defaults['template.field.strategy'][0].value, 'next_line');
+    assert.equal(defaults['work.periodic.period_kind'][0].value, 'academic_year');
+    assert.equal(defaults['work.periodic.direction'][0].value, 'science');
+    assert.equal(defaults['work.periodic.owner'][0].value, 'person_ivanov');
+    assert.equal(defaults['work.responsibility.controller'][0].value, 'person_petrov');
+    assert.equal(defaults['profile.current_person'][0].value, '');
+    assert.equal(defaults['search.filter.status'][0].value, 'completed');
+    assert.equal(defaults['plans.filter.period'][0].value, '2026/27');
+    assert.equal(defaults['calendar.filter.categories'][0].value, 'science,education');
+    assert.equal(defaults['admin.object.kind'][0].value, 'scientific_item');
+
     assert.throws(() => recordUiPreferences(database, workspace.id, 'account_main', {
       interactionId: 'bad-1', choices: [{ key: 'calendar.new.category', value: 'invented' }]
     }), (error) => error?.code === 'ui_preference_value_invalid');
     assert.throws(() => recordUiPreferences(database, workspace.id, 'account_main', {
       interactionId: 'bad-2', choices: [{ key: 'password', value: 'secret' }]
+    }), (error) => error?.code === 'ui_preference_key_invalid');
+    assert.throws(() => recordUiPreferences(database, workspace.id, 'account_main', {
+      interactionId: 'bad-date-1', choices: [{ key: 'calendar.new.date_offset', value: '2026-09-01' }]
+    }), (error) => error?.code === 'ui_preference_value_invalid');
+    assert.throws(() => recordUiPreferences(database, workspace.id, 'account_main', {
+      interactionId: 'bad-date-2', choices: [{ key: 'calendar.new.date_offset', value: 'd:900' }]
+    }), (error) => error?.code === 'ui_preference_value_invalid');
+    assert.throws(() => recordUiPreferences(database, workspace.id, 'account_main', {
+      interactionId: 'bad-security', choices: [{ key: 'admin.account.role', value: 'admin' }]
     }), (error) => error?.code === 'ui_preference_key_invalid');
 
     assert.equal(database.get('SELECT MAX(version) AS v FROM schema_migrations').v, 18);
@@ -153,7 +202,7 @@ test('018 обновляет существующую схему 17 без из�
     assert.equal(upgraded.get("SELECT title FROM calendar_items WHERE id='existing-task'").title, 'Существующая задача');
     assert.equal(upgraded.get("SELECT display_name FROM people WHERE id='person_existing'").display_name, 'Существующий Сотрудник');
     recordUiPreferences(upgraded, workspace.id, 'account_existing', {
-      interactionId: 'after-upgrade', choices: [{ key: 'calendar.new.category', value: 'science' }]
+      interactionId: 'after-upgrade', choices: [{ key: 'calendar.new.date_offset', value: 'd:3' }]
     });
     assert.equal(
       upgraded.get("SELECT COUNT(*) AS c FROM ui_choice_preferences WHERE account_id='account_existing'").c,
