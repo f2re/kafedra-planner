@@ -5,12 +5,14 @@ CONFIG="${KAFEDRA_CONFIG_PATH:-/etc/kafedra-planner/kafedra-planner.env}"
 NODE="$ROOT/runtime/node/bin/node"
 PYTHON="$ROOT/runtime/python/python"
 OCR="$ROOT/scripts/recognition/ocr.py"
+ENV_PARSER="$ROOT/scripts/offline/environment-file.sh"
 [[ -x "$NODE" ]] || { echo "✗ Node runtime: $NODE" >&2; exit 2; }
 [[ -x "$PYTHON" ]] || { echo "✗ Python runtime: $PYTHON" >&2; exit 2; }
 [[ -f "$OCR" ]] || { echo "✗ OCR adapter: $OCR" >&2; exit 2; }
-set -a
-[[ ! -f "$CONFIG" ]] || source "$CONFIG"
-set +a
+[[ -f "$ENV_PARSER" ]] || { echo "✗ Парсер конфигурации: $ENV_PARSER" >&2; exit 2; }
+# shellcheck source=/dev/null
+source "$ENV_PARSER"
+[[ ! -f "$CONFIG" ]] || kafedra_read_environment_file "$CONFIG"
 LANGUAGES="${KAFEDRA_OCR_LANGUAGES:-rus+eng}"
 echo "✓ Node: $($NODE --version)"
 "$PYTHON" "$OCR" doctor --languages "$LANGUAGES"
