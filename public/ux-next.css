@@ -247,3 +247,23 @@
 @media (prefers-reduced-motion: reduce) {
   .ux-inspector, .inspector-open .workspace { animation: none; transition: none; }
 }
+
+/* Task rows: keep the title and its provenance on separate readable lines. */
+.task-row { grid-template-columns: 30px minmax(0, 1fr) auto; }
+.task-copy {
+  min-width: 0;
+  width: 100%;
+  display: grid;
+  justify-items: start;
+  gap: 2px;
+  text-align: left;
+}
+.task-title,
+.task-meta {
+  display: block;
+  min-width: 0;
+  max-width: 100%;
+  overflow-wrap: anywhere;
+}
+.task-meta { margin-top: 0; }
+

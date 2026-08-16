@@ -1,0 +1,56 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1600" height="720" viewBox="0 0 1600 720" role="img" aria-labelledby="title desc">
+  <title id="title">Сквозной контур кафедры в Кафедра Planner</title>
+  <desc id="desc">Реализованные связи годового плана с календарём и заседанием, отдельный контур поручений и отчётности, а также отсутствующий прямой мост от пункта плана к формальному поручению.</desc>
+  <defs>
+    <marker id="arrow" markerWidth="10" markerHeight="10" refX="9" refY="3" orient="auto" markerUnits="strokeWidth"><path d="M0,0 L0,6 L9,3 z" fill="#5f6368"/></marker>
+    <marker id="gapArrow" markerWidth="10" markerHeight="10" refX="9" refY="3" orient="auto" markerUnits="strokeWidth"><path d="M0,0 L0,6 L9,3 z" fill="#c75a17"/></marker>
+    <filter id="shadow" x="-20%" y="-20%" width="140%" height="140%"><feDropShadow dx="0" dy="4" stdDeviation="8" flood-color="#000" flood-opacity="0.08"/></filter>
+    <style>
+      .bg{fill:#f7f7f9}.card{fill:#fff;stroke:#d9d9df;stroke-width:2;rx:18;filter:url(#shadow)}
+      .card-accent{fill:#eef6ff;stroke:#8ec7ff}.card-report{fill:#f1faf4;stroke:#93d7a7}.card-gap{fill:#fff7ed;stroke:#f0a56a}
+      .title{font:700 25px -apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;fill:#1d1d1f}.text{font:500 17px -apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;fill:#55555b}.small{font:500 15px -apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;fill:#6e6e73}
+      .label{font:700 14px -apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;letter-spacing:.06em;fill:#6e6e73}.ok{font:700 15px -apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;fill:#237a3b}.gap{font:700 15px -apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;fill:#a64b12}
+      .line{stroke:#5f6368;stroke-width:3;fill:none;marker-end:url(#arrow)}.dash{stroke:#c75a17;stroke-width:3;stroke-dasharray:11 9;fill:none;marker-end:url(#gapArrow)}
+    </style>
+  </defs>
+  <rect class="bg" width="1600" height="720"/>
+  <text x="70" y="62" class="title">Как связаны план, календарь, заседания, задачи и отчётность</text>
+  <text x="70" y="91" class="text">Сплошная линия — связь реализована в доменной модели. Пунктир — прямой автоматический переход пока отсутствует.</text>
+
+  <rect x="70" y="150" width="255" height="125" class="card card-accent"/>
+  <text x="95" y="184" class="label">ИСТОЧНИК</text><text x="95" y="220" class="title">Годовой план DOCX</text><text x="95" y="250" class="small">Оригинал сохраняется</text>
+  <rect x="390" y="150" width="270" height="125" class="card card-accent"/>
+  <text x="415" y="184" class="label">ПРЕДМЕТНЫЕ ДАННЫЕ</text><text x="415" y="220" class="title">План + пункты</text><text x="415" y="250" class="small">Срок, ответственный, evidence</text>
+  <path d="M325 212 H390" class="line"/>
+
+  <rect x="735" y="130" width="250" height="115" class="card"/>
+  <text x="760" y="165" class="label">ПРОЕКЦИЯ</text><text x="760" y="201" class="title">Календарь</text><text x="760" y="229" class="small">Срок + источник</text>
+  <path d="M660 185 C695 185 705 187 735 187" class="line"/>
+
+  <rect x="735" y="280" width="250" height="125" class="card"/>
+  <text x="760" y="315" class="label">ЗАСЕДАНИЕ</text><text x="760" y="351" class="title">Повестка</text><text x="760" y="379" class="small">Вопрос из пункта плана</text>
+  <path d="M660 235 C690 260 700 332 735 342" class="line"/>
+  <rect x="1055" y="280" width="280" height="125" class="card"/>
+  <text x="1080" y="315" class="label">РЕЗУЛЬТАТ</text><text x="1080" y="351" class="title">Протокол / выписка</text><text x="1080" y="379" class="small">Обратная ссылка в плане</text>
+  <path d="M985 342 H1055" class="line"/>
+  <path d="M1190 405 C1190 455 555 465 555 275" class="line"/>
+  <text x="805" y="424" class="ok">✓ рассмотрение возвращается в карточку пункта плана</text>
+
+  <rect x="390" y="520" width="270" height="125" class="card card-gap"/>
+  <text x="415" y="555" class="label">ИСПОЛНЕНИЕ</text><text x="415" y="591" class="title">Поручение /</text><text x="415" y="620" class="title">периодическая задача</text>
+  <path d="M525 275 V520" class="dash"/>
+  <text x="545" y="455" class="gap">нет прямого автоматического моста</text>
+  <text x="545" y="480" class="small">календарная задача из плана ≠ формальное поручение с отчётом</text>
+
+  <rect x="735" y="520" width="210" height="125" class="card card-report"/>
+  <text x="760" y="555" class="label">ФАКТ</text><text x="760" y="591" class="title">Отчёт</text><text x="760" y="620" class="small">Файл + показатели</text>
+  <path d="M660 582 H735" class="line"/>
+  <rect x="1010" y="520" width="245" height="125" class="card card-report"/>
+  <text x="1035" y="555" class="label">КОНТРОЛЬ</text><text x="1035" y="591" class="title">Подтверждение</text><text x="1035" y="620" class="small">Руководителем</text>
+  <path d="M945 582 H1010" class="line"/>
+  <rect x="1320" y="520" width="220" height="125" class="card card-report"/>
+  <text x="1345" y="555" class="label">СВОДКА</text><text x="1345" y="591" class="title">План / факт</text><text x="1345" y="620" class="small">Кафедра · CSV / JSON</text>
+  <path d="M1255 582 H1320" class="line"/>
+
+  <text x="70" y="690" class="small">Текущий статус rc.5: оба контура работают, но годовой план и формальная отчётность ещё не замкнуты одной гарантированной связью.</text>
+</svg>
