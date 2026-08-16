@@ -175,6 +175,24 @@ sudo ./install-kafedra-planner.sh
 
 Системный package layer не трогается при каждом update: если full preflight и OCR doctor уже зелёные, APT шаг полностью пропускается.
 
+## Конфигурация установки
+
+Штатный package deployment намеренно использует один предсказуемый контур хранения:
+
+```text
+приложение: /opt/kafedra-planner/current
+данные:     /var/lib/kafedra-planner
+SQLite:     /var/lib/kafedra-planner/kafedra-planner.sqlite3
+backup:     /var/backups/kafedra-planner
+config:     /etc/kafedra-planner/kafedra-planner.env
+```
+
+`kafedra-planner.env` — **файл данных, а не shell-скрипт**. Installer не выполняет его через `source` или `eval`; конструкции `$()`, backticks, `;` и `#` внутри значения остаются обычными символами. Поддерживается простой однострочный формат `KAFEDRA_NAME=value`, а всё значение можно целиком заключить в одинарные или двойные кавычки. Повторяющиеся переменные, чужие имена без префикса `KAFEDRA_`, незакрытые кавычки и многострочные значения считаются ошибкой конфигурации.
+
+Параметры SMTP, Telegram, уведомлений, OCR и другие прикладные настройки можно менять в этом файле. Пять путей package deployment (`KAFEDRA_DATA_DIR`, `KAFEDRA_DATABASE_PATH`, `KAFEDRA_APPLICATION_DIR`, `KAFEDRA_CONFIG_PATH`, `KAFEDRA_BACKUP_DIR`) должны оставаться стандартными. Это сознательное ограничение: systemd hardening и автоматический rollback рассчитаны на эти каталоги. Если существующая установка содержит другие значения, updater **останавливается до остановки служб, backup, миграции и переключения `current`**, а не пытается угадать, какую БД считать рабочей.
+
+Такое поведение делает обновление повторяемым: одна и та же конфигурация используется для проверки, backup/migrate, запуска systemd и health-check, а конфликт путей превращается в явную административную ошибку вместо риска работы с другой базой.
+
 ## Диагностика после установки
 
 ```bash
