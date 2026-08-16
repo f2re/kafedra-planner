@@ -189,7 +189,9 @@ chown root:kafedra-planner "$CONFIG_FILE"; chmod 0640 "$CONFIG_FILE"
 source "$RELEASE_DIR/scripts/offline/environment-file.sh"
 load_environment() { kafedra_read_environment_file "$CONFIG_FILE"; }
 validate_managed_deployment_path() {
-  local name="$1" expected="$2" actual="${!name:-$2}"
+  local name="$1"
+  local expected="$2"
+  local actual="${!name:-$expected}"
   if [[ "$actual" != "$expected" ]]; then
     echo "Неподдерживаемый путь $name=$actual в $CONFIG_FILE" >&2
     echo "Штатный offline installer использует $name=$expected. Исправьте config до обновления; данные не изменены." >&2

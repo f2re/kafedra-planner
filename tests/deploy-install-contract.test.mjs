@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
 
 const script = await readFile(new URL('../deploy/install.sh', import.meta.url), 'utf8');
+const doctor = await readFile(new URL('../scripts/offline/doctor.sh', import.meta.url), 'utf8');
 
 test('installer identifies releases by version plus build identity and stages atomically', () => {
   assert.match(script, /RELEASE_ID=.*GIT_COMMIT/u);
@@ -28,4 +29,11 @@ test('installer treats operator config as data and validates deployment paths be
   const validateIndex = script.indexOf('validate_managed_deployment_paths');
   const stopIndex = script.indexOf('systemctl stop "$API_SERVICE" "$WORKER_SERVICE"');
   assert.ok(validateIndex >= 0 && stopIndex >= 0 && validateIndex < stopIndex, 'path validation must happen before services are stopped');
+});
+
+test('offline doctor treats operator config as data', () => {
+  assert.match(doctor, /environment-file\.sh/u);
+  assert.match(doctor, /kafedra_read_environment_file/u);
+  assert.doesNotMatch(doctor, /source\s+["']?\$CONFIG(?:\s|$)/u);
+  assert.doesNotMatch(doctor, /eval\s/u);
 });
