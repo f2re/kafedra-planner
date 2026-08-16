@@ -86,10 +86,15 @@ FIRST_LOGIN_SHA="$(docker exec "$CONTAINER" sha256sum /root/kafedra-planner-firs
 FIRST_RELEASE="$(docker exec "$CONTAINER" readlink -f /opt/kafedra-planner/current)"
 [[ -n "$FIRST_RELEASE" ]] || { echo "current release не определён" >&2; exit 5; }
 
+# Config — данные, а не shell. Даже при update значение с $() должно остаться
+# буквальным и не выполнить команду от root.
+docker exec "$CONTAINER" sed -i 's|^KAFEDRA_SMTP_PASSWORD=.*$|KAFEDRA_SMTP_PASSWORD=$(touch /tmp/kafedra-config-executed)|' /etc/kafedra-planner/kafedra-planner.env
+
 # Тот же комплект должен безопасно проходить как повторный update: без нового
 # администратора, без второго release-каталога, с pre-update backup.
 run_installer
 assert_deployed
+docker exec "$CONTAINER" test ! -e /tmp/kafedra-config-executed
 SECOND_LOGIN_SHA="$(docker exec "$CONTAINER" sha256sum /root/kafedra-planner-first-login.txt | awk '{print $1}')"
 [[ "$FIRST_LOGIN_SHA" == "$SECOND_LOGIN_SHA" ]] || { echo "Повторный install изменил first-login credential file" >&2; exit 6; }
 SECOND_RELEASE="$(docker exec "$CONTAINER" readlink -f /opt/kafedra-planner/current)"
@@ -97,5 +102,20 @@ SECOND_RELEASE="$(docker exec "$CONTAINER" readlink -f /opt/kafedra-planner/curr
 RELEASE_COUNT="$(docker exec "$CONTAINER" bash -lc "find /opt/kafedra-planner/releases -mindepth 1 -maxdepth 1 -type d ! -name '.*' | wc -l")"
 [[ "$RELEASE_COUNT" == 1 ]] || { echo "После повторной установки ожидается один release, получено: $RELEASE_COUNT" >&2; exit 6; }
 docker exec "$CONTAINER" bash -lc 'find /var/backups/kafedra-planner -type f -print -quit | grep -q .'
+
+# Package deployment имеет один стандартный контур данных. Если существующий
+# config указывает другую БД, update обязан остановиться до остановки служб и
+# переключения current вместо молчаливой миграции другой базы.
+docker exec "$CONTAINER" sed -i 's|^KAFEDRA_DATABASE_PATH=.*$|KAFEDRA_DATABASE_PATH=/tmp/wrong-kafedra.sqlite3|' /etc/kafedra-planner/kafedra-planner.env
+if run_installer; then
+  echo "Installer принял конфликтующий KAFEDRA_DATABASE_PATH" >&2
+  exit 7
+fi
+docker exec "$CONTAINER" systemctl is-active --quiet kafedra-planner-api.service
+docker exec "$CONTAINER" systemctl is-active --quiet kafedra-planner-worker.service
+[[ "$(docker exec "$CONTAINER" readlink -f /opt/kafedra-planner/current)" == "$SECOND_RELEASE" ]] || { echo "Неуспешная проверка config изменила current release" >&2; exit 7; }
+docker exec "$CONTAINER" test ! -e /tmp/wrong-kafedra.sqlite3
+docker exec "$CONTAINER" sed -i 's|^KAFEDRA_DATABASE_PATH=.*$|KAFEDRA_DATABASE_PATH=/var/lib/kafedra-planner/kafedra-planner.sqlite3|' /etc/kafedra-planner/kafedra-planner.env
+assert_deployed
 
 echo "Full systemd deployment selftest: OK ($ARCHIVE_NAME)"

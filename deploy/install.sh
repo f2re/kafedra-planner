@@ -96,6 +96,7 @@ KAFEDRA_BACKUP_KEEP=14
 KAFEDRA_BACKUP_MAX_AGE_HOURS=36
 KAFEDRA_BACKUP_REQUIRED=true
 KAFEDRA_BACKUP_INCLUDE_APPLICATION=true
+KAFEDRA_BACKUP_KEY_FILE=
 KAFEDRA_AUTO_BACKUP_BEFORE_MIGRATION=true
 KAFEDRA_AUTH_ENABLED=true
 KAFEDRA_AUTH_CSRF_ENABLED=true
@@ -140,6 +141,8 @@ ENV
   chown root:kafedra-planner "$CONFIG_FILE"; chmod 0640 "$CONFIG_FILE"
 fi
 ensure_env_setting() { local name="$1" value="$2"; grep -qE "^${name}=" "$CONFIG_FILE" || printf '%s=%s\n' "$name" "$value" >> "$CONFIG_FILE"; }
+ensure_env_setting KAFEDRA_DATA_DIR "$DATA_DIR"
+ensure_env_setting KAFEDRA_DATABASE_PATH "$DATA_DIR/kafedra-planner.sqlite3"
 ensure_env_setting KAFEDRA_APPLICATION_DIR "$APP_ROOT/current"
 ensure_env_setting KAFEDRA_CONFIG_PATH "$CONFIG_FILE"
 ensure_env_setting KAFEDRA_BACKUP_DIR "$BACKUP_DIR"
@@ -147,6 +150,7 @@ ensure_env_setting KAFEDRA_BACKUP_KEEP 14
 ensure_env_setting KAFEDRA_BACKUP_MAX_AGE_HOURS 36
 ensure_env_setting KAFEDRA_BACKUP_REQUIRED true
 ensure_env_setting KAFEDRA_BACKUP_INCLUDE_APPLICATION true
+ensure_env_setting KAFEDRA_BACKUP_KEY_FILE ''
 ensure_env_setting KAFEDRA_AUTO_BACKUP_BEFORE_MIGRATION true
 ensure_env_setting KAFEDRA_AUTH_ENABLED true
 ensure_env_setting KAFEDRA_AUTH_CSRF_ENABLED true
@@ -179,36 +183,62 @@ ensure_env_setting KAFEDRA_TELEGRAM_BOT_TOKEN ''
 ensure_env_setting KAFEDRA_TELEGRAM_API_BASE https://api.telegram.org
 ensure_env_setting KAFEDRA_TELEGRAM_TIMEOUT_MS 15000
 chown root:kafedra-planner "$CONFIG_FILE"; chmod 0640 "$CONFIG_FILE"
+
+[[ -f "$RELEASE_DIR/scripts/offline/environment-file.sh" ]] || { echo "В релизе отсутствует безопасный parser конфигурации" >&2; exit 5; }
+# shellcheck source=/dev/null
+source "$RELEASE_DIR/scripts/offline/environment-file.sh"
+load_environment() { kafedra_read_environment_file "$CONFIG_FILE"; }
+validate_managed_deployment_path() {
+  local name="$1" expected="$2" actual="${!name:-$2}"
+  if [[ "$actual" != "$expected" ]]; then
+    echo "Неподдерживаемый путь $name=$actual в $CONFIG_FILE" >&2
+    echo "Штатный offline installer использует $name=$expected. Исправьте config до обновления; данные не изменены." >&2
+    return 5
+  fi
+}
+validate_managed_deployment_paths() {
+  validate_managed_deployment_path KAFEDRA_DATA_DIR "$DATA_DIR"
+  validate_managed_deployment_path KAFEDRA_DATABASE_PATH "$DATA_DIR/kafedra-planner.sqlite3"
+  validate_managed_deployment_path KAFEDRA_APPLICATION_DIR "$APP_ROOT/current"
+  validate_managed_deployment_path KAFEDRA_CONFIG_PATH "$CONFIG_FILE"
+  validate_managed_deployment_path KAFEDRA_BACKUP_DIR "$BACKUP_DIR"
+  [[ "${KAFEDRA_PORT:-8080}" =~ ^[0-9]+$ ]] && ((KAFEDRA_PORT >= 1 && KAFEDRA_PORT <= 65535)) || { echo "Некорректный KAFEDRA_PORT=${KAFEDRA_PORT:-}: ожидается 1..65535" >&2; return 5; }
+}
+# Конфигурация проверяется до остановки служб, backup, миграции и изменения current.
+load_environment
+validate_managed_deployment_paths
+
 API_UNIT_EXISTED=false; WORKER_UNIT_EXISTED=false
 [[ -f "/etc/systemd/system/$API_SERVICE" ]] && API_UNIT_EXISTED=true
 [[ -f "/etc/systemd/system/$WORKER_SERVICE" ]] && WORKER_UNIT_EXISTED=true
 PREVIOUS_RELEASE=""; if [[ -L "$APP_ROOT/current" || -d "$APP_ROOT/current" ]]; then PREVIOUS_RELEASE="$(readlink -f "$APP_ROOT/current" 2>/dev/null || true)"; fi
 SERVICES_WERE_ACTIVE=false; if systemctl is-active --quiet "$API_SERVICE" || systemctl is-active --quiet "$WORKER_SERVICE"; then SERVICES_WERE_ACTIVE=true; fi
-BACKUP_ARCHIVE=""; DATABASE_EXISTED_BEFORE=false; [[ -f "$DATA_DIR/kafedra-planner.sqlite3" ]] && DATABASE_EXISTED_BEFORE=true; ROLLBACK_STARTED=false
-load_environment() { set -a; source "$CONFIG_FILE"; set +a; }
+MANAGED_DATABASE_PATH="${KAFEDRA_DATABASE_PATH:-$DATA_DIR/kafedra-planner.sqlite3}"
+MANAGED_BACKUP_DIR="${KAFEDRA_BACKUP_DIR:-$BACKUP_DIR}"
+BACKUP_ARCHIVE=""; DATABASE_EXISTED_BEFORE=false; [[ -f "$MANAGED_DATABASE_PATH" ]] && DATABASE_EXISTED_BEFORE=true; ROLLBACK_STARTED=false
 rollback_installation() {
   local status=$?; [[ "$ROLLBACK_STARTED" == false ]] || exit "$status"; ROLLBACK_STARTED=true; set +e
   echo "Обновление не завершено. Выполняется автоматический откат." >&2; systemctl stop "$API_SERVICE" "$WORKER_SERVICE" >/dev/null 2>&1
   if [[ -n "$BACKUP_ARCHIVE" && -f "$BACKUP_ARCHIVE" ]]; then load_environment; "$RELEASE_DIR/runtime/node/bin/node" "$RELEASE_DIR/scripts/backup-restore.mjs" "$BACKUP_ARCHIVE" --target-data-dir "$DATA_DIR" --target-config "$CONFIG_FILE" --apply --force >&2; chown -R kafedra-planner:kafedra-planner "$DATA_DIR"; chown root:kafedra-planner "$CONFIG_FILE"; chmod 0640 "$CONFIG_FILE"; fi
   if [[ -n "$PREVIOUS_RELEASE" && -d "$PREVIOUS_RELEASE" ]]; then ln -sfn "$PREVIOUS_RELEASE" "$APP_ROOT/current.rollback"; mv -Tf "$APP_ROOT/current.rollback" "$APP_ROOT/current"; install -m 0644 "$PREVIOUS_RELEASE/deploy/systemd/kafedra-planner-api.service" /etc/systemd/system/; install -m 0644 "$PREVIOUS_RELEASE/deploy/systemd/kafedra-planner-worker.service" /etc/systemd/system/; systemctl daemon-reload; [[ "$SERVICES_WERE_ACTIVE" != true ]] || systemctl start "$API_SERVICE" "$WORKER_SERVICE"
-  else rm -f "$APP_ROOT/current"; if [[ "$DATABASE_EXISTED_BEFORE" == false ]]; then rm -f "$DATA_DIR/kafedra-planner.sqlite3" "$DATA_DIR/kafedra-planner.sqlite3-wal" "$DATA_DIR/kafedra-planner.sqlite3-shm"; fi; [[ -z "${FIRST_LOGIN_FILE:-}" ]] || rm -f "$FIRST_LOGIN_FILE"; systemctl disable "$API_SERVICE" "$WORKER_SERVICE" >/dev/null 2>&1 || true; [[ "$API_UNIT_EXISTED" == true ]] || rm -f "/etc/systemd/system/$API_SERVICE"; [[ "$WORKER_UNIT_EXISTED" == true ]] || rm -f "/etc/systemd/system/$WORKER_SERVICE"; systemctl daemon-reload >/dev/null 2>&1 || true; fi
+  else rm -f "$APP_ROOT/current"; if [[ "$DATABASE_EXISTED_BEFORE" == false ]]; then rm -f "$MANAGED_DATABASE_PATH" "$MANAGED_DATABASE_PATH-wal" "$MANAGED_DATABASE_PATH-shm"; fi; [[ -z "${FIRST_LOGIN_FILE:-}" ]] || rm -f "$FIRST_LOGIN_FILE"; systemctl disable "$API_SERVICE" "$WORKER_SERVICE" >/dev/null 2>&1 || true; [[ "$API_UNIT_EXISTED" == true ]] || rm -f "/etc/systemd/system/$API_SERVICE"; [[ "$WORKER_UNIT_EXISTED" == true ]] || rm -f "/etc/systemd/system/$WORKER_SERVICE"; systemctl daemon-reload >/dev/null 2>&1 || true; fi
   echo "Автоматический откат завершён. Неуспешная версия оставлена в $RELEASE_DIR для диагностики." >&2; exit "$status"
 }
 trap rollback_installation ERR
 systemctl stop "$API_SERVICE" "$WORKER_SERVICE" >/dev/null 2>&1 || true
 load_environment
-if [[ -f "$DATA_DIR/kafedra-planner.sqlite3" ]]; then
-  BACKUP_JSON="$(env KAFEDRA_DATA_DIR="$DATA_DIR" KAFEDRA_DATABASE_PATH="$DATA_DIR/kafedra-planner.sqlite3" KAFEDRA_APPLICATION_DIR="${PREVIOUS_RELEASE:-$RELEASE_DIR}" KAFEDRA_CONFIG_PATH="$CONFIG_FILE" KAFEDRA_BACKUP_DIR="$BACKUP_DIR" KAFEDRA_BACKUP_KEY_FILE="${KAFEDRA_BACKUP_KEY_FILE:-}" "$RELEASE_DIR/runtime/node/bin/node" "$RELEASE_DIR/scripts/backup-create.mjs" --reason pre-update)"
+if [[ -f "$MANAGED_DATABASE_PATH" ]]; then
+  BACKUP_JSON="$(env KAFEDRA_DATA_DIR="$KAFEDRA_DATA_DIR" KAFEDRA_DATABASE_PATH="$MANAGED_DATABASE_PATH" KAFEDRA_APPLICATION_DIR="${PREVIOUS_RELEASE:-$RELEASE_DIR}" KAFEDRA_CONFIG_PATH="$KAFEDRA_CONFIG_PATH" KAFEDRA_BACKUP_DIR="$MANAGED_BACKUP_DIR" KAFEDRA_BACKUP_KEY_FILE="${KAFEDRA_BACKUP_KEY_FILE:-}" "$RELEASE_DIR/runtime/node/bin/node" "$RELEASE_DIR/scripts/backup-create.mjs" --reason pre-update)"
   BACKUP_ARCHIVE="$(printf '%s' "$BACKUP_JSON" | "$RELEASE_DIR/runtime/node/bin/node" -e "let s='';process.stdin.on('data',c=>s+=c).on('end',()=>process.stdout.write(JSON.parse(s).archivePath||''));")"
   [[ -n "$BACKUP_ARCHIVE" && -f "$BACKUP_ARCHIVE" ]] || { echo "Не удалось определить созданную резервную копию" >&2; exit 6; }
-  chown -R kafedra-planner:kafedra-planner "$BACKUP_DIR"; chmod 0700 "$BACKUP_DIR"; echo "Создана и проверена резервная копия: $BACKUP_ARCHIVE"
+  chown -R kafedra-planner:kafedra-planner "$MANAGED_BACKUP_DIR"; chmod 0700 "$MANAGED_BACKUP_DIR"; echo "Создана и проверена резервная копия: $BACKUP_ARCHIVE"
 fi
 ln -sfn "$RELEASE_DIR" "$APP_ROOT/current.new"; mv -Tf "$APP_ROOT/current.new" "$APP_ROOT/current"
 install -m 0644 "$RELEASE_DIR/deploy/systemd/kafedra-planner-api.service" /etc/systemd/system/
 install -m 0644 "$RELEASE_DIR/deploy/systemd/kafedra-planner-worker.service" /etc/systemd/system/
 systemctl daemon-reload
-runuser -u kafedra-planner -- env KAFEDRA_DATA_DIR="$DATA_DIR" KAFEDRA_DATABASE_PATH="$DATA_DIR/kafedra-planner.sqlite3" KAFEDRA_APPLICATION_DIR="$RELEASE_DIR" KAFEDRA_CONFIG_PATH="$CONFIG_FILE" KAFEDRA_BACKUP_DIR="$BACKUP_DIR" KAFEDRA_SKIP_AUTO_BACKUP=true "$RELEASE_DIR/runtime/node/bin/node" "$RELEASE_DIR/scripts/migrate.mjs"
-INITIAL_ADMIN_JSON="$(runuser -u kafedra-planner -- env KAFEDRA_DATA_DIR="$DATA_DIR" KAFEDRA_DATABASE_PATH="$DATA_DIR/kafedra-planner.sqlite3" KAFEDRA_APPLICATION_DIR="$RELEASE_DIR" KAFEDRA_CONFIG_PATH="$CONFIG_FILE" "$RELEASE_DIR/runtime/node/bin/node" "$RELEASE_DIR/scripts/ensure-initial-admin.mjs")"
+runuser -u kafedra-planner -- env KAFEDRA_DATA_DIR="$KAFEDRA_DATA_DIR" KAFEDRA_DATABASE_PATH="$MANAGED_DATABASE_PATH" KAFEDRA_APPLICATION_DIR="$RELEASE_DIR" KAFEDRA_CONFIG_PATH="$KAFEDRA_CONFIG_PATH" KAFEDRA_BACKUP_DIR="$MANAGED_BACKUP_DIR" KAFEDRA_SKIP_AUTO_BACKUP=true "$RELEASE_DIR/runtime/node/bin/node" "$RELEASE_DIR/scripts/migrate.mjs"
+INITIAL_ADMIN_JSON="$(runuser -u kafedra-planner -- env KAFEDRA_DATA_DIR="$KAFEDRA_DATA_DIR" KAFEDRA_DATABASE_PATH="$MANAGED_DATABASE_PATH" KAFEDRA_APPLICATION_DIR="$RELEASE_DIR" KAFEDRA_CONFIG_PATH="$KAFEDRA_CONFIG_PATH" "$RELEASE_DIR/runtime/node/bin/node" "$RELEASE_DIR/scripts/ensure-initial-admin.mjs")"
 INITIAL_ADMIN_CREATED="$(printf '%s' "$INITIAL_ADMIN_JSON" | "$RELEASE_DIR/runtime/node/bin/node" -e "let s='';process.stdin.on('data',c=>s+=c).on('end',()=>process.stdout.write(JSON.parse(s).created?'yes':'no'));" )"
 FIRST_LOGIN_FILE=""
 if [[ "$INITIAL_ADMIN_CREATED" == yes ]]; then

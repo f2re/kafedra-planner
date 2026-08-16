@@ -18,3 +18,14 @@ test('installer retries an existing release and verifies both services without c
   assert.match(script, /require\("node:http"\)/u);
   assert.doesNotMatch(script, /\bcurl\b/u);
 });
+
+test('installer treats operator config as data and validates deployment paths before service stop', () => {
+  assert.match(script, /environment-file\.sh/u);
+  assert.match(script, /kafedra_read_environment_file/u);
+  assert.doesNotMatch(script, /source\s+["']?\$CONFIG_FILE/u);
+  assert.doesNotMatch(script, /eval\s/u);
+  assert.match(script, /validate_managed_deployment_paths/u);
+  const validateIndex = script.indexOf('validate_managed_deployment_paths');
+  const stopIndex = script.indexOf('systemctl stop "$API_SERVICE" "$WORKER_SERVICE"');
+  assert.ok(validateIndex >= 0 && stopIndex >= 0 && validateIndex < stopIndex, 'path validation must happen before services are stopped');
+});
