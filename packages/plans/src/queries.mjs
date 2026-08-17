@@ -1,13 +1,50 @@
 import { parseJson } from './shared.mjs';
 
+function supportingRows(database, workspaceId, targetKind, targetId) {
+  return database.all(`
+    SELECT sd.id, sd.document_number, sd.document_date, sd.title, sd.note,
+      sd.document_version_id, sd.status, l.id AS link_id, l.relation_kind, l.note AS link_note,
+      dv.document_id, d.title AS document_title, dv.original_name
+    FROM supporting_document_links l
+    JOIN supporting_documents sd ON sd.id = l.supporting_document_id
+    LEFT JOIN document_versions dv ON dv.id = sd.document_version_id
+    LEFT JOIN documents d ON d.id = dv.document_id
+    WHERE l.workspace_id = ? AND l.target_kind = ? AND l.target_id = ? AND sd.status = 'active'
+    ORDER BY sd.document_date DESC, sd.document_number, l.created_at DESC
+  `, workspaceId, targetKind, targetId);
+}
+
+function assignmentForItem(database, itemId) {
+  const row = database.get(`
+    SELECT a.*, pia.execution_mode AS plan_execution_mode,
+      pia.claimed_by_person_id, pia.created_at AS linked_at
+    FROM plan_item_assignments pia
+    JOIN assignments a ON a.id = pia.assignment_id
+    WHERE pia.plan_item_id = ?
+  `, itemId);
+  if (!row) return null;
+  return {
+    ...row,
+    evidence: parseJson(row.evidence_json, {}),
+    executors: database.all(`
+      SELECT ae.*, p.display_name, p.manager_id
+      FROM assignment_executors ae
+      LEFT JOIN people p ON p.id = ae.person_id
+      WHERE ae.assignment_id = ?
+      ORDER BY CASE ae.role WHEN 'executor' THEN 1 WHEN 'coexecutor' THEN 2 WHEN 'controller' THEN 3 ELSE 4 END,
+        ae.executor_raw
+    `, row.id)
+  };
+}
+
 function planRow(database, workspaceId, planId) {
   const row = database.get(`
     SELECT p.*, owner.display_name AS owner_name,
       dv.document_id AS source_document_id, d.title AS source_document_title,
       dv.original_name AS source_original_name
     FROM plans p
-    JOIN document_versions dv ON dv.id = p.source_document_version_id
-    JOIN documents d ON d.id = dv.document_id
+    LEFT JOIN document_versions dv ON dv.id = p.source_document_version_id
+    LEFT JOIN documents d ON d.id = dv.document_id
     LEFT JOIN people owner ON owner.id = p.owner_person_id
     WHERE p.workspace_id = ? AND p.id = ?
   `, workspaceId, planId);
@@ -15,7 +52,7 @@ function planRow(database, workspaceId, planId) {
   return { ...row, evidence: parseJson(row.evidence_json, {}) };
 }
 
-function itemRows(database, planId) {
+function itemRows(database, workspaceId, planId) {
   return database.all(`
     SELECT pi.*, person.display_name AS responsible_name
     FROM plan_items pi
@@ -29,14 +66,16 @@ function itemRows(database, planId) {
       SELECT * FROM calendar_items
       WHERE source_kind = 'plan_item' AND source_id = ?
       ORDER BY starts_at, item_kind
-    `, row.id)
+    `, row.id),
+    assignment: assignmentForItem(database, row.id),
+    supporting_documents: supportingRows(database, workspaceId, 'plan_item', row.id)
   }));
 }
 
 export function getPlan(database, workspaceId, planId) {
   const plan = planRow(database, workspaceId, planId);
   if (!plan) return null;
-  return { ...plan, items: itemRows(database, planId) };
+  return { ...plan, items: itemRows(database, workspaceId, planId) };
 }
 
 export function planDocumentId(database, workspaceId, planId) {
@@ -66,7 +105,16 @@ export function planItemAudience(database, workspaceId, planItemId) {
     WHERE pi.id = ?
   `, workspaceId, planItemId);
   if (!row) return [];
-  return [...new Set([row.responsible_person_id, row.owner_person_id, row.manager_id].filter(Boolean))];
+  const assignmentPeople = database.all(`
+    SELECT ae.person_id, person.manager_id
+    FROM plan_item_assignments pia
+    JOIN assignment_executors ae ON ae.assignment_id = pia.assignment_id
+    LEFT JOIN people person ON person.id = ae.person_id
+    WHERE pia.plan_item_id = ? AND ae.person_id IS NOT NULL
+  `, planItemId).flatMap((item) => [item.person_id, item.manager_id]);
+  return [...new Set([
+    row.responsible_person_id, row.owner_person_id, row.manager_id, ...assignmentPeople
+  ].filter(Boolean))];
 }
 
 function listWhere(filters, params) {
@@ -116,8 +164,8 @@ export function listPlans(database, workspaceId, filters = {}) {
       MAX(COALESCE(pi.due_date, pi.ends_at, pi.starts_at)) AS last_date,
       GROUP_CONCAT(DISTINCT pi.direction) AS directions
     FROM plans p
-    JOIN document_versions dv ON dv.id = p.source_document_version_id
-    JOIN documents d ON d.id = dv.document_id
+    LEFT JOIN document_versions dv ON dv.id = p.source_document_version_id
+    LEFT JOIN documents d ON d.id = dv.document_id
     LEFT JOIN people owner ON owner.id = p.owner_person_id
     LEFT JOIN plan_items pi ON pi.plan_id = p.id
     WHERE ${clauses.join(' AND ')}

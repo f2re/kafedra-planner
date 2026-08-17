@@ -1,5 +1,6 @@
 import { AppError } from '../../../packages/core/src/errors.mjs';
 import { canReadSearchResult } from '../../../packages/access-control/src/service.mjs';
+import { resolvePlanAccess, resolvePlanItemAccess } from '../../../packages/plans/src/access.mjs';
 import { buildSearchFacets, searchFaceted } from '../../../packages/storage/src/faceted-search.mjs';
 import { sendJson } from './http-utils.mjs';
 
@@ -34,6 +35,16 @@ function filters(url) {
   };
 }
 
+function canReadResult(database, workspace, context, item) {
+  if (item.source_kind === 'plan') {
+    return resolvePlanAccess(database, workspace, context, item.source_id, 'read').allowed;
+  }
+  if (item.source_kind === 'plan_item') {
+    return resolvePlanItemAccess(database, workspace, context, item.source_id, 'read').allowed;
+  }
+  return canReadSearchResult(database, workspace, context, item);
+}
+
 export function createSearchRouter({ database }) {
   return async function routeSearch(request, response, url) {
     if ((request.method || 'GET') !== 'GET' || url.pathname !== '/api/search') return false;
@@ -43,7 +54,7 @@ export function createSearchRouter({ database }) {
     const payload = searchFaceted(database, workspace, filters(url), Math.min(3000, limit * 12));
     const context = request.auth || { enabled: false };
     const accessible = context.enabled
-      ? payload.items.filter((item) => canReadSearchResult(database, workspace, context, item))
+      ? payload.items.filter((item) => canReadResult(database, workspace, context, item))
       : payload.items;
     const items = accessible.slice(0, limit);
     return sendJson(response, 200, {
