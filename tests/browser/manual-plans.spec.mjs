@@ -71,7 +71,7 @@ test.beforeEach(async ({ page }, testInfo) => {
 
 test('Планы: ручной план → календарь → поручение → документ → DOCX', async ({ page }, testInfo) => {
   const dir = await mkdtemp(join(tmpdir(), `kafedra-manual-plan-ui-${testInfo.project.name}-`));
-  const sourcePath = join(dir, 'Образец плана.docx');
+  const sourcePath = join(dir, `План кафедры образец ${testInfo.project.name}.docx`);
   try {
     await createPlanDocx(sourcePath);
     const executor = await createPerson(page, `Исполнитель ${testInfo.project.name}`);
