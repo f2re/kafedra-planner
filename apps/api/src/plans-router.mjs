@@ -1,17 +1,12 @@
 import { AppError } from '../../../packages/core/src/errors.mjs';
-import {
-  getPlan, listPlans, planDocumentId, planItemAudience, planItemDocumentId
-} from '../../../packages/plans/src/service.mjs';
+import { getPlan, listPlans, planItemAudience } from '../../../packages/plans/src/service.mjs';
+import { assertPlanItemAccess, resolvePlanAccess, resolvePlanItemAccess } from '../../../packages/plans/src/access.mjs';
 import {
   analyzePlanTemplate, createPlanTemplate, generatePlanDocument,
   getPlanDocumentTemplate, listPlanDocumentTemplates, listPlanGenerationRuns
 } from '../../../packages/plan-docx/src/service.mjs';
-import {
-  getCalendarItem, listCalendarItems, listNotifications, listTasks
-} from '../../../packages/calendar/src/service.mjs';
-import {
-  assertObjectAccess, canReadCalendarItem, resolveObjectAccess
-} from '../../../packages/access-control/src/service.mjs';
+import { getCalendarItem, listCalendarItems, listNotifications, listTasks } from '../../../packages/calendar/src/service.mjs';
+import { assertObjectAccess, canReadCalendarItem, resolveObjectAccess } from '../../../packages/access-control/src/service.mjs';
 import { assertPersonScope } from '../../../packages/auth/src/policy.mjs';
 import { readJson, sendJson } from './http-utils.mjs';
 
@@ -58,27 +53,12 @@ function planFilters(url, limit) {
 }
 
 function canReadPlan(database, workspaceId, context, plan) {
-  const documentId = plan.source_document_id || planDocumentId(database, workspaceId, plan.id);
-  return Boolean(documentId && resolveObjectAccess(database, workspaceId, context, 'document', documentId).allowed);
-}
-
-function planCalendarDocumentId(database, workspaceId, item) {
-  if (!item || item.source_kind !== 'plan_item') return null;
-  return item.origin_document_id || planItemDocumentId(database, workspaceId, item.source_id);
+  return resolvePlanAccess(database, workspaceId, context, plan.id, 'read').allowed;
 }
 
 function canReadCalendar(database, workspaceId, context, item) {
   if (item.source_kind !== 'plan_item') return canReadCalendarItem(database, workspaceId, context, item);
-  const documentId = planCalendarDocumentId(database, workspaceId, item);
-  return Boolean(documentId && resolveObjectAccess(database, workspaceId, context, 'document', documentId).allowed);
-}
-
-function assertPlanCalendar(database, workspaceId, context, item, action) {
-  if (!item || item.source_kind !== 'plan_item') return false;
-  const documentId = planCalendarDocumentId(database, workspaceId, item);
-  if (!documentId) throw new AppError('plan_source_not_found', 'Исходный документ плана не найден.', 404);
-  assertObjectAccess(database, workspaceId, context, 'document', documentId, action);
-  return true;
+  return resolvePlanItemAccess(database, workspaceId, context, item.source_id, 'read').allowed;
 }
 
 function facetValues(items, field) {
@@ -166,7 +146,9 @@ export function createPlansRouter({ database, config }) {
       assertObjectAccess(database, workspace.id, context, 'document', body.documentId, 'read');
       try {
         return sendJson(response, 200, await analyzePlanTemplate(database, workspace.id, body.documentId, body));
-      } catch (cause) { throw planTemplateError(cause); }
+      } catch (cause) {
+        throw planTemplateError(cause);
+      }
     }
 
     if (method === 'GET' && path === '/api/plan-templates') {
@@ -186,7 +168,9 @@ export function createPlansRouter({ database, config }) {
       try {
         const item = await createPlanTemplate(database, workspace.id, body, context?.personId || null);
         return sendJson(response, 201, item);
-      } catch (cause) { throw planTemplateError(cause); }
+      } catch (cause) {
+        throw planTemplateError(cause);
+      }
     }
 
     const generationMatch = path.match(/^\/api\/plan-templates\/([^/]+)\/generate$/);
@@ -196,7 +180,8 @@ export function createPlansRouter({ database, config }) {
       if (!template) throw new AppError('plan_template_not_found', 'Шаблон плана не найден.', 404);
       assertObjectAccess(database, workspace.id, context, 'document', template.source_document_id, 'edit');
       const body = await readJson(request);
-      const headerKey = typeof request.headers['idempotency-key'] === 'string' ? request.headers['idempotency-key'].trim() : '';
+      const headerKey = typeof request.headers['idempotency-key'] === 'string'
+        ? request.headers['idempotency-key'].trim() : '';
       if (!body.idempotencyKey && headerKey) body.idempotencyKey = headerKey;
       try {
         const result = await generatePlanDocument(
@@ -205,7 +190,9 @@ export function createPlansRouter({ database, config }) {
         return sendJson(response, result.duplicateRequest ? 200 : 202, result, {
           location: result.generated_document_id ? `/api/documents/${result.generated_document_id}` : undefined
         });
-      } catch (cause) { throw planTemplateError(cause); }
+      } catch (cause) {
+        throw planTemplateError(cause);
+      }
     }
 
     const generationsMatch = path.match(/^\/api\/plan-templates\/([^/]+)\/generations$/);
@@ -215,7 +202,9 @@ export function createPlansRouter({ database, config }) {
       if (!template) throw new AppError('plan_template_not_found', 'Шаблон плана не найден.', 404);
       assertObjectAccess(database, workspace.id, context, 'document', template.source_document_id, 'read');
       return sendJson(response, 200, {
-        items: listPlanGenerationRuns(database, workspace.id, templateId, integerParam(url.searchParams.get('limit'), 50, 200))
+        items: listPlanGenerationRuns(
+          database, workspace.id, templateId, integerParam(url.searchParams.get('limit'), 50, 200)
+        )
       });
     }
 
@@ -245,9 +234,9 @@ export function createPlansRouter({ database, config }) {
     const planMatch = path.match(/^\/api\/plans\/([^/]+)$/);
     if (method === 'GET' && planMatch) {
       const planId = decodeURIComponent(planMatch[1]);
-      const documentId = planDocumentId(database, workspace.id, planId);
-      if (!documentId) throw new AppError('plan_not_found', 'План не найден.', 404);
-      assertObjectAccess(database, workspace.id, context, 'document', documentId, 'read');
+      const access = resolvePlanAccess(database, workspace.id, context, planId, 'read');
+      if (access.notFound) throw new AppError('plan_not_found', 'План не найден.', 404);
+      if (!access.allowed) throw new AppError('plan_access_forbidden', 'Нет доступа к этому плану.', 403);
       const plan = getPlan(database, workspace.id, planId);
       if (!plan) throw new AppError('plan_not_found', 'План не найден.', 404);
       return sendJson(response, 200, plan);
@@ -269,7 +258,7 @@ export function createPlansRouter({ database, config }) {
     const calendarUndoMatch = path.match(/^\/api\/calendar\/([^/]+)\/undo$/);
     if (method === 'POST' && calendarUndoMatch) {
       const item = getCalendarItem(database, workspace.id, decodeURIComponent(calendarUndoMatch[1]));
-      if (item?.source_kind === 'plan_item') assertPlanCalendar(database, workspace.id, context, item, 'edit');
+      if (item?.source_kind === 'plan_item') assertPlanItemAccess(database, workspace.id, context, item.source_id, 'edit');
       return false;
     }
 
@@ -277,7 +266,7 @@ export function createPlansRouter({ database, config }) {
     if (['GET', 'PATCH'].includes(method) && calendarMatch) {
       const item = getCalendarItem(database, workspace.id, decodeURIComponent(calendarMatch[1]));
       if (item?.source_kind === 'plan_item') {
-        assertPlanCalendar(database, workspace.id, context, item, method === 'GET' ? 'read' : 'edit');
+        assertPlanItemAccess(database, workspace.id, context, item.source_id, method === 'GET' ? 'read' : 'edit');
         if (method === 'GET') return sendJson(response, 200, item);
       }
       return false;

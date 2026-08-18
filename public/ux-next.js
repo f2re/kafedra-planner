@@ -35,8 +35,12 @@ window.fetch = function headerSafeFetch(input, init = {}) {
 
 await import('./notification-delivery.js');
 await import('./plans-next.js');
+await import('./manual-plans-next.js');
+await import('./manual-plans-bootstrap.js');
 await import('./meetings-next.js');
 await import('./search-next.js');
 await import('./view-bridge.js');
 await import('./ux-base.js');
+await import('./standalone-assignment-next.js');
+await import('./supporting-documents-next.js');
 await import('./ui-preferences.js');

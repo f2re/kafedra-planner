@@ -20,7 +20,8 @@ const STABLE_TABLES = [
   'report_fact_extractions', 'assignment_plan_metrics', 'assignment_outcomes', 'assignment_metric_observations',
   'person_notification_states', 'plan_fact_metric_corrections', 'plan_fact_saved_views',
   'auth_accounts', 'object_access_policies', 'object_acl_entries',
-  'plans', 'plan_items', 'plan_document_templates', 'plan_generation_runs',
+  'plans', 'plan_items', 'plan_item_assignments', 'plan_document_templates', 'plan_generation_runs',
+  'supporting_documents', 'supporting_document_links',
   'notification_delivery_profiles'
 ];
 

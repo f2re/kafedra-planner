@@ -34,6 +34,12 @@ function rowLocator(row) {
   };
 }
 
+function repeatedHeaderTitle(title, cells) {
+  if (!classifyHeader(title)) return false;
+  const companions = cells.filter(Boolean);
+  return companions.length === 0 || companions.every((cell) => Boolean(classifyHeader(cell.text)));
+}
+
 function itemFromRow(row, mapping, period) {
   const numberCell = cellAt(row, mapping, 'number');
   const titleCell = cellAt(row, mapping, 'title');
@@ -45,7 +51,7 @@ function itemFromRow(row, mapping, period) {
   const resultCell = cellAt(row, mapping, 'result');
   const statusCell = cellAt(row, mapping, 'status');
   const title = clean(titleCell?.text);
-  if (!title || classifyHeader(title) || /^(?:итого|всего)$/iu.test(title)) return null;
+  if (!title || repeatedHeaderTitle(title, [dateCell, deadlineCell, responsibleCell, resultCell]) || /^(?:итого|всего)$/iu.test(title)) return null;
 
   const dateWindow = parsePlanDateWindow(dateCell?.text, period);
   const deadlineWindow = parsePlanDateWindow(deadlineCell?.text, period);

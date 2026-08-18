@@ -47,4 +47,80 @@ test('отчёт сопоставляется, руководитель подт
   await page.locator('button[data-view="science"]:visible').first().click();
   await expect(page.locator('#science-results')).toContainText('Локальные методы прогноза осадков');
   await expect(page.locator('#science-results')).toContainText('10.1234/kafedra.2026.71');
+
+  const scienceCard = page.locator('[data-science-id]', { hasText: 'Локальные методы прогноза осадков' }).first();
+  const scienceId = await scienceCard.getAttribute('data-science-id');
+  expect(scienceId).toBeTruthy();
+  await scienceCard.click();
+  const publicationSupport = page.locator('#ux-inspector [data-supporting-open][data-target-kind="scientific_item"]');
+  await expect(publicationSupport).toBeVisible({ timeout: 15_000 });
+
+  let failSupportOnce = true;
+  await page.route('**/api/supporting-documents', async (route) => {
+    if (route.request().method() === 'POST' && failSupportOnce) {
+      failSupportOnce = false;
+      await route.fulfill({
+        status: 503,
+        contentType: 'application/json',
+        body: JSON.stringify({ error: { message: 'Временная ошибка сохранения связи.' } })
+      });
+      return;
+    }
+    await route.continue();
+  });
+
+  await publicationSupport.click();
+  const supportForm = page.locator('[data-supporting-form]');
+  await expect(supportForm).toBeVisible();
+  await supportForm.locator('[name="documentNumber"]').fill('PUB-2026-71');
+  await supportForm.locator('[name="documentDate"]').fill('2026-08-20');
+  await supportForm.locator('[name="title"]').fill('Подтверждение публикации');
+  const evidenceName = 'publication-proof-71.pdf';
+  await supportForm.locator('[name="file"]').setInputFiles({
+    name: evidenceName,
+    mimeType: 'application/pdf',
+    buffer: Buffer.from('%PDF-1.4\n1 0 obj<</Type/Catalog>>endobj\n%%EOF', 'utf8')
+  });
+  await supportForm.locator('button[type="submit"]').click();
+  await expect(supportForm.locator('[data-supporting-form-error]')).toContainText('Временная ошибка', { timeout: 15_000 });
+  await expect(supportForm.locator('[name="documentNumber"]')).toHaveValue('PUB-2026-71');
+  await expect(supportForm.locator('[data-supporting-upload-state]')).toContainText('Файл уже сохранён');
+
+  const afterFailedLink = await (await page.request.get('/api/documents?limit=500')).json();
+  expect((afterFailedLink.items || []).filter((item) => item.original_name === evidenceName)).toHaveLength(1);
+
+  const supportResponse = page.waitForResponse(
+    (response) => response.url().endsWith('/api/supporting-documents') && response.request().method() === 'POST'
+  );
+  await supportForm.locator('button[type="submit"]').click();
+  expect((await supportResponse).ok()).toBeTruthy();
+  await expect(page.locator('#manual-plan-modal')).toContainText('PUB-2026-71', { timeout: 15_000 });
+  await expect(page.locator('#manual-plan-modal')).toContainText('Публикация');
+  const afterRetry = await (await page.request.get('/api/documents?limit=500')).json();
+  expect((afterRetry.items || []).filter((item) => item.original_name === evidenceName)).toHaveLength(1);
+
+  const supportListResponse = await page.request.get(`/api/supporting-documents?targetKind=scientific_item&targetId=${encodeURIComponent(scienceId)}`);
+  expect(supportListResponse.ok()).toBeTruthy();
+  const supportList = await supportListResponse.json();
+  const publication = (supportList.items || []).find((item) => item.document_number === 'PUB-2026-71');
+  expect(publication?.document_id).toBeTruthy();
+  expect(publication?.links?.some((link) => link.relation_kind === 'publication')).toBeTruthy();
+
+  await page.locator('#manual-plan-modal > header [data-manual-close]').click();
+  const sourceDocument = page.locator('#ux-inspector [data-inspector-document]');
+  await expect(sourceDocument).toBeVisible();
+  await sourceDocument.click();
+  const documentSupport = page.locator('#document-native-preview [data-supporting-open][data-target-kind="document"]');
+  await expect(documentSupport).toBeVisible({ timeout: 15_000 });
+  await documentSupport.click();
+  const documentSupportForm = page.locator('[data-supporting-form]');
+  await documentSupportForm.locator('[name="documentNumber"]').fill('ВХ-2026-71');
+  await documentSupportForm.locator('[name="documentDate"]').fill('2026-08-21');
+  await documentSupportForm.locator('[name="title"]').fill('Регистрационная карточка');
+  const documentSupportResponse = page.waitForResponse(
+    (response) => response.url().endsWith('/api/supporting-documents') && response.request().method() === 'POST'
+  );
+  await documentSupportForm.locator('button[type="submit"]').click();
+  expect((await documentSupportResponse).ok()).toBeTruthy();
+  await expect(page.locator('#manual-plan-modal')).toContainText('ВХ-2026-71', { timeout: 15_000 });
 });
