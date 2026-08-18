@@ -121,7 +121,7 @@ test('Планы: ручной план → календарь → поруче�
     await planItemSupportForm.locator('[name="title"]').fill('Подтверждение выполнения');
     await planItemSupportForm.locator('button[type="submit"]').click();
     await expect(page.locator('#manual-plan-modal')).toContainText('12-03/26', { timeout: 15_000 });
-    await page.locator('#manual-plan-modal [data-manual-close]').click();
+    await page.locator('#manual-plan-modal > header [data-manual-close]').click();
     await expect(page.locator('#plan-detail')).toContainText('Документы · 1', { timeout: 15_000 });
 
     await navigationButton(page, 'work').click();
@@ -159,7 +159,7 @@ test('Планы: ручной план → календарь → поруче�
     await supportForm.locator('button[type="submit"]').click();
     expect((await supportResponse).ok()).toBeTruthy();
     await expect(page.locator('#manual-plan-modal')).toContainText('ИСП-2026-19', { timeout: 15_000 });
-    await page.locator('#manual-plan-modal [data-manual-close]').click();
+    await page.locator('#manual-plan-modal > header [data-manual-close]').click();
 
     const reportForm = page.locator('[data-standalone-report-form]');
     await reportForm.locator('[name="file"]').setInputFiles({
