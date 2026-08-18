@@ -93,6 +93,37 @@ CREATE TABLE plan_item_assignments (
 CREATE INDEX idx_plan_item_assignments_assignment ON plan_item_assignments(assignment_id);
 CREATE INDEX idx_plan_item_assignments_claim ON plan_item_assignments(claimed_by_person_id, execution_mode);
 
+CREATE TRIGGER trg_plan_assignment_status_update
+AFTER UPDATE OF status, completed_at ON assignments
+WHEN EXISTS (SELECT 1 FROM plan_item_assignments WHERE assignment_id = NEW.id)
+BEGIN
+  UPDATE plan_items
+  SET status = CASE NEW.status
+      WHEN 'completed' THEN 'completed'
+      WHEN 'cancelled' THEN 'cancelled'
+      ELSE 'planned'
+    END,
+    updated_at = NEW.updated_at
+  WHERE id = (SELECT plan_item_id FROM plan_item_assignments WHERE assignment_id = NEW.id);
+
+  UPDATE calendar_items
+  SET status = CASE
+      WHEN item_kind <> 'task' THEN status
+      WHEN NEW.status = 'completed' THEN 'completed'
+      WHEN NEW.status = 'cancelled' THEN 'cancelled'
+      ELSE 'open'
+    END,
+    completed_at = CASE
+      WHEN item_kind = 'task' AND NEW.status = 'completed' THEN COALESCE(NEW.completed_at, NEW.updated_at)
+      WHEN item_kind = 'task' THEN NULL
+      ELSE completed_at
+    END,
+    revision = revision + 1,
+    updated_at = NEW.updated_at
+  WHERE source_kind = 'plan_item'
+    AND source_id = (SELECT plan_item_id FROM plan_item_assignments WHERE assignment_id = NEW.id);
+END;
+
 CREATE TABLE supporting_documents (
   id TEXT PRIMARY KEY,
   workspace_id TEXT NOT NULL REFERENCES workspaces(id) ON DELETE CASCADE,

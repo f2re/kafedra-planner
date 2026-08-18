@@ -1,0 +1,32 @@
+.standalone-assignment{display:grid;gap:16px}
+.standalone-assignment-summary h2{margin:4px 0 8px}
+.standalone-facts{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px;margin:16px 0 0}
+.standalone-facts>div{display:grid;gap:3px;padding:10px 12px;border:1px solid var(--border,#e4e7ec);border-radius:12px;background:var(--surface-soft,#f7f8fa)}
+.standalone-facts dt{color:var(--muted,#687386);font-size:.78rem}
+.standalone-facts dd{margin:0;overflow-wrap:anywhere}
+.standalone-success{margin-top:14px;padding:10px 12px;border-radius:12px;background:var(--success-soft,#eaf7ef);color:var(--success,#216e45)}
+.standalone-work-assignment{display:grid;gap:14px}
+.standalone-section{display:grid;gap:12px;padding-top:14px;border-top:1px solid var(--border,#e4e7ec)}
+.standalone-section-head>div{display:grid;gap:3px}
+.standalone-section-head span{color:var(--muted,#687386);font-size:.86rem}
+.standalone-form-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px}
+.standalone-full{grid-column:1/-1}
+.standalone-actions{display:flex;align-items:center;gap:12px;margin-top:10px}
+.standalone-actions [role="alert"]{color:var(--danger,#b42318);font-size:.86rem}
+.standalone-history{display:grid;gap:8px;margin:0;padding:0;list-style:none}
+.standalone-history li{display:grid;gap:5px;padding:10px 12px;border-radius:12px;background:var(--surface-soft,#f7f8fa)}
+.standalone-history li>div{display:flex;justify-content:space-between;gap:12px}
+.standalone-history span,.standalone-history time{color:var(--muted,#687386);font-size:.82rem}
+.standalone-history p{margin:0}
+.standalone-reports{display:grid;gap:8px}
+.standalone-reports a{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:10px 12px;border:1px solid var(--border,#e4e7ec);border-radius:12px;color:inherit;text-decoration:none}
+.standalone-reports a>span:first-child{display:grid;gap:2px}
+.standalone-reports small,.standalone-empty{color:var(--muted,#687386)}
+.standalone-upload-state{margin:0;padding:9px 11px;border-radius:10px;background:var(--surface-soft,#f7f8fa);color:var(--muted,#687386);font-size:.84rem}
+@media(max-width:760px){
+  .standalone-facts,.standalone-form-grid{grid-template-columns:1fr}
+  .standalone-full{grid-column:auto}
+  .standalone-actions{align-items:stretch;flex-direction:column}
+  .standalone-actions button{width:100%}
+}
+.standalone-review-error{margin-top:8px;color:var(--danger,#b42318);font-size:.86rem}
