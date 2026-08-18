@@ -106,7 +106,7 @@ test('отчёт сопоставляется, руководитель подт
   expect(publication?.document_id).toBeTruthy();
   expect(publication?.links?.some((link) => link.relation_kind === 'publication')).toBeTruthy();
 
-  await page.locator('#manual-plan-modal [data-manual-close]').click();
+  await page.locator('#manual-plan-modal > header [data-manual-close]').click();
   const sourceDocument = page.locator('#ux-inspector [data-inspector-document]');
   await expect(sourceDocument).toBeVisible();
   await sourceDocument.click();
