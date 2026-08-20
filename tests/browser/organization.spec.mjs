@@ -6,10 +6,13 @@ async function createPerson(page, displayName) {
   return response.json();
 }
 
-async function openAdmin(page) {
+async function openAdmin(page, projectName) {
   await page.goto('/');
   await page.waitForFunction(() => typeof window.kafedraSetView === 'function', null, { timeout: 12_000 });
-  const trigger = page.locator('button[data-view="admin"]:visible, [data-view="admin"]:visible').first();
+  const selector = projectName === 'mobile'
+    ? '.mobile-tabs [data-view="admin"]'
+    : '#navigation [data-view="admin"]';
+  const trigger = page.locator(selector);
   await expect(trigger).toBeVisible({ timeout: 15_000 });
   await trigger.click();
   await expect(page.locator('[data-view-panel="admin"], #admin-view, .admin-view').first()).toBeVisible();
@@ -28,7 +31,7 @@ test.beforeEach(async ({ page }, testInfo) => {
 test('Оргструктура: подразделение → должность → назначение → историческая дата', async ({ page }, testInfo) => {
   const employee = await createPerson(page, `Сотрудник структуры ${testInfo.project.name}`);
   const manager = await createPerson(page, `Руководитель структуры ${testInfo.project.name}`);
-  await openAdmin(page);
+  await openAdmin(page, testInfo.project.name);
 
   await page.locator('[data-organization-add-unit]').click();
   const unitForm = page.locator('[data-organization-unit-form]');
@@ -55,7 +58,8 @@ test('Оргструктура: подразделение → должност�
   await appointmentForm.locator('[name="validFrom"]').fill('2020-01-01');
   await appointmentForm.locator('[name="validTo"]').fill('2022-12-31');
   await appointmentForm.locator('button[type="submit"]').click();
-  await expect(employeeCard).toContainText(`Доцент ${testInfo.project.name}`, { timeout: 15_000 });
+  await expect(page.locator('#organization-notice')).toContainText('Назначение сохранено', { timeout: 15_000 });
+  await expect(employeeCard).toContainText('Назначение не задано');
 
   await employeeCard.locator('[data-organization-appoint]').click();
   const nextAppointment = page.locator('[data-organization-appointment-form]');
@@ -64,6 +68,7 @@ test('Оргструктура: подразделение → должност�
   await nextAppointment.locator('[name="validFrom"]').fill('2023-01-01');
   await nextAppointment.locator('button[type="submit"]').click();
   await expect(page.locator('#organization-notice')).toContainText('Назначение сохранено', { timeout: 15_000 });
+  await expect(employeeCard).toContainText(`Доцент ${testInfo.project.name}`, { timeout: 15_000 });
 
   const oldResponse = await page.request.get(`/api/people/${encodeURIComponent(employee.id)}/organization?asOf=2021-06-01`);
   expect(oldResponse.ok()).toBeTruthy();
