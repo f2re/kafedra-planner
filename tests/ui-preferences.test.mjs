@@ -147,7 +147,7 @@ test('обучаемые defaults считают только уникальны
       interactionId: 'bad-security', choices: [{ key: 'admin.account.role', value: 'admin' }]
     }), (error) => error?.code === 'ui_preference_key_invalid');
 
-    assert.equal(database.get('SELECT MAX(version) AS v FROM schema_migrations').v, 19);
+    assert.equal(database.get('SELECT MAX(version) AS v FROM schema_migrations').v, 20);
 
     const router = createUiPreferencesRouter({ database });
     const auth = { accountId: 'account_main', workspaceId: workspace.id };
@@ -198,7 +198,7 @@ test('019 обновляет существующую схему 17 без из�
     oldDatabase.close();
 
     upgraded = new Database(databasePath, { migrationsDir: resolve('migrations') });
-    assert.equal(upgraded.get('SELECT MAX(version) AS v FROM schema_migrations').v, 19);
+    assert.equal(upgraded.get('SELECT MAX(version) AS v FROM schema_migrations').v, 20);
     assert.equal(upgraded.get("SELECT title FROM calendar_items WHERE id='existing-task'").title, 'Существующая задача');
     assert.equal(upgraded.get("SELECT display_name FROM people WHERE id='person_existing'").display_name, 'Существующий Сотрудник');
     recordUiPreferences(upgraded, workspace.id, 'account_existing', {

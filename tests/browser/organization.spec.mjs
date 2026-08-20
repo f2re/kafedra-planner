@@ -10,8 +10,8 @@ async function openAdmin(page) {
   await page.goto('/');
   await page.waitForFunction(() => typeof window.kafedraSetView === 'function', null, { timeout: 12_000 });
   const trigger = page.locator('button[data-view="admin"]:visible, [data-view="admin"]:visible').first();
-  if (await trigger.count()) await trigger.click();
-  else await page.evaluate(() => window.kafedraSetView('admin'));
+  await expect(trigger).toBeVisible({ timeout: 15_000 });
+  await trigger.click();
   await expect(page.locator('[data-view-panel="admin"], #admin-view, .admin-view').first()).toBeVisible();
   await expect(page.locator('#organization-admin')).toBeVisible({ timeout: 15_000 });
   await page.evaluate(() => window.kafedraLoadOrganization?.());
