@@ -1,0 +1,22 @@
+.organization-view {
+  padding: 24px;
+}
+
+.mobile-tabs.organization-five-tabs {
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+}
+
+.mobile-tabs.organization-five-tabs .mobile-tab {
+  min-width: 0;
+  padding-inline: 4px;
+}
+
+@media (max-width: 520px) {
+  .organization-view {
+    padding: 14px 12px 92px;
+  }
+
+  .mobile-tabs.organization-five-tabs .mobile-tab {
+    font-size: 0.68rem;
+  }
+}

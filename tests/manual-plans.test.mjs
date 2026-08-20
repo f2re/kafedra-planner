@@ -74,7 +74,7 @@ test('schema 19 обновляет существующий план без по
 
     database = new Database(dbPath, { migrationsDir });
     try {
-      assert.equal(database.get('SELECT MAX(version) AS version FROM schema_migrations').version, 19);
+      assert.equal(database.get('SELECT MAX(version) AS version FROM schema_migrations').version, 20);
       const plan = database.get("SELECT * FROM plans WHERE id='plan_old'");
       const item = database.get("SELECT * FROM plan_items WHERE id='item_old'");
       assert.equal(plan.source_document_version_id, 'ver_old_plan');

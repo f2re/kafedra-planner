@@ -61,7 +61,7 @@ function ensureDeliveryUi() {
         </section>
 
         <section id="delivery-admin-section" class="delivery-section hidden">
-          <div style="display:flex;justify-content:space-between;gap:12px;align-items:center"><h3>Диагностика доставки</h3><button type="button" class="delivery-button secondary" data-delivery-refresh-admin>Обновить</button></div>
+          <div class="delivery-admin-heading"><h3>Диагностика доставки</h3><button type="button" class="delivery-button secondary" data-delivery-refresh-admin>Обновить</button></div>
           <div id="delivery-admin-summary" class="delivery-admin-summary"></div>
           <div id="delivery-admin-failed" class="delivery-failed"></div>
         </section>
@@ -90,7 +90,7 @@ function setDeliveryStatus(message, error = false) {
   const node = document.querySelector('#notification-delivery-status');
   if (!node) return;
   node.textContent = message;
-  node.style.color = error ? '#a3222b' : '';
+  node.classList.toggle('error', error);
 }
 
 function setValue(form, name, value) {
@@ -141,7 +141,7 @@ async function openDeliveryPanel() {
   ensureDeliveryUi();
   document.querySelector('#notification-delivery-panel').classList.remove('hidden');
   document.querySelector('#notification-delivery-backdrop').classList.remove('hidden');
-  document.body.style.overflow = 'hidden';
+  document.body.classList.add('delivery-panel-open');
   setDeliveryStatus('Загрузка…');
   try {
     const data = await deliveryApi('/api/notification-delivery/profile');
@@ -158,7 +158,7 @@ async function openDeliveryPanel() {
 function closeDeliveryPanel() {
   document.querySelector('#notification-delivery-panel')?.classList.add('hidden');
   document.querySelector('#notification-delivery-backdrop')?.classList.add('hidden');
-  document.body.style.overflow = '';
+  document.body.classList.remove('delivery-panel-open');
 }
 
 function profileFromForm(form) {

@@ -43,4 +43,6 @@ await import('./view-bridge.js');
 await import('./ux-base.js');
 await import('./standalone-assignment-next.js');
 await import('./supporting-documents-next.js');
+await import('./organization-next.js');
+await import('./organization-view-bridge.js');
 await import('./ui-preferences.js');
