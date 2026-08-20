@@ -68,7 +68,9 @@ function appointmentInput(database, workspaceId, personId, input, current = {}) 
   assertInsideUnitPeriod(selectedUnit, validFrom, validTo);
   if (selectedUnit.status === 'inactive' && validFrom >= today()) fail('organization_unit_inactive');
   if (selectedPosition?.status === 'inactive' && validFrom >= today()) fail('organization_position_inactive');
-  const managerPersonId = input.managerPersonId === undefined ? current.manager_person_id : (input.managerPersonId || null);
+  const managerPersonId = input.managerPersonId === undefined
+    ? (current.manager_person_id || null)
+    : (input.managerPersonId || null);
   assertManager(database, workspaceId, personId, managerPersonId, validFrom);
   const appointmentKind = input.appointmentKind ?? current.appointment_kind ?? 'primary';
   if (!APPOINTMENT_KINDS.has(appointmentKind)) fail('organization_appointment_kind_invalid');
