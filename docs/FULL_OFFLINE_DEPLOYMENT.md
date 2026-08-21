@@ -121,3 +121,19 @@ Selftest запускает именно `install-kafedra-planner.sh` в `KAFEDR
 Только после этих проверок на push в `main` публикуется full artifact.
 
 Реальная эксплуатационная приёмка Astra остаётся отдельным обязательным этапом #27: Debian CI не подменяет запуск на целевой Astra Linux, но теперь проверяет весь операторский install/update flow, а не только отдельные внутренние компоненты bundle.
+
+## Вариант с локальным llama.cpp и GGUF
+
+Поверх обычного full bundle доступен LLM-вариант. Он использует тот же Node/Python/.deb контур и тот же installer, но дополнительно содержит проверенный runtime `llama-server` и выбранные оператором локальные GGUF.
+
+```bash
+npm run bundle:offline:llm -- \
+  --llama-runtime /srv/kafedra/llama-runtime \
+  --model qwen=/srv/models/model.gguf \
+  --default-model qwen \
+  --output release-llm
+```
+
+Модель не хранится в Git. Сборщик фиксирует её SHA-256 в `llm/manifest.json`, а installer размещает её content-addressed в `/var/lib/kafedra-planner/models`. Managed `llama-server` слушает только `127.0.0.1`; отсутствие LLM в обычном bundle не является ошибкой.
+
+Полный порядок подготовки runtime, нескольких моделей, установки, переключения и отключения: [`LLAMA_OFFLINE_DEPLOYMENT.md`](LLAMA_OFFLINE_DEPLOYMENT.md).

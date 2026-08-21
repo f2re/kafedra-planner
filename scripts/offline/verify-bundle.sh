@@ -63,6 +63,14 @@ EMBEDDED_NODE="$ROOT/runtime/node/bin/node"
 "$EMBEDDED_NODE" --version
 if [[ "$FULL_BUNDLE" == true ]]; then
   "$EMBEDDED_NODE" "$ROOT/application/scripts/offline/deployment-contract.mjs" verify --root "$ROOT" >/dev/null
+  if [[ -f "$ROOT/llm/manifest.json" ]]; then
+    for relative_path in application/scripts/offline/llm-contract.mjs application/scripts/offline/run-llama-server.sh application/scripts/llm-doctor.mjs application/deploy/systemd/kafedra-planner-llama.service; do
+      [[ -f "$ROOT/$relative_path" ]] || { echo "LLM bundle неполон: отсутствует $relative_path" >&2; exit 8; }
+    done
+    [[ -x "$ROOT/llm/runtime/bin/llama-server" ]] || { echo "LLM bundle не содержит executable llama-server" >&2; exit 8; }
+    "$EMBEDDED_NODE" "$ROOT/application/scripts/offline/llm-contract.mjs" verify --root "$ROOT" >/dev/null
+    echo "Профиль LLM: runtime llama.cpp и GGUF manifest проверены."
+  fi
   source "$ROOT/application/scripts/offline/lib.sh"
   verify_os_package_set "$ROOT/os-packages" 0
   "$ROOT/runtime/python/python" -c "from pathlib import Path; p=Path('$ROOT/application/scripts/recognition/ocr.py'); compile(p.read_text(encoding='utf-8'),str(p),'exec')"

@@ -35,7 +35,9 @@
     "bundle:verify": "bash scripts/offline/verify-bundle.sh",
     "bundle:offline:runtime": "bash scripts/offline/build-bundle.sh",
     "bundle:collect-os": "bash scripts/offline/collect-os-packages.sh",
-    "offline:doctor": "bash scripts/offline/doctor.sh"
+    "offline:doctor": "bash scripts/offline/doctor.sh",
+    "bundle:offline:llm": "bash scripts/offline/build-full-bundle-with-llm.sh",
+    "llm:doctor": "node scripts/llm-doctor.mjs"
   },
   "devDependencies": {
     "@playwright/test": "1.62.1"

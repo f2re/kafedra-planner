@@ -137,6 +137,12 @@ if [[ -n "${PYTHON_RUNTIME_DIR:-}" || -n "${OS_PACKAGES_DIR:-}" || "${REQUIRE_FU
   mkdir -p "$BUNDLE_ROOT/runtime/python" "$BUNDLE_ROOT/os-packages"
   cp -a "$PYTHON_RUNTIME_DIR/." "$BUNDLE_ROOT/runtime/python/"
   cp -a "$OS_PACKAGES_DIR/." "$BUNDLE_ROOT/os-packages/"
+  if [[ -n "${KAFEDRA_LLM_PAYLOAD_DIR:-}" ]]; then
+    [[ -d "$KAFEDRA_LLM_PAYLOAD_DIR" && -f "$KAFEDRA_LLM_PAYLOAD_DIR/manifest.json" ]] || fail "KAFEDRA_LLM_PAYLOAD_DIR не содержит подготовленный LLM payload"
+    mkdir -p "$BUNDLE_ROOT/llm"
+    cp -a "$KAFEDRA_LLM_PAYLOAD_DIR/." "$BUNDLE_ROOT/llm/"
+    "$BUNDLE_ROOT/runtime/node/bin/node" "$BUNDLE_ROOT/application/scripts/offline/llm-contract.mjs" verify --root "$BUNDLE_ROOT" >/dev/null
+  fi
   "$BUNDLE_ROOT/runtime/node/bin/node" "$BUNDLE_ROOT/application/scripts/offline/deployment-contract.mjs" write --root "$BUNDLE_ROOT" --output "$BUNDLE_ROOT/deployment.json" >/dev/null
 fi
 
