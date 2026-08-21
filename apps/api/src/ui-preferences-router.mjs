@@ -1,5 +1,6 @@
 import { AppError } from '../../../packages/core/src/errors.mjs';
 import { listUiPreferences, recordUiPreferences, supportedUiPreferenceKeys } from '../../../packages/preferences/src/service.mjs';
+import { readCalendarStartMode, writeCalendarStartMode } from '../../../packages/preferences/src/calendar-start.mjs';
 import { readJson, sendJson } from './http-utils.mjs';
 
 function workspaceOf(database, request) {
@@ -27,10 +28,40 @@ function keysFrom(url) {
 
 export function createUiPreferencesRouter({ database }) {
   return async function routeUiPreferences(request, response, url) {
-    if (url.pathname !== '/api/ui-preferences') return false;
+    const preferencesPath = url.pathname === '/api/ui-preferences';
+    const calendarStartPath = url.pathname === '/api/ui-settings/calendar-start';
+    if (!preferencesPath && !calendarStartPath) return false;
     const method = request.method || 'GET';
     const workspace = workspaceOf(database, request);
     const accountId = request.auth?.accountId || null;
+
+    if (calendarStartPath) {
+      if (!accountId) {
+        throw new AppError(
+          'calendar_start_mode_account_required',
+          'Персональная настройка доступна после входа в аккаунт.',
+          409
+        );
+      }
+      if (method === 'GET') {
+        return sendJson(response, 200, {
+          calendarStartMode: readCalendarStartMode(database, workspace.id, accountId)
+        });
+      }
+      if (method === 'PUT') {
+        const body = await readJson(request);
+        return sendJson(response, 200, {
+          calendarStartMode: writeCalendarStartMode(
+            database,
+            workspace.id,
+            accountId,
+            body.calendarStartMode
+          )
+        });
+      }
+      throw new AppError('method_not_allowed', 'Метод не поддерживается.', 405);
+    }
+
     if (method === 'GET') {
       return sendJson(response, 200, {
         preferences: listUiPreferences(database, workspace.id, accountId, keysFrom(url))

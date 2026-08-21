@@ -4,6 +4,7 @@ const baseIgnores = [
   '**/work-management.spec.mjs',
   '**/reports-science.spec.mjs',
   '**/auth.spec.mjs',
+  '**/calendar-start-auth.spec.mjs',
   '**/release-readiness.spec.mjs',
   '**/acl.spec.mjs'
 ];
