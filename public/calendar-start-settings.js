@@ -89,15 +89,28 @@ function ensureDialog() {
 function ensureSettingsEntry() {
   const context = startState.auth;
   if (context?.authEnabled === false) {
-    if (document.querySelector('#calendar-settings-button')) return;
-    const button = document.createElement('button');
+    const mobile = window.matchMedia('(max-width: 720px)').matches;
+    const target = mobile ? document.querySelector('.mobile-tabs') : document.querySelector('#navigation');
+    if (!target) return;
+    let button = document.querySelector('#calendar-settings-button');
+    if (button && button.parentElement !== target) {
+      button.remove();
+      button = null;
+    }
+    if (button) return;
+    button = document.createElement('button');
     button.id = 'calendar-settings-button';
-    button.className = 'icon-button';
     button.type = 'button';
     button.title = 'Настройки';
     button.setAttribute('aria-label', 'Настройки');
-    button.textContent = '⚙';
-    document.querySelector('.topbar-actions')?.prepend(button);
+    if (mobile) {
+      button.className = 'mobile-tab';
+      button.innerHTML = '<span aria-hidden="true">⚙</span>Настройки';
+    } else {
+      button.className = 'nav-item';
+      button.innerHTML = '<span class="nav-icon" aria-hidden="true">⚙</span><span>Настройки</span>';
+    }
+    target.append(button);
     return;
   }
   if (!context?.authenticated) return;
@@ -146,6 +159,7 @@ async function initialize() {
   applyFixedSetting(startState.setting);
   ensureSettingsEntry();
   new MutationObserver(ensureSettingsEntry).observe(document.documentElement, { childList: true, subtree: true });
+  window.matchMedia('(max-width: 720px)').addEventListener?.('change', ensureSettingsEntry);
   resolveReady(startState.setting);
 }
 
