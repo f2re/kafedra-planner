@@ -45,6 +45,11 @@ test('первый вход задаёт четыре цифры, затем с�
   await expect(page.locator('#auth-gate input')).toHaveCount(1);
   await expect(page.locator('#auth-gate input[name="username"]')).toHaveCount(0);
 
+  const pinInput = page.locator('#auth-pin-login-form input[name="pin"]');
+  await pinInput.fill('48');
+  await page.evaluate(async () => { await fetch('/api/people'); });
+  await expect(pinInput).toHaveValue('48');
+
   const wrongResponsePromise = page.waitForResponse(
     (candidate) => candidate.url().endsWith('/api/auth/login') && candidate.request().method() === 'POST'
   );

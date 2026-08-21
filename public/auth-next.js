@@ -34,6 +34,12 @@ function pinInput(name, autocomplete = 'off') {
   return `<input class="auth-pin-input" name="${name}" type="password" inputmode="numeric" pattern="[0-9]{4}" maxlength="4" minlength="4" autocomplete="${autocomplete}" aria-label="PIN-код из четырёх цифр" required>`;
 }
 
+function authViewKey(payload) {
+  const mode = payload?.authMode || 'accounts';
+  if (mode !== 'pin') return 'accounts';
+  return payload?.pinConfigured ? 'pin-login' : 'pin-setup';
+}
+
 function renderAuthGate(payload, message = '') {
   const gate = ensureAuthGate();
   const mode = payload?.authMode || 'accounts';
@@ -72,14 +78,25 @@ function renderAuthGate(payload, message = '') {
       </form>
     </section>`;
   }
+  gate.dataset.authView = authViewKey(payload);
   return gate;
 }
 
 function showLogin(message = '', payload = authState.payload) {
-  const gate = renderAuthGate(payload || { authMode: 'pin', pinConfigured: true }, message);
+  const resolved = payload || { authMode: 'pin', pinConfigured: true };
+  let gate = ensureAuthGate();
+  const viewChanged = gate.dataset.authView !== authViewKey(resolved) || !gate.querySelector('form');
+  const wasHidden = gate.classList.contains('hidden');
+  if (viewChanged) gate = renderAuthGate(resolved, message);
+  else if (message) {
+    const errorNode = gate.querySelector('#auth-login-error');
+    if (errorNode) errorNode.textContent = message;
+  }
   gate.classList.remove('hidden');
   authState.showingLogin = true;
-  setTimeout(() => gate.querySelector('input')?.focus(), 0);
+  if (viewChanged || wasHidden) {
+    setTimeout(() => gate.querySelector('input')?.focus(), 0);
+  }
 }
 
 function hideLogin() {
