@@ -57,3 +57,10 @@ Credentials и query-параметры endpoint, а также сырой те�
 4. Invalid JSON, сломанный OpenAI-response, неизвестные поля, невозможные даты и forged `sourceQuote` не становятся применимым предложением.
 
 LLM не является источником истины и не является обязательной частью эксплуатации.
+## Автономная поставка llama.cpp
+
+Для Astra Linux/Debian доступен отдельный full-offline вариант, который включает локальный `llama-server` и одну или несколько GGUF-моделей. Большие runtime/model-файлы не хранятся в Git: их добавляет release-сборщик, фиксируя SHA-256 в отдельном LLM manifest и общем manifest bundle.
+
+Managed service слушает только `127.0.0.1`, проверяется через `/health` и `/v1/models` и может быть отключён без изменения предметных данных. Обычный full bundle и вся deterministic-функциональность остаются независимыми от LLM.
+
+Инструкция: [`LLAMA_OFFLINE_DEPLOYMENT.md`](LLAMA_OFFLINE_DEPLOYMENT.md).

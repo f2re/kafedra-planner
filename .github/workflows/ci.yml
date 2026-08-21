@@ -101,11 +101,13 @@ jobs:
         run: |
           set -Eeuo pipefail
           OUT="$RUNNER_TEMP/kafedra-full"
-          mkdir -p "$OUT"
+          LLM_OUT="$RUNNER_TEMP/kafedra-full-llm-test"
+          mkdir -p "$OUT" "$LLM_OUT"
           docker run --rm \
             -e GITHUB_SHA="$GITHUB_SHA" \
             -v "$GITHUB_WORKSPACE:/src:ro" \
             -v "$OUT:/out" \
+            -v "$LLM_OUT:/out-llm" \
             node:24-bookworm bash -lc '
               set -Eeuo pipefail
               apt-get update
@@ -126,6 +128,38 @@ jobs:
               for package in systemd coreutils util-linux passwd tar; do
                 ! grep -Fxq "$package" "$BUNDLE/os-packages/requested-packages.txt"
               done
+
+              # LLM-вариант использует тот же уже проверенный package cache. Fake
+              # llama-server нужен только для systemd/health E2E и не публикуется.
+              mkdir -p /tmp/fake-llama/bin
+              cat > /tmp/fake-llama/bin/llama-server <<'"'"'FAKE_SH'"'"'
+          #!/bin/sh
+          if [ "${1:-}" = "--version" ]; then echo "fake-llama-server ci"; exit 0; fi
+          if [ -e /tmp/kafedra-fail-llama ]; then exit 42; fi
+          exec /opt/kafedra-planner/current/runtime/node/bin/node \
+            /opt/kafedra-planner/current/runtime/llama/bin/fake-server.mjs "$@"
+          FAKE_SH
+              cat > /tmp/fake-llama/bin/fake-server.mjs <<'"'"'FAKE_NODE'"'"'
+          import http from "node:http";
+          const args=process.argv.slice(2); const value=(name,fallback)=>{const i=args.indexOf(name);return i>=0?args[i+1]:fallback};
+          const host=value("--host","127.0.0.1"), port=Number(value("--port","8081")), alias=value("--alias","ci-model");
+          http.createServer((req,res)=>{res.setHeader("content-type","application/json");if(req.url==="/health")return res.end(JSON.stringify({status:"ok"}));if(req.url==="/v1/models")return res.end(JSON.stringify({data:[{id:alias}]}));res.statusCode=404;res.end("{}");}).listen(port,host);
+          FAKE_NODE
+              chmod 0755 /tmp/fake-llama/bin/llama-server
+              printf "fake llama.cpp MIT license fixture" > /tmp/fake-llama/LICENSE
+              printf "GGUF-ci-primary" > /tmp/ci-primary.gguf
+              printf "GGUF-ci-reserve" > /tmp/ci-reserve.gguf
+              OUT_DIR=/out-llm KAFEDRA_FULL_BUNDLE_CACHE_DIR=/tmp/kafedra-cache \
+                bash scripts/offline/build-full-bundle-with-llm.sh \
+                  --reuse-os-packages \
+                  --llama-runtime /tmp/fake-llama \
+                  --model ci=/tmp/ci-primary.gguf \
+                  --model reserve=/tmp/ci-reserve.gguf \
+                  --default-model ci \
+                  --context-size 2048 \
+                  --output /out-llm
+              LLM_ARCHIVE="$(find /out-llm -maxdepth 1 -type f -name "kafedra-planner-*-llm.tar.gz" -print -quit)"
+              [[ -f "$LLM_ARCHIVE" && -f "$LLM_ARCHIVE.sha256" ]]
 
               # Проверяем оба пути: обычный APT target-системы и настоящий air-gap fallback.
               KAFEDRA_APT_MODE=system bash "$BUNDLE/application/scripts/offline/install-os-packages.sh" \
@@ -161,13 +195,19 @@ jobs:
               if [[ "$READY" != 1 ]]; then cat /tmp/kafedra-api.log /tmp/kafedra-worker.log >&2; exit 1; fi
             '
           ARCHIVE="$(find "$OUT" -maxdepth 1 -type f -name 'kafedra-planner-*.tar.gz' -print -quit)"
-          [[ -f "$ARCHIVE" ]]
+          LLM_ARCHIVE="$(find "$LLM_OUT" -maxdepth 1 -type f -name 'kafedra-planner-*-llm.tar.gz' -print -quit)"
+          [[ -f "$ARCHIVE" && -f "$LLM_ARCHIVE" ]]
           [[ "$(stat -c %s "$ARCHIVE")" -gt 50000000 ]]
           [[ -x "$OUT/install-kafedra-planner.sh" ]]
           [[ -f "$OUT/README-INSTALL.txt" ]]
+          [[ -x "$LLM_OUT/install-kafedra-planner.sh" ]]
+          [[ -f "$LLM_OUT/README-INSTALL.txt" ]]
       - name: Проверить реальную offline-установку под systemd
         shell: bash
         run: bash scripts/offline/systemd-deploy-selftest.sh "$RUNNER_TEMP/kafedra-full"
+      - name: Проверить offline llama.cpp/GGUF установку под systemd
+        shell: bash
+        run: bash scripts/offline/systemd-deploy-selftest.sh "$RUNNER_TEMP/kafedra-full-llm-test"
       - name: Опубликовать готовый full offline bundle
         if: (github.event_name == 'push' || github.event_name == 'workflow_dispatch') && github.ref == 'refs/heads/main'
         uses: actions/upload-artifact@v4

@@ -14,6 +14,8 @@ WRAPPER="$OUT_DIR/install-kafedra-planner.sh"
 README="$OUT_DIR/README-INSTALL.txt"
 [[ -f "$CHECKSUM" && -x "$WRAPPER" && -f "$README" ]] || { echo "Release-комплект неполон: нужны archive, .sha256, executable wrapper и README-INSTALL.txt" >&2; exit 3; }
 (cd "$OUT_DIR" && sha256sum -c --strict "$(basename "$CHECKSUM")" >/dev/null)
+EXPECT_LLM=false
+if tar -tzf "$ARCHIVE" | grep -q '/llm/manifest.json$'; then EXPECT_LLM=true; fi
 
 RUN_TOKEN="${GITHUB_RUN_ID:-local}-${GITHUB_RUN_ATTEMPT:-0}-$$"
 IMAGE="kafedra-systemd-selftest:$RUN_TOKEN"
@@ -76,15 +78,28 @@ assert_deployed() {
   docker exec "$CONTAINER" test "$(docker exec "$CONTAINER" stat -c %a /etc/kafedra-planner/kafedra-planner.env)" = 640
   docker exec "$CONTAINER" /opt/kafedra-planner/current/scripts/offline/doctor.sh
 }
+assert_llm_deployed() {
+  [[ "$EXPECT_LLM" == true ]] || return 0
+  docker exec "$CONTAINER" systemctl is-enabled --quiet kafedra-planner-llama.service
+  docker exec "$CONTAINER" systemctl is-active --quiet kafedra-planner-llama.service
+  docker exec "$CONTAINER" grep -q '^KAFEDRA_LLM_ENABLED=true$' /etc/kafedra-planner/kafedra-planner.env
+  docker exec "$CONTAINER" grep -q '^KAFEDRA_LLM_MANAGED=true$' /etc/kafedra-planner/kafedra-planner.env
+  docker exec "$CONTAINER" test -x /opt/kafedra-planner/current/runtime/llama/bin/llama-server
+  docker exec "$CONTAINER" bash -lc 'MODEL=$(sed -n "s/^KAFEDRA_LLM_MODEL_PATH=//p" /etc/kafedra-planner/kafedra-planner.env); test -n "$MODEL" && test -f "$MODEL"'
+  docker exec "$CONTAINER" /opt/kafedra-planner/current/runtime/node/bin/node /opt/kafedra-planner/current/scripts/llm-doctor.mjs --json >/dev/null
+}
 
 run_installer
 assert_deployed
+assert_llm_deployed
 
 docker exec "$CONTAINER" test -s /root/kafedra-planner-first-login.txt
 [[ "$(docker exec "$CONTAINER" stat -c %a /root/kafedra-planner-first-login.txt)" == 600 ]] || { echo "Неверные права first-login file" >&2; exit 5; }
 FIRST_LOGIN_SHA="$(docker exec "$CONTAINER" sha256sum /root/kafedra-planner-first-login.txt | awk '{print $1}')"
 FIRST_RELEASE="$(docker exec "$CONTAINER" readlink -f /opt/kafedra-planner/current)"
 [[ -n "$FIRST_RELEASE" ]] || { echo "current release не определён" >&2; exit 5; }
+FIRST_MODEL_INODE=""
+if [[ "$EXPECT_LLM" == true ]]; then FIRST_MODEL_INODE="$(docker exec "$CONTAINER" bash -lc 'MODEL=$(sed -n "s/^KAFEDRA_LLM_MODEL_PATH=//p" /etc/kafedra-planner/kafedra-planner.env); stat -c %i "$MODEL"')"; fi
 
 # Config — данные, а не shell. Даже при update значение с $() должно остаться
 # буквальным и не выполнить команду от root.
@@ -94,6 +109,11 @@ docker exec "$CONTAINER" sed -i 's|^KAFEDRA_SMTP_PASSWORD=.*$|KAFEDRA_SMTP_PASSW
 # администратора, без второго release-каталога, с pre-update backup.
 run_installer
 assert_deployed
+assert_llm_deployed
+if [[ "$EXPECT_LLM" == true ]]; then
+  SECOND_MODEL_INODE="$(docker exec "$CONTAINER" bash -lc 'MODEL=$(sed -n "s/^KAFEDRA_LLM_MODEL_PATH=//p" /etc/kafedra-planner/kafedra-planner.env); stat -c %i "$MODEL"')"
+  [[ "$FIRST_MODEL_INODE" == "$SECOND_MODEL_INODE" ]] || { echo "Повторный install заменил уже проверенную GGUF" >&2; exit 6; }
+fi
 docker exec "$CONTAINER" test ! -e /tmp/kafedra-config-executed
 SECOND_LOGIN_SHA="$(docker exec "$CONTAINER" sha256sum /root/kafedra-planner-first-login.txt | awk '{print $1}')"
 [[ "$FIRST_LOGIN_SHA" == "$SECOND_LOGIN_SHA" ]] || { echo "Повторный install изменил first-login credential file" >&2; exit 6; }
@@ -102,6 +122,28 @@ SECOND_RELEASE="$(docker exec "$CONTAINER" readlink -f /opt/kafedra-planner/curr
 RELEASE_COUNT="$(docker exec "$CONTAINER" bash -lc "find /opt/kafedra-planner/releases -mindepth 1 -maxdepth 1 -type d ! -name '.*' | wc -l")"
 [[ "$RELEASE_COUNT" == 1 ]] || { echo "После повторной установки ожидается один release, получено: $RELEASE_COUNT" >&2; exit 6; }
 docker exec "$CONTAINER" bash -lc 'find /var/backups/kafedra-planner -type f -print -quit | grep -q .'
+
+# Для LLM-варианта принудительно роняем managed server после backup/migration.
+# Installer обязан выполнить rollback и не потерять исключённый из backup model cache.
+if [[ "$EXPECT_LLM" == true ]]; then
+  ROLLBACK_MODEL_INODE="$(docker exec "$CONTAINER" bash -lc 'MODEL=$(sed -n "s/^KAFEDRA_LLM_MODEL_PATH=//p" /etc/kafedra-planner/kafedra-planner.env); stat -c %i "$MODEL"')"
+  docker exec "$CONTAINER" touch /tmp/kafedra-fail-llama
+  if run_installer; then
+    echo "Installer не откатился после принудительного сбоя llama-server" >&2
+    exit 8
+  fi
+  docker exec "$CONTAINER" rm -f /tmp/kafedra-fail-llama
+  docker exec "$CONTAINER" systemctl is-active --quiet kafedra-planner-api.service
+  docker exec "$CONTAINER" systemctl is-active --quiet kafedra-planner-worker.service
+  AFTER_ROLLBACK_MODEL_INODE="$(docker exec "$CONTAINER" bash -lc 'MODEL=$(sed -n "s/^KAFEDRA_LLM_MODEL_PATH=//p" /etc/kafedra-planner/kafedra-planner.env); test -f "$MODEL"; stat -c %i "$MODEL"')"
+  [[ "$ROLLBACK_MODEL_INODE" == "$AFTER_ROLLBACK_MODEL_INODE" ]] || { echo "Rollback потерял или заменил GGUF model cache" >&2; exit 8; }
+  docker exec "$CONTAINER" systemctl start kafedra-planner-llama.service
+  for _attempt in $(seq 1 20); do
+    if docker exec "$CONTAINER" /opt/kafedra-planner/current/runtime/node/bin/node /opt/kafedra-planner/current/scripts/llm-doctor.mjs --json >/dev/null 2>&1; then break; fi
+    sleep 1
+    [[ "$_attempt" -lt 20 ]] || { echo "llama-server не восстановился после rollback" >&2; exit 8; }
+  done
+fi
 
 # Package deployment имеет один стандартный контур данных. Если существующий
 # config указывает другую БД, update обязан остановиться до остановки служб и
@@ -118,4 +160,13 @@ docker exec "$CONTAINER" test ! -e /tmp/wrong-kafedra.sqlite3
 docker exec "$CONTAINER" sed -i 's|^KAFEDRA_DATABASE_PATH=.*$|KAFEDRA_DATABASE_PATH=/var/lib/kafedra-planner/kafedra-planner.sqlite3|' /etc/kafedra-planner/kafedra-planner.env
 assert_deployed
 
-echo "Full systemd deployment selftest: OK ($ARCHIVE_NAME)"
+if [[ "$EXPECT_LLM" == true ]]; then
+  docker exec "$CONTAINER" sed -i 's/^KAFEDRA_LLM_ENABLED=true$/KAFEDRA_LLM_ENABLED=false/' /etc/kafedra-planner/kafedra-planner.env
+  run_installer
+  assert_deployed
+  docker exec "$CONTAINER" bash -lc '! systemctl is-active --quiet kafedra-planner-llama.service'
+  docker exec "$CONTAINER" systemctl is-active --quiet kafedra-planner-api.service
+  docker exec "$CONTAINER" systemctl is-active --quiet kafedra-planner-worker.service
+fi
+
+echo "Full systemd deployment selftest: OK ($ARCHIVE_NAME; llm=$EXPECT_LLM)"

@@ -39,6 +39,11 @@ mapfile -t profile < <(detect_os_profile /etc/os-release)
 [[ "${profile[3]}" == amd64 || "${profile[3]}" == arm64 ]] || die "Поддерживаются amd64/arm64, получено ${profile[3]}"
 PROFILE_TAG="${profile[0]}-${profile[2]}-${profile[3]}"
 PROFILE_TAG="$(printf '%s' "$PROFILE_TAG" | sed -E 's/[^A-Za-z0-9._-]+/_/g')"
+BUNDLE_TAG="$PROFILE_TAG"
+if [[ -n "${KAFEDRA_FULL_BUNDLE_TAG_SUFFIX:-}" ]]; then
+  [[ "$KAFEDRA_FULL_BUNDLE_TAG_SUFFIX" =~ ^[A-Za-z0-9][A-Za-z0-9._-]*$ ]] || die "Небезопасный suffix bundle: $KAFEDRA_FULL_BUNDLE_TAG_SUFFIX"
+  BUNDLE_TAG="$BUNDLE_TAG-$KAFEDRA_FULL_BUNDLE_TAG_SUFFIX"
+fi
 CACHE_ROOT="${KAFEDRA_FULL_BUNDLE_CACHE_DIR:-${XDG_CACHE_HOME:-${HOME:-$ROOT}/.cache}/kafedra-planner}"
 PYTHON_RUNTIME_DIR="${KAFEDRA_PYTHON_RUNTIME_DIR:-$CACHE_ROOT/python/$PROFILE_TAG}"
 OS_PACKAGES_DIR="${KAFEDRA_OS_PACKAGES_DIR:-$CACHE_ROOT/os-packages/$PROFILE_TAG}"
@@ -68,7 +73,7 @@ fi
 verify_os_package_set "$OS_PACKAGES_DIR" 1
 mkdir -p "$OUT_DIR"
 info "Собираем полный offline bundle для ${profile[0]} ${profile[2]} ${profile[3]}"
-ARCHIVE="$({ PYTHON_RUNTIME_DIR="$PYTHON_RUNTIME_DIR" OS_PACKAGES_DIR="$OS_PACKAGES_DIR" REQUIRE_FULL_BUNDLE=true FULL_BUNDLE_TAG="$PROFILE_TAG" OUT_DIR="$OUT_DIR" "$SCRIPT_DIR/build-bundle.sh"; } | tail -n 1)"
+ARCHIVE="$({ PYTHON_RUNTIME_DIR="$PYTHON_RUNTIME_DIR" OS_PACKAGES_DIR="$OS_PACKAGES_DIR" REQUIRE_FULL_BUNDLE=true FULL_BUNDLE_TAG="$BUNDLE_TAG" OUT_DIR="$OUT_DIR" "$SCRIPT_DIR/build-bundle.sh"; } | tail -n 1)"
 [[ -f "$ARCHIVE" && -f "$ARCHIVE.sha256" ]] || die "Сборщик не создал archive+sha256"
 ARCHIVE_BASENAME="$(basename "$ARCHIVE")"; WRAPPER="$OUT_DIR/install-kafedra-planner.sh"
 "$PYTHON_BIN" - "$SCRIPT_DIR/install-from-archive.sh" "$WRAPPER" "$ARCHIVE_BASENAME" <<'PY_WRAPPER'
