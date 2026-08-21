@@ -1,15 +1,21 @@
 import { test, expect } from '@playwright/test';
 
+async function submitLogin(page, username, password) {
+  await page.locator('#auth-login-form input[name="username"]').fill(username);
+  await page.locator('#auth-login-form input[name="password"]').fill(password);
+  const [response] = await Promise.all([
+    page.waitForResponse((candidate) => candidate.url().endsWith('/api/auth/login') && candidate.request().method() === 'POST'),
+    page.waitForNavigation({ waitUntil: 'domcontentloaded' }),
+    page.locator('#auth-login-form button[type="submit"]').click()
+  ]);
+  expect(response.ok()).toBe(true);
+  await expect(page.locator('#auth-user-control')).toBeVisible();
+}
+
 async function login(page, username, password) {
   await page.goto('/');
   await expect(page.locator('#auth-gate')).toBeVisible();
-  await page.locator('#auth-login-form input[name="username"]').fill(username);
-  await page.locator('#auth-login-form input[name="password"]').fill(password);
-  await Promise.all([
-    page.waitForLoadState('domcontentloaded'),
-    page.locator('#auth-login-form button[type="submit"]').click()
-  ]);
-  await expect(page.locator('#auth-user-control')).toBeVisible();
+  await submitLogin(page, username, password);
 }
 
 async function openSettings(page) {
@@ -24,7 +30,12 @@ async function logout(page) {
   const close = page.locator('#calendar-start-settings-sheet [data-close-sheet]').first();
   if (await close.isVisible().catch(() => false)) await close.click();
   await page.locator('.auth-user-button').click();
-  await page.locator('[data-auth-action="logout"]').click();
+  const [response] = await Promise.all([
+    page.waitForResponse((candidate) => candidate.url().endsWith('/api/auth/logout') && candidate.request().method() === 'POST'),
+    page.waitForNavigation({ waitUntil: 'domcontentloaded' }),
+    page.locator('[data-auth-action="logout"]').click()
+  ]);
+  expect(response.ok()).toBe(true);
   await expect(page.locator('#auth-gate')).toBeVisible();
 }
 
@@ -55,13 +66,7 @@ test('явная Неделя переживает повторный вход �
   await expect(page.locator('[data-calendar-mode="week"]')).toHaveAttribute('aria-selected', 'true');
 
   await logout(page);
-  await page.locator('#auth-login-form input[name="username"]').fill('staff');
-  await page.locator('#auth-login-form input[name="password"]').fill('StaffPassword2026');
-  await Promise.all([
-    page.waitForLoadState('domcontentloaded'),
-    page.locator('#auth-login-form button[type="submit"]').click()
-  ]);
-  await expect(page.locator('#auth-user-control')).toBeVisible();
+  await submitLogin(page, 'staff', 'StaffPassword2026');
   await expect(page.locator('[data-calendar-mode="week"]')).toHaveAttribute('aria-selected', 'true');
 
   form = await openSettings(page);
