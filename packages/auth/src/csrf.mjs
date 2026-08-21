@@ -2,7 +2,7 @@ import { timingSafeEqual } from 'node:crypto';
 import { AppError } from '../../core/src/errors.mjs';
 
 const SAFE_METHODS = new Set(['GET', 'HEAD', 'OPTIONS']);
-const EXEMPT_PATHS = new Set(['/api/auth/login']);
+const EXEMPT_PATHS = new Set(['/api/auth/login', '/api/auth/setup-pin']);
 
 function constantTimeEqual(left, right) {
   const a = Buffer.from(String(left || ''), 'utf8');

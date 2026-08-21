@@ -11,7 +11,9 @@ const DEFAULT_R = 8;
 const DEFAULT_P = 1;
 const MAX_MEMORY = 64 * 1024 * 1024;
 const DUMMY_SALT = Buffer.from('kafedra-auth-dummy-salt');
+const PIN_PREFIX = 'pin$';
 const DUMMY_HASH = encodePassword('not-a-real-password', DUMMY_SALT);
+const DUMMY_PIN_HASH = `${PIN_PREFIX}${encodePassword('0000', DUMMY_SALT)}`;
 
 function encodePassword(password, salt = randomBytes(16), {
   N = DEFAULT_N,
@@ -54,6 +56,17 @@ function parseEncoded(value) {
   }
 }
 
+function verifyEncoded(secret, encoded, fallback = DUMMY_HASH) {
+  const parsed = parseEncoded(encoded) || parseEncoded(fallback);
+  const candidate = scryptSync(String(secret || ''), parsed.salt, parsed.hash.length, {
+    N: parsed.N,
+    r: parsed.r,
+    p: parsed.p,
+    maxmem: MAX_MEMORY
+  });
+  return candidate.length === parsed.hash.length && timingSafeEqual(candidate, parsed.hash);
+}
+
 export function validatePassword(password) {
   const text = String(password || '');
   if (text.length < 12) return 'Пароль должен содержать не менее 12 символов.';
@@ -71,14 +84,29 @@ export function hashPassword(password) {
 }
 
 export function verifyPassword(password, encoded = DUMMY_HASH) {
-  const parsed = parseEncoded(encoded) || parseEncoded(DUMMY_HASH);
-  const candidate = scryptSync(String(password || ''), parsed.salt, parsed.hash.length, {
-    N: parsed.N,
-    r: parsed.r,
-    p: parsed.p,
-    maxmem: MAX_MEMORY
-  });
-  return candidate.length === parsed.hash.length && timingSafeEqual(candidate, parsed.hash);
+  return verifyEncoded(password, encoded, DUMMY_HASH);
+}
+
+export function validatePin(pin) {
+  const text = String(pin ?? '').trim();
+  if (!/^\d{4}$/.test(text)) return 'PIN-код должен состоять ровно из 4 цифр.';
+  return null;
+}
+
+export function isPinHash(encoded) {
+  return String(encoded || '').startsWith(PIN_PREFIX);
+}
+
+export function hashPin(pin) {
+  const error = validatePin(pin);
+  if (error) throw new Error(`pin_invalid:${error}`);
+  return `${PIN_PREFIX}${encodePassword(String(pin).trim())}`;
+}
+
+export function verifyPin(pin, encoded = DUMMY_PIN_HASH) {
+  const stored = isPinHash(encoded) ? String(encoded).slice(PIN_PREFIX.length) : '';
+  const fallback = DUMMY_PIN_HASH.slice(PIN_PREFIX.length);
+  return verifyEncoded(String(pin ?? '').trim(), stored, fallback);
 }
 
 export function hashSessionToken(token) {
