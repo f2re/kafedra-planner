@@ -114,7 +114,9 @@ trap 'rm -rf "$WORK"' EXIT
 chmod 0755 "$WORK"
 
 check_package_database() {
-  local stage="$1" audit log_file="$WORK/apt-check-$stage.log"
+  local stage="$1"
+  local audit log_file
+  log_file="$WORK/apt-check-$stage.log"
   audit="$(dpkg --audit || true)"
   if [[ -n "$audit" ]]; then
     warn "Пакетная база ОС имеет незавершённые dpkg-операции ($stage). Kafedra Planner ничего не исправляет автоматически: $audit"
