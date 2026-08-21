@@ -21,7 +21,8 @@ async function openSettings(page) {
 }
 
 async function logout(page) {
-  await page.locator('#calendar-start-settings-sheet [data-close-sheet]').first().click().catch(() => {});
+  const close = page.locator('#calendar-start-settings-sheet [data-close-sheet]').first();
+  if (await close.isVisible().catch(() => false)) await close.click();
   await page.locator('.auth-user-button').click();
   await page.locator('[data-auth-action="logout"]').click();
   await expect(page.locator('#auth-gate')).toBeVisible();
