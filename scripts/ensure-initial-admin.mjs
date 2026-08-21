@@ -11,6 +11,7 @@ import {
   resetAuthPassword,
   updateAuthAccount
 } from '../packages/auth/src/service.mjs';
+import { isPinHash } from '../packages/auth/src/passwords.mjs';
 
 const config = loadConfig();
 const database = new Database(config.databasePath, { migrationsDir: config.migrationsDir });
@@ -19,6 +20,21 @@ try {
   const accounts = listAuthAccounts(database, workspace.id);
   const admin = accounts.find((item) => item.active && item.role === 'admin');
   if (admin) {
+    if (config.authMode === 'accounts') {
+      const stored = database.get('SELECT password_hash FROM auth_accounts WHERE id = ?', admin.id);
+      if (isPinHash(stored?.password_hash)) {
+        const password = `Kp-${randomBytes(18).toString('base64url')}7a`;
+        resetAuthPassword(database, workspace.id, admin.id, password, { mustChangePassword: true });
+        process.stdout.write(`${JSON.stringify({
+          created: true,
+          convertedFromPin: true,
+          username: admin.username,
+          password,
+          mustChangePassword: true
+        })}\n`);
+        process.exit(0);
+      }
+    }
     process.stdout.write(`${JSON.stringify({
       created: false,
       username: admin.username,

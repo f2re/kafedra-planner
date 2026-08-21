@@ -8,6 +8,7 @@ import { fileURLToPath } from 'node:url';
 import { loadConfig } from '../packages/config/src/index.mjs';
 import { Database } from '../packages/storage/src/database.mjs';
 import { parseTesseractTsv } from '../packages/document-intake/src/ocr.mjs';
+import { hashPin, isPinHash } from '../packages/auth/src/passwords.mjs';
 
 const ROOT = resolve(fileURLToPath(new URL('..', import.meta.url)));
 
@@ -17,10 +18,27 @@ test('application paths do not depend on installer cwd', () => {
   assert.equal(config.publicDir, '/opt/kafedra-planner/releases/test-release/public');
 });
 
-test('clean deployment creates one initial admin with mandatory password change', async () => {
-  const directory = await mkdtemp(join(tmpdir(), 'kafedra-admin-'));
+test('clean deployment creates one internal admin and leaves PIN for first browser visit', async () => {
+  const directory = await mkdtemp(join(tmpdir(), 'kafedra-admin-pin-'));
   const databasePath = join(directory, 'db.sqlite3');
-  const env = { ...process.env, KAFEDRA_APPLICATION_DIR: ROOT, KAFEDRA_DATA_DIR: directory, KAFEDRA_DATABASE_PATH: databasePath, KAFEDRA_CONFIG_PATH: join(directory, 'kafedra.env') };
+  const env = { ...process.env, KAFEDRA_APPLICATION_DIR: ROOT, KAFEDRA_DATA_DIR: directory, KAFEDRA_DATABASE_PATH: databasePath, KAFEDRA_CONFIG_PATH: join(directory, 'kafedra.env'), KAFEDRA_AUTH_MODE: 'pin' };
+  try {
+    const first = JSON.parse(execFileSync(process.execPath, [join(ROOT, 'scripts/ensure-initial-admin.mjs')], { cwd: directory, env, encoding: 'utf8' }));
+    assert.equal(first.created, false); assert.equal(first.accountCreated, true); assert.equal(first.username, 'admin'); assert.equal(first.pinSetupRequired, true); assert.equal(first.password, undefined);
+    const second = JSON.parse(execFileSync(process.execPath, [join(ROOT, 'scripts/ensure-initial-admin.mjs')], { cwd: directory, env, encoding: 'utf8' }));
+    assert.equal(second.created, false); assert.equal(second.pinSetupRequired, true); assert.equal(second.password, undefined);
+    const database = new Database(databasePath, { migrationsDir: join(ROOT, 'migrations') });
+    try {
+      const account = database.get("SELECT username, role, must_change_password FROM auth_accounts WHERE username = 'admin'");
+      assert.equal(account.username, 'admin'); assert.equal(account.role, 'admin'); assert.equal(account.must_change_password, 0);
+    } finally { database.close(); }
+  } finally { await rm(directory, { recursive: true, force: true }); }
+});
+
+test('explicit accounts mode preserves temporary-password bootstrap', async () => {
+  const directory = await mkdtemp(join(tmpdir(), 'kafedra-admin-accounts-'));
+  const databasePath = join(directory, 'db.sqlite3');
+  const env = { ...process.env, KAFEDRA_APPLICATION_DIR: ROOT, KAFEDRA_DATA_DIR: directory, KAFEDRA_DATABASE_PATH: databasePath, KAFEDRA_CONFIG_PATH: join(directory, 'kafedra.env'), KAFEDRA_AUTH_MODE: 'accounts' };
   try {
     const first = JSON.parse(execFileSync(process.execPath, [join(ROOT, 'scripts/ensure-initial-admin.mjs')], { cwd: directory, env, encoding: 'utf8' }));
     assert.equal(first.created, true); assert.equal(first.username, 'admin'); assert.ok(first.password.length >= 12); assert.equal(first.mustChangePassword, true);
@@ -31,6 +49,33 @@ test('clean deployment creates one initial admin with mandatory password change'
       const account = database.get("SELECT username, role, must_change_password FROM auth_accounts WHERE username = 'admin'");
       assert.equal(account.username, 'admin'); assert.equal(account.role, 'admin'); assert.equal(account.must_change_password, 1);
     } finally { database.close(); }
+  } finally { await rm(directory, { recursive: true, force: true }); }
+});
+
+test('switching an initialized PIN installation to accounts mode generates recovery credentials', async () => {
+  const directory = await mkdtemp(join(tmpdir(), 'kafedra-pin-to-accounts-'));
+  const databasePath = join(directory, 'db.sqlite3');
+  const baseEnv = { ...process.env, KAFEDRA_APPLICATION_DIR: ROOT, KAFEDRA_DATA_DIR: directory, KAFEDRA_DATABASE_PATH: databasePath, KAFEDRA_CONFIG_PATH: join(directory, 'kafedra.env') };
+  try {
+    execFileSync(process.execPath, [join(ROOT, 'scripts/ensure-initial-admin.mjs')], { cwd: directory, env: { ...baseEnv, KAFEDRA_AUTH_MODE: 'pin' }, encoding: 'utf8' });
+    const database = new Database(databasePath, { migrationsDir: join(ROOT, 'migrations') });
+    try {
+      database.run("UPDATE auth_accounts SET password_hash = ?, must_change_password = 0 WHERE username = 'admin'", hashPin('4826'));
+    } finally { database.close(); }
+
+    const converted = JSON.parse(execFileSync(process.execPath, [join(ROOT, 'scripts/ensure-initial-admin.mjs')], { cwd: directory, env: { ...baseEnv, KAFEDRA_AUTH_MODE: 'accounts' }, encoding: 'utf8' }));
+    assert.equal(converted.created, true);
+    assert.equal(converted.convertedFromPin, true);
+    assert.equal(converted.username, 'admin');
+    assert.ok(converted.password.length >= 12);
+    assert.equal(converted.mustChangePassword, true);
+
+    const verified = new Database(databasePath, { migrationsDir: join(ROOT, 'migrations') });
+    try {
+      const account = verified.get("SELECT password_hash, must_change_password FROM auth_accounts WHERE username = 'admin'");
+      assert.equal(isPinHash(account.password_hash), false);
+      assert.equal(account.must_change_password, 1);
+    } finally { verified.close(); }
   } finally { await rm(directory, { recursive: true, force: true }); }
 });
 

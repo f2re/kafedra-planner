@@ -116,15 +116,17 @@ test('первый запуск задаёт PIN, вход работает бе
     );
 
     resetLocalPin(database, workspace.id, '2468', '2026-08-21T10:12:00.000Z');
+    const oldContext = resolveAuthContext(
+      database,
+      request(cookie),
+      config,
+      new Date('2026-08-21T10:12:30.000Z')
+    );
+    assert.equal(oldContext.authenticated, false);
     assert.equal(
       authenticatePin(database, workspace.id, '2468', request(), config, new Date('2026-08-21T10:13:00.000Z')).account.id,
       account.id
     );
-    const activeOldSession = database.get(
-      'SELECT revoked_at FROM auth_sessions WHERE id = ?',
-      login.session.id
-    );
-    assert.ok(activeOldSession.revoked_at);
   } finally {
     database.close();
     await rm(dir, { recursive: true, force: true });
