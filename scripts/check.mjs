@@ -1,6 +1,7 @@
 import { readdir } from 'node:fs/promises';
 import { extname, join } from 'node:path';
 import { spawn } from 'node:child_process';
+import { checkDocumentation, formatDocumentationErrors } from './docs-consistency.mjs';
 
 const roots = ['apps', 'packages', 'public', 'scripts', 'tests'];
 const files = [];
@@ -21,4 +22,14 @@ for (const file of files) {
     child.on('exit', (code) => code === 0 ? resolve() : reject(new Error(`Syntax check failed: ${file}`)));
   });
 }
+
+const documentationErrors = await checkDocumentation();
+if (documentationErrors.length) {
+  console.error(`Документация содержит ${documentationErrors.length} несогласованных ссылок/команд:`);
+  console.error(formatDocumentationErrors(documentationErrors));
+  process.exitCode = 1;
+} else {
+  console.log('Документация согласована с package.json и деревом репозитория.');
+}
+
 console.log(`Проверено модулей: ${files.length}`);

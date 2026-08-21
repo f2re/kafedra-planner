@@ -1,50 +1,65 @@
 # Автоматическая проверка release candidate
 
-Актуальный рубеж: `0.1.0-rc.3`, схема SQLite 15.
+Актуальный рубеж: `0.1.0-rc.6`, схема SQLite **19**. Автоматический gate проверяет код и поставочный контракт, но не подменяет фактическую приёмку #27 на Astra Linux/Debian.
 
-## Постоянные проверки
+## Статические и Node-проверки
 
-Каждый pull request и push в `main` выполняет два независимых контура.
+На PR и push в `main` выполняются:
 
-### Код и эксплуатационное ядро
-
-- синтаксическая проверка всех JavaScript-модулей;
-- полный Node unit/integration набор;
-- миграция пустой SQLite-базы и smoke-test;
-- зашифрованный backup → verify → dry-run → restore self-test;
-- синтаксис install/offline shell-сценариев;
+- `npm run check`: syntax check JavaScript + согласованность README/docs с реальными scripts/paths;
+- `npm test`: unit/integration;
+- `npm run smoke`;
+- backup create/verify/restore self-test;
+- shell/Python syntax поставочных скриптов;
 - system preflight;
-- реальная сборка автономного `tar.gz` со встроенным Node.js 24;
-- внешний SHA-256 архива;
-- полный внутренний `manifest.sha256`;
-- проверка VERSION/release metadata/runtime platform/arch;
-- smoke-test из содержимого архива именно встроенным Node.
+- тот же набор на минимальном Node 24.15;
+- runtime-only builder под host Node 25, чтобы host/runtime оставались разделены.
 
-### Реальный Chromium
+## Browser release gate
 
-Отдельными сценариями проверяются desktop и mobile потоки:
+Реальный Chromium проверяет:
 
-- основной календарь, документы, структурный источник и preview;
-- планы: импорт, DOCX-образец, следующий период, календарный источник, correction/undo;
-- отчёт → сопоставление → подтверждение и научный реестр;
-- персональный plan/fact и ручные исправления;
-- авторизация, роли и персональная доставка уведомлений;
-- release-readiness и административные операции;
-- объектные ACL, прямой URL и поиск.
+```bash
+npm run test:browser:plans
+npm run test:browser:core
+npm run test:browser:reports-science
+npm run test:browser:plan-fact
+npm run test:browser:auth
+npm run test:browser:release
+npm run test:browser:acl
+```
+
+Проверяются desktop/mobile, планы, календарь, документы, заседания, plan/fact, auth, release readiness и объектный доступ.
+
+## Full offline gate
+
+После базовых jobs CI:
+
+1. собирает target-specific Debian 12 full bundle;
+2. проверяет ordinary APT plan и настоящий bundled `file:` fallback;
+3. проверяет managed Python, Tesseract `rus+eng`, Poppler, LibreOffice, migrations и HTTP health;
+4. разворачивает ordinary bundle в чистой systemd-среде без сети;
+5. проверяет повторную idempotent установку/update;
+6. отдельно собирает LLM-вариант с fake `llama-server` и двумя fake GGUF;
+7. разворачивает LLM bundle без сети и проверяет systemd, health/models, повторный install, forced rollback с сохранением model cache и отключение LLM при работающих API/worker.
+
+Fake LLM fixture не публикуется как production artifact и не заменяет реальную LLM/Astra приёмку.
+
+## Публикация
+
+На PR artifact не публикуется. Full ordinary offline artifact публикуется только на `push` в `main`/ручном workflow, после успешного full-offline job.
 
 ## Граница автоматической проверки
 
-Автоматический release-gate подтверждает воспроизводимость приложения и release-архива на Ubuntu runner. Он не подменяет эксплуатационную приёмку Astra Linux/Debian.
+До stable на реальной целевой машине нужно подтвердить:
 
-До stable по #27 требуется на целевой машине подтвердить:
-
-- бинарный запуск встроенного Node и фактическую glibc-совместимость;
-- полный system preflight с Poppler, Tesseract и LibreOffice;
-- реальные PDF/DOCX/XLSX и сканы;
+- embedded Node/glibc совместимость;
+- реальный OCR/LibreOffice на ведомственных файлах;
+- install/update существующей базы;
+- зашифрованный backup/restore и equality acceptance evidence;
+- forced rollback;
 - права каталогов и systemd hardening;
-- зашифрованную резервную копию и восстановление на чистом узле;
-- автоматический rollback при искусственно сорванном обновлении;
-- UX-приёмку оператором без ручных технических обходов;
-- фактический RTO и контрольные суммы исходных документов.
+- desktop/mobile UX оператором;
+- при использовании LLM — настоящий `llama-server` и GGUF.
 
-Подробная процедура: [`OFFLINE_INSTALL.md`](OFFLINE_INSTALL.md) и issue #27.
+Процедура: [`TARGET_ACCEPTANCE.md`](TARGET_ACCEPTANCE.md).
