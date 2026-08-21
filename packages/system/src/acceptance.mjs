@@ -22,6 +22,8 @@ const STABLE_TABLES = [
   'auth_accounts', 'object_access_policies', 'object_acl_entries',
   'plans', 'plan_items', 'plan_item_assignments', 'plan_document_templates', 'plan_generation_runs',
   'supporting_documents', 'supporting_document_links',
+  'organization_units', 'organization_positions', 'person_appointments', 'organization_unit_managers',
+  'scientific_author_affiliations',
   'notification_delivery_profiles'
 ];
 
@@ -216,13 +218,7 @@ async function blobEvidence(database) {
       const actualSha256 = await hashFile(row.storage_path);
       const actualSize = Number(info.size);
       const ok = info.isFile() && actualSize === expectedSize && actualSha256 === row.sha256;
-      const entry = {
-        sha256: row.sha256,
-        expectedSize,
-        actualSize,
-        actualSha256,
-        ok
-      };
+      const entry = { sha256: row.sha256, expectedSize, actualSize, actualSha256, ok };
       entries.push(entry);
       if (!ok) mismatched.push(entry);
     } catch (error) {
@@ -341,23 +337,14 @@ function evaluate({ preflight, database, services, backup, applicationVersion: v
   } else if (!backup.present || !backup.archivePresent) {
     warnings.push('verified_backup_not_detected');
   }
-  return {
-    status: failures.length ? 'fail' : warnings.length ? 'pass_with_warnings' : 'pass',
-    failures,
-    warnings
-  };
+  return { status: failures.length ? 'fail' : warnings.length ? 'pass_with_warnings' : 'pass', failures, warnings };
 }
 
 export async function collectAcceptanceEvidence({
-  databasePath,
-  dataDir,
-  backupDir,
-  applicationDir,
-  requireFull = false,
+  databasePath, dataDir, backupDir, applicationDir, requireFull = false,
   osReleasePath = '/etc/os-release',
   services = ['kafedra-planner-api.service', 'kafedra-planner-worker.service'],
-  runner = defaultRunner,
-  preflightResult = null
+  runner = defaultRunner, preflightResult = null
 }) {
   if (!databasePath) throw new Error('acceptance_database_path_required');
   const preflight = preflightResult || inspectSystem();
@@ -369,12 +356,7 @@ export async function collectAcceptanceEvidence({
     formatVersion: 2,
     generatedAt: new Date().toISOString(),
     host: hostname(),
-    application: {
-      version,
-      applicationDir,
-      dataDir,
-      databaseFile: databasePath.split('/').at(-1)
-    },
+    application: { version, applicationDir, dataDir, databaseFile: databasePath.split('/').at(-1) },
     runtime: runtimeInfo(),
     os: await readOsRelease(osReleasePath),
     uname: commandVersion(runner, 'uname', ['-a']),
@@ -390,14 +372,7 @@ export async function collectAcceptanceEvidence({
     services: serviceEvidenceList,
     backup
   };
-  evidence.acceptance = evaluate({
-    preflight,
-    database,
-    services: serviceEvidenceList,
-    backup,
-    applicationVersion: version,
-    requireFull
-  });
+  evidence.acceptance = evaluate({ preflight, database, services: serviceEvidenceList, backup, applicationVersion: version, requireFull });
   return evidence;
 }
 
@@ -414,17 +389,11 @@ export function compareAcceptanceEvidence(before, after) {
   push('database.blobs.count', before?.database?.blobs?.count, after?.database?.blobs?.count);
   push('database.blobs.totalBytes', before?.database?.blobs?.totalBytes, after?.database?.blobs?.totalBytes);
   push('database.blobs.digest', before?.database?.blobs?.digest, after?.database?.blobs?.digest);
-
   const beforeHistory = before?.database?.historyTableCounts || {};
   const afterHistory = after?.database?.historyTableCounts || {};
   for (const [table, count] of Object.entries(beforeHistory)) {
     const afterCount = Number(afterHistory[table] ?? -1);
-    if (afterCount < Number(count)) {
-      differences.push({ field: `database.historyTableCounts.${table}`, before: count, after: afterCount, rule: 'must_not_decrease' });
-    }
+    if (afterCount < Number(count)) differences.push({ field: `database.historyTableCounts.${table}`, before: count, after: afterCount, rule: 'must_not_decrease' });
   }
-  return {
-    status: differences.length ? 'different' : 'equal',
-    differences
-  };
+  return { status: differences.length ? 'different' : 'equal', differences };
 }
