@@ -119,11 +119,14 @@ test('Astra Linux profile compatibility matches same series and rejects cross-se
   await assert.rejects(() => run('bash', ['-lc', script, '_', 'astra', 'astra', '1.7_x86-64', 'amd64', 'astra', 'astra', '1.7_x86-64', 'arm64']));
 });
 
-test('doctor script provides actionable remediation advice and diagnose flag', () => {
+test('doctor script provides automated remediation mode and diagnose flag', () => {
+  assert.match(doctor, /--repair/u);
+  assert.match(doctor, /--auto-repair/u);
   assert.match(doctor, /--diagnose-apt/u);
   assert.match(doctor, /dpkg --configure -a/u);
   assert.match(doctor, /apt-get check/u);
   assert.match(doctor, /install-os-packages\.sh/u);
   assert.match(deploy, /NODE_EXEC_OUTPUT/u);
+  assert.match(deploy, /doctor\.sh --repair/u);
   assert.match(installer, /dpkg --configure -a/u);
 });

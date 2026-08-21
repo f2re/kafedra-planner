@@ -71,7 +71,7 @@ if [[ "$IS_BUNDLE" == true && -f "$BUNDLE_ROOT/deployment.json" ]]; then
     DOCUMENT_CAPABILITIES_DEGRADED=true
   fi
   if [[ "$DOCUMENT_CAPABILITIES_DEGRADED" == true ]]; then
-    echo "Документные возможности установлены не полностью. Календарь, задачи, данные и исходные файлы будут доступны; OCR/preview/PDF-разбор можно восстановить после исправления APT ОС." >&2
+    echo "Документные возможности установлены не полностью. Календарь, задачи, данные и исходные файлы будут доступны; автоматическое восстановление: 'sudo $APP_ROOT/current/scripts/offline/doctor.sh --repair'." >&2
   else
     echo "Системные OCR/PDF/Office компоненты готовы."
   fi

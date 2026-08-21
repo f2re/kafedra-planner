@@ -55,13 +55,48 @@ if [[ "${KAFEDRA_LLM_ENABLED:-false}" == true ]]; then
 else
   echo '✓ LLM: выключен (основной контур автономен)'
 fi
+if [[ "${1:-}" == "--repair" || "${1:-}" == "--auto-repair" || "${1:-}" == "--heal" ]]; then
+  echo "=== Автоматическое устранение проблем и восстановление возможностей ==="
+  if [[ "${EUID:-$(id -u)}" -ne 0 ]]; then
+    echo "Для автоматического устранения требуются права root (sudo $0 --repair)" >&2
+    exit 2
+  fi
+  audit="$(dpkg --audit 2>&1 || true)"
+  if [[ -n "$audit" ]]; then
+    echo "Выполняю безопасное завершение конфигурации пакетов (dpkg --configure -a)..."
+    dpkg --configure -a || true
+    audit="$(dpkg --audit 2>&1 || true)"
+    if [[ -z "$audit" ]]; then echo "✓ dpkg --audit: ошибки устранены"; else echo "✗ dpkg --audit: $audit" >&2; fi
+  else
+    echo "✓ dpkg --audit: чисто"
+  fi
+  if ! LC_ALL=C apt-get check >/dev/null 2>&1; then
+    echo "✗ apt-get check имеет неудовлетворённые зависимости сторонних пакетов." >&2
+    LC_ALL=C apt-get check >&2 || true
+    echo "Устраните конфликт стороннего ПО в APT и повторите команду." >&2
+  else
+    echo "✓ apt-get check: чисто"
+    if [[ -d "$ROOT/os-packages" ]]; then
+      echo "Доустанавливаю недостающие компоненты из $ROOT/os-packages..."
+      if "$ROOT/scripts/offline/install-os-packages.sh" "$ROOT/os-packages" --scope all; then
+        echo "✓ Системные компоненты успешно добавлены."
+      else
+        echo "– Пакеты не удалось добавить полностью; ядро продолжает работать." >&2
+      fi
+    fi
+  fi
+  echo ""
+  echo "=== Итоговая проверка системы ==="
+  exec "$0"
+fi
+
 if [[ "${1:-}" == "--diagnose-apt" ]]; then
   echo "=== Диагностика состояния пакетов ОС ==="
   audit="$(dpkg --audit 2>&1 || true)"
   if [[ -n "$audit" ]]; then
     echo "✗ dpkg --audit обнаружил незавершённые операции:"
     printf '%s\n' "$audit"
-    echo "  Рекомендация: выполните 'sudo dpkg --configure -a'"
+    echo "  Рекомендация: выполните 'sudo dpkg --configure -a' или 'sudo $0 --repair'"
   else
     echo "✓ dpkg --audit: чисто"
   fi

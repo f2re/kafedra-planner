@@ -118,6 +118,15 @@ check_package_database() {
   local audit log_file
   log_file="$WORK/apt-check-$stage.log"
   audit="$(dpkg --audit || true)"
+  if [[ -n "$audit" && "${EUID:-$(id -u)}" -eq 0 ]]; then
+    info "Обнаружены незавершённые операции dpkg ($stage); выполняю безопасное завершение 'dpkg --configure -a'..."
+    if LC_ALL=C DEBIAN_FRONTEND=noninteractive dpkg --configure -a >/dev/null 2>&1; then
+      audit="$(dpkg --audit || true)"
+      if [[ -z "$audit" ]]; then
+        info "Незавершённые операции dpkg успешно устранены автоматической настройкой"
+      fi
+    fi
+  fi
   if [[ -n "$audit" ]]; then
     warn "Пакетная база ОС имеет незавершённые dpkg-операции ($stage). Kafedra Planner ничего не исправляет автоматически: $audit"
     warn "Подсказка: Для завершения незавершённых настроек пакетов выполните 'sudo dpkg --configure -a'"
