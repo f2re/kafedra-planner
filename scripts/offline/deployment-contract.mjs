@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 import { createHash } from 'node:crypto';
 import { execFileSync } from 'node:child_process';
-import { readFileSync, statSync, writeFileSync } from 'node:fs';
+import { existsSync, readFileSync, statSync, writeFileSync } from 'node:fs';
 import { join, resolve } from 'node:path';
 
 const FORMAT = 'kafedra-planner-full-offline';
@@ -90,7 +90,7 @@ function inspect(root) {
     fail(`Managed Python runtime или OCR adapter не запускается: ${error.message}`);
   }
   if (normalizeMachine(probe.architecture) !== expectedMachine(sourceOs.DEB_ARCHITECTURE)) fail(`Запущенный Python ${probe.architecture} не соответствует ${sourceOs.DEB_ARCHITECTURE}`);
-  return {
+  const result = {
     format: FORMAT,
     formatVersion: FORMAT_VERSION,
     profile: 'full',
@@ -103,6 +103,18 @@ function inspect(root) {
     recognition: { script: 'application/scripts/recognition/ocr.py', defaultLanguages: 'rus+eng' },
     osPackages: { path: 'os-packages', count, packagesTsvSha256: sha256(packagesPath), manifestSha256: sha256(osManifestPath), sourceOsSha256: sha256(sourceOsPath) }
   };
+  const llmManifestPath = join(root, 'llm', 'manifest.json');
+  if (existsSync(llmManifestPath)) {
+    const llm = readJson(llmManifestPath);
+    if (llm.format !== 'kafedra-planner-llm-payload' || llm.formatVersion !== 1) fail('Некорректный LLM payload в full bundle');
+    result.llm = {
+      path: 'llm', manifestSha256: sha256(llmManifestPath),
+      defaultModel: String(llm.defaultModel || ''), modelCount: Array.isArray(llm.models) ? llm.models.length : 0,
+      enabledByDefault: Boolean(llm.enabledByDefault)
+    };
+    if (!result.llm.defaultModel || !result.llm.modelCount) fail('LLM payload не содержит модели');
+  }
+  return result;
 }
 
 function writeContract(root, output) {

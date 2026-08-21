@@ -27,4 +27,11 @@ const http=require("node:http");
 const req=http.get({host:"127.0.0.1",port:Number(process.env.KAFEDRA_PORT),path:"/api/system/health",timeout:3000},r=>{r.resume();process.exit(r.statusCode>=200&&r.statusCode<300?0:1)});
 req.on("timeout",()=>req.destroy());req.on("error",()=>process.exit(1));
 ' && echo "✓ HTTP health: 127.0.0.1:$PORT" || { echo "✗ HTTP health" >&2; exit 3; }
+if [[ "${KAFEDRA_LLM_ENABLED:-false}" == true ]]; then
+  LLM_ARGS=()
+  [[ "${KAFEDRA_LLM_MANAGED:-false}" == true ]] || LLM_ARGS+=(--optional)
+  KAFEDRA_APPLICATION_DIR="$ROOT" KAFEDRA_CONFIG_PATH="$CONFIG" "$NODE" "$ROOT/scripts/llm-doctor.mjs" "${LLM_ARGS[@]}"
+else
+  echo '✓ LLM: выключен (основной контур автономен)'
+fi
 echo 'Kafedra Planner: готов к работе.'
