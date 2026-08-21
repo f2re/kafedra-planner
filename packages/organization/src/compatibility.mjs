@@ -36,12 +36,15 @@ function currentManager(database, workspaceId, unitId, at) {
 export function syncPersonCompatibility(database, workspaceId, personId, now = new Date().toISOString()) {
   const at = today(now);
   const appointment = currentPrimary(database, workspaceId, personId, at);
-  if (!appointment) return null;
+  if (!appointment) {
+    database.run(`UPDATE people SET position = NULL, manager_id = NULL, updated_at = ? WHERE workspace_id = ? AND id = ?`,
+      now, workspaceId, personId);
+    return null;
+  }
   const unitManager = currentManager(database, workspaceId, appointment.organization_unit_id, at);
   const effectiveManagerId = appointment.manager_person_id || unitManager?.person_id || null;
-  database.run(`UPDATE people SET position = ?, manager_id = CASE WHEN ? IS NOT NULL THEN ? ELSE manager_id END,
-    updated_at = ? WHERE workspace_id = ? AND id = ?`,
-  appointment.effective_position, effectiveManagerId, effectiveManagerId, now, workspaceId, personId);
+  database.run(`UPDATE people SET position = ?, manager_id = ?, updated_at = ? WHERE workspace_id = ? AND id = ?`,
+    appointment.effective_position, effectiveManagerId, now, workspaceId, personId);
   return { appointment, manager: effectiveManagerId };
 }
 
