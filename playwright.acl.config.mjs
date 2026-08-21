@@ -16,7 +16,7 @@ export default defineConfig({
     screenshot: 'only-on-failure'
   },
   webServer: {
-    command: `KAFEDRA_BROWSER_PORT=${port} node tests/browser/start-acl-server.mjs`,
+    command: `KAFEDRA_AUTH_MODE=accounts KAFEDRA_BROWSER_PORT=${port} node tests/browser/start-acl-server.mjs`,
     url: `http://127.0.0.1:${port}/api/system/health`,
     reuseExistingServer: false,
     timeout: 30_000

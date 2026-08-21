@@ -39,6 +39,14 @@ export function getReleaseReadiness(database, workspaceId, config) {
     JOIN auth_accounts a ON a.id = s.account_id
     WHERE a.workspace_id = ? AND s.revoked_at IS NULL AND s.expires_at > ?
   `, workspaceId, new Date().toISOString())?.count || 0);
+  const authMode = config.authMode || 'accounts';
+  const pinConfigured = authMode === 'pin' && activeAdmins > 0
+    ? Number(database.get(`
+        SELECT COUNT(*) AS count FROM auth_accounts
+        WHERE workspace_id = ? AND role = 'admin' AND is_active = 1
+          AND password_hash LIKE 'pin$%'
+      `, workspaceId)?.count || 0) > 0
+    : null;
   const backupRequired = Boolean(config.backupRequired);
   const backupMaxAgeHours = Number.isFinite(Number(config.backupMaxAgeHours))
     ? Number(config.backupMaxAgeHours)
@@ -53,19 +61,29 @@ export function getReleaseReadiness(database, workspaceId, config) {
     {
       code: 'auth_enabled',
       status: config.authEnabled ? 'ok' : 'error',
-      title: 'Авторизация включена',
+      title: 'Защита доступа включена',
       detail: config.authEnabled
-        ? 'Запросы связаны с локальными аккаунтами сотрудников.'
+        ? authMode === 'pin'
+          ? 'Используется локальный вход по четырёхзначному PIN-коду.'
+          : 'Используются локальные аккаунты сотрудников.'
         : 'В промышленной эксплуатации KAFEDRA_AUTH_ENABLED должен быть true.'
     },
     {
       code: 'admin_exists',
       status: activeAdmins > 0 ? 'ok' : 'error',
-      title: 'Есть активный администратор',
+      title: 'Есть внутренний администратор',
       detail: activeAdmins > 0
         ? `Активных администраторов: ${activeAdmins}.`
-        : 'Создайте первого администратора командой npm run auth:create-admin.'
+        : 'Повторите штатную установку: внутренний администратор создаётся автоматически.'
     },
+    ...(authMode === 'pin' ? [{
+      code: 'pin_configured',
+      status: pinConfigured ? 'ok' : 'warning',
+      title: 'PIN-код задан',
+      detail: pinConfigured
+        ? 'Локальный PIN-код настроен.'
+        : 'Откройте главную страницу и задайте PIN-код из четырёх цифр.'
+    }] : []),
     {
       code: 'csrf_enabled',
       status: config.authCsrfEnabled ? 'ok' : 'error',
