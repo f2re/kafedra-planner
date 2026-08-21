@@ -11,6 +11,7 @@ import { createNotificationDeliveryRouter } from './notification-delivery-router
 import { createAssignmentResponsibilityRouter } from './assignment-responsibility-router.mjs';
 import { createPeriodicTasksRouter } from './periodic-tasks-router.mjs';
 import { createSearchRouter } from './search-router.mjs';
+import { createOrganizationRouter } from './organization-router.mjs';
 import { createAuthRouter } from './auth-router.mjs';
 import { createAccessRouter } from './access-router.mjs';
 import { resolveAuthContext } from '../../../packages/auth/src/service.mjs';
@@ -26,6 +27,7 @@ export function createApp({ database, config, logger }) {
   const assignmentResponsibilityRouter = createAssignmentResponsibilityRouter({ database, config, logger });
   const periodicTasksRouter = createPeriodicTasksRouter({ database, config, logger });
   const searchRouter = createSearchRouter({ database, config, logger });
+  const organizationRouter = createOrganizationRouter({ database, config, logger });
   const manualPlansRouter = createManualPlansRouter({ database, config, logger });
   const planItemsRouter = createPlanItemsRouter({ database, config, logger });
   const plansRouter = createPlansRouter({ database, config, logger });
@@ -66,22 +68,25 @@ export function createApp({ database, config, logger }) {
           const searchHandled = !preferencesHandled && !notificationHandled && !responsibilityHandled && !periodicHandled && !response.headersSent
             ? await searchRouter(request, response, url, requestId)
             : false;
-          const manualPlansHandled = !preferencesHandled && !notificationHandled && !responsibilityHandled && !periodicHandled && !searchHandled && !response.headersSent
+          const organizationHandled = !preferencesHandled && !notificationHandled && !responsibilityHandled && !periodicHandled && !searchHandled && !response.headersSent
+            ? await organizationRouter(request, response, url, requestId)
+            : false;
+          const manualPlansHandled = !preferencesHandled && !notificationHandled && !responsibilityHandled && !periodicHandled && !searchHandled && !organizationHandled && !response.headersSent
             ? await manualPlansRouter(request, response, url, requestId)
             : false;
-          const planItemHandled = !preferencesHandled && !notificationHandled && !responsibilityHandled && !periodicHandled && !searchHandled && !manualPlansHandled && !response.headersSent
+          const planItemHandled = !preferencesHandled && !notificationHandled && !responsibilityHandled && !periodicHandled && !searchHandled && !organizationHandled && !manualPlansHandled && !response.headersSent
             ? await planItemsRouter(request, response, url, requestId)
             : false;
-          const plansHandled = !preferencesHandled && !notificationHandled && !responsibilityHandled && !periodicHandled && !searchHandled && !manualPlansHandled && !planItemHandled && !response.headersSent
+          const plansHandled = !preferencesHandled && !notificationHandled && !responsibilityHandled && !periodicHandled && !searchHandled && !organizationHandled && !manualPlansHandled && !planItemHandled && !response.headersSent
             ? await plansRouter(request, response, url, requestId)
             : false;
-          const meetingsHandled = !preferencesHandled && !notificationHandled && !responsibilityHandled && !periodicHandled && !searchHandled && !manualPlansHandled && !planItemHandled && !plansHandled && !response.headersSent
+          const meetingsHandled = !preferencesHandled && !notificationHandled && !responsibilityHandled && !periodicHandled && !searchHandled && !organizationHandled && !manualPlansHandled && !planItemHandled && !plansHandled && !response.headersSent
             ? await meetingsRouter(request, response, url, requestId)
             : false;
-          const accessHandled = !preferencesHandled && !notificationHandled && !responsibilityHandled && !periodicHandled && !searchHandled && !manualPlansHandled && !planItemHandled && !plansHandled && !meetingsHandled && !response.headersSent && request.auth?.enabled
+          const accessHandled = !preferencesHandled && !notificationHandled && !responsibilityHandled && !periodicHandled && !searchHandled && !organizationHandled && !manualPlansHandled && !planItemHandled && !plansHandled && !meetingsHandled && !response.headersSent && request.auth?.enabled
             ? await accessRouter(request, response, url, requestId)
             : false;
-          if (!preferencesHandled && !notificationHandled && !responsibilityHandled && !periodicHandled && !searchHandled && !manualPlansHandled && !planItemHandled && !plansHandled && !meetingsHandled && !accessHandled && !response.headersSent) {
+          if (!preferencesHandled && !notificationHandled && !responsibilityHandled && !periodicHandled && !searchHandled && !organizationHandled && !manualPlansHandled && !planItemHandled && !plansHandled && !meetingsHandled && !accessHandled && !response.headersSent) {
             const handled = await planFactRouter(request, response, url, requestId);
             if (!handled && !response.headersSent) await router(request, response, url, requestId);
           }

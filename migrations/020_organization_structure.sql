@@ -85,6 +85,33 @@ ON organization_unit_managers(workspace_id, organization_unit_id, valid_from, va
 CREATE INDEX idx_organization_unit_managers_person
 ON organization_unit_managers(workspace_id, person_id, valid_from, valid_to, status);
 
+CREATE TABLE scientific_author_affiliations (
+  id TEXT PRIMARY KEY,
+  workspace_id TEXT NOT NULL REFERENCES workspaces(id) ON DELETE CASCADE,
+  scientific_item_id TEXT NOT NULL,
+  author_raw TEXT NOT NULL,
+  person_id TEXT REFERENCES people(id) ON DELETE SET NULL,
+  appointment_id TEXT REFERENCES person_appointments(id) ON DELETE SET NULL,
+  organization_unit_id TEXT REFERENCES organization_units(id) ON DELETE SET NULL,
+  position_id TEXT REFERENCES organization_positions(id) ON DELETE SET NULL,
+  unit_name_snapshot TEXT,
+  position_name_snapshot TEXT,
+  valid_on TEXT NOT NULL
+    CHECK(valid_on GLOB '[0-9][0-9][0-9][0-9]-[0-9][0-9]-[0-9][0-9]'),
+  source_kind TEXT NOT NULL DEFAULT 'derived' CHECK(source_kind IN ('derived', 'manual')),
+  evidence_json TEXT NOT NULL DEFAULT '{}',
+  created_by_person_id TEXT REFERENCES people(id) ON DELETE SET NULL,
+  created_at TEXT NOT NULL,
+  updated_at TEXT NOT NULL,
+  FOREIGN KEY(scientific_item_id, author_raw)
+    REFERENCES scientific_item_authors(scientific_item_id, author_raw) ON DELETE CASCADE,
+  UNIQUE(scientific_item_id, author_raw)
+) STRICT;
+CREATE INDEX idx_scientific_author_affiliations_person
+ON scientific_author_affiliations(workspace_id, person_id, valid_on, scientific_item_id);
+CREATE INDEX idx_scientific_author_affiliations_unit
+ON scientific_author_affiliations(workspace_id, organization_unit_id, valid_on, scientific_item_id);
+
 -- Старые поля people.position/manager_id сохраняются. Для подтверждённых текстовых
 -- должностей создаётся нейтральное историческое назначение без выдумывания новой структуры.
 INSERT INTO organization_units(
@@ -139,3 +166,86 @@ SELECT
   CURRENT_TIMESTAMP
 FROM people p
 WHERE length(trim(COALESCE(p.position, ''))) > 0;
+
+-- Для уже известных авторов фиксируется подразделение на дату публикации. Если в старой
+-- установке структура ещё не была описана, остаётся только персональная связь без выдуманного факта.
+WITH author_dates AS (
+  SELECT sia.scientific_item_id, sia.author_raw, sia.person_id, si.workspace_id,
+    COALESCE(
+      substr(si.published_at, 1, 10),
+      CASE WHEN si.publication_year IS NOT NULL THEN printf('%04d-12-31', si.publication_year) END,
+      substr(si.created_at, 1, 10),
+      date('now')
+    ) AS valid_on
+  FROM scientific_item_authors sia
+  JOIN scientific_items si ON si.id = sia.scientific_item_id
+  WHERE sia.person_id IS NOT NULL
+), resolved AS (
+  SELECT ad.*,
+    (SELECT pa.id FROM person_appointments pa
+      WHERE pa.workspace_id = ad.workspace_id AND pa.person_id = ad.person_id
+        AND pa.status <> 'cancelled'
+        AND pa.valid_from <= ad.valid_on
+        AND (pa.valid_to IS NULL OR pa.valid_to >= ad.valid_on)
+      ORDER BY pa.appointment_kind = 'primary' DESC, pa.valid_from DESC LIMIT 1) AS appointment_id
+  FROM author_dates ad
+)
+INSERT INTO scientific_author_affiliations(
+  id, workspace_id, scientific_item_id, author_raw, person_id, appointment_id,
+  organization_unit_id, position_id, unit_name_snapshot, position_name_snapshot,
+  valid_on, source_kind, evidence_json, created_at, updated_at
+)
+SELECT
+  'scienceaff_' || lower(hex(randomblob(16))), r.workspace_id, r.scientific_item_id,
+  r.author_raw, r.person_id, pa.id, pa.organization_unit_id, pa.position_id,
+  ou.name, COALESCE(op.name, pa.position_title_snapshot), r.valid_on, 'derived',
+  json_object('source', 'organization_migration', 'appointmentId', pa.id),
+  CURRENT_TIMESTAMP, CURRENT_TIMESTAMP
+FROM resolved r
+LEFT JOIN person_appointments pa ON pa.id = r.appointment_id
+LEFT JOIN organization_units ou ON ou.id = pa.organization_unit_id
+LEFT JOIN organization_positions op ON op.id = pa.position_id;
+
+-- Новые научные карточки автоматически получают только выводимый снимок. Ручная коррекция
+-- хранится отдельно и не перезаписывается этим триггером.
+CREATE TRIGGER scientific_author_affiliation_after_insert
+AFTER INSERT ON scientific_item_authors
+WHEN NEW.person_id IS NOT NULL
+BEGIN
+  INSERT OR IGNORE INTO scientific_author_affiliations(
+    id, workspace_id, scientific_item_id, author_raw, person_id, appointment_id,
+    organization_unit_id, position_id, unit_name_snapshot, position_name_snapshot,
+    valid_on, source_kind, evidence_json, created_at, updated_at
+  )
+  SELECT
+    'scienceaff_' || lower(hex(randomblob(16))), si.workspace_id, NEW.scientific_item_id,
+    NEW.author_raw, NEW.person_id, pa.id, pa.organization_unit_id, pa.position_id,
+    ou.name, COALESCE(op.name, pa.position_title_snapshot),
+    COALESCE(
+      substr(si.published_at, 1, 10),
+      CASE WHEN si.publication_year IS NOT NULL THEN printf('%04d-12-31', si.publication_year) END,
+      substr(si.created_at, 1, 10), date('now')
+    ),
+    'derived', json_object('source', 'organization_trigger', 'appointmentId', pa.id),
+    CURRENT_TIMESTAMP, CURRENT_TIMESTAMP
+  FROM scientific_items si
+  LEFT JOIN person_appointments pa ON pa.id = (
+    SELECT candidate.id FROM person_appointments candidate
+    WHERE candidate.workspace_id = si.workspace_id AND candidate.person_id = NEW.person_id
+      AND candidate.status <> 'cancelled'
+      AND candidate.valid_from <= COALESCE(
+        substr(si.published_at, 1, 10),
+        CASE WHEN si.publication_year IS NOT NULL THEN printf('%04d-12-31', si.publication_year) END,
+        substr(si.created_at, 1, 10), date('now')
+      )
+      AND (candidate.valid_to IS NULL OR candidate.valid_to >= COALESCE(
+        substr(si.published_at, 1, 10),
+        CASE WHEN si.publication_year IS NOT NULL THEN printf('%04d-12-31', si.publication_year) END,
+        substr(si.created_at, 1, 10), date('now')
+      ))
+    ORDER BY candidate.appointment_kind = 'primary' DESC, candidate.valid_from DESC LIMIT 1
+  )
+  LEFT JOIN organization_units ou ON ou.id = pa.organization_unit_id
+  LEFT JOIN organization_positions op ON op.id = pa.position_id
+  WHERE si.id = NEW.scientific_item_id;
+END;
