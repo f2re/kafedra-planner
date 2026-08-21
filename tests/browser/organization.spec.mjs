@@ -29,6 +29,7 @@ test('Оргструктура: подразделение → должност�
   await unitForm.locator('[name="name"]').fill(`Кафедра истории ${suffix}`);
   await unitForm.locator('[name="code"]').fill(`history-${suffix}`);
   await unitForm.locator('[name="unitKind"]').selectOption('department');
+  await unitForm.locator('[name="validFrom"]').fill('2020-01-01');
   await unitForm.locator('button[type="submit"]').click();
   await expect(page.locator('#organization-tree')).toContainText(`Кафедра истории ${suffix}`, { timeout: 15_000 });
 
