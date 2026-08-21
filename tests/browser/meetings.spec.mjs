@@ -114,7 +114,7 @@ test('Заседания: настройки → 8 вопросов → выпи
     await expect(page.locator('.meeting-document').filter({ hasText: 'Выписка · вопросы 4,8' })).toHaveCount(1);
 
     await page.locator('[data-generate-protocol]').click();
-    await expect(page.locator('.meeting-document').filter({ hasText: 'Протокол' })).toHaveCount(1);
+    await expect(page.locator('.meeting-document strong').filter({ hasText: /^Протокол$/ })).toHaveCount(1);
 
     const meetingResponse = await page.request.get('/api/meetings');
     expect(meetingResponse.ok()).toBeTruthy();
