@@ -4,7 +4,7 @@ const port = 4177;
 
 export default defineConfig({
   testDir: './tests/browser',
-  testMatch: '**/auth.spec.mjs',
+  testMatch: ['**/auth.spec.mjs', '**/calendar-start-auth.spec.mjs'],
   timeout: 75_000,
   expect: { timeout: 12_000 },
   fullyParallel: false,
