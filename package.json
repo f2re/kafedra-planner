@@ -20,6 +20,7 @@
     "backup:selftest": "node scripts/backup-selftest.mjs",
     "preflight": "node scripts/system-preflight.mjs",
     "check": "node scripts/check.mjs",
+    "docs:check": "node scripts/docs-consistency.mjs",
     "test": "node --test --test-reporter=spec tests/*.test.mjs",
     "smoke": "node scripts/smoke-test.mjs",
     "test:browser": "npm run test:browser:plans && npm run test:browser:core",

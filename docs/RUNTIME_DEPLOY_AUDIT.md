@@ -1,82 +1,64 @@
 # Аудит runtime, зависимостей и deployment
 
-Дата аудита: 2026-08-11.
+Актуализировано: 2026-08-21. Документ фиксирует текущий контракт поставки; исторические причины решений сохранены только там, где они объясняют инвариант.
 
-## Вывод
+## Host Node и runtime поставки
 
-Ошибка сборки под Node.js 25.6.0 была вызвана не несовместимостью исходного кода, а ошибочным связыванием двух ролей Node.js:
+У сборки две разные роли Node.js:
 
-1. **host Node** — запускает скрипт сборки на рабочей машине;
-2. **runtime поставки** — попадает внутрь автономного архива и затем запускает API/worker на сервере.
+1. **host Node** запускает build scripts в checkout;
+2. **runtime поставки** попадает в автономный архив и запускает API/worker на target.
 
-Ранее сборщик по умолчанию пытался использовать host Node как runtime поставки и затем применял к нему `engines.node >=24.15.0 <25`. Поэтому Node 25.6.0 отклонялся ещё до упаковки.
+Host Node может отличаться. Production bundle содержит закреплённый Node.js **24.19.0**, соответствующий `engines.node >=24.15.0 <25`. SHA-256 официальных x64/arm64 архивов хранится в `package.json` в `kafedra.offlineRuntime`.
 
-После исправления эти роли разделены. Host Node может отличаться. Offline bundle всегда содержит отдельно закреплённый Node.js 24 LTS.
+Сборщик принимает совместимый `NODE_RUNTIME_DIR`/`NODE_BINARY`, использует проверенный cache либо загружает закреплённый официальный runtime. Host Node никогда молча не копируется в release только потому, что он установлен на build-машине.
 
-## Почему приложение остаётся на Node 24 LTS
+## Production npm-зависимости
 
-Проект не имеет обязательных runtime-пакетов npm и использует стандартные модули Node.js. Критичный API — `node:sqlite` (`DatabaseSync`, backup SQLite). Минимум `24.15.0` выбран как нижняя граница линии Node 24, где встроенный SQLite имеет статус release candidate. Верхняя граница `<25` — эксплуатационная политика: серверный runtime должен оставаться в поддерживаемой LTS-линии, а не автоматически перескакивать на следующий major.
+Основной runtime использует стандартную библиотеку Node.js и системные CLI-адаптеры. `@playwright/test` — devDependency только для CI/browser tests. На целевой Astra/Debian `npm install` не выполняется и `node_modules` в production release не требуется.
 
-Это **не** означает, что сборщику требуется ровно Node 24.19.0. Конкретная версия 24.19.0 закреплена только для бинарника внутри поставки, чтобы один commit давал предсказуемый runtime и одинаковую диагностику.
+## Идентичность release
 
-## Политика offline runtime
+Каталог установленного bundle содержит semantic version, commit/fingerprint и runtime. Для LLM-варианта release identity дополнительно зависит от LLM manifest. Поэтому разные commits или разные наборы runtime/models одной RC-версии не переиспользуют один каталог ошибочно.
 
-`package.json` содержит отдельный блок `kafedra.offlineRuntime`:
+Копирование release выполняется через staging и atomic rename. Повторная установка уже существующего идентичного release не возвращает преждевременный успех: миграции, службы и health-check проверяются снова.
 
-- версия runtime: Node.js 24.19.0;
-- официальный источник: `https://nodejs.org/dist`;
-- точные имена Linux x64/arm64 архивов;
-- заранее закреплённые SHA-256 официальных архивов.
+## Системные зависимости: текущий full bundle
 
-Сборщик:
+Текущий full bundle **target-specific**. Он содержит:
 
-1. принимает совместимый explicit runtime через `NODE_RUNTIME_DIR`/`NODE_BINARY`; или
-2. использует валидный runtime из локального cache; или
-3. загружает закреплённый официальный tarball и сравнивает его с digest из `package.json`;
-4. никогда не копирует несовместимый host Node в bundle;
-5. проверяет готовый архив встроенным runtime;
-6. по умолчанию не собирает release из грязного Git worktree.
+```text
+application/       приложение, migrations, docs и static UI
+runtime/node/      закреплённый Node.js
+runtime/python/    managed CPython для OCR adapter
+os-packages/       проверяемый target-specific .deb fallback
+deployment.json    OS/runtime contract
+manifest.sha256    SHA-256 каждого файла release
+```
 
-Для полностью отключённой от Интернета машины сборки runtime один раз помещается в cache либо передаётся через `NODE_RUNTIME_DIR`. Сеть не нужна на целевой машине.
+`config/offline/os-packages.txt` перечисляет application capabilities по именам: Poppler, Tesseract/языки, LibreOffice, unzip и необходимые шрифты. Приложение не фиксирует `package=version` при установке и не управляет базовым userspace ОС как собственной зависимостью.
 
-## npm-зависимости
+В `KAFEDRA_APT_MODE=auto` installer сначала планирует/скачивает обычную установку из штатных APT sources target-системы; если это невозможно **до изменения dpkg**, используется bundled `file:` repository. В `KAFEDRA_APT_MODE=bundle` сеть не нужна вообще.
 
-В production-коде отсутствуют внешние runtime imports: API, worker, хранилище, backup и миграции работают на стандартной библиотеке Node.js и системных CLI-адаптерах.
+`apt --fix-broken`/`apt-get --fix-broken` автоматически не запускаются. Уже повреждённая package database останавливает installation с диагностикой.
 
-Единственная npm-зависимость проекта — devDependency `@playwright/test`, используемая только браузерным CI. Она обновлена до 1.62.1. В автономный runtime `node_modules` не копируется и на сервере `npm install` не выполняется.
+Подробно: [`OFFLINE_INSTALL.md`](OFFLINE_INSTALL.md), [`FULL_OFFLINE_DEPLOYMENT.md`](FULL_OFFLINE_DEPLOYMENT.md), [`SUPPORT_MATRIX.md`](SUPPORT_MATRIX.md).
 
-Для воспроизводимого CI dependency tree фиксируется `package-lock.json`; после его появления CI использует `npm ci` вместо плавающего `npm install`.
+## LLM runtime
 
-## Аудит install/update
+Optional LLM bundle добавляет проверенный `llama-server`, соседние shared libraries и 1..N GGUF. Большие binary assets не хранятся в Git.
 
-Обнаружены и исправлены три независимых дефекта.
+- runtime проверяется через `llama-server --version` и `ldd`;
+- GGUF проверяется по magic, размеру и SHA-256;
+- model cache хранится в `/var/lib/kafedra-planner/models/<sha256>.gguf`;
+- managed service слушает только `127.0.0.1`;
+- внешний `KAFEDRA_LLM_ENDPOINT` поддерживается без управления systemd;
+- основной preflight не требует LLM.
 
-### 1. Одинаковая VERSION блокировала обновление
+Подробно: [`LLAMA_OFFLINE_DEPLOYMENT.md`](LLAMA_OFFLINE_DEPLOYMENT.md).
 
-Раньше каталог был `/opt/kafedra-planner/releases/<VERSION>`. Если main изменился, но `VERSION` осталась `0.1.0-rc.3`, новая сборка считалась уже установленной.
+## Что проверяет CI и чего он не доказывает
 
-Теперь semantic VERSION и build identity разделены. Для bundle каталог имеет вид:
+CI проверяет runtime separation, обычный full bundle, offline `.deb` fallback, systemd install/update и отдельный LLM/GGUF deployment fixture. Docker применяется только как disposable CI-среда и не является частью production.
 
-`/opt/kafedra-planner/releases/<VERSION>-<commit12>-node<runtime>`
-
-Поэтому разные commits одной RC-версии могут безопасно сосуществовать и откатываться.
-
-### 2. Копирование релиза не было атомарным
-
-Раньше файлы сразу копировались в окончательный каталог. Обрыв мог оставить частично заполненный release.
-
-Теперь копирование идёт во временный `.staging.<pid>` и только после полного копирования и выставления прав каталог переименовывается в финальный release path.
-
-### 3. Повторная установка могла преждевременно вернуть успех
-
-Если `current` уже указывал на новый release, установщик мог завершиться до повторной проверки миграций и служб. Теперь повторный запуск продолжает безопасный flow и заново проверяет миграции, обе systemd-службы и HTTP health endpoint.
-
-При первом неуспешном install также удаляются созданные systemd units, если до запуска их не существовало.
-
-## Системные зависимости
-
-Из обязательного preflight удалён `curl`: health-check выполняет встроенный Node.js. Это уменьшает минимальный набор пакетов целевой ОС.
-
-Обязательными остаются компоненты, реально необходимые приложению или установщику: `tar`, `sha256sum`, `systemctl`, `runuser`, `useradd`, `unzip`, `pdftotext`. OCR (`pdftoppm`, Tesseract), LibreOffice и nginx остаются capability-зависимостями.
-
-Системные `.deb` не смешиваются с универсальным application bundle: версии этих пакетов зависят от конкретного Debian/Astra профиля. Полностью air-gapped установка на чистую ОС требует заранее подготовленного репозитория или набора системных пакетов для выбранной ОС; это отдельный слой поставки.
+CI не доказывает совместимость конкретной редакции Astra Linux. Финальный gate — фактическая процедура из [`TARGET_ACCEPTANCE.md`](TARGET_ACCEPTANCE.md).

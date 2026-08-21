@@ -1,96 +1,139 @@
 # Резервное копирование и восстановление
 
-Версия контура: `0.1.0-rc.2`.
+Документ описывает текущий `0.1.0-rc.6` контур backup/restore. Для установленной Astra/Debian используйте embedded Node; `npm run ...` ниже относится только к source checkout.
 
-## Что входит в копию
+## Что входит в стандартную копию
 
-Каждый архив содержит согласованный снимок:
+- согласованный SQLite snapshot через SQLite Backup API;
+- immutable `blobs`;
+- конфигурация, если она передана;
+- application release, если включён соответствующий режим;
+- manifest с версией приложения, schema version, размерами и SHA-256 файлов.
 
-- SQLite-базы через SQLite Backup API;
-- каталога `blobs`;
-- файла конфигурации, если он указан;
-- установленной версии приложения, если не отключён этот режим;
-- манифеста с версией приложения, схемой БД, размерами и SHA-256 каждого файла.
+После создания архив сразу проверяется. Успешная операция записывается в `backup-journal.jsonl`, а краткое состояние — в `latest-success.json`.
 
-Архив проверяется сразу после создания. Успешная копия записывается в
-`backup-journal.jsonl`, а краткие сведения — в `latest-success.json`.
+GGUF-модели из `/var/lib/kafedra-planner/models` **не дублируются** в стандартный backup: это воспроизводимый deployment asset. Для disaster recovery храните исходный LLM release bundle рядом с резервными копиями.
 
-## Создание
+## Штатное обновление
+
+Для обычного обновления не запускайте backup/migration вручную. Используйте release wrapper:
+
+```bash
+sudo ./install-kafedra-planner.sh
+```
+
+Installer сам:
+
+1. проверяет archive/manifest/runtime;
+2. создаёт и проверяет pre-update backup существующей установки;
+3. переключает versioned release атомарно;
+4. выполняет migration;
+5. запускает API/worker и optional managed LLM;
+6. выполняет health/doctor;
+7. при ошибке приложения восстанавливает прежний release/data/systemd state;
+8. сохраняет content-addressed model cache при автоматическом rollback.
+
+## Команды в source checkout
 
 ```bash
 npm run backup:create
+npm run backup:verify -- /path/to/archive
+npm run backup:restore -- /path/to/archive --target-data-dir /tmp/kafedra-restore-check
+npm run backup:selftest
 ```
 
-Полезные параметры:
+Эти команды удобны для разработки/CI, но npm не является частью production target.
+
+## Создание backup на установленной системе
+
+Без шифрования:
 
 ```bash
-npm run backup:create -- --reason manual-before-maintenance
-npm run backup:create -- --output-dir /mnt/nas/kafedra --keep 30
-sudo npm run backup:create -- --key-file /root/kafedra-backup.key
+sudo /opt/kafedra-planner/current/runtime/node/bin/node \
+  /opt/kafedra-planner/current/scripts/backup-create.mjs \
+  --database /var/lib/kafedra-planner/kafedra-planner.sqlite3 \
+  --data-dir /var/lib/kafedra-planner \
+  --blob-dir /var/lib/kafedra-planner/blobs \
+  --config /etc/kafedra-planner/kafedra-planner.env \
+  --application-dir /opt/kafedra-planner/current \
+  --output-dir /var/backups/kafedra-planner \
+  --reason manual-before-maintenance
 ```
 
-Ключевой файл должен содержать не менее 16 случайных байт. Если ключ доступен
-только `root`, создание и восстановление запускаются от `root`; штатный
-`deploy/install.sh` именно так и работает. Сам API ключ шифрования не читает. При наличии ключа
-архив шифруется AES-256-GCM и получает расширение `.kpb`.
+Для зашифрованного backup добавьте:
 
-## Проверка
+```text
+--key-file /root/kafedra-backup.key
+```
+
+Key-file должен содержать не менее 16 случайных байт и оставаться root-only. Зашифрованный архив использует AES-256-GCM и расширение `.kpb`.
+
+## Проверка архива
 
 ```bash
-npm run backup:verify -- /var/backups/kafedra-planner/<archive>
-npm run backup:verify -- /var/backups/kafedra-planner/<archive>.kpb \
+sudo /opt/kafedra-planner/current/runtime/node/bin/node \
+  /opt/kafedra-planner/current/scripts/backup-verify.mjs \
+  /var/backups/kafedra-planner/<archive>.kpb \
   --key-file /root/kafedra-backup.key
 ```
 
-Проверяются безопасные пути tar, SHA-256 всех файлов, SQLite `quick_check` и
-версия схемы.
+Проверяются безопасные tar paths, manifest, размеры/SHA-256 и SQLite `quick_check`.
 
 ## Dry-run восстановления
 
-Без `--apply` данные не заменяются:
-
 ```bash
-npm run backup:restore -- /path/to/archive \
+sudo /opt/kafedra-planner/current/runtime/node/bin/node \
+  /opt/kafedra-planner/current/scripts/backup-restore.mjs \
+  /path/to/archive.kpb \
+  --key-file /root/kafedra-backup.key \
   --target-data-dir /tmp/kafedra-restore-check
 ```
 
-## Фактическое восстановление
+Без `--apply` рабочая установка не заменяется.
 
-Сервисы должны быть остановлены. Замена существующих данных требует одновременно
-`--apply` и `--force`:
+## Фактическое ручное восстановление
+
+Предпочтительный disaster-recovery сценарий описан в [`TARGET_ACCEPTANCE.md`](TARGET_ACCEPTANCE.md). Если требуется прямой restore CLI:
 
 ```bash
-systemctl stop kafedra-planner-api kafedra-planner-worker
-npm run backup:restore -- /path/to/archive \
+sudo systemctl stop kafedra-planner-llama.service 2>/dev/null || true
+sudo systemctl stop kafedra-planner-api kafedra-planner-worker
+
+sudo /opt/kafedra-planner/current/runtime/node/bin/node \
+  /opt/kafedra-planner/current/scripts/backup-restore.mjs \
+  /path/to/archive.kpb \
+  --key-file /root/kafedra-backup.key \
   --target-data-dir /var/lib/kafedra-planner \
   --target-config /etc/kafedra-planner/kafedra-planner.env \
   --target-application-dir /opt/kafedra-planner/releases/restored \
   --apply --force
-chown -R kafedra-planner:kafedra-planner /var/lib/kafedra-planner
-systemctl start kafedra-planner-api kafedra-planner-worker
+
+sudo chown -R kafedra-planner:kafedra-planner /var/lib/kafedra-planner
+sudo systemctl start kafedra-planner-api kafedra-planner-worker
 ```
 
-Старые каталоги и файлы не удаляются немедленно. Они получают суффикс
-`.before-restore-<timestamp>` и остаются точкой ручного возврата.
+Старый data/application target сохраняется с суффиксом `.before-restore-<timestamp>` как точка ручного возврата.
 
-## Безопасное обновление
+### Если использовался managed llama.cpp
 
-`deploy/install.sh` теперь:
+После полного restore data-dir model cache может отсутствовать, потому что GGUF не входит в backup. Не копируйте модель вручную из случайного источника. Повторно запустите **тот же проверенный LLM release bundle**:
 
-1. останавливает API и worker;
-2. создаёт и проверяет резервную копию текущей установки;
-3. переключает symlink на новую версию;
-4. выполняет миграции;
-5. запускает сервисы и health-check;
-6. при любой ошибке восстанавливает данные и прежний symlink автоматически.
+```bash
+sudo KAFEDRA_APT_MODE=bundle ./install-kafedra-planner.sh
+```
 
-Прямой запуск `npm run migrate` также создаёт копию при наличии новых миграций.
-При ошибке он восстанавливает только SQLite-файл внутри доступного каталога данных,
-поэтому откат работает и от имени системного пользователя `kafedra-planner`.
-Отключить это можно только явно: `KAFEDRA_AUTO_BACKUP_BEFORE_MIGRATION=false`.
+Installer сверит SHA-256 и восстановит content-addressed models/runtime/config. До этого основной API/worker может работать с LLM отключённым.
 
-## Ротация и диагностика
+## Прямой `migrate`
 
-`KAFEDRA_BACKUP_KEEP` задаёт число сохраняемых архивов. Административная
-диагностика предупреждает, если последняя проверенная копия старше
-`KAFEDRA_BACKUP_MAX_AGE_HOURS` или отсутствует.
+Source-команда `npm run migrate` и соответствующий installed script автоматически создают backup SQLite перед pending migrations, если `KAFEDRA_AUTO_BACKUP_BEFORE_MIGRATION` не отключён явно. Это дополнительная защита; для production update канонический путь всё равно `install-kafedra-planner.sh`.
+
+## Acceptance после restore
+
+После восстановления выполните:
+
+```bash
+sudo /opt/kafedra-planner/current/scripts/offline/doctor.sh
+```
+
+Для доказательства сохранности используйте `scripts/target-acceptance.mjs capture/compare` по процедуре [`TARGET_ACCEPTANCE.md`](TARGET_ACCEPTANCE.md).
