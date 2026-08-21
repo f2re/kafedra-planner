@@ -29,6 +29,10 @@ test('первый вход задаёт четыре цифры, затем с�
   await expect(page.locator('#auth-gate input[name="username"]')).toHaveCount(0);
   await expect(page.locator('#auth-gate input[name="password"]')).toHaveCount(0);
 
+  await page.evaluate(async () => { await fetch('/api/people'); });
+  await expect(page.locator('#auth-title')).toHaveText('Задайте PIN-код');
+  await expect(page.locator('#auth-pin-setup-form')).toBeVisible();
+
   await page.locator('#auth-pin-setup-form input[name="pin"]').fill('4826');
   await page.locator('#auth-pin-setup-form input[name="pinConfirm"]').fill('4826');
   const [setupResponse] = await Promise.all([

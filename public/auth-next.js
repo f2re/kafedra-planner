@@ -281,14 +281,20 @@ window.fetch = async function authenticatedFetch(input, init = {}) {
     response.status === 401
     && url.origin === window.location.origin
     && !url.pathname.startsWith('/api/auth/')
+    && authState.payload
   ) {
+    const current = authState.payload;
     const payload = {
-      ...(authState.payload || {}),
+      ...current,
       authenticated: false,
-      pinConfigured: authState.payload?.authMode === 'pin' ? true : null
+      pinConfigured: current.authMode === 'pin'
+        ? Boolean(current.pinConfigured || current.authenticated)
+        : null
     };
     showLogin(
-      payload.authMode === 'pin' ? 'Сессия завершена. Введите PIN-код снова.' : 'Сессия завершена. Войдите снова.',
+      payload.authMode === 'pin'
+        ? (payload.pinConfigured ? 'Сессия завершена. Введите PIN-код снова.' : '')
+        : 'Сессия завершена. Войдите снова.',
       payload
     );
   }
