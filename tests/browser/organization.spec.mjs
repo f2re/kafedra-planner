@@ -90,7 +90,7 @@ test('Оргструктура: подразделение → должност�
   await expect(appointmentForm.locator('[name="validFrom"]')).toHaveValue('2025-06-01');
   await expect(appointmentForm.locator('[name="validTo"]')).toHaveValue('2025-01-01');
 
-  await page.locator('[data-org-editor-close]').click();
+  await page.getByRole('button', { name: 'Скрыть', exact: true }).click();
   await employeeRow.locator('[data-org-history]').click();
   await expect(page.locator('.organization-history')).toContainText('2020-01-01');
   await expect(page.locator('.organization-history')).toContainText('2022-12-31');
