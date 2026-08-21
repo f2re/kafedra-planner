@@ -13,5 +13,6 @@ await import('./ux-base.js');
 await import('./standalone-assignment-next.js');
 await import('./supporting-documents-next.js');
 await import('./organization-next.js');
+await import('./organization-layout-guard.js');
 await import('./organization-fields-next.js');
 await import('./ui-preferences.js');
