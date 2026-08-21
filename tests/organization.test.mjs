@@ -18,6 +18,7 @@ import {
   resolvePersonOrganizationAt,
   updateOrganizationUnit
 } from '../packages/organization/src/service.mjs';
+import { syncPersonCompatibility } from '../packages/organization/src/compatibility.mjs';
 
 const migrationsDir = resolve('migrations');
 
@@ -174,6 +175,35 @@ test('у подразделения не бывает двух руководи�
       validFrom: '2025-06-01', validTo: '2026-05-31'
     }, actor.id), /organization_manager_period_overlap/u);
     assert.equal(database.get('SELECT COUNT(*) AS count FROM organization_unit_managers').count, before);
+  } finally {
+    await context.close();
+  }
+});
+
+test('после окончания последнего назначения совместимая текущая проекция очищается', async () => {
+  const context = await setup();
+  const { database, workspace } = context;
+  try {
+    const actor = createPerson(database, workspace.id, { displayName: 'Администратор' });
+    const managerPerson = createPerson(database, workspace.id, { displayName: 'Руководитель' });
+    const employee = createPerson(database, workspace.id, {
+      displayName: 'Сотрудник Проекции', position: 'Старая должность', managerId: managerPerson.id
+    });
+    const unit = createOrganizationUnit(database, workspace.id, {
+      code: 'projection-unit', name: 'Кафедра проекции', unitKind: 'department'
+    }, actor.id);
+    const position = createOrganizationPosition(database, workspace.id, {
+      code: 'projection-position', name: 'Новая должность', category: 'teaching'
+    }, actor.id);
+    const appointment = createAppointment(database, workspace.id, {
+      personId: employee.id, organizationUnitId: unit.id, positionId: position.id,
+      validFrom: '2025-01-01', validTo: '2026-08-20'
+    }, actor.id);
+    syncPersonCompatibility(database, workspace.id, employee.id, '2026-08-21T08:00:00.000Z');
+    const current = database.get('SELECT position, manager_id FROM people WHERE id = ?', employee.id);
+    assert.equal(current.position, null);
+    assert.equal(current.manager_id, null);
+    assert.equal(database.get('SELECT id FROM person_appointments WHERE id = ?', appointment.id).id, appointment.id);
   } finally {
     await context.close();
   }
