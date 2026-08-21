@@ -1,47 +1,36 @@
-# Release candidate 0.1.0-rc.6
+# Release candidate 0.1.0-rc.7
 
 ## Статус
 
-`0.1.0-rc.6` — текущий эксплуатационный release candidate, схема SQLite **19**. Основные функциональные контуры работают автономно и проходят unit/integration/Chromium/full-offline gates. Stable не объявляется до фактической приёмки на целевых Astra Linux/Debian по [`TARGET_ACCEPTANCE.md`](TARGET_ACCEPTANCE.md) и issue #27.
+`0.1.0-rc.7` — текущий эксплуатационный release candidate, схема SQLite **19**. Основные функциональные контуры работают автономно и проходят unit/integration/Chromium/full-offline gates. Stable не объявляется до фактической приёмки на целевых Astra Linux/Debian по [`TARGET_ACCEPTANCE.md`](TARGET_ACCEPTANCE.md) и issue #27.
 
-## Что входит в rc.6
+`rc.7` исправляет package-layer после реальной Astra-проверки `rc.6`: установщик больше не пытается разрешать конфликтную системную APT-базу как часть установки приложения и не делает дополнительные OCR/Office возможности причиной недоступности календаря, задач и данных.
 
-- календарь `Месяц / Неделя / Задачи`, сроки и внутренние уведомления;
-- постоянный стартовый режим `Автоматически / Месяц / Неделя / Задачи`; явная настройка сильнее learned UX;
-- неизменяемые документы, структурные источники, ручные ревизии, OCR и LibreOffice preview;
-- распоряжения/приказы/указы, поручения, прогресс, отчёты и подтверждение руководителем;
-- импортированные и ручные годовые планы;
-- режимы пункта плана `track / assigned / open` и уникальная связь `plan_item → assignment`;
-- синхронизация выполнения плана с календарём и `План / факт`;
-- номерные сопроводительные документы с необязательным immutable-файлом;
-- заседания кафедры, нумерованная повестка, протоколы и выборочные выписки;
-- научный реестр текущего рабочего среза;
-- локальная авторизация, рекурсивная зона руководителя, CSRF и объектные ACL;
-- проверяемые backup/restore и автоматический rollback update;
-- SMTP/Telegram как необязательная внешняя доставка поверх внутреннего outbox;
-- обучаемый, но геометрически стабильный UX;
-- target-specific full offline bundle с Node 24.19, managed Python и `.deb` fallback;
-- отдельный optional full offline bundle с `llama.cpp` и 1..N GGUF.
+## Что входит в rc.7
+
+- календарь `Месяц / Неделя / Задачи` и постоянный стартовый режим;
+- неизменяемые документы, структурные источники, ручные ревизии, локальные OCR/preview при наличии системных конвертеров;
+- распоряжения, поручения, прогресс, отчёты и подтверждение;
+- импортированные и ручные годовые планы, `track / assigned / open`, связь `plan_item → assignment`;
+- `План / факт`, сопроводительные документы, заседания и научный реестр;
+- локальная авторизация, CSRF, объектные ACL, backup/restore и rollback;
+- SMTP/Telegram и `llama.cpp` только как необязательные адаптеры;
+- target-specific full offline bundle с Node 24.19, managed Python и `.deb` air-gap closure;
+- package contract `full-airgap-v2 + additive-only-v2`.
 
 ## Автономность
 
-Календарь, документы, планы, поручения, отчёты, поиск, заседания и deterministic extraction обязаны работать при:
-
-```text
-KAFEDRA_LLM_ENABLED=false
-```
-
-LLM может добавлять только локальные предложения и диагностику. Наличие модели не является обязательным условием preflight обычной поставки.
+Основной deterministic-контур обязан работать при `KAFEDRA_LLM_ENABLED=false`. Отсутствие LLM, OCR или LibreOffice не должно останавливать API/worker. Недоступная документная возможность отображается как degraded capability; исходные файлы при этом продолжают сохраняться неизменяемо.
 
 ## Поставка
 
-### Обычный full bundle
-
-Собирается на совместимой Debian/Astra reference-машине:
+Full bundle собирается на совместимой и **здоровой** Debian/Astra reference-машине:
 
 ```bash
 npm run bundle:offline
 ```
+
+Collector перед выпуском package layer выполняет `dpkg --audit` и `apt-get check`. Старый package cache без `additive-only-v2` повторно использовать нельзя.
 
 На target:
 
@@ -49,13 +38,25 @@ npm run bundle:offline
 sudo ./install-kafedra-planner.sh
 ```
 
-Для гарантированной установки без обращения к штатным APT sources:
+Для гарантированного air-gap режима:
 
 ```bash
 sudo KAFEDRA_APT_MODE=bundle ./install-kafedra-planner.sh
 ```
 
-### Bundle с llama.cpp/GGUF
+Target installer:
+
+1. определяет только реально отсутствующие document capabilities;
+2. до любой package-транзакции выполняет `dpkg --audit` и `apt-get check`;
+3. использует `--no-remove --no-upgrade`, не передаёт `package=version` и не вызывает `--fix-broken`;
+4. отклоняет simulation, которая меняет уже установленный пакет;
+5. fallback на bundled repository выполняет только до первой изменяющей транзакции;
+6. если APT уже конфликтует или безопасный additive plan невозможен, не меняет системные пакеты и продолжает установку ядра в degraded mode;
+7. если APT уже начал изменяющую транзакцию и она завершилась ошибкой, установка останавливается как фатальная — второй package transaction не запускается.
+
+На чистой поддерживаемой ОС full bundle по-прежнему обязан полностью установить и проверить `unzip`, Poppler, Tesseract `rus+eng` и LibreOffice.
+
+## Bundle с llama.cpp/GGUF
 
 На build/reference-машине:
 
@@ -67,61 +68,49 @@ npm run bundle:offline:llm -- \
   --output release-llm
 ```
 
-На target используется тот же `install-kafedra-planner.sh`. Managed модель хранится content-addressed в `/var/lib/kafedra-planner/models`; отсутствие или отключение LLM не останавливает API/worker. Подробно: [`LLAMA_OFFLINE_DEPLOYMENT.md`](LLAMA_OFFLINE_DEPLOYMENT.md).
-
-## Перед установкой или обновлением
-
-1. Использовать именно полный комплект: archive + `.sha256` + `install-kafedra-planner.sh` + `README-INSTALL.txt`.
-2. На действующей установке не менять штатные package deployment paths вручную.
-3. Убедиться, что каталог backup доступен.
-4. Для HTTPS включить `KAFEDRA_AUTH_SECURE_COOKIES=true`.
-5. Не отключать CSRF в production.
-6. Не использовать `npm install`/`pip install` на target: runtime и application dependencies поставляются bundle.
-
-Установщик проверяет archive/manifest/runtime, при необходимости ставит системные application capabilities, создаёт pre-update backup, переключает immutable release, выполняет миграции и health-check. При ошибке приложения выполняется rollback.
+На target используется тот же installer. Managed модель хранится content-addressed в `/var/lib/kafedra-planner/models`; отключение LLM не останавливает API/worker. Подробно: [`LLAMA_OFFLINE_DEPLOYMENT.md`](LLAMA_OFFLINE_DEPLOYMENT.md).
 
 ## После установки
 
+Строгая проверка полного document stack:
+
 ```bash
 sudo /opt/kafedra-planner/current/scripts/offline/doctor.sh
-systemctl status kafedra-planner-api kafedra-planner-worker --no-pager -l
 ```
 
-Если установлен managed LLM:
+Если ОС уже имела APT-конфликт и установка завершилась в degraded mode, проверить именно рабочее ядро можно так:
 
 ```bash
-sudo /opt/kafedra-planner/current/runtime/node/bin/node \
-  /opt/kafedra-planner/current/scripts/llm-doctor.mjs
-systemctl status kafedra-planner-llama --no-pager -l
+sudo KAFEDRA_DOCTOR_ALLOW_DEGRADED=true \
+  /opt/kafedra-planner/current/scripts/offline/doctor.sh
 ```
+
+При этом обычный doctor остаётся строгим release/acceptance gate и не скрывает отсутствие OCR/Poppler/LibreOffice.
 
 ## Автоматический release-gate
 
 До merge проверяются:
 
 - `npm run check`, включая согласованность документации;
-- unit/integration и smoke;
-- backup/create/verify/restore self-test;
-- минимальный Node 24.15;
-- сборщик под host Node 25;
-- desktop/mobile Playwright для планов, core UX, plan/fact, auth, release readiness и ACL;
-- ordinary full Debian 12 bundle;
-- реальная air-gap systemd установка ordinary bundle;
-- отдельная air-gap systemd установка fake `llama-server` + fake GGUF bundle, включая повторный install, rollback и отключение LLM.
+- unit/integration, smoke и backup/restore self-test;
+- минимальный Node 24.15 и host Node 25;
+- desktop/mobile Playwright;
+- сборка full Debian 12 bundle;
+- `additive-only-v2` package contract и simulation guard;
+- реальная air-gap systemd установка обычного bundle;
+- отдельная air-gap systemd установка fake `llama-server` + fake GGUF, повторный install и rollback.
 
-Fake LLM CI проверяет поставочный контракт и не заменяет испытание настоящего `llama.cpp`/GGUF на целевой Astra.
+Clean Debian gate остаётся строгим: degraded mode не может сделать CI зелёным при неполном OCR/Office stack.
 
 ## Что остаётся до stable
 
 На реальной Astra Linux и контрольной Debian необходимо подтвердить:
 
-- бинарную совместимость embedded runtime с фактической ОС;
+- чистую установку `rc.7` и поведение на уже обновлённой Astra с vendor revisions пакетов;
+- отсутствие package mutation при заранее конфликтном `apt-get check`;
 - реальные Tesseract/Poppler/LibreOffice на ведомственных документах;
-- чистую установку и обновление существующей БД;
-- зашифрованный backup, restore и сравнение acceptance evidence;
-- искусственно сорванный update и автоматический rollback;
-- права каталогов и systemd hardening;
-- desktop/mobile пользовательские сценарии без инструкции разработчика;
-- при использовании LLM — настоящий `llama-server`, реальную GGUF, `/health`, `/v1/models` и работу ядра после отключения LLM.
+- обновление существующей БД, backup/restore и искусственно сорванный update;
+- права каталогов, systemd hardening и desktop/mobile сценарии;
+- при использовании LLM — настоящий `llama-server`/GGUF и работу ядра после его отключения.
 
-До этого проект остаётся release candidate независимо от состояния CI.
+До фактического акта #27 проект остаётся release candidate независимо от состояния CI.

@@ -15,7 +15,7 @@ while (($#)); do
     *) die "Неизвестный параметр: $1" ;;
   esac
 done
-for c in apt-get awk dpkg dpkg-deb find sha256sum sort sed; do require_command "$c"; done
+for c in apt-get awk dpkg dpkg-deb find sha256sum sort sed tail xargs; do require_command "$c"; done
 [[ -f "$PACKAGE_LIST" ]] || die "Не найден список пакетов: $PACKAGE_LIST"
 mapfile -t profile < <(detect_os_profile /etc/os-release)
 [[ "${profile[0]}" == astra || "${profile[1]}" == debian ]] || die "Полный bundle собирается на reference Debian/Astra той же версии, что target"
@@ -26,24 +26,44 @@ mkdir -p "$OUTPUT"; OUTPUT="$(absolute_path "$OUTPUT")"
 rm -f "$OUTPUT"/*.deb "$OUTPUT"/manifest.sha256 "$OUTPUT"/packages.tsv "$OUTPUT"/requested-packages.txt "$OUTPUT"/source-os.env "$OUTPUT"/lock
 rm -rf "$OUTPUT/partial"; mkdir -p "$OUTPUT/partial"
 WORK="$(mktemp -d)"; trap 'rm -rf "$WORK" "$OUTPUT/partial"; rm -f "$OUTPUT/lock"' EXIT
-: > "$WORK/status"
-((RUN_UPDATE == 0)) || apt-get update
-info "Скачиваем полное замыкание .deb: ${packages[*]}"
-apt-get -o "Dir::Cache::archives=$OUTPUT" -o "Dir::State::status=$WORK/status" -o APT::Keep-Downloaded-Packages=true -o Debug::NoLocking=1 \
+
+DPKG_AUDIT="$(dpkg --audit || true)"
+[[ -z "$DPKG_AUDIT" ]] || die "Reference OS имеет незавершённые dpkg-операции; bundle из такой системы собирать нельзя: $DPKG_AUDIT"
+if ! LC_ALL=C DEBIAN_FRONTEND=noninteractive apt-get check >"$WORK/apt-check.log" 2>&1; then
+  warn "APT reference OS уже имеет неудовлетворённые зависимости; сборка остановлена до создания package layer"
+  tail -n 12 "$WORK/apt-check.log" >&2 || true
+  die "Исправьте package database reference OS штатными средствами и повторите сборку"
+fi
+if ((RUN_UPDATE == 1)); then
+  apt-get update
+  if ! LC_ALL=C DEBIAN_FRONTEND=noninteractive apt-get check >"$WORK/apt-check-after-update.log" 2>&1; then
+    tail -n 12 "$WORK/apt-check-after-update.log" >&2 || true
+    die "После apt-get update reference OS имеет неудовлетворённые зависимости"
+  fi
+fi
+
+# Empty status is intentional here and only here: it asks APT to materialize a
+# complete air-gap dependency closure. Target installation never uses this
+# synthetic status and never treats package versions from the closure as pins.
+: > "$WORK/empty-status"
+info "Скачиваем полное air-gap замыкание .deb: ${packages[*]}"
+apt-get -o "Dir::Cache::archives=$OUTPUT" -o "Dir::State::status=$WORK/empty-status" -o APT::Keep-Downloaded-Packages=true -o Debug::NoLocking=1 \
   --download-only --no-install-recommends --yes install -- "${packages[@]}"
 mapfile -d '' debs < <(find "$OUTPUT" -maxdepth 1 -type f -name '*.deb' -print0 | LC_ALL=C sort -z)
 ((${#debs[@]})) || die "APT не скачал .deb"
 printf '%s\n' "${packages[@]}" > "$OUTPUT/requested-packages.txt"
 (cd "$OUTPUT" && find . -maxdepth 1 -type f -name '*.deb' -print0 | LC_ALL=C sort -z | xargs -0 sha256sum > manifest.sha256)
-cat > "$OUTPUT/source-os.env" <<EOF
+cat > "$OUTPUT/source-os.env" <<EOF_META
 OS_FAMILY=${profile[0]}
 OS_ID=${profile[1]}
 OS_VERSION_ID=${profile[2]}
 DEB_ARCHITECTURE=${profile[3]}
-DEPENDENCY_CLOSURE=full
+DEPENDENCY_CLOSURE=full-airgap-v2
+TARGET_INSTALL_POLICY=additive-only-v2
+REFERENCE_APT_CHECK=passed
 APT_INSTALL_RECOMMENDS=false
 REQUESTED_PACKAGES_SHA256=$(sha256_of "$OUTPUT/requested-packages.txt")
-EOF
+EOF_META
 ROWS="$WORK/rows"; : > "$ROWS"
 for deb in "${debs[@]}"; do
   filename="$(basename "$deb")"; package="$(dpkg-deb -f "$deb" Package)"; version="$(dpkg-deb -f "$deb" Version)"; arch="$(dpkg-deb -f "$deb" Architecture)"
@@ -52,5 +72,5 @@ for deb in "${debs[@]}"; do
 done
 { printf 'sha256\tpackage\tversion\tarchitecture\tfilename\n'; LC_ALL=C sort -t $'\t' -k5,5 "$ROWS"; } > "$OUTPUT/packages.tsv"
 verify_os_package_set "$OUTPUT" 1
-info "Собрано ${#debs[@]} пакетов для ${profile[*]}"
+info "Собрано ${#debs[@]} пакетов для ${profile[*]}; target policy=additive-only-v2"
 printf '%s\n' "$OUTPUT"

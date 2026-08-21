@@ -2,7 +2,7 @@
 
 Автономная система повседневной работы кафедры: календарь, годовые планы, поручения, документы, заседания, отчётность, научная деятельность и проверяемые доказательства.
 
-> Текущий рубеж: **`0.1.0-rc.6`**, схема SQLite **19**. Основные пользовательские контуры работают без обязательного Интернета, LLM, Docker и внешних облачных сервисов. До stable остаётся реальная эксплуатационная приёмка установки, обновления, восстановления и rollback на Astra Linux/Debian по [`docs/TARGET_ACCEPTANCE.md`](docs/TARGET_ACCEPTANCE.md) и issue #27.
+> Текущий рубеж: **`0.1.0-rc.7`**, схема SQLite **19**. Основные пользовательские контуры работают без обязательного Интернета, LLM, Docker и внешних облачных сервисов. До stable остаётся реальная эксплуатационная приёмка установки, обновления, восстановления и rollback на Astra Linux/Debian по [`docs/TARGET_ACCEPTANCE.md`](docs/TARGET_ACCEPTANCE.md) и issue #27.
 
 ## Основной принцип
 
@@ -18,7 +18,7 @@
  подтверждение, история и доказательства
 ```
 
-Ошибка одного файла, пункта плана или внешнего адаптера не должна блокировать остальные документы и пользовательские действия.
+Ошибка одного файла, пункта плана, внешнего адаптера или дополнительного системного конвертера не должна блокировать остальные документы и пользовательские действия.
 
 ## Что видит пользователь
 
@@ -76,12 +76,14 @@
 - неизменяемые версии и дедупликация без потери истории;
 - устойчивая очередь с арендой и повтором после перезапуска;
 - DOCX, ODT, XLSX, ODS, PDF, TXT, Markdown, CSV и JSON;
-- локальные Tesseract/Poppler/LibreOffice в полном offline bundle;
+- локальные `unzip`, Poppler, Tesseract и LibreOffice в полном offline bundle;
 - структурные абзацы, таблицы, листы, страницы и локаторы источника;
 - FTS5 и фасетный поиск;
 - ручная коррекция без уничтожения машинного результата.
 
-Подробно: [`docs/OCR_AND_PREVIEW.md`](docs/OCR_AND_PREVIEW.md) и [`docs/STRUCTURED_DOCUMENTS.md`](docs/STRUCTURED_DOCUMENTS.md).
+В `rc.7` внешние document converters являются дополнительными capabilities. На здоровой поддерживаемой ОС full bundle устанавливает и строго проверяет их все. Если target уже имеет конфликтный APT, installer не исправляет и не меняет системные пакеты автоматически: API/worker устанавливаются в degraded mode, исходные документы сохраняются, а недоступные OCR/PDF/Office функции явно показываются диагностикой.
+
+Подробно: [`docs/OCR_AND_PREVIEW.md`](docs/OCR_AND_PREVIEW.md), [`docs/STRUCTURED_DOCUMENTS.md`](docs/STRUCTURED_DOCUMENTS.md) и [`docs/OFFLINE_INSTALL.md`](docs/OFFLINE_INSTALL.md).
 
 ## LLM / llama.cpp
 
@@ -112,7 +114,7 @@ npm run bundle:offline:llm -- \
 npm run bundle:offline
 ```
 
-На target переносятся архив, `.sha256`, `install-kafedra-planner.sh` и `README-INSTALL.txt`. Установка/обновление:
+На target переносятся архив, `.sha256`, `install-kafedra-planner.sh` и `README-INSTALL.txt`:
 
 ```bash
 sudo ./install-kafedra-planner.sh
@@ -124,11 +126,20 @@ sudo ./install-kafedra-planner.sh
 sudo KAFEDRA_APT_MODE=bundle ./install-kafedra-planner.sh
 ```
 
-После установки:
+Package contract `rc.7` — `full-airgap-v2 / additive-only-v2`: перед изменением ОС выполняется `apt-get check`, запрашиваются только отсутствующие document packages, а `--no-upgrade --no-remove` и simulation guard не позволяют заменить уже установленную Astra/Debian версию. `apt --fix-broken` автоматически не вызывается.
+
+После установки строгая проверка:
 
 ```bash
 sudo /opt/kafedra-planner/current/scripts/offline/doctor.sh
 systemctl status kafedra-planner-api kafedra-planner-worker --no-pager -l
+```
+
+Для заранее конфликтного APT, когда installer безопасно завершился с degraded document capabilities:
+
+```bash
+sudo KAFEDRA_DOCTOR_ALLOW_DEGRADED=true \
+  /opt/kafedra-planner/current/scripts/offline/doctor.sh
 ```
 
 Подробно: [`docs/OFFLINE_INSTALL.md`](docs/OFFLINE_INSTALL.md), [`docs/FULL_OFFLINE_DEPLOYMENT.md`](docs/FULL_OFFLINE_DEPLOYMENT.md), [`docs/SUPPORT_MATRIX.md`](docs/SUPPORT_MATRIX.md).
@@ -170,9 +181,7 @@ npm run test:browser:release
 npm run test:browser:acl
 ```
 
-`npm run check` включает проверку согласованности документации: относительные Markdown-ссылки, repository paths, установочные paths и `npm run` сверяются с реальным деревом и `package.json`.
-
-CI дополнительно проверяет миграции, backup/restore, минимальный Node 24.15, host Node 25, desktop/mobile Chromium и два full-offline systemd сценария: обычный и LLM/GGUF.
+`npm run check` включает проверку согласованности документации. CI дополнительно проверяет миграции, backup/restore, минимальный Node 24.15, host Node 25, desktop/mobile Chromium, full-offline Debian 12, additive APT policy и два systemd сценария: обычный и LLM/GGUF.
 
 ## Архитектура и эксплуатационные документы
 

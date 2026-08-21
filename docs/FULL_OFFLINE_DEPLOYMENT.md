@@ -1,139 +1,136 @@
 # Аудит полного offline deployment
 
-Дата первоначального контура: 2026-08-11. Последняя корректировка APT-политики и end-to-end проверки: 2026-08-12.
+Дата первоначального контура: 2026-08-11. Актуальный package contract: **`full-airgap-v2 / additive-only-v2`**, release candidate `0.1.0-rc.7`.
 
-## Исходная проблема
+## Почему потребовался v2
 
-Первый full bundle устранил внешние зависимости приложения, но сделал системный package layer слишком жёстким: `.deb` собирались как точный слепок reference Debian/Astra и installer при необходимости OCR/PDF/Office отключал штатные APT sources target-системы. На чистом Debian acceptance это воспроизводимо, но на реально обновлённой Astra одна и та же версия ОС может иметь другой набор актуальных package revisions.
+Реальная Astra-проверка `rc.6` показала `Unmet dependencies` одновременно в штатном APT и bundled `file:` repository. Лог содержал уже установленные несовместимые пары `perl/perl-base`, `libc6-dev/libc6`, `acl/libacl1`, `attr/libattr1`, `libparsec-*` и vendor revisions Astra.
 
-Дополнительный риск создавали две детали:
+Важное различие: оба пути `rc.6` завершились на APT simulation, поэтому Kafedra Planner не создал этот конфликт. Ошибка поставки была другой:
 
-- верхнеуровневый package profile включал базовые пакеты ОС (`systemd`, `coreutils`, `util-linux`, `passwd`, `tar`), хотя приложение не должно управлять версиями базового userspace;
-- OS package cache мог переиспользоваться между release-сборками без явного решения оператора, поэтому новый архив мог наследовать старые `.deb`.
+- installer проверял только `dpkg --audit`, который не обнаруживает весь класс dependency conflicts;
+- при отсутствии любой полной возможности запрашивался весь OCR/PDF/Office profile;
+- OCR/LibreOffice делались блокирующим условием установки приложения;
+- package contract недостаточно явно отделял полный build-time closure от политики target install.
 
-## Текущий принцип
+## Контракт v2
 
-Версии `.deb` остаются в inventory только как доказательство содержимого автономного fallback. Они **не являются install pins**.
-
-Нормальная установка системных возможностей теперь использует такую последовательность:
+Build/reference слой:
 
 ```text
-full preflight не пройден
-        ↓
 dpkg --audit
+apt-get check
         ↓
-штатный APT target-системы
-apt-get install <package names>
-(simulate → download-only → install)
-        ↓ при недоступном repository до изменения dpkg
-локальный file: repository из bundle
-apt-get install <package names>
+полное air-gap dependency closure
         ↓
-full preflight + OCR doctor
+DEPENDENCY_CLOSURE=full-airgap-v2
+TARGET_INSTALL_POLICY=additive-only-v2
+REFERENCE_APT_CHECK=passed
 ```
 
-Ни одна ветка не формирует `package=version` и не запускает `apt --fix-broken` автоматически.
+Пустой synthetic `Dir::State::status` остаётся только в collector. Он нужен, чтобы materialize полный closure для чистой отключённой ОС. Он не переносится в APT target и не означает version pinning.
 
-`download-only` перед обычной установкой принципиален: если network/repository target-системы недоступен, это выясняется до изменения dpkg, поэтому auto-mode может безопасно перейти к bundled fallback. Если реальная APT-установка уже начала изменять систему и завершилась ошибкой, installer останавливается и не пытается поверх неё выполнять второй package transaction.
-
-## Что входит в full bundle
+Target слой:
 
 ```text
-application/       код и миграции
-runtime/node/      Node.js 24 LTS
-runtime/python/    managed CPython
-os-packages/       проверяемый .deb fallback для application capabilities
-deployment.json    связь runtime и OS profile
-manifest.sha256    контроль всех файлов
+определить отсутствующие capabilities
+        ↓
+dpkg --audit + apt-get check
+        ↓
+simulation --no-remove --no-upgrade
+        ↓
+проверка: нет Remv и нет замены установленной версии
+        ↓
+download-only
+        ↓
+одна изменяющая install-транзакция
 ```
 
-Верхнеуровневый список `config/offline/os-packages.txt` содержит только application capabilities: unzip, Poppler, Tesseract, LibreOffice и шрифты. Базовые пакеты ОС не запрашиваются приложением как собственные зависимости. При этом полное fallback-замыкание может содержать отдельные системные `.deb` транзитивно; APT использует их только если установленная target-версия не удовлетворяет зависимости.
+Bundled fallback разрешён только до первой изменяющей транзакции и проходит тот же simulation guard.
 
-## Сборка package layer
+## Что считается document capability
 
-Сборщик не задаёт версии пакетов. `collect-os-packages.sh` получает текущие APT candidates reference-системы по именам пакетов и сохраняет полный offline closure с SHA-256 inventory.
+В application package profile остаются только:
 
-Release-сборка по умолчанию пересобирает этот слой заново. Старый cache используется только при явном `--reuse-os-packages`, причём его `requested-packages.txt` должен совпадать с текущим profile. Это устраняет молчаливое попадание устаревшего package cache в новый release.
+- `unzip`;
+- Poppler;
+- Tesseract и `rus`/`eng`;
+- LibreOffice Writer/Calc/Core;
+- fontconfig/DejaVu.
 
-Если нужно обновить APT indexes самой reference VM:
+Systemd, coreutils, util-linux, passwd, tar, libc/perl и другие базовые компоненты ОС не являются top-level application requirements.
+
+Target installer запрашивает не весь список, а только пакеты, соответствующие фактически отсутствующей команде/языку. Это уменьшает поверхность APT resolver и исключает бессмысленную переустановку уже работающих компонентов.
+
+## Граница безопасности
+
+До изменения dpkg любой из этих случаев считается безопасным degraded result:
+
+- target `apt-get check` уже красный;
+- system repository не может построить additive plan;
+- bundled repository несовместим с установленными vendor revisions;
+- simulation пытается обновить/понизить/удалить установленный package.
+
+В этих случаях package database не меняется, а installer продолжает deployment API/worker.
+
+После начала реальной package-транзакции ошибка считается фатальной. Fallback и `--fix-broken` поверх частично изменённой ОС не выполняются.
+
+## Strict и degraded режимы
+
+Platform prerequisites (`tar`, `sha256sum`, `systemctl`, `runuser`, `useradd`) остаются блокирующими.
+
+`unzip`, `pdftotext`, OCR и office preview представлены как capabilities. Installer может запустить ядро без них только после безопасной non-mutating package failure. При этом:
+
+- исходные файлы продолжают сохраняться;
+- календарь/задачи/поручения/БД работают;
+- preflight явно показывает недоступные document functions;
+- `KAFEDRA_DOCTOR_ALLOW_DEGRADED=true` проверяет рабочее ядро.
+
+Обычный `scripts/offline/doctor.sh` остаётся строгим full-capability gate. Clean CI никогда не использует degraded doctor как замену полного acceptance.
+
+## Сборка cache
+
+По умолчанию:
+
+```bash
+npm run bundle:offline
+```
+
+С обновлением indexes:
 
 ```bash
 sudo npm run bundle:offline -- --apt-update
 ```
 
-Для air-gapped reference VM разрешён явно подготовленный cache:
+Явный reuse:
 
 ```bash
-KAFEDRA_OS_PACKAGES_DIR=/srv/kafedra-cache/os-packages \
 npm run bundle:offline -- --reuse-os-packages
 ```
 
-## Режимы target installer
-
-По умолчанию используется `KAFEDRA_APT_MODE=auto`.
-
-- `auto` — штатный APT target-системы без version pinning, затем offline fallback;
-- `system` — только штатные APT sources, полезно для диагностики;
-- `bundle` — только bundled `file:` repository, гарантированный air-gap режим.
-
-Для полностью отключённой машины:
-
-```bash
-sudo KAFEDRA_APT_MODE=bundle ./install-kafedra-planner.sh
-```
-
-Интернет по-прежнему не является обязательным условием эксплуатации.
+`verify_os_package_set` отклоняет cache старого формата, cache другой ОС/архитектуры, изменённый inventory и package layer без `REFERENCE_APT_CHECK=passed`.
 
 ## CI acceptance
 
-Debian 12 gate проверяет package layer и реальный пользовательский installer в два этапа.
+Debian 12 gate обязан доказать одновременно:
 
-Сначала full bundle собирается на чистом `node:24-bookworm` и проверяется на уровне содержимого/runtime:
+- package metadata v2;
+- отсутствие `package=version`, `--allow-downgrades` и `--fix-broken`;
+- simulation guard для upgrade/remove;
+- обычный system APT check-only path;
+- настоящий bundled air-gap install;
+- строгий `system-preflight --require-full`;
+- Tesseract `rus+eng`, Poppler и LibreOffice;
+- настоящий systemd install/update flow;
+- optional llama.cpp/GGUF packaging flow.
 
-- `requested-packages.txt` не содержит version expressions и не запрашивает базовый userspace как top-level application packages;
-- `KAFEDRA_APT_MODE=system ... --check-only` подтверждает обычный APT plan по именам пакетов;
-- `KAFEDRA_APT_MODE=bundle` реально устанавливает зависимости только из bundled repository;
-- проходят Tesseract `rus+eng`, Poppler, LibreOffice, managed Python, migrations, initial admin и HTTP health.
+Docker используется только как disposable CI/reference environment и не является runtime-зависимостью продукта.
 
-Затем `scripts/offline/systemd-deploy-selftest.sh` создаёт отдельную чистую Debian 12 reference-среду с настоящим systemd. Docker используется только как disposable CI-изоляция и не входит в production/runtime. После подготовки базовой ОС сеть target-контейнера полностью отключается. В него копируются только четыре файла, которые получает оператор:
+## Что CI не доказывает
 
-```text
-kafedra-planner-<version>-<profile>.tar.gz
-kafedra-planner-<...>.tar.gz.sha256
-install-kafedra-planner.sh
-README-INSTALL.txt
-```
+Реальная Astra-приёмка #27 остаётся обязательной. На ней нужно повторить `rc.7` как минимум в двух состояниях:
 
-Selftest запускает именно `install-kafedra-planner.sh` в `KAFEDRA_APT_MODE=bundle` и проверяет:
+1. здоровая обновлённая Astra — document packages ставятся/уже присутствуют, strict doctor зелёный;
+2. копия системы с заранее воспроизводимым dependency conflict — `apt-get check` красный до установки, package database после запуска installer побайтно/по dpkg state не меняется, API/worker устанавливаются и degraded doctor зелёный.
 
-- внешний SHA-256 и безопасную распаковку wrapper;
-- полный `deploy/install.sh`, создание системного пользователя, каталогов и config;
-- установку application dependencies без сети;
-- immutable release и `current` symlink;
-- миграции и создание первого администратора;
-- права `0640` на config и `0600` на first-login file;
-- настоящие systemd units: enabled + active API/worker;
-- итоговый `offline/doctor.sh` и HTTP health;
-- повторный запуск того же installer как idempotent update;
-- отсутствие второго release и повторной генерации first-login credentials;
-- создание проверенной pre-update backup при повторной установке.
-
-Только после этих проверок на push в `main` публикуется full artifact.
-
-Реальная эксплуатационная приёмка Astra остаётся отдельным обязательным этапом #27: Debian CI не подменяет запуск на целевой Astra Linux, но теперь проверяет весь операторский install/update flow, а не только отдельные внутренние компоненты bundle.
-
-## Вариант с локальным llama.cpp и GGUF
-
-Поверх обычного full bundle доступен LLM-вариант. Он использует тот же Node/Python/.deb контур и тот же installer, но дополнительно содержит проверенный runtime `llama-server` и выбранные оператором локальные GGUF.
-
-```bash
-npm run bundle:offline:llm -- \
-  --llama-runtime /srv/kafedra/llama-runtime \
-  --model qwen=/srv/models/model.gguf \
-  --default-model qwen \
-  --output release-llm
-```
-
-Модель не хранится в Git. Сборщик фиксирует её SHA-256 в `llm/manifest.json`, а installer размещает её content-addressed в `/var/lib/kafedra-planner/models`. Managed `llama-server` слушает только `127.0.0.1`; отсутствие LLM в обычном bundle не является ошибкой.
-
-Полный порядок подготовки runtime, нескольких моделей, установки, переключения и отключения: [`LLAMA_OFFLINE_DEPLOYMENT.md`](LLAMA_OFFLINE_DEPLOYMENT.md).
+После исправления самой ОС повторный запуск того же installer должен автоматически добрать отсутствующие document capabilities и вернуть strict doctor в зелёное состояние.

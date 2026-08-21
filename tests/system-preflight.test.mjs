@@ -17,13 +17,13 @@ async function fakePath(commands) {
 
 const required = systemRequirements.filter((item) => item.required).map((item) => item.names[0]);
 
-test('preflight блокирует установку при отсутствии обязательной системной команды', async () => {
-  const pathEnv = await fakePath(required.filter((name) => name !== 'pdftotext'));
+test('preflight блокирует установку только при отсутствии обязательной системной команды', async () => {
+  const pathEnv = await fakePath(required.filter((name) => name !== 'systemctl'));
   try {
     const result = inspectSystem({ pathEnv, platform: 'linux' });
     assert.equal(result.status, 'blocked');
-    assert.deepEqual(result.requiredMissing, ['pdftotext']);
-    assert.equal(result.capabilities.pdfText, false);
+    assert.deepEqual(result.requiredMissing, ['systemctl']);
+    assert.equal(result.capabilities.serviceInstall, false);
     assert.equal(result.runtime.nodeVersion, process.version);
     assert.equal(result.runtime.arch, process.arch);
     assert.match(renderPreflight(result), /Runtime:/);
@@ -33,7 +33,7 @@ test('preflight блокирует установку при отсутстви�
   }
 });
 
-test('preflight отличает рабочее ядро от необязательных OCR/preview возможностей', async () => {
+test('preflight отличает рабочее ядро от отсутствующих обработчиков документов', async () => {
   const pathEnv = await fakePath(required);
   try {
     const result = inspectSystem({ pathEnv, platform: 'linux' });
@@ -41,21 +41,24 @@ test('preflight отличает рабочее ядро от необязате
     assert.equal(result.requiredMissing.length, 0);
     assert.equal(result.capabilities.backup, true);
     assert.equal(result.capabilities.serviceInstall, true);
-    assert.equal(result.capabilities.officeExtract, true);
-    assert.equal(result.capabilities.pdfText, true);
+    assert.equal(result.capabilities.officeExtract, false);
+    assert.equal(result.capabilities.pdfText, false);
     assert.equal(result.capabilities.ocr, false);
     assert.equal(result.capabilities.officePreview, false);
+    assert.match(renderPreflight(result), /ядро готово/i);
   } finally {
     await rm(pathEnv, { recursive: true, force: true });
   }
 });
 
-test('полный preflight готов при наличии OCR, LibreOffice и reverse proxy', async () => {
-  const pathEnv = await fakePath([...required, 'pdftoppm', 'tesseract', 'soffice', 'nginx']);
+test('полный preflight готов при наличии всех document capabilities и reverse proxy', async () => {
+  const pathEnv = await fakePath([...required, 'unzip', 'pdftotext', 'pdftoppm', 'tesseract', 'soffice', 'nginx']);
   try {
     const result = inspectSystem({ pathEnv, platform: 'linux' });
     assert.equal(result.status, 'ready');
     assert.equal(result.optionalMissing.length, 0);
+    assert.equal(result.capabilities.officeExtract, true);
+    assert.equal(result.capabilities.pdfText, true);
     assert.equal(result.capabilities.ocr, true);
     assert.equal(result.capabilities.officePreview, true);
     assert.equal(result.capabilities.reverseProxy, true);

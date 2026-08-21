@@ -3,29 +3,41 @@ set -Eeuo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 source "$SCRIPT_DIR/lib.sh"
 
+SAFE_DEGRADED_EXIT=20
+FATAL_TRANSACTION_EXIT=70
+FATAL_POSTCHECK_EXIT=71
 PACKAGE_ROOT="${1:-}"
-[[ -n "$PACKAGE_ROOT" ]] || die "Использование: install-os-packages.sh DIR [--check-only] [--mode auto|system|bundle]"
+[[ -n "$PACKAGE_ROOT" ]] || die "Использование: install-os-packages.sh DIR [--check-only] [--mode auto|system|bundle] [--scope all|extract|ocr|office]"
 shift || true
 
 CHECK_ONLY=false
 MODE="${KAFEDRA_APT_MODE:-auto}"
+SCOPE=all
 while (($#)); do
   case "$1" in
     --check-only) CHECK_ONLY=true; shift ;;
     --mode) MODE="${2:-}"; shift 2 ;;
+    --scope) SCOPE="${2:-}"; shift 2 ;;
     --system-only) MODE=system; shift ;;
     --offline-only|--bundle-only) MODE=bundle; shift ;;
     -h|--help)
       cat <<'HELP'
-Использование: install-os-packages.sh DIR [--check-only] [--mode auto|system|bundle]
+Использование: install-os-packages.sh DIR [--check-only] [--mode auto|system|bundle] [--scope all|extract|ocr|office]
 
 Режимы:
-  auto    сначала штатный APT целевой ОС по именам пакетов, затем bundle fallback;
+  auto    сначала штатный APT целевой ОС по именам недостающих пакетов, затем bundle fallback;
   system  только штатные APT sources целевой ОС;
   bundle  только локальный file: repository из full bundle (air-gap).
 
-Версии из packages.tsv используются только для проверки целостности bundle и
-никогда не передаются APT как package=version. Скрипт не вызывает --fix-broken.
+Области:
+  all      все фактически недостающие возможности обработки документов;
+  extract  unzip и Poppler для чтения офисных файлов/PDF;
+  ocr      pdftoppm, Tesseract и запрошенные rus/eng языки;
+  office   LibreOffice и шрифты для офисного preview.
+
+Target policy строго additive-only: APT не получает package=version, --fix-broken
+не используется, а любой plan с удалением, upgrade или downgrade уже
+установленного пакета отклоняется до изменения dpkg.
 HELP
       exit 0
       ;;
@@ -33,14 +45,12 @@ HELP
   esac
 done
 [[ "$MODE" == auto || "$MODE" == system || "$MODE" == bundle ]] || die "Некорректный APT mode: $MODE"
+[[ "$SCOPE" == all || "$SCOPE" == extract || "$SCOPE" == ocr || "$SCOPE" == office ]] || die "Некорректный scope: $SCOPE"
 [[ -d "$PACKAGE_ROOT" ]] || die "Не найден каталог пакетов ОС: $PACKAGE_ROOT"
 [[ "${EUID:-$(id -u)}" -eq 0 ]] || die "Установка пакетов ОС требует root"
-for command in apt-get awk dpkg dpkg-deb comm cut find sed sort sha256sum gzip stat tail; do require_command "$command"; done
+for command in apt-get awk comm cp cut dpkg dpkg-deb find grep gzip sed sort sha256sum stat tail; do require_command "$command"; done
 PACKAGE_ROOT="$(absolute_path "$PACKAGE_ROOT")"
 verify_os_package_set "$PACKAGE_ROOT" 1
-
-DPKG_AUDIT="$(dpkg --audit || true)"
-[[ -z "$DPKG_AUDIT" ]] || die "Пакетная база ОС уже повреждена до запуска Kafedra Planner. Установщик не запускает apt --fix-broken автоматически: восстановите APT/dpkg штатными средствами и повторите установку. Детали: $DPKG_AUDIT"
 
 mapfile -t requested < <(sed -E 's/[[:space:]]*#.*$//' "$PACKAGE_ROOT/requested-packages.txt" | awk 'NF {print $1}' | LC_ALL=C sort -u)
 ((${#requested[@]})) || die "requested-packages.txt пуст"
@@ -48,52 +58,126 @@ for package in "${requested[@]}"; do
   [[ "$package" =~ ^[a-z0-9][a-z0-9+.-]*$ ]] || die "Некорректный package name: $package"
 done
 
+needed=()
+add_needed() {
+  local package="$1" current
+  for current in "${needed[@]:-}"; do [[ "$current" == "$package" ]] && return 0; done
+  needed+=("$package")
+}
+has_command() { command -v "$1" >/dev/null 2>&1; }
+
+if [[ "$SCOPE" == all || "$SCOPE" == extract ]]; then
+  has_command unzip || add_needed unzip
+  has_command pdftotext || add_needed poppler-utils
+fi
+
+if [[ "$SCOPE" == all || "$SCOPE" == ocr ]]; then
+  has_command pdftoppm || add_needed poppler-utils
+  if ! has_command tesseract; then add_needed tesseract-ocr; fi
+  OCR_LANGUAGES="${KAFEDRA_OCR_LANGUAGES:-rus+eng}"
+  AVAILABLE_LANGUAGES=""
+  if has_command tesseract; then AVAILABLE_LANGUAGES="$(tesseract --list-langs 2>/dev/null || true)"; fi
+  IFS='+' read -r -a language_list <<< "$OCR_LANGUAGES"
+  for language in "${language_list[@]}"; do
+    [[ -n "$language" ]] || continue
+    if [[ -n "$AVAILABLE_LANGUAGES" ]] && grep -Fxq "$language" <<< "$AVAILABLE_LANGUAGES"; then continue; fi
+    case "$language" in
+      rus) add_needed tesseract-ocr-rus ;;
+      eng) add_needed tesseract-ocr-eng ;;
+      *) warn "Для OCR-языка '$language' нет package mapping в автономном bundle; его можно добавить в системный Tesseract отдельно" ;;
+    esac
+  done
+fi
+
+if [[ "$SCOPE" == all || "$SCOPE" == office ]]; then
+  if ! has_command soffice && ! has_command libreoffice; then
+    add_needed libreoffice-core
+    add_needed libreoffice-writer
+    add_needed libreoffice-calc
+    add_needed fontconfig
+    add_needed fonts-dejavu-core
+  fi
+fi
+
+if ((${#needed[@]} == 0)); then
+  info "Запрошенные возможности уже доступны; APT не требуется (scope=$SCOPE)"
+  exit 0
+fi
+mapfile -t needed < <(printf '%s\n' "${needed[@]}" | LC_ALL=C sort -u)
+for package in "${needed[@]}"; do
+  printf '%s\n' "${requested[@]}" | grep -Fxq "$package" || die "Недостающий пакет '$package' отсутствует в package profile bundle"
+done
+info "Недостающие пакеты для scope=$SCOPE: ${needed[*]}"
+
 WORK="$(mktemp -d /tmp/kafedra-apt.XXXXXX)"
 trap 'rm -rf "$WORK"' EXIT
-# apt drops privileges to _apt for downloads; allow traversal of the temporary cache.
 chmod 0755 "$WORK"
+
+check_package_database() {
+  local stage="$1"
+  local audit log_file
+  log_file="$WORK/apt-check-$stage.log"
+  audit="$(dpkg --audit || true)"
+  if [[ -n "$audit" ]]; then
+    warn "Пакетная база ОС имеет незавершённые dpkg-операции ($stage). Kafedra Planner ничего не исправляет автоматически: $audit"
+    return 1
+  fi
+  if ! LC_ALL=C DEBIAN_FRONTEND=noninteractive apt-get check >"$log_file" 2>&1; then
+    warn "APT целевой ОС уже имеет неудовлетворённые зависимости ($stage). Kafedra Planner не менял пакеты."
+    tail -n 12 "$log_file" >&2 || true
+    warn "Автоматический apt --fix-broken намеренно запрещён"
+    return 1
+  fi
+  return 0
+}
+if ! check_package_database before; then
+  exit "$SAFE_DEGRADED_EXIT"
+fi
+
 mkdir -p "$WORK/system-archives/partial"
 chmod 0755 "$WORK/system-archives" "$WORK/system-archives/partial"
 SYSTEM_APT_OPTIONS=(
   -o "Dir::Cache::archives=$WORK/system-archives"
   -o "Acquire::Retries=1"
 )
+TARGET_INSTALL_OPTIONS=(--no-remove --no-upgrade --no-install-recommends)
 
 show_apt_failure() {
   local file="$1"
-  [[ ! -s "$file" ]] || { warn "Последние сообщения APT:"; tail -n 8 "$file" >&2; }
+  [[ ! -s "$file" ]] || { warn "Последние сообщения APT:"; tail -n 12 "$file" >&2; }
 }
 
 try_system_apt() {
   local plan_log="$WORK/system-plan.log" download_log="$WORK/system-download.log" install_log="$WORK/system-install.log"
-  info "Проверяем штатный APT целевой ОС без фиксации версий: ${requested[*]}"
+  info "Проверяем additive-only план штатного APT: ${needed[*]}"
   if ! LC_ALL=C DEBIAN_FRONTEND=noninteractive apt-get "${SYSTEM_APT_OPTIONS[@]}" \
-      --simulate --no-remove --no-install-recommends install -- "${requested[@]}" >"$plan_log" 2>&1; then
+      --simulate "${TARGET_INSTALL_OPTIONS[@]}" install -- "${needed[@]}" >"$plan_log" 2>&1; then
     show_apt_failure "$plan_log"
     return 10
   fi
+  if ! assert_additive_apt_plan "$plan_log"; then return 12; fi
   if [[ "$CHECK_ONLY" == true ]]; then
-    info "Штатный APT разрешает зависимости по именам пакетов; установка не выполнялась"
+    info "Штатный APT разрешает additive-only plan; установка не выполнялась"
     return 0
   fi
 
-  # Сначала загружаем весь план, не меняя dpkg. Если target repositories недоступны,
-  # auto-mode безопасно перейдёт к bundled repository до любой системной модификации.
+  # Download the complete resolved plan before the first dpkg mutation. A
+  # network/repository failure can therefore safely fall back to the local repo.
   if ! LC_ALL=C DEBIAN_FRONTEND=noninteractive apt-get "${SYSTEM_APT_OPTIONS[@]}" \
-      --download-only --no-remove --no-install-recommends --yes install -- "${requested[@]}" >"$download_log" 2>&1; then
+      --download-only "${TARGET_INSTALL_OPTIONS[@]}" --yes install -- "${needed[@]}" >"$download_log" 2>&1; then
     show_apt_failure "$download_log"
     return 11
   fi
 
-  info "Устанавливаем зависимости штатным APT целевой ОС по именам пакетов"
+  info "Добавляем недостающие пакеты штатным APT без изменения установленных версий"
   if ! LC_ALL=C DEBIAN_FRONTEND=noninteractive apt-get "${SYSTEM_APT_OPTIONS[@]}" \
-      --no-remove --no-install-recommends --yes install -- "${requested[@]}" >"$install_log" 2>&1; then
+      "${TARGET_INSTALL_OPTIONS[@]}" --yes install -- "${needed[@]}" >"$install_log" 2>&1; then
     cat "$install_log" >&2
-    die "Штатный APT начал установку, но завершился ошибкой. Автоматический fallback и apt --fix-broken после изменения dpkg намеренно не запускаются"
+    warn "Штатный APT начал изменяющую транзакцию и завершился ошибкой. Второй package transaction и --fix-broken намеренно не запускаются"
+    exit "$FATAL_TRANSACTION_EXIT"
   fi
-  DPKG_AUDIT="$(dpkg --audit || true)"
-  [[ -z "$DPKG_AUDIT" ]] || die "После штатной APT-установки пакетная база нецелостна: $DPKG_AUDIT"
-  info "Системные зависимости установлены штатным APT без version pinning"
+  check_package_database after-system-install || exit "$FATAL_POSTCHECK_EXIT"
+  info "Недостающие системные возможности добавлены штатным APT"
   return 0
 }
 
@@ -104,14 +188,14 @@ if [[ "$MODE" != bundle ]]; then
     status=$?
   fi
   if [[ "$MODE" == system ]]; then
-    die "Штатный APT не смог подготовить установку (код $status); bundle fallback отключён режимом system"
+    warn "Штатный APT не смог подготовить безопасную установку (код $status); bundle fallback отключён режимом system"
+    exit "$SAFE_DEGRADED_EXIT"
   fi
-  warn "Штатный APT не смог безопасно подготовить пакеты; переключаемся на автономный repository bundle"
+  warn "Штатный APT не смог безопасно подготовить пакеты; пробуем автономный repository до изменения dpkg"
 fi
 
-# Air-gap fallback: bundled .deb остаются самодостаточным резервным источником.
-# APT получает только имена верхнеуровневых пакетов и учитывает уже установленные
-# версии target-системы; никакие package=version здесь не используются.
+# Air-gap fallback contains a complete closure, but target APT is still allowed
+# only to add absent packages. Bundled versions never override installed ones.
 mkdir -p "$WORK/bundle-repo"
 mapfile -d '' source_debs < <(find "$PACKAGE_ROOT" -maxdepth 1 -type f -name '*.deb' -print0 | LC_ALL=C sort -z)
 ((${#source_debs[@]})) || die "В full bundle нет .deb"
@@ -142,9 +226,14 @@ BUNDLE_APT_OPTIONS=(
 info "Индексируем автономный file: repository; внешние APT sources отключены"
 LC_ALL=C DEBIAN_FRONTEND=noninteractive apt-get "${BUNDLE_APT_OPTIONS[@]}" update >/dev/null
 cut -f2 "$PACKAGE_ROOT/packages.tsv" | tail -n +2 | LC_ALL=C sort -u > "$WORK/included.txt"
-info "Проверяем автономный APT-план (${#debs[@]} .deb, ${#requested[@]} верхнеуровневых пакетов)"
-LC_ALL=C DEBIAN_FRONTEND=noninteractive apt-get "${BUNDLE_APT_OPTIONS[@]}" \
-  --simulate --no-remove --no-install-recommends install -- "${requested[@]}" > "$WORK/bundle-plan.txt"
+info "Проверяем additive-only air-gap plan (${#debs[@]} .deb; запрошено ${#needed[@]} недостающих пакетов)"
+if ! LC_ALL=C DEBIAN_FRONTEND=noninteractive apt-get "${BUNDLE_APT_OPTIONS[@]}" \
+    --simulate "${TARGET_INSTALL_OPTIONS[@]}" install -- "${needed[@]}" >"$WORK/bundle-plan.txt" 2>"$WORK/bundle-plan.err"; then
+  cat "$WORK/bundle-plan.err" >&2 || true
+  warn "Автономный repository несовместим с уже установленными пакетами target; система не изменена"
+  exit "$SAFE_DEGRADED_EXIT"
+fi
+if ! assert_additive_apt_plan "$WORK/bundle-plan.txt"; then exit "$SAFE_DEGRADED_EXIT"; fi
 sed -n -E 's/^Inst ([^ ]+).*/\1/p' "$WORK/bundle-plan.txt" | sed -E 's/:[a-z0-9-]+$//' | LC_ALL=C sort -u > "$WORK/planned.txt"
 comm -23 "$WORK/planned.txt" "$WORK/included.txt" > "$WORK/missing.txt"
 if [[ -s "$WORK/missing.txt" ]]; then
@@ -152,12 +241,14 @@ if [[ -s "$WORK/missing.txt" ]]; then
   die "Автономный APT-план требует пакеты, отсутствующие в bundle"
 fi
 if [[ "$CHECK_ONLY" == true ]]; then
-  info "Автономный APT-план замкнут и совместим с текущей системой; установка не выполнялась"
+  info "Автономный additive-only plan совместим с текущей системой; установка не выполнялась"
   exit 0
 fi
-info "Устанавливаем зависимости из автономного file: repository по именам пакетов"
-LC_ALL=C DEBIAN_FRONTEND=noninteractive apt-get "${BUNDLE_APT_OPTIONS[@]}" \
-  --no-remove --no-install-recommends --yes install -- "${requested[@]}"
-DPKG_AUDIT="$(dpkg --audit || true)"
-[[ -z "$DPKG_AUDIT" ]] || die "После автономной установки пакетная база нецелостна: $DPKG_AUDIT"
-info "Системные зависимости full bundle установлены"
+info "Добавляем недостающие пакеты из автономного repository без изменения установленных версий"
+if ! LC_ALL=C DEBIAN_FRONTEND=noninteractive apt-get "${BUNDLE_APT_OPTIONS[@]}" \
+    "${TARGET_INSTALL_OPTIONS[@]}" --yes install -- "${needed[@]}"; then
+  warn "Автономный APT начал изменяющую транзакцию и завершился ошибкой; автоматическое исправление запрещено"
+  exit "$FATAL_TRANSACTION_EXIT"
+fi
+check_package_database after-bundle-install || exit "$FATAL_POSTCHECK_EXIT"
+info "Недостающие системные возможности добавлены из full bundle"

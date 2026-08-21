@@ -11,6 +11,12 @@ if (json) process.stdout.write(`${JSON.stringify(result)}\n`);
 else process.stdout.write(`${renderPreflight(result)}\n`);
 
 if (strict && result.requiredMissing.length) process.exitCode = 2;
-if (requireFull && (result.requiredMissing.length || !result.capabilities.ocr || !result.capabilities.officePreview)) {
+if (requireFull && (
+  result.requiredMissing.length ||
+  !result.capabilities.officeExtract ||
+  !result.capabilities.pdfText ||
+  !result.capabilities.ocr ||
+  !result.capabilities.officePreview
+)) {
   process.exitCode = 3;
 }

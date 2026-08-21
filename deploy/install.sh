@@ -40,17 +40,35 @@ if [[ "$IS_BUNDLE" == true ]]; then
   )
   "$RUNTIME_SOURCE/bin/node" "$APP_SOURCE/scripts/offline/runtime-contract.mjs" verify-bundle --root "$BUNDLE_ROOT"
 fi
-FULL_BUNDLE=false; PYTHON_SOURCE=""
+FULL_BUNDLE=false; PYTHON_SOURCE=""; DOCUMENT_CAPABILITIES_DEGRADED=false
 if [[ "$IS_BUNDLE" == true && -f "$BUNDLE_ROOT/deployment.json" ]]; then
   FULL_BUNDLE=true; PYTHON_SOURCE="$BUNDLE_ROOT/runtime/python"
   [[ -x "$PYTHON_SOURCE/python" && -f "$PYTHON_SOURCE/runtime.json" ]] || { echo "Full bundle не содержит managed Python runtime" >&2; exit 3; }
   "$RUNTIME_SOURCE/bin/node" "$APP_SOURCE/scripts/offline/deployment-contract.mjs" verify --root "$BUNDLE_ROOT" >/dev/null
-  NEED_OS_PACKAGES=false
-  "$RUNTIME_SOURCE/bin/node" "$APP_SOURCE/scripts/system-preflight.mjs" --require-full >/dev/null 2>&1 || NEED_OS_PACKAGES=true
-  "$PYTHON_SOURCE/python" "$APP_SOURCE/scripts/recognition/ocr.py" doctor --languages "${KAFEDRA_OCR_LANGUAGES:-rus+eng}" >/dev/null 2>&1 || NEED_OS_PACKAGES=true
-  if [[ "$NEED_OS_PACKAGES" == true ]]; then echo "Устанавливаю недостающие OCR/PDF/Office компоненты из автономного bundle..."; "$APP_SOURCE/scripts/offline/install-os-packages.sh" "$BUNDLE_ROOT/os-packages"; else echo "Системные OCR/PDF/Office компоненты уже готовы; .deb переустанавливать не требуется."; fi
-  "$RUNTIME_SOURCE/bin/node" "$APP_SOURCE/scripts/system-preflight.mjs" --require-full
-  "$PYTHON_SOURCE/python" "$APP_SOURCE/scripts/recognition/ocr.py" doctor --languages "${KAFEDRA_OCR_LANGUAGES:-rus+eng}"
+  PACKAGE_STATUS=0
+  "$APP_SOURCE/scripts/offline/install-os-packages.sh" "$BUNDLE_ROOT/os-packages" --scope all || PACKAGE_STATUS=$?
+  if (( PACKAGE_STATUS >= 70 )); then
+    echo "APT успел начать изменяющую транзакцию и завершился ошибкой (код $PACKAGE_STATUS). Установка остановлена; автоматический --fix-broken запрещён." >&2
+    exit "$PACKAGE_STATUS"
+  elif (( PACKAGE_STATUS == 20 )); then
+    DOCUMENT_CAPABILITIES_DEGRADED=true
+    echo "ВНИМАНИЕ: package database ОС уже конфликтует либо безопасный additive-only план невозможен. Пакеты ОС не изменялись; устанавливаю ядро без части обработки документов." >&2
+  elif (( PACKAGE_STATUS != 0 )); then
+    echo "Проверка package layer завершилась неожиданной ошибкой $PACKAGE_STATUS; установка остановлена до изменения приложения." >&2
+    exit "$PACKAGE_STATUS"
+  fi
+  "$RUNTIME_SOURCE/bin/node" "$APP_SOURCE/scripts/system-preflight.mjs" --strict
+  if ! "$RUNTIME_SOURCE/bin/node" "$APP_SOURCE/scripts/system-preflight.mjs" --require-full; then
+    DOCUMENT_CAPABILITIES_DEGRADED=true
+  fi
+  if ! "$PYTHON_SOURCE/python" "$APP_SOURCE/scripts/recognition/ocr.py" doctor --languages "${KAFEDRA_OCR_LANGUAGES:-rus+eng}"; then
+    DOCUMENT_CAPABILITIES_DEGRADED=true
+  fi
+  if [[ "$DOCUMENT_CAPABILITIES_DEGRADED" == true ]]; then
+    echo "Документные возможности установлены не полностью. Календарь, задачи, данные и исходные файлы будут доступны; OCR/preview/PDF-разбор можно восстановить после исправления APT ОС." >&2
+  else
+    echo "Системные OCR/PDF/Office компоненты готовы."
+  fi
 else
   "$RUNTIME_SOURCE/bin/node" "$APP_SOURCE/scripts/system-preflight.mjs" --strict
 fi
@@ -381,7 +399,13 @@ const http=require("node:http"); const port=Number(process.env.KAFEDRA_PORT||808
 HEALTH_OK=false
 for _attempt in {1..15}; do if systemctl is-active --quiet "$API_SERVICE" && systemctl is-active --quiet "$WORKER_SERVICE" && health_request; then HEALTH_OK=true; break; fi; sleep 1; done
 if [[ "$HEALTH_OK" != true ]]; then echo "Службы не вышли в рабочее состояние после установки." >&2; journalctl -u "$API_SERVICE" -u "$WORKER_SERVICE" -n 80 --no-pager >&2 || true; false; fi
-if [[ "$FULL_BUNDLE" == true ]]; then KAFEDRA_APPLICATION_DIR="$RELEASE_DIR" KAFEDRA_CONFIG_PATH="$CONFIG_FILE" "$RELEASE_DIR/scripts/offline/doctor.sh"; fi
+if [[ "$FULL_BUNDLE" == true ]]; then
+  if [[ "$DOCUMENT_CAPABILITIES_DEGRADED" == true ]]; then
+    KAFEDRA_DOCTOR_ALLOW_DEGRADED=true KAFEDRA_APPLICATION_DIR="$RELEASE_DIR" KAFEDRA_CONFIG_PATH="$CONFIG_FILE" "$RELEASE_DIR/scripts/offline/doctor.sh"
+  else
+    KAFEDRA_APPLICATION_DIR="$RELEASE_DIR" KAFEDRA_CONFIG_PATH="$CONFIG_FILE" "$RELEASE_DIR/scripts/offline/doctor.sh"
+  fi
+fi
 trap - ERR
 echo "Установлен релиз $RELEASE_ID (версия $VERSION)"
 [[ -n "$BACKUP_ARCHIVE" ]] && echo "Точка отката: $BACKUP_ARCHIVE"

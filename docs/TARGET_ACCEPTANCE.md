@@ -2,6 +2,8 @@
 
 Автоматический Ubuntu/Debian CI не закрывает целевую приёмку. Этот документ дополняет issue #27 и применяется на реальной Astra Linux/контрольной Debian тем же release bundle, который прошёл CI.
 
+Для `0.1.0-rc.7` отдельно проверяется package contract `full-airgap-v2 / additive-only-v2`: Kafedra Planner не должен обновлять, понижать, удалять или автоматически исправлять уже установленные пакеты ОС.
+
 ## Каноническая установка
 
 Оператор получает четыре файла:
@@ -23,7 +25,7 @@ sudo KAFEDRA_APT_MODE=bundle ./install-kafedra-planner.sh
 
 ## Acceptance CLI
 
-Существующий `scripts/target-acceptance.mjs` создаёт JSON evidence без содержимого документов и без секретов конфигурации. Он собирает:
+`scripts/target-acceptance.mjs` создаёт JSON evidence без содержимого документов и без секретов конфигурации. Он собирает:
 
 - version/runtime/platform/arch/glibc и сведения ОС;
 - full system preflight;
@@ -34,15 +36,16 @@ sudo KAFEDRA_APT_MODE=bundle ./install-kafedra-planner.sh
 - API/worker systemd status и hardening properties;
 - сведения о последнем проверенном backup без секретов.
 
-## Подготовить эталон
+## Подготовить эталон на здоровой ОС
 
-1. Установить bundle штатным wrapper.
-2. Войти под созданным администратором.
-3. Загрузить реалистичный набор PDF/DOCX/XLSX/сканов, распоряжений, отчётов, планов и научных материалов.
-4. Проверить calendar/search/evidence/ACL/OCR/preview.
-5. Дождаться завершения изменяющих jobs.
-6. Создать **зашифрованный** backup и выполнить verify.
-7. Снять acceptance evidence.
+1. Убедиться, что до установки `dpkg --audit` пуст и `apt-get check` завершается успешно.
+2. Установить bundle штатным wrapper.
+3. Войти под созданным администратором.
+4. Загрузить реалистичный набор PDF/DOCX/XLSX/сканов, распоряжений, отчётов, планов и научных материалов.
+5. Проверить calendar/search/evidence/ACL/OCR/preview.
+6. Дождаться завершения изменяющих jobs.
+7. Создать **зашифрованный** backup и выполнить verify.
+8. Снять acceptance evidence.
 
 ```bash
 sudo /opt/kafedra-planner/current/runtime/node/bin/node \
@@ -52,7 +55,54 @@ sudo /opt/kafedra-planner/current/runtime/node/bin/node \
   --output /root/kafedra-acceptance-before.json
 ```
 
-`--require-full` делает блокирующими отсутствие требуемых OCR/Office capabilities, проблемы SQLite/blobs/systemd и отсутствие актуального проверенного зашифрованного backup.
+`--require-full` делает блокирующими отсутствие OCR/Office/PDF capabilities, проблемы SQLite/blobs/systemd и отсутствие актуального проверенного зашифрованного backup. На здоровой поддерживаемой ОС degraded-режим не считается успешной полной приёмкой.
+
+## Испытание безопасности при заранее конфликтном APT
+
+Это испытание проводится **только на одноразовой копии/контрольной Astra**, где конфликт package database уже воспроизводится до запуска Kafedra Planner. Создавать искусственно повреждённое состояние на рабочем сервере запрещено.
+
+1. До запуска installer зафиксировать состояние пакетов и доказать, что конфликт существовал заранее:
+
+```bash
+sudo dpkg --audit
+sudo apt-get check
+sudo dpkg-query -W -f='${Package}\t${Version}\t${db:Status-Abbrev}\n' \
+  | LC_ALL=C sort > /root/packages-before.tsv
+sha256sum /root/packages-before.tsv > /root/packages-before.tsv.sha256
+```
+
+2. Запустить **обычный release wrapper**. Рекомендуется сначала `auto`, затем при отдельном air-gap испытании `bundle`:
+
+```bash
+sudo ./install-kafedra-planner.sh
+```
+
+Ожидаемое поведение: installer видит красный `apt-get check`, не запускает package repair/upgrade/downgrade/remove, но продолжает установку приложения в degraded document mode.
+
+3. Подтвердить рабочее ядро:
+
+```bash
+sudo KAFEDRA_DOCTOR_ALLOW_DEGRADED=true \
+  /opt/kafedra-planner/current/scripts/offline/doctor.sh
+systemctl is-active kafedra-planner-api.service
+systemctl is-active kafedra-planner-worker.service
+```
+
+Обычный строгий doctor должен оставаться красным, если OCR/Poppler/LibreOffice фактически отсутствуют. Это ожидаемая диагностика, а не основание объявить full-capability acceptance успешной.
+
+4. Снять package state после установки и сравнить с исходным:
+
+```bash
+sudo dpkg-query -W -f='${Package}\t${Version}\t${db:Status-Abbrev}\n' \
+  | LC_ALL=C sort > /root/packages-after.tsv
+cmp /root/packages-before.tsv /root/packages-after.tsv
+```
+
+Критерий: до перехода к application deployment installer не изменил package version/status ни одного системного пакета. В журнале отсутствуют `--fix-broken`, downgrade и removal transactions.
+
+5. Исправить package database **штатной утверждённой процедурой администратора ОС**, вне Kafedra Planner. После того как `apt-get check` станет зелёным, повторно запустить тот же release wrapper. Он должен добавить только отсутствующие document capabilities; затем обычный строгий doctor должен пройти.
+
+Этот сценарий доказывает две независимые вещи: приложение не усугубляет чужую package-проблему и после восстановления ОС не требует переустановки/ручной правки своих данных.
 
 ## Restore test
 
@@ -122,6 +172,7 @@ LLM acceptance является дополнительной проверкой 
 - desktop/mobile UX без инструкции разработчика;
 - фактический RTO;
 - совместимость конкретной редакции Astra с embedded runtime;
+- проверку vendor package revisions и package conflict safety;
 - организационное подтверждение, что восстановленный сервис пригоден к работе.
 
 Issue #27 закрывается только после фактического испытания и зафиксированного акта.
