@@ -20,14 +20,16 @@ while (($#)); do
 
 Собирает полный target-specific offline bundle на эталонной Debian/Astra Linux
 той же версии и архитектуры, что целевая машина. Внутри: приложение, Node.js,
-managed CPython для распознавания и автономный .deb fallback для OCR/Poppler/
-LibreOffice. По умолчанию package layer пересобирается из текущих APT indexes,
-чтобы release не наследовал устаревшие версии из старого cache.
+managed CPython и полное air-gap .deb замыкание OCR/Poppler/LibreOffice.
 
---reuse-os-packages разрешает повторно использовать только проверенный cache,
-если его requested-packages.txt точно совпадает с текущим package profile.
-Целевой installer никогда не передаёт APT package=version: версии inventory
-нужны только для контроля целостности автономного fallback.
+Перед сборкой package layer обязательно проходит dpkg --audit + apt-get check.
+Версии .deb остаются только inventory/evidence: target installer использует
+additive-only-v2 policy, запрашивает лишь реально отсутствующие пакеты и не
+имеет права upgrade/downgrade/remove уже установленный package.
+
+По умолчанию package layer пересобирается из текущих APT indexes. Старый cache
+можно использовать только явно через --reuse-os-packages; cache без нового
+additive-only-v2 контракта автоматически отклоняется.
 HELP
       exit 0 ;;
     *) die "Неизвестный параметр: $1" ;;
@@ -59,8 +61,8 @@ if ! python_runtime_ok; then rm -rf "$PYTHON_RUNTIME_DIR"; mkdir -p "$(dirname "
 python_runtime_ok || die "Managed Python runtime не прошёл самопроверку"
 
 if [[ "$REUSE_OS" == true ]]; then
-  package_cache_matches_profile || die "OS package cache устарел или не соответствует текущему config/offline/os-packages.txt; пересоберите без --reuse-os-packages"
-  info "Используем явно разрешённый OS package cache: $OS_PACKAGES_DIR"
+  package_cache_matches_profile || die "OS package cache устарел, небезопасен или не соответствует текущему config/offline/os-packages.txt; пересоберите без --reuse-os-packages"
+  info "Используем явно разрешённый additive-only-v2 OS package cache: $OS_PACKAGES_DIR"
 else
   rm -rf "$OS_PACKAGES_DIR"
   args=(--package-list "$PACKAGE_LIST" --output "$OS_PACKAGES_DIR")
@@ -72,7 +74,7 @@ else
 fi
 verify_os_package_set "$OS_PACKAGES_DIR" 1
 mkdir -p "$OUT_DIR"
-info "Собираем полный offline bundle для ${profile[0]} ${profile[2]} ${profile[3]}"
+info "Собираем полный offline bundle для ${profile[0]} ${profile[2]} ${profile[3]} (target policy=additive-only-v2)"
 ARCHIVE="$({ PYTHON_RUNTIME_DIR="$PYTHON_RUNTIME_DIR" OS_PACKAGES_DIR="$OS_PACKAGES_DIR" REQUIRE_FULL_BUNDLE=true FULL_BUNDLE_TAG="$BUNDLE_TAG" OUT_DIR="$OUT_DIR" "$SCRIPT_DIR/build-bundle.sh"; } | tail -n 1)"
 [[ -f "$ARCHIVE" && -f "$ARCHIVE.sha256" ]] || die "Сборщик не создал archive+sha256"
 ARCHIVE_BASENAME="$(basename "$ARCHIVE")"; WRAPPER="$OUT_DIR/install-kafedra-planner.sh"
@@ -98,18 +100,20 @@ KAFEDRA PLANNER — ПОЛНАЯ АВТОНОМНАЯ УСТАНОВКА
   sudo ./install-kafedra-planner.sh
 
 Установщик:
-  • проверит SHA-256 и внутренний manifest;
-  • не фиксирует версии пакетов: сначала выполняет обычный apt-get install по именам пакетов из штатных sources целевой ОС;
-  • до изменения dpkg полностью проверяет и скачивает штатный APT-план; при недоступных sources автоматически переходит на локальный .deb fallback из bundle;
-  • для принудительно изолированной установки поддерживает KAFEDRA_APT_MODE=bundle;
-  • никогда автоматически не вызывает apt --fix-broken и не продолжает работу с уже повреждённой package database;
-  • проверит Tesseract rus+eng, Poppler, LibreOffice и managed Python;
-  • создаст/обновит приложение, выполнит миграции и rollback при ошибке;
+  • проверит SHA-256, внутренний manifest и профиль ОС;
+  • до любого APT-изменения выполнит dpkg --audit и apt-get check;
+  • запросит только реально отсутствующие OCR/PDF/Office пакеты;
+  • никогда не обновляет, не понижает и не удаляет уже установленный package ОС;
+  • не использует package=version и автоматически не запускает apt --fix-broken;
+  • сначала проверяет/скачивает штатный APT-план, затем при необходимости безопасно пробует локальный file: repository;
+  • если package database ОС уже повреждена или дополнительный конвертер несовместим, не изменяет её и продолжает установку ядра в degraded mode;
+  • на здоровой совместимой ОС ставит и проверяет Tesseract rus+eng, Poppler и LibreOffice полностью офлайн;
+  • создаст/обновит приложение, выполнит миграции и rollback при ошибке приложения;
   • при первой установке создаст администратора и root-only файл первого входа;
-  • запустит API и worker, откроет доступ по LAN и выполнит итоговый doctor.
+  • запустит API и worker и выполнит итоговый health/doctor.
 
-Интернет на target не обязателен: если штатные APT sources недоступны, используется
-самодостаточный локальный repository из этого же bundle.
+Интернет на target не обязателен. Для принудительного air-gap режима:
+  sudo KAFEDRA_APT_MODE=bundle ./install-kafedra-planner.sh
 EOF_README
 info "Готово: $ARCHIVE ($(du -h "$ARCHIVE" | awk '{print $1}'))"
 info "Установка на target: sudo ./install-kafedra-planner.sh"

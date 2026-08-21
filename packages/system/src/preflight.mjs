@@ -7,8 +7,11 @@ const REQUIREMENTS = Object.freeze([
   { id: 'systemctl', names: ['systemctl'], required: true, capability: 'install', label: 'управление systemd-службами' },
   { id: 'runuser', names: ['runuser'], required: true, capability: 'install', label: 'запуск миграций от системного пользователя' },
   { id: 'useradd', names: ['useradd'], required: true, capability: 'install', label: 'создание системного пользователя' },
-  { id: 'unzip', names: ['unzip'], required: true, capability: 'office_extract', label: 'чтение DOCX/ODT/XLSX/ODS' },
-  { id: 'pdftotext', names: ['pdftotext'], required: true, capability: 'pdf_text', label: 'извлечение текстового слоя PDF' },
+  // External document converters are capabilities, not deployment prerequisites.
+  // A damaged/mixed APT database must not prevent the calendar/tasks core from
+  // starting; the operator can restore these capabilities independently.
+  { id: 'unzip', names: ['unzip'], required: false, capability: 'office_extract', label: 'чтение DOCX/ODT/XLSX/ODS' },
+  { id: 'pdftotext', names: ['pdftotext'], required: false, capability: 'pdf_text', label: 'извлечение текстового слоя PDF' },
   { id: 'pdftoppm', names: ['pdftoppm'], required: false, capability: 'ocr', label: 'преобразование страниц PDF для OCR' },
   { id: 'tesseract', names: ['tesseract'], required: false, capability: 'ocr', label: 'локальный OCR сканов' },
   { id: 'libreoffice', names: ['soffice', 'libreoffice'], required: false, capability: 'office_preview', label: 'PDF-предпросмотр офисных документов' },
@@ -85,13 +88,15 @@ export function renderPreflight(result) {
   const runtime = result.runtime || {};
   lines.push(`Runtime: ${runtime.nodeVersion || process.version} · ${runtime.platform || process.platform}/${runtime.arch || process.arch}${runtime.glibcVersionRuntime ? ` · glibc ${runtime.glibcVersionRuntime}` : ''}`);
   if (result.status === 'ready') lines.push('Системные зависимости: готовы.');
-  else if (result.status === 'degraded') lines.push('Системные зависимости: основная работа доступна, часть дополнительных функций отключена.');
-  else lines.push('Системные зависимости: установка заблокирована — отсутствуют обязательные команды.');
+  else if (result.status === 'degraded') lines.push('Системные зависимости: ядро готово, часть обработки документов недоступна.');
+  else lines.push('Системные зависимости: установка заблокирована — отсутствуют обязательные команды ОС.');
   for (const check of result.checks) {
     const marker = check.available ? '✓' : check.required ? '✗' : '–';
     const detail = check.available ? check.path : check.names.join(' / ');
     lines.push(`${marker} ${check.label}: ${detail}`);
   }
+  if (!result.capabilities.officeExtract) lines.push('  DOCX/ODT/XLSX/ODS нельзя разбирать до установки unzip; остальные контуры продолжают работать.');
+  if (!result.capabilities.pdfText) lines.push('  Текстовый слой PDF недоступен до установки Poppler; исходный PDF всё равно можно хранить.');
   if (!result.capabilities.ocr) lines.push('  OCR сканов недоступен до установки pdftoppm и Tesseract.');
   if (!result.capabilities.officePreview) lines.push('  Предпросмотр DOCX/XLSX/ODT/ODS недоступен до установки LibreOffice.');
   if (!result.capabilities.reverseProxy) lines.push('  Nginx не найден: API может работать напрямую, но reverse proxy нужно настроить отдельно при необходимости.');

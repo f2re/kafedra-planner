@@ -2,7 +2,7 @@
 
 ## Нормальный сценарий
 
-`npm run bundle:offline` собирает полный target-specific комплект для Debian/Astra Linux той же версии и архитектуры, что целевой сервер:
+Full bundle собирается на reference Debian/Astra Linux той же версии и архитектуры, что целевая машина:
 
 ```bash
 npm run bundle:offline
@@ -17,167 +17,179 @@ install-kafedra-planner.sh
 README-INSTALL.txt
 ```
 
-На целевой машине установка и обновление выполняются одной командой:
+На целевой машине:
 
 ```bash
 sudo ./install-kafedra-planner.sh
 ```
 
-Интернет не является обязательным: если штатные APT sources целевой ОС недоступны, установщик использует локальный repository из этого же bundle. `npm install`, `pip install` и пользовательский Python на target не выполняются.
+Интернет на target не обязателен. `npm install`, `pip install` и системный Python для приложения не требуются.
 
-## Что входит внутрь
-
-Полный архив содержит:
+## Что входит в full bundle
 
 - приложение, миграции, static UI и systemd units;
 - закреплённый Node.js 24 LTS;
-- managed CPython runtime для локального распознавания;
-- Python OCR adapter `scripts/recognition/ocr.py`;
-- автономное транзитивное `.deb`-замыкание application dependencies;
+- managed CPython для локального OCR orchestration;
+- полное air-gap `.deb`-замыкание document capabilities;
 - Tesseract и языки `rus`/`eng`;
 - Poppler (`pdftotext`, `pdftoppm`);
-- LibreOffice Writer/Calc/Core;
-- шрифты для предсказуемого офисного preview;
+- LibreOffice Writer/Calc/Core и базовые шрифты;
 - `release.json`, `deployment.json`, внутренний manifest и внешний SHA-256.
 
-Базовые компоненты самой ОС (`systemd`, `coreutils`, `util-linux`, `passwd`, `tar`) больше не являются верхнеуровневыми пакетами приложения. Installer предполагает штатную Debian/Astra систему и не должен обновлять её базовый userspace только ради Kafedra Planner. Отдельные базовые `.deb` могут присутствовать в полном fallback-замыкании как транзитивные зависимости, но APT не запрашивает их по версии и использует уже установленные совместимые пакеты target-системы.
+Базовые компоненты ОС (`systemd`, `coreutils`, `util-linux`, `passwd`, `tar`, `libc6`, `perl-base` и т.п.) не являются верхнеуровневыми пакетами приложения. Они могут встречаться внутри полного dependency closure только как транзитивные `.deb`; target installer не имеет права заменять уже установленную версию такого пакета.
 
-## Главное правило APT: никаких `package=version`
+## Package contract v2
 
-`config/offline/os-packages.txt` содержит только имена требуемых возможностей. Ни сборщик, ни installer не формируют команды вида:
-
-```text
-package=1.2.3-...
-```
-
-Версии в `packages.tsv` — только inventory для проверки SHA-256 и доказательства того, что именно лежит внутри offline fallback. Это не lock-файл установки.
-
-Когда full preflight показывает, что OCR/PDF/Office компонентов не хватает, `install-os-packages.sh` работает в режиме `auto`:
-
-1. проверяет `dpkg --audit`; если package database уже повреждена, останавливается до любых изменений;
-2. выполняет обычный `apt-get --simulate ... install <имена пакетов>` со штатными sources целевой ОС;
-3. если plan разрешается, сначала выполняет `--download-only`, то есть скачивает весь набор до изменения dpkg;
-4. только после успешной загрузки выполняет обычный `apt-get install <имена пакетов>`;
-5. если plan или загрузка невозможны, а dpkg ещё не изменялся, автоматически переключается на bundled `file:` repository;
-6. после установки повторно выполняет `dpkg --audit`, full preflight и OCR doctor.
-
-Установщик **никогда автоматически не запускает** `apt --fix-broken`/`apt-get --fix-broken`. Если package database была повреждена до запуска или реальная установка уже начала менять dpkg и завершилась ошибкой, процесс останавливается с диагностикой вместо попытки скрыть проблему вторым изменением системы.
-
-## Явные режимы
-
-Обычный режим выбирать не требуется:
-
-```bash
-sudo ./install-kafedra-planner.sh
-```
-
-Для гарантированно air-gap установки можно запретить использование штатных sources:
-
-```bash
-sudo KAFEDRA_APT_MODE=bundle ./install-kafedra-planner.sh
-```
-
-Для диагностики администратора можно, наоборот, проверить только штатный APT:
-
-```bash
-sudo KAFEDRA_APT_MODE=system ./install-kafedra-planner.sh
-```
-
-Допустимые значения `KAFEDRA_APT_MODE`: `auto`, `system`, `bundle`.
-
-## Почему bundle всё ещё привязан к ОС
-
-`.deb` нельзя безопасно считать универсальными между Debian 12, Astra 1.7, Astra 1.8 и другими выпусками. Поэтому offline fallback хранит профиль:
-
-- OS family и `ID`;
-- `VERSION_ID`;
-- Debian architecture;
-- inventory package/version/architecture/SHA-256.
-
-Профиль нужен для совместимости самого fallback-слоя. Он не означает pinning package versions при нормальной установке. Для каждой реально поддерживаемой целевой ОС строится собственный artifact на эталонной VM этой ОС.
-
-## Как собираются системные пакеты
-
-`scripts/offline/collect-os-packages.sh` запускает APT без выражений `package=version` и скачивает полное транзитивное замыкание текущих APT candidates reference-системы. В набор записываются:
+Package layer `rc.7` имеет два явных признака:
 
 ```text
-manifest.sha256
-packages.tsv
-requested-packages.txt
-source-os.env
-*.deb
+DEPENDENCY_CLOSURE=full-airgap-v2
+TARGET_INSTALL_POLICY=additive-only-v2
 ```
 
-Перед упаковкой проверяются контрольные суммы, inventory, architecture, наличие каждого requested package и отсутствие двух версий одного package.
+`full-airgap-v2` означает, что collector на build/reference-машине намеренно вычисляет полное замыкание, достаточное для чистой отключённой ОС. Для этого только на стадии сборки используется пустой synthetic `dpkg status`. Он не переносится в package manager target и не является lock-файлом.
 
-Release-сборка больше не переиспользует старый OS package cache молча. По умолчанию package layer собирается заново из текущих APT indexes:
+`additive-only-v2` означает противоположное правило на target: разрешена только установка ранее отсутствующих пакетов. Обновление, downgrade и удаление уже установленного пакета запрещены.
+
+Версии в `packages.tsv` используются только как inventory/evidence содержимого bundle. Ни один target path не формирует `package=version`.
+
+## Сборка package layer
+
+Перед скачиванием `.deb` collector проверяет reference OS:
+
+```text
+dpkg --audit
+apt-get check
+```
+
+Если reference package database повреждена, bundle не выпускается. При `--apt-update` проверка повторяется после обновления indexes.
+
+Обычная сборка пересобирает package layer:
 
 ```bash
 npm run bundle:offline
 ```
 
-Если перед сборкой требуется обновить indexes:
+Обновить indexes перед сборкой:
 
 ```bash
 sudo npm run bundle:offline -- --apt-update
 ```
 
-Повторное использование заранее подготовленного cache разрешается только явно:
+Повторное использование cache разрешается только явно:
 
 ```bash
 npm run bundle:offline -- --reuse-os-packages
 ```
 
-При этом `requested-packages.txt` cache обязан в точности совпадать с текущим `config/offline/os-packages.txt`; иначе сборка останавливается.
+Cache должен соответствовать текущему `config/offline/os-packages.txt`, OS profile и контракту `additive-only-v2`; cache старого формата отклоняется.
 
-## Полностью отключённая сборочная машина
+## Что делает target installer
 
-Для air-gapped reference VM заранее передайте подготовленные runtime/cache и явно разрешите reuse:
+Package step работает по фактически отсутствующим возможностям, а не по всему списку сразу:
 
-```bash
-KAFEDRA_PYTHON_RUNTIME_DIR=/srv/kafedra-cache/python \
-KAFEDRA_OS_PACKAGES_DIR=/srv/kafedra-cache/os-packages \
-NODE_RUNTIME_DIR=/srv/kafedra-cache/node \
-npm run bundle:offline -- --reuse-os-packages
+- нет `unzip` → запрашивается `unzip`;
+- нет `pdftotext`/`pdftoppm` → `poppler-utils`;
+- нет Tesseract или `rus`/`eng` → соответствующие Tesseract packages;
+- нет LibreOffice → Writer/Calc/Core и шрифты.
+
+Перед любой транзакцией выполняются:
+
+```text
+dpkg --audit
+apt-get check
 ```
 
-Каждый слой всё равно проходит contract verification.
+Затем normal mode использует:
 
-## Что делает installer
+```text
+system APT simulation
+        ↓
+additive-plan guard
+        ↓
+download-only
+        ↓
+install
+```
 
-`sudo ./install-kafedra-planner.sh` последовательно:
+Если system sources недоступны до изменения dpkg, `auto` может перейти к локальному `file:` repository. Bundled path повторно выполняет simulation и тот же additive-plan guard.
 
-1. проверяет внешний SHA-256 и безопасно распаковывает archive;
-2. проверяет полный внутренний `manifest.sha256`;
-3. проверяет Node runtime, `deployment.json`, managed Python и OS profile;
-4. проверяет текущие OCR/PDF/Office capabilities;
-5. если они уже готовы — не трогает APT;
-6. иначе устанавливает требуемые **имена** пакетов: штатный APT target-системы → безопасный offline fallback;
-7. повторно проверяет Tesseract, `rus+eng`, Poppler, LibreOffice и Python;
-8. создаёт immutable release через staging + atomic rename;
-9. сохраняет существующий config/data и перед update делает проверенный backup;
-10. атомарно переключает `current` и выполняет миграции;
-11. на чистой системе автоматически создаёт `admin` со случайным временным паролем и обязательной сменой пароля;
-12. сохраняет первый пароль только в `/root/kafedra-planner-first-login.txt` с mode `0600`;
-13. включает API и worker;
-14. проверяет обе службы, HTTP health и полный offline doctor;
-15. при ошибке приложения возвращает прежний release/data/systemd state.
+Каждая target команда APT использует `--no-remove --no-upgrade --no-install-recommends`. `--allow-downgrades`, version pinning и автоматический `--fix-broken` запрещены.
 
-Новый full deployment слушает `0.0.0.0:8080`, поэтому приложение доступно из локальной сети без обязательного nginx.
+## Уже конфликтный APT на Astra/Debian
 
-## Обновление
+Если `apt-get check` до установки уже сообщает несовместимые версии (`perl/perl-base`, `libc6-dev/libc6`, `acl/libacl1`, vendor Astra revisions и т.п.), Kafedra Planner:
 
-Тот же installer используется и для обновления:
+1. не меняет ни один системный пакет;
+2. не запускает `apt --fix-broken`;
+3. не пробует поверх конфликта второй repository;
+4. продолжает установку приложения, БД, API и worker;
+5. отмечает document capabilities как degraded.
+
+Это важно: пакетная проблема ОС не должна делать недоступными календарь, задачи, поручения и уже сохранённые данные.
+
+Если реальная APT-транзакция уже началась и завершилась ошибкой, installer останавливается с фатальным кодом. Автоматически запускать вторую package-транзакцию в таком состоянии небезопасно.
+
+## Строгая и degraded диагностика
+
+Обычный doctor остаётся строгим acceptance gate:
+
+```bash
+sudo /opt/kafedra-planner/current/scripts/offline/doctor.sh
+```
+
+Он требует `unzip`, Poppler, Tesseract с нужными языками и LibreOffice.
+
+Для машины, где package step безопасно пропущен из-за заранее конфликтного APT, можно проверить рабочее ядро:
+
+```bash
+sudo KAFEDRA_DOCTOR_ALLOW_DEGRADED=true \
+  /opt/kafedra-planner/current/scripts/offline/doctor.sh
+```
+
+Этот режим не скрывает отсутствующие возможности: preflight перечисляет их, но API/worker считаются рабочими, если обязательные platform prerequisites и HTTP health исправны.
+
+## Явные APT-режимы
+
+По умолчанию используется `KAFEDRA_APT_MODE=auto`.
 
 ```bash
 sudo ./install-kafedra-planner.sh
 ```
 
-Системный package layer не трогается при каждом update: если full preflight и OCR doctor уже зелёные, APT шаг полностью пропускается.
+Принудительно только bundled repository:
 
-## Конфигурация установки
+```bash
+sudo KAFEDRA_APT_MODE=bundle ./install-kafedra-planner.sh
+```
 
-Штатный package deployment намеренно использует один предсказуемый контур хранения:
+Только штатные system sources:
+
+```bash
+sudo KAFEDRA_APT_MODE=system ./install-kafedra-planner.sh
+```
+
+## Совместимость bundle
+
+`.deb`-fallback нельзя переносить между Debian 12, Astra 1.7, Astra 1.8 и другими выпусками. `source-os.env` фиксирует family, `ID`, `VERSION_ID` и architecture; installer проверяет этот профиль до package step.
+
+Это ограничение относится к fallback repository, а не к версиям уже установленных пакетов target. Vendor revisions внутри одной поддерживаемой Astra не должны понижаться или обновляться ради приложения.
+
+## Установка и обновление приложения
+
+После package preparation installer:
+
+1. проверяет bundle runtime/manifest;
+2. создаёт immutable release через staging + atomic rename;
+3. сохраняет config/data;
+4. перед изменяющим update создаёт проверенную резервную копию;
+5. переключает `current`, выполняет миграции;
+6. на чистой системе создаёт администратора и root-only first-login file;
+7. запускает API/worker и optional managed LLM;
+8. выполняет HTTP health и strict/degraded doctor в соответствии с фактическим package result;
+9. при ошибке приложения возвращает предыдущий release/data через штатный rollback.
+
+Стандартные пути:
 
 ```text
 приложение: /opt/kafedra-planner/current
@@ -187,31 +199,10 @@ backup:     /var/backups/kafedra-planner
 config:     /etc/kafedra-planner/kafedra-planner.env
 ```
 
-`kafedra-planner.env` — **файл данных, а не shell-скрипт**. Installer не выполняет его через `source` или `eval`; конструкции `$()`, backticks, `;` и `#` внутри значения остаются обычными символами. Поддерживается простой однострочный формат `KAFEDRA_NAME=value`, а всё значение можно целиком заключить в одинарные или двойные кавычки. Повторяющиеся переменные, чужие имена без префикса `KAFEDRA_`, незакрытые кавычки и многострочные значения считаются ошибкой конфигурации.
+`kafedra-planner.env` остаётся файлом данных, а не shell-скриптом. Нестандартные package deployment paths updater не угадывает и останавливается до остановки служб/миграций.
 
-Параметры SMTP, Telegram, уведомлений, OCR и другие прикладные настройки можно менять в этом файле. Пять путей package deployment (`KAFEDRA_DATA_DIR`, `KAFEDRA_DATABASE_PATH`, `KAFEDRA_APPLICATION_DIR`, `KAFEDRA_CONFIG_PATH`, `KAFEDRA_BACKUP_DIR`) должны оставаться стандартными. Это сознательное ограничение: systemd hardening и автоматический rollback рассчитаны на эти каталоги. Если существующая установка содержит другие значения, updater **останавливается до остановки служб, backup, миграции и переключения `current`**, а не пытается угадать, какую БД считать рабочей.
+## CI и реальная Astra-приёмка
 
-Такое поведение делает обновление повторяемым: одна и та же конфигурация используется для проверки, backup/migrate, запуска systemd и health-check, а конфликт путей превращается в явную административную ошибку вместо риска работы с другой базой.
+GitHub CI строит чистый Debian 12 full bundle, проверяет `additive-only-v2`, реально устанавливает bundle без сети под systemd, затем выполняет строгий OCR/Poppler/LibreOffice doctor. Поэтому degraded mode не может скрыть неполный clean artifact.
 
-## Диагностика после установки
-
-```bash
-sudo /opt/kafedra-planner/current/scripts/offline/doctor.sh
-systemctl status kafedra-planner-api kafedra-planner-worker --no-pager -l
-```
-
-Файл первого входа создаётся только если в базе ещё нет активного администратора:
-
-```bash
-sudo cat /root/kafedra-planner-first-login.txt
-```
-
-## Runtime-only bundle
-
-Для инженерной диагностики сохранён компактный профиль:
-
-```bash
-npm run bundle:offline:runtime
-```
-
-Он содержит приложение + Node.js, но не является полной поставкой целевой ОС: managed Python и `.deb` fallback в нём отсутствуют. Для эксплуатационной установки используется `npm run bundle:offline`.
+Реальная Astra Linux остаётся отдельной приёмкой по [`TARGET_ACCEPTANCE.md`](TARGET_ACCEPTANCE.md) и issue #27. Именно там проверяются vendor revisions пакетов, реальные ведомственные документы, update/rollback и восстановление.

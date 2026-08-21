@@ -1,6 +1,6 @@
 # Аудит runtime, зависимостей и deployment
 
-Актуализировано: 2026-08-21. Документ фиксирует текущий контракт поставки; исторические причины решений сохранены только там, где они объясняют инвариант.
+Актуализировано: 2026-08-21. Документ фиксирует текущий контракт поставки `0.1.0-rc.7`; исторические причины решений сохранены только там, где они объясняют инвариант.
 
 ## Host Node и runtime поставки
 
@@ -23,7 +23,7 @@ Host Node может отличаться. Production bundle содержит з
 
 Копирование release выполняется через staging и atomic rename. Повторная установка уже существующего идентичного release не возвращает преждевременный успех: миграции, службы и health-check проверяются снова.
 
-## Системные зависимости: текущий full bundle
+## Системные зависимости: full bundle v2
 
 Текущий full bundle **target-specific**. Он содержит:
 
@@ -31,16 +31,27 @@ Host Node может отличаться. Production bundle содержит з
 application/       приложение, migrations, docs и static UI
 runtime/node/      закреплённый Node.js
 runtime/python/    managed CPython для OCR adapter
-os-packages/       проверяемый target-specific .deb fallback
-deployment.json    OS/runtime contract
+os-packages/       проверяемый target-specific .deb air-gap closure
+deployment.json    OS/runtime/package contract
 manifest.sha256    SHA-256 каждого файла release
 ```
 
-`config/offline/os-packages.txt` перечисляет application capabilities по именам: Poppler, Tesseract/языки, LibreOffice, unzip и необходимые шрифты. Приложение не фиксирует `package=version` при установке и не управляет базовым userspace ОС как собственной зависимостью.
+`config/offline/os-packages.txt` перечисляет только document capabilities по именам: Poppler, Tesseract/языки, LibreOffice, unzip и шрифты. Приложение не фиксирует `package=version` и не управляет базовым userspace ОС как собственной зависимостью.
 
-В `KAFEDRA_APT_MODE=auto` installer сначала планирует/скачивает обычную установку из штатных APT sources target-системы; если это невозможно **до изменения dpkg**, используется bundled `file:` repository. В `KAFEDRA_APT_MODE=bundle` сеть не нужна вообще.
+Package layer имеет два независимых инварианта:
 
-`apt --fix-broken`/`apt-get --fix-broken` автоматически не запускаются. Уже повреждённая package database останавливает installation с диагностикой.
+- `full-airgap-v2` — collector на здоровой reference OS материализует полное замыкание для чистой отключённой target;
+- `additive-only-v2` — target installer может только добавить отсутствующий package, но не upgrade/downgrade/remove уже установленный.
+
+Collector перед выпуском `.deb` выполняет `dpkg --audit` и `apt-get check`. Старый cache без v2-контракта повторно использовать нельзя.
+
+На target installer сначала определяет фактически отсутствующие команды/языки. Перед любой package-транзакцией снова выполняются `dpkg --audit` и `apt-get check`; simulation использует `--no-remove --no-upgrade`, а отдельный guard отклоняет план с `Remv` или заменой установленной версии.
+
+В `KAFEDRA_APT_MODE=auto` installer сначала планирует/скачивает ordinary install из штатных APT sources; если это невозможно **до изменения dpkg**, допускается bundled `file:` repository. В `KAFEDRA_APT_MODE=bundle` сеть не нужна.
+
+`apt --fix-broken`/`apt-get --fix-broken` автоматически не запускаются. Если package database была конфликтной **до** установки, системные пакеты не меняются, но API/worker продолжают устанавливаться с degraded document capabilities. Если изменяющая APT-транзакция уже началась и упала, это фатальная ошибка: второй package transaction не выполняется.
+
+Обычный `offline/doctor.sh` остаётся строгим full-capability gate. Только installer после доказанной non-mutating package failure использует `KAFEDRA_DOCTOR_ALLOW_DEGRADED=true` для проверки ядра.
 
 Подробно: [`OFFLINE_INSTALL.md`](OFFLINE_INSTALL.md), [`FULL_OFFLINE_DEPLOYMENT.md`](FULL_OFFLINE_DEPLOYMENT.md), [`SUPPORT_MATRIX.md`](SUPPORT_MATRIX.md).
 
@@ -59,6 +70,6 @@ Optional LLM bundle добавляет проверенный `llama-server`, с
 
 ## Что проверяет CI и чего он не доказывает
 
-CI проверяет runtime separation, обычный full bundle, offline `.deb` fallback, systemd install/update и отдельный LLM/GGUF deployment fixture. Docker применяется только как disposable CI-среда и не является частью production.
+CI проверяет runtime separation, package contract v2, ordinary full bundle, bundled air-gap path, simulation guard, systemd install/update и отдельный LLM/GGUF deployment fixture. Docker применяется только как disposable CI-среда и не является частью production.
 
-CI не доказывает совместимость конкретной редакции Astra Linux. Финальный gate — фактическая процедура из [`TARGET_ACCEPTANCE.md`](TARGET_ACCEPTANCE.md).
+CI не доказывает совместимость конкретной редакции Astra Linux. Финальный gate — фактическая процедура из [`TARGET_ACCEPTANCE.md`](TARGET_ACCEPTANCE.md), включая здоровую обновлённую Astra и отдельно заранее конфликтный APT без package mutation.

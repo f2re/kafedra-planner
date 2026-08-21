@@ -5,7 +5,9 @@ import { existsSync, readFileSync, statSync, writeFileSync } from 'node:fs';
 import { join, resolve } from 'node:path';
 
 const FORMAT = 'kafedra-planner-full-offline';
-const FORMAT_VERSION = 1;
+const FORMAT_VERSION = 2;
+const PACKAGE_CLOSURE = 'full-airgap-v2';
+const TARGET_INSTALL_POLICY = 'additive-only-v2';
 
 function fail(message) {
   const error = new Error(message);
@@ -68,7 +70,9 @@ function inspect(root) {
   const python = readJson(pythonMetadataPath);
   const count = packageRows(packagesPath).length;
   if (!count) fail('Набор пакетов ОС пуст');
-  if (sourceOs.DEPENDENCY_CLOSURE !== 'full') fail('Набор .deb не является полным замыканием зависимостей');
+  if (sourceOs.DEPENDENCY_CLOSURE !== PACKAGE_CLOSURE) fail(`Набор .deb использует устаревший closure contract: ${sourceOs.DEPENDENCY_CLOSURE || 'не указан'}`);
+  if (sourceOs.TARGET_INSTALL_POLICY !== TARGET_INSTALL_POLICY) fail(`Набор .deb не подтверждает ${TARGET_INSTALL_POLICY}`);
+  if (sourceOs.REFERENCE_APT_CHECK !== 'passed') fail('Package layer собран без подтверждённого apt-get check reference-системы');
   if (!['debian', 'astra'].includes(sourceOs.OS_FAMILY)) fail(`Неподдерживаемый OS_FAMILY: ${sourceOs.OS_FAMILY}`);
   if (!['amd64', 'arm64'].includes(sourceOs.DEB_ARCHITECTURE)) fail(`Неподдерживаемая архитектура: ${sourceOs.DEB_ARCHITECTURE}`);
   if (!statSync(pythonLauncher).isFile()) fail('В full bundle отсутствует managed Python launcher');
@@ -101,7 +105,15 @@ function inspect(root) {
       runtimeId: String(python.runtime_id || ''), glibcRequired: String(python.glibc_required || ''), metadataSha256: sha256(pythonMetadataPath)
     },
     recognition: { script: 'application/scripts/recognition/ocr.py', defaultLanguages: 'rus+eng' },
-    osPackages: { path: 'os-packages', count, packagesTsvSha256: sha256(packagesPath), manifestSha256: sha256(osManifestPath), sourceOsSha256: sha256(sourceOsPath) }
+    osPackages: {
+      path: 'os-packages',
+      count,
+      dependencyClosure: PACKAGE_CLOSURE,
+      targetInstallPolicy: TARGET_INSTALL_POLICY,
+      packagesTsvSha256: sha256(packagesPath),
+      manifestSha256: sha256(osManifestPath),
+      sourceOsSha256: sha256(sourceOsPath)
+    }
   };
   const llmManifestPath = join(root, 'llm', 'manifest.json');
   if (existsSync(llmManifestPath)) {

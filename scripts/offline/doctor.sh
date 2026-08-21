@@ -6,6 +6,8 @@ NODE="$ROOT/runtime/node/bin/node"
 PYTHON="$ROOT/runtime/python/python"
 OCR="$ROOT/scripts/recognition/ocr.py"
 ENV_PARSER="$ROOT/scripts/offline/environment-file.sh"
+ALLOW_DEGRADED="${KAFEDRA_DOCTOR_ALLOW_DEGRADED:-false}"
+[[ "$ALLOW_DEGRADED" == true || "$ALLOW_DEGRADED" == false ]] || { echo "Некорректный KAFEDRA_DOCTOR_ALLOW_DEGRADED=$ALLOW_DEGRADED" >&2; exit 2; }
 [[ -x "$NODE" ]] || { echo "✗ Node runtime: $NODE" >&2; exit 2; }
 [[ -x "$PYTHON" ]] || { echo "✗ Python runtime: $PYTHON" >&2; exit 2; }
 [[ -f "$OCR" ]] || { echo "✗ OCR adapter: $OCR" >&2; exit 2; }
@@ -14,9 +16,28 @@ ENV_PARSER="$ROOT/scripts/offline/environment-file.sh"
 source "$ENV_PARSER"
 [[ ! -f "$CONFIG" ]] || kafedra_read_environment_file "$CONFIG"
 LANGUAGES="${KAFEDRA_OCR_LANGUAGES:-rus+eng}"
+DEGRADED=false
 echo "✓ Node: $($NODE --version)"
-"$PYTHON" "$OCR" doctor --languages "$LANGUAGES"
-"$NODE" "$ROOT/scripts/system-preflight.mjs" --require-full
+if [[ "$ALLOW_DEGRADED" == true ]]; then
+  PREFLIGHT_JSON="$("$NODE" "$ROOT/scripts/system-preflight.mjs" --json)"
+  "$NODE" "$ROOT/scripts/system-preflight.mjs" --strict
+  if ! "$NODE" -e '
+const p=JSON.parse(process.argv[1]);
+const c=p.capabilities||{};
+process.exit(c.officeExtract&&c.pdfText&&c.ocr&&c.officePreview?0:1);
+' "$PREFLIGHT_JSON"; then
+    DEGRADED=true
+  fi
+  if ! "$PYTHON" "$OCR" doctor --languages "$LANGUAGES"; then
+    DEGRADED=true
+    echo "– OCR $LANGUAGES недоступен; календарь, задачи, данные и исходные документы продолжают работать." >&2
+  fi
+else
+  # Default doctor remains the strict release/acceptance gate. The installer
+  # opts into degraded mode explicitly only after a non-mutating package failure.
+  "$PYTHON" "$OCR" doctor --languages "$LANGUAGES"
+  "$NODE" "$ROOT/scripts/system-preflight.mjs" --require-full
+fi
 if command -v systemctl >/dev/null 2>&1; then
   systemctl is-active --quiet kafedra-planner-api.service && echo '✓ API service active' || { echo '✗ API service inactive' >&2; exit 3; }
   systemctl is-active --quiet kafedra-planner-worker.service && echo '✓ Worker service active' || { echo '✗ Worker service inactive' >&2; exit 3; }
@@ -34,4 +55,8 @@ if [[ "${KAFEDRA_LLM_ENABLED:-false}" == true ]]; then
 else
   echo '✓ LLM: выключен (основной контур автономен)'
 fi
-echo 'Kafedra Planner: готов к работе.'
+if [[ "$DEGRADED" == true ]]; then
+  echo 'Kafedra Planner: ядро готово; часть обработки документов недоступна.'
+else
+  echo 'Kafedra Planner: готов к работе.'
+fi

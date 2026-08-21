@@ -1,6 +1,8 @@
-# Application capabilities for Debian/Astra full bundle.
-# Base OS packages (systemd, coreutils, util-linux, passwd, tar) are platform
-# prerequisites and must not be upgraded from an application-owned bundle.
+# Application document capabilities included in the Debian/Astra full bundle.
+# The build collector resolves a complete air-gap closure, but target install is
+# additive-only: these names are requested only when the matching command or OCR
+# language is actually missing. Base OS packages are never top-level application
+# requirements and installed package versions are never replaced by Kafedra Planner.
 unzip
 poppler-utils
 tesseract-ocr

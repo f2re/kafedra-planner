@@ -38,6 +38,21 @@ detect_os_profile() {
   arch="$(dpkg --print-architecture 2>/dev/null || true)"
   printf '%s\n%s\n%s\n%s\n' "$family" "$id" "$version" "$arch"
 }
+
+# Target APT is allowed to add absent packages only. A simulation that removes
+# anything or proposes another version for an already installed package is
+# rejected before the first dpkg mutation.
+assert_additive_apt_plan() {
+  local plan_file="$1" mutation
+  [[ -f "$plan_file" ]] || die "Не найден APT plan: $plan_file"
+  mutation="$(grep -E '^(Remv |Inst [^ ]+ \[[^]]+\])' "$plan_file" | head -n 1 || true)"
+  if [[ -n "$mutation" ]]; then
+    warn "APT-план пытается изменить уже установленный пакет ОС, что запрещено: $mutation"
+    return 1
+  fi
+  return 0
+}
+
 verify_os_package_set() (
   set -Eeuo pipefail
   local root="$1" strict_profile="${2:-0}" validation line sha package version arch filename extra
@@ -56,11 +71,13 @@ verify_os_package_set() (
   [[ "$expected_id" =~ ^[a-z0-9][a-z0-9._-]*$ ]] || die "Некорректный OS_ID"
   [[ -n "$expected_version" ]] || die "Пустой OS_VERSION_ID"
   [[ "$expected_arch" == amd64 || "$expected_arch" == arm64 ]] || die "Неподдерживаемый DEB_ARCHITECTURE: $expected_arch"
-  [[ "$(read_env_value "$root/source-os.env" DEPENDENCY_CLOSURE)" == full ]] || die "Пакеты ОС не подтверждают полное замыкание зависимостей"
+  [[ "$(read_env_value "$root/source-os.env" DEPENDENCY_CLOSURE)" == full-airgap-v2 ]] || die "Набор пакетов ОС использует устаревший dependency-closure contract; пересоберите bundle"
+  [[ "$(read_env_value "$root/source-os.env" TARGET_INSTALL_POLICY)" == additive-only-v2 ]] || die "Набор пакетов ОС не подтверждает additive-only target policy"
+  [[ "$(read_env_value "$root/source-os.env" REFERENCE_APT_CHECK)" == passed ]] || die "Набор пакетов ОС собран без подтверждённого apt-get check reference-системы"
   [[ "$(read_env_value "$root/source-os.env" APT_INSTALL_RECOMMENDS)" == false ]] || die "Набор должен быть собран без recommends"
   [[ "$requested_sha" =~ ^[a-f0-9]{64}$ && "$(sha256_of "$root/requested-packages.txt")" == "$requested_sha" ]] || die "Checksum requested-packages.txt не совпадает"
   if find "$root" -mindepth 1 ! -type d ! -type f -print -quit | grep -q .; then die "Набор .deb содержит запрещённый объект"; fi
-  if find "$root" -mindepth 2 ! -type d -print -quit | grep -q .; then die "Файлы набора .deb должны лежать в корне"; fi
+  if find "$root" -mindepth 2 ! -type d -print -quit | grep -q .; then die "Файлы набора должны лежать в корне"; fi
   (cd "$root" && sha256sum -c --strict --quiet manifest.sha256)
   validation="$(mktemp -d)"; trap 'rm -rf "$validation"' EXIT
   find "$root" -maxdepth 1 -type f -name '*.deb' -printf '%f\n' | LC_ALL=C sort > "$validation/actual"
