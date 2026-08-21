@@ -120,12 +120,14 @@ check_package_database() {
   audit="$(dpkg --audit || true)"
   if [[ -n "$audit" ]]; then
     warn "Пакетная база ОС имеет незавершённые dpkg-операции ($stage). Kafedra Planner ничего не исправляет автоматически: $audit"
+    warn "Подсказка: Для завершения незавершённых настроек пакетов выполните 'sudo dpkg --configure -a'"
     return 1
   fi
   if ! LC_ALL=C DEBIAN_FRONTEND=noninteractive apt-get check >"$log_file" 2>&1; then
     warn "APT целевой ОС уже имеет неудовлетворённые зависимости ($stage). Kafedra Planner не менял пакеты."
     tail -n 12 "$log_file" >&2 || true
     warn "Автоматический apt --fix-broken намеренно запрещён"
+    warn "Подсказка: Проверьте состояние зависимостей через 'sudo apt-get check' и восстановите репозитории ОС"
     return 1
   fi
   return 0

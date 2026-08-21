@@ -171,9 +171,31 @@ sudo KAFEDRA_APT_MODE=system ./install-kafedra-planner.sh
 
 ## Совместимость bundle
 
-`.deb`-fallback нельзя переносить между Debian 12, Astra 1.7, Astra 1.8 и другими выпусками. `source-os.env` фиксирует family, `ID`, `VERSION_ID` и architecture; installer проверяет этот профиль до package step.
+`.deb`-fallback нельзя переносить между Debian 12, Astra 1.7, Astra 1.8 и другими выпусками. `source-os.env` фиксирует family, `ID`, `VERSION_ID` и architecture; installer проверяет совместимость серий ОС (все уровни обновлений Astra 1.7.x Smolensk совместимы между собой; Astra 1.8.x — между собой) до начала package step.
 
 Это ограничение относится к fallback repository, а не к версиям уже установленных пакетов target. Vendor revisions внутри одной поддерживаемой Astra не должны понижаться или обновляться ради приложения.
+
+## Диагностика и восстановление пакетов ОС
+
+Если целевая ОС имела незавершённые транзакции пакетов (`dpkg --audit`) или неудовлетворённые зависимости стороннего ПО (`apt-get check`), Kafedra Planner устанавливает рабочее ядро в безопасном degraded-режиме, не запуская опасный `apt --fix-broken`.
+
+Для диагностики состояния пакетов ОС используйте:
+
+```bash
+sudo /opt/kafedra-planner/current/scripts/offline/doctor.sh --diagnose-apt
+```
+
+После устранения конфликтов администратором ОС (например, `sudo dpkg --configure -a` или исправление `sources.list`), недостающие возможности обработки документов доустанавливаются одной командой без переустановки ядра:
+
+```bash
+sudo /opt/kafedra-planner/current/scripts/offline/install-os-packages.sh /opt/kafedra-planner/current/os-packages
+```
+
+Затем строгая приёмочная диагностика подтвердит полную готовность:
+
+```bash
+sudo /opt/kafedra-planner/current/scripts/offline/doctor.sh
+```
 
 ## Установка и обновление приложения
 

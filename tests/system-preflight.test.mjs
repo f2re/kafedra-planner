@@ -67,3 +67,18 @@ test('полный preflight готов при наличии всех document 
     await rm(pathEnv, { recursive: true, force: true });
   }
 });
+
+test('preflight отображает сведения об Astra Linux при наличии os-release', async () => {
+  const dir = await mkdtemp(join(tmpdir(), 'kafedra-os-release-'));
+  const osReleasePath = join(dir, 'os-release');
+  try {
+    await writeFile(osReleasePath, 'NAME="Astra Linux"\nVERSION_ID="1.7_x86-64"\nPRETTY_NAME="Astra Linux 1.7.5"\nID="astra"\n');
+    const result = inspectSystem({ osReleasePath, platform: 'linux' });
+    assert.equal(result.runtime.osName, 'Astra Linux 1.7.5');
+    assert.equal(result.runtime.osId, 'astra');
+    assert.equal(result.runtime.osVersionId, '1.7_x86-64');
+    assert.match(renderPreflight(result), /Astra Linux 1\.7\.5/);
+  } finally {
+    await rm(dir, { recursive: true, force: true });
+  }
+});

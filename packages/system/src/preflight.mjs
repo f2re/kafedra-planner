@@ -1,4 +1,4 @@
-import { accessSync, constants } from 'node:fs';
+import { accessSync, constants, readFileSync } from 'node:fs';
 import { delimiter, join } from 'node:path';
 
 const REQUIREMENTS = Object.freeze([
@@ -31,6 +31,28 @@ function executablePath(name, pathEnv) {
   return null;
 }
 
+function readOsRelease(osReleasePath = '/etc/os-release') {
+  try {
+    const content = readFileSync(osReleasePath, 'utf8');
+    const result = {};
+    for (const line of content.split(/\r?\n/u)) {
+      const trimmed = line.trim();
+      if (!trimmed || trimmed.startsWith('#')) continue;
+      const eq = trimmed.indexOf('=');
+      if (eq > 0) {
+        let val = trimmed.slice(eq + 1);
+        if ((val.startsWith('"') && val.endsWith('"')) || (val.startsWith("'") && val.endsWith("'"))) {
+          val = val.slice(1, -1);
+        }
+        result[trimmed.slice(0, eq)] = val;
+      }
+    }
+    return result;
+  } catch {
+    return null;
+  }
+}
+
 function checkRequirement(requirement, pathEnv) {
   const found = requirement.names
     .map((name) => ({ name, path: executablePath(name, pathEnv) }))
@@ -47,18 +69,22 @@ function checkRequirement(requirement, pathEnv) {
   };
 }
 
-function runtimeInfo() {
+function runtimeInfo(osReleasePath = '/etc/os-release') {
   const header = typeof process.report?.getReport === 'function' ? process.report.getReport().header : {};
+  const osRelease = readOsRelease(osReleasePath);
   return {
     nodeVersion: process.version,
     platform: process.platform,
     arch: process.arch,
     glibcVersionRuntime: header?.glibcVersionRuntime || null,
-    glibcVersionCompiler: header?.glibcVersionCompiler || null
+    glibcVersionCompiler: header?.glibcVersionCompiler || null,
+    osName: osRelease?.PRETTY_NAME || osRelease?.NAME || null,
+    osId: osRelease?.ID || null,
+    osVersionId: osRelease?.VERSION_ID || null
   };
 }
 
-export function inspectSystem({ pathEnv = process.env.PATH, platform = process.platform } = {}) {
+export function inspectSystem({ pathEnv = process.env.PATH, platform = process.platform, osReleasePath = '/etc/os-release' } = {}) {
   const checks = REQUIREMENTS.map((requirement) => checkRequirement(requirement, pathEnv));
   const byId = new Map(checks.map((check) => [check.id, check]));
   const requiredMissing = checks.filter((check) => check.required && !check.available).map((check) => check.id);
@@ -74,7 +100,7 @@ export function inspectSystem({ pathEnv = process.env.PATH, platform = process.p
   };
   return {
     platform,
-    runtime: runtimeInfo(),
+    runtime: runtimeInfo(osReleasePath),
     status: requiredMissing.length ? 'blocked' : optionalMissing.length ? 'degraded' : 'ready',
     requiredMissing,
     optionalMissing,
@@ -86,7 +112,8 @@ export function inspectSystem({ pathEnv = process.env.PATH, platform = process.p
 export function renderPreflight(result) {
   const lines = [];
   const runtime = result.runtime || {};
-  lines.push(`Runtime: ${runtime.nodeVersion || process.version} · ${runtime.platform || process.platform}/${runtime.arch || process.arch}${runtime.glibcVersionRuntime ? ` · glibc ${runtime.glibcVersionRuntime}` : ''}`);
+  const osPart = runtime.osName ? ` · ${runtime.osName}` : '';
+  lines.push(`Runtime: ${runtime.nodeVersion || process.version} · ${runtime.platform || process.platform}/${runtime.arch || process.arch}${runtime.glibcVersionRuntime ? ` · glibc ${runtime.glibcVersionRuntime}` : ''}${osPart}`);
   if (result.status === 'ready') lines.push('Системные зависимости: готовы.');
   else if (result.status === 'degraded') lines.push('Системные зависимости: ядро готово, часть обработки документов недоступна.');
   else lines.push('Системные зависимости: установка заблокирована — отсутствуют обязательные команды ОС.');

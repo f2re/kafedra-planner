@@ -103,3 +103,27 @@ test('top-level package profile contains only application document capabilities'
     assert.equal(packages.includes(basePackage), false);
   }
 });
+
+test('Astra Linux profile compatibility matches same series and rejects cross-series/cross-family', async () => {
+  const script = `source ${JSON.stringify(resolve('scripts/offline/lib.sh'))}; os_profiles_compatible "$@"`;
+  // Astra 1.7 series compatibility across update levels
+  await run('bash', ['-lc', script, '_', 'astra', 'astra', '1.7_x86-64', 'amd64', 'astra', 'astra', '1.7.5_x86-64', 'amd64']);
+  await run('bash', ['-lc', script, '_', 'astra', 'astra', '1.7', 'amd64', 'astra', 'astra', '1.7.4_x86-64', 'amd64']);
+  // Astra 1.8 series compatibility
+  await run('bash', ['-lc', script, '_', 'astra', 'astra', '1.8_x86-64', 'amd64', 'astra', 'astra', '1.8.1', 'amd64']);
+  // Debian 12 compatibility
+  await run('bash', ['-lc', script, '_', 'debian', 'debian', '12', 'amd64', 'debian', 'debian', '12.8', 'amd64']);
+  // Cross-series and cross-family rejections
+  await assert.rejects(() => run('bash', ['-lc', script, '_', 'astra', 'astra', '1.7_x86-64', 'amd64', 'astra', 'astra', '1.8_x86-64', 'amd64']));
+  await assert.rejects(() => run('bash', ['-lc', script, '_', 'debian', 'debian', '12', 'amd64', 'astra', 'astra', '1.7_x86-64', 'amd64']));
+  await assert.rejects(() => run('bash', ['-lc', script, '_', 'astra', 'astra', '1.7_x86-64', 'amd64', 'astra', 'astra', '1.7_x86-64', 'arm64']));
+});
+
+test('doctor script provides actionable remediation advice and diagnose flag', () => {
+  assert.match(doctor, /--diagnose-apt/u);
+  assert.match(doctor, /dpkg --configure -a/u);
+  assert.match(doctor, /apt-get check/u);
+  assert.match(doctor, /install-os-packages\.sh/u);
+  assert.match(deploy, /NODE_EXEC_OUTPUT/u);
+  assert.match(installer, /dpkg --configure -a/u);
+});

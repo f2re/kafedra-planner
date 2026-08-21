@@ -55,8 +55,33 @@ if [[ "${KAFEDRA_LLM_ENABLED:-false}" == true ]]; then
 else
   echo '✓ LLM: выключен (основной контур автономен)'
 fi
+if [[ "${1:-}" == "--diagnose-apt" ]]; then
+  echo "=== Диагностика состояния пакетов ОС ==="
+  audit="$(dpkg --audit 2>&1 || true)"
+  if [[ -n "$audit" ]]; then
+    echo "✗ dpkg --audit обнаружил незавершённые операции:"
+    printf '%s\n' "$audit"
+    echo "  Рекомендация: выполните 'sudo dpkg --configure -a'"
+  else
+    echo "✓ dpkg --audit: чисто"
+  fi
+  apt_check="$(LC_ALL=C apt-get check 2>&1 || true)"
+  if ! LC_ALL=C apt-get check >/dev/null 2>&1; then
+    echo "✗ apt-get check обнаружил ошибки зависимостей:"
+    printf '%s\n' "$apt_check"
+    echo "  Рекомендация: устраните конфликтующие пакеты штатными средствами администратора ОС"
+  else
+    echo "✓ apt-get check: зависимости в порядке"
+  fi
+  exit 0
+fi
+
 if [[ "$DEGRADED" == true ]]; then
   echo 'Kafedra Planner: ядро готово; часть обработки документов недоступна.'
+  if [[ -d "$ROOT/os-packages" ]]; then
+    echo 'Для восстановления полной обработки документов после исправления APT ОС выполните:'
+    echo "  sudo \"$ROOT/scripts/offline/install-os-packages.sh\" \"$ROOT/os-packages\""
+  fi
 else
   echo 'Kafedra Planner: готов к работе.'
 fi

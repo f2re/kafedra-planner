@@ -17,6 +17,12 @@ if command -v ldd >/dev/null 2>&1; then
   RUNTIME_LDD="$(ldd "$RUNTIME_SOURCE/bin/node" 2>&1 || true)"
   if grep -q 'not found' <<<"$RUNTIME_LDD"; then echo "Встроенный Node.js несовместим с библиотеками этой ОС:" >&2; printf '%s\n' "$RUNTIME_LDD" >&2; exit 3; fi
 fi
+if ! NODE_EXEC_OUTPUT="$("$RUNTIME_SOURCE/bin/node" -e 'process.exit(0)' 2>&1)"; then
+  echo "Встроенный Node.js не может выполниться в текущей операционной системе:" >&2
+  printf '%s\n' "$NODE_EXEC_OUTPUT" >&2
+  echo "Убедитесь, что release bundle собран для совместимой версии ОС (Astra Linux 1.7 / 1.8 / Debian 12) и архитектуры ($(uname -m 2>/dev/null || echo 'amd64'))." >&2
+  exit 3
+fi
 if [[ "$IS_BUNDLE" == true ]]; then
   [[ -f "$BUNDLE_ROOT/manifest.sha256" && -f "$BUNDLE_ROOT/release.json" ]] || { echo "В автономном комплекте отсутствует manifest.sha256 или release.json" >&2; exit 3; }
   echo "Проверка целостности автономного комплекта..."

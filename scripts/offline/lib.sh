@@ -39,6 +39,31 @@ detect_os_profile() {
   printf '%s\n%s\n%s\n%s\n' "$family" "$id" "$version" "$arch"
 }
 
+normalize_os_series() {
+  local family="$1" version="$2"
+  if [[ "$family" == astra ]]; then
+    if [[ "$version" =~ ^1\.7 ]]; then printf '1.7'; return 0; fi
+    if [[ "$version" =~ ^1\.8 ]]; then printf '1.8'; return 0; fi
+    printf '%s' "${version%%_*}"
+  elif [[ "$family" == debian ]]; then
+    printf '%s' "${version%%.*}"
+  else
+    printf '%s' "$version"
+  fi
+}
+
+os_profiles_compatible() {
+  local exp_fam="${1:-}" exp_id="${2:-}" exp_ver="${3:-}" exp_arch="${4:-}"
+  local cur_fam="${5:-}" cur_id="${6:-}" cur_ver="${7:-}" cur_arch="${8:-}"
+  [[ -n "$exp_fam" && "$exp_fam" == "$cur_fam" ]] || return 1
+  [[ -n "$exp_arch" && "$exp_arch" == "$cur_arch" ]] || return 1
+  local exp_series cur_series
+  exp_series="$(normalize_os_series "$exp_fam" "$exp_ver")"
+  cur_series="$(normalize_os_series "$cur_fam" "$cur_ver")"
+  [[ -n "$exp_series" && "$exp_series" == "$cur_series" ]] || return 1
+  return 0
+}
+
 # Target APT is allowed to add absent packages only. A simulation that removes
 # anything or proposes another version for an already installed package is
 # rejected before the first dpkg mutation.
@@ -116,7 +141,9 @@ verify_os_package_set() (
   done < "$validation/requested"
   if ((strict_profile == 1)); then
     mapfile -t current < <(detect_os_profile /etc/os-release)
-    [[ "${current[0]}" == "$expected_family" && "${current[1]}" == "$expected_id" && "${current[2]}" == "$expected_version" && "${current[3]}" == "$expected_arch" ]] || \
-      die "Пакет собран для ${expected_family}/${expected_id} ${expected_version} ${expected_arch}, текущая система: ${current[*]}"
+    if ! os_profiles_compatible "$expected_family" "$expected_id" "$expected_version" "$expected_arch" \
+                               "${current[0]}" "${current[1]}" "${current[2]}" "${current[3]}"; then
+      die "Пакет собран для ${expected_family}/${expected_id} ${expected_version} ${expected_arch}, несовместимо с текущей системой: ${current[*]}"
+    fi
   fi
 )

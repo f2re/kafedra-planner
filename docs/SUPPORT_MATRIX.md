@@ -8,7 +8,7 @@
 | Astra Linux 1.7 x86-64 | тот же контракт, bundle собирается на здоровой Astra 1.7 reference VM | contract/scripts/CI; `.deb` нельзя брать из Debian | обязательный акт на фактической целевой машине |
 | Astra Linux 1.8 x86-64 | тот же контракт, bundle собирается на здоровой Astra 1.8 reference VM | contract/scripts/CI; собственный OS profile | обязательный акт на фактической целевой машине |
 
-Full bundle не переносит `.deb` fallback между разными `ID/VERSION_ID/architecture`: installer сравнивает профиль и прекращает package step при несовпадении.
+Full bundle не переносит `.deb` fallback между несовместимыми ветками ОС (Debian 12 vs Astra 1.7 vs Astra 1.8): installer проверяет совместимость серий (все уровни обновлений Astra 1.7.x совместимы между собой; Astra 1.8.x — между собой) и прекращает package step при несовпадении.
 
 Package layer имеет контракт `full-airgap-v2 + additive-only-v2`. Полный closure нужен для air-gap, но его версии не являются target pins. Перед изменением package database выполняются `dpkg --audit` и `apt-get check`; APT получает только фактически отсутствующие application packages и работает с `--no-remove --no-upgrade`. План, который пытается изменить уже установленный пакет, отклоняется до dpkg transaction.
 
