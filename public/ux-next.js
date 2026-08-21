@@ -33,6 +33,7 @@ window.fetch = function headerSafeFetch(input, init = {}) {
   return rawFetch(input, { ...init, headers: safeHeaders(init.headers) });
 };
 
+await import('./auth-next.js');
 await import('./notification-delivery.js');
 await import('./plans-next.js');
 await import('./manual-plans-next.js');
