@@ -180,8 +180,8 @@ jobs:
               export KAFEDRA_PORT=18080
               cd /tmp
               "$BUNDLE/runtime/node/bin/node" "$BUNDLE/application/scripts/migrate.mjs"
-              ADMIN_JSON="$("$BUNDLE/runtime/node/bin/node" "$BUNDLE/application/scripts/ensure-initial-admin.mjs")"
-              "$BUNDLE/runtime/node/bin/node" -e "const v=JSON.parse(process.argv[1]); if(!v.created||v.username!==\"admin\") process.exit(1)" "$ADMIN_JSON"
+              INITIAL_AUTH_JSON="$("$BUNDLE/runtime/node/bin/node" "$BUNDLE/application/scripts/ensure-initial-admin.mjs")"
+              "$BUNDLE/runtime/node/bin/node" -e "const v=JSON.parse(process.argv[1]); const hasPassword=Object.prototype.hasOwnProperty.call(v,\"password\"); if(v.created!==false||v.accountCreated!==true||v.username!==\"admin\"||v.pinSetupRequired!==true||hasPassword) process.exit(1)" "$INITIAL_AUTH_JSON"
               cd "$BUNDLE/application"
               "$BUNDLE/runtime/node/bin/node" apps/api/src/main.mjs >/tmp/kafedra-api.log 2>&1 & API_PID=$!
               "$BUNDLE/runtime/node/bin/node" apps/worker/src/main.mjs >/tmp/kafedra-worker.log 2>&1 & WORKER_PID=$!
