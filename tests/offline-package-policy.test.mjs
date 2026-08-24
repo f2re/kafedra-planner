@@ -13,7 +13,7 @@ const installer = await readFile(new URL('../scripts/offline/install-os-packages
 const lib = await readFile(new URL('../scripts/offline/lib.sh', import.meta.url), 'utf8');
 const deployment = await readFile(new URL('../scripts/offline/deployment-contract.mjs', import.meta.url), 'utf8');
 const doctor = await readFile(new URL('../scripts/offline/doctor.sh', import.meta.url), 'utf8');
-const deploy = await readFile(new URL('../deploy/install.sh', import.meta.url), 'utf8');
+const deployCore = await readFile(new URL('../deploy/install-core.sh', import.meta.url), 'utf8');
 const preflightCli = await readFile(new URL('../scripts/system-preflight.mjs', import.meta.url), 'utf8');
 const packageProfile = await readFile(new URL('../config/offline/os-packages.txt', import.meta.url), 'utf8');
 
@@ -74,10 +74,10 @@ test('document converters can degrade while strict full acceptance still require
   assert.match(preflightCli, /!result\.capabilities\.pdfText/u);
   assert.match(preflightCli, /!result\.capabilities\.ocr/u);
   assert.match(preflightCli, /!result\.capabilities\.officePreview/u);
-  assert.match(deploy, /install-os-packages\.sh" "\$BUNDLE_ROOT\/os-packages" --scope all/u);
-  assert.match(deploy, /KAFEDRA_DOCTOR_ALLOW_DEGRADED=true/u);
-  assert.match(deploy, /PACKAGE_STATUS >= 70/u);
-  assert.match(deploy, /PACKAGE_STATUS == 20/u);
+  assert.match(deployCore, /install-os-packages\.sh" "\$BUNDLE_ROOT\/os-packages" --scope all/u);
+  assert.match(deployCore, /KAFEDRA_DOCTOR_ALLOW_DEGRADED=true/u);
+  assert.match(deployCore, /PACKAGE_STATUS >= 70/u);
+  assert.match(deployCore, /PACKAGE_STATUS == 20/u);
   assert.match(doctor, /KAFEDRA_DOCTOR_ALLOW_DEGRADED/u);
   assert.match(doctor, /--require-full/u);
 });
@@ -126,7 +126,7 @@ test('doctor script provides automated remediation mode and diagnose flag', () =
   assert.match(doctor, /dpkg --configure -a/u);
   assert.match(doctor, /apt-get check/u);
   assert.match(doctor, /install-os-packages\.sh/u);
-  assert.match(deploy, /NODE_EXEC_OUTPUT/u);
-  assert.match(deploy, /doctor\.sh --repair/u);
+  assert.match(deployCore, /NODE_EXEC_OUTPUT/u);
+  assert.match(deployCore, /doctor\.sh --repair/u);
   assert.match(installer, /dpkg --configure -a/u);
 });
