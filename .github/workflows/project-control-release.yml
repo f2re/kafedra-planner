@@ -52,6 +52,7 @@ jobs:
               apt-get update
               DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends \
                 python3 git ca-certificates curl xz-utils binutils systemd
+              git config --global --add safe.directory /src
               cd /src
               test "$(git rev-parse HEAD)" = "$SOURCE_SHA"
               KAFEDRA_FULL_BUNDLE_CACHE_DIR=/tmp/kafedra-cache \
