@@ -122,6 +122,7 @@ cp -a "$ROOT/apps" "$ROOT/packages" "$ROOT/public" "$ROOT/migrations" "$ROOT/scr
 [[ ! -f "$ROOT/package-lock.json" ]] || cp -a "$ROOT/package-lock.json" "$BUNDLE_ROOT/application/"
 [[ ! -f "$ROOT/.nvmrc" ]] || cp -a "$ROOT/.nvmrc" "$BUNDLE_ROOT/application/"
 install -m 0755 "$ROOT/deploy/install.sh" "$BUNDLE_ROOT/install.sh"
+install -m 0755 "$ROOT/deploy/install-core.sh" "$BUNDLE_ROOT/install-core.sh"
 install -m 0755 "$NODE_SOURCE" "$BUNDLE_ROOT/runtime/node/bin/node"
 install -m 0644 "$LICENSE_SOURCE" "$BUNDLE_ROOT/runtime/node/LICENSE"
 find "$BUNDLE_ROOT/application" -type d -name __pycache__ -prune -exec rm -rf {} +
