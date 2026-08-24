@@ -44,9 +44,14 @@ async function selectNativeWithKeyboard(locator, value) {
 
 async function changeDateWithKeyboard(locator) {
   const before = await locator.inputValue();
+  const [year, month] = before.split('-');
+  const safeBase = `${year}-${month}-15`;
+  await locator.fill(safeBase);
   await locator.focus();
   await locator.press('ArrowUp');
-  await expect.poll(() => locator.inputValue()).not.toBe(before);
+  await locator.press('Tab');
+  await expect.poll(() => locator.inputValue()).not.toBe(safeBase);
+  expect(await locator.evaluate((input) => input.validity.valid)).toBeTruthy();
   return locator.inputValue();
 }
 
