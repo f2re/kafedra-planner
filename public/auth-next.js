@@ -2,7 +2,8 @@ const authBaseFetch = window.fetch.bind(window);
 const authState = {
   ready: false,
   payload: null,
-  showingLogin: false
+  showingLogin: false,
+  setupPin: ''
 };
 const authSafe = (value) => String(value ?? '')
   .replaceAll('&', '&amp;')
@@ -31,45 +32,50 @@ function ensureAuthGate() {
 }
 
 function pinInput(name, autocomplete = 'off') {
-  return `<input class="auth-pin-input" name="${name}" type="password" inputmode="numeric" pattern="[0-9]{4}" maxlength="4" minlength="4" autocomplete="${autocomplete}" aria-label="PIN-код из четырёх цифр" required>`;
+  return `<input class="auth-pin-input" name="${name}" type="password" inputmode="numeric" pattern="[0-9]{4}" maxlength="4" minlength="4" autocomplete="${autocomplete}" autocapitalize="off" spellcheck="false" enterkeyhint="done" aria-label="PIN-код из четырёх цифр" required>`;
+}
+
+function normalizeAuthMode(payload) {
+  return payload?.authMode === 'accounts' ? 'accounts' : 'pin';
 }
 
 function authViewKey(payload) {
-  const mode = payload?.authMode || 'accounts';
+  const mode = normalizeAuthMode(payload);
   if (mode !== 'pin') return 'accounts';
   return payload?.pinConfigured ? 'pin-login' : 'pin-setup';
 }
 
 function renderAuthGate(payload, message = '') {
   const gate = ensureAuthGate();
-  const mode = payload?.authMode || 'accounts';
+  const mode = normalizeAuthMode(payload);
   if (mode === 'pin' && !payload?.pinConfigured) {
-    gate.innerHTML = `<section class="auth-card" aria-labelledby="auth-title">
+    authState.setupPin = '';
+    gate.innerHTML = `<section class="auth-card auth-card-pin" aria-labelledby="auth-title">
       <div class="auth-lock-mark" aria-hidden="true">••••</div>
+      <div id="auth-pin-step" class="auth-pin-step">Шаг 1 из 2</div>
       <h1 id="auth-title">Задайте PIN-код</h1>
-      <p>Четыре цифры — это локальная защита от случайного доступа. Логин и пароль не нужны.</p>
-      <form id="auth-pin-setup-form" class="auth-form">
-        <label>PIN-код${pinInput('pin', 'new-password')}</label>
-        <label>Повторите PIN-код${pinInput('pinConfirm', 'new-password')}</label>
-        <p id="auth-login-error" class="auth-error" role="alert">${authSafe(message)}</p>
-        <button type="submit">Сохранить и открыть</button>
+      <p id="auth-pin-description">Придумайте четыре цифры. Логин, регистрация и временный пароль не нужны.</p>
+      <form id="auth-pin-setup-form" class="auth-form" data-pin-stage="create">
+        <label class="auth-pin-label"><span id="auth-pin-field-label">Новый PIN-код</span>${pinInput('pin', 'new-password')}</label>
+        <p id="auth-login-error" class="auth-error" role="alert" aria-live="polite">${authSafe(message)}</p>
+        <button type="submit">Продолжить</button>
       </form>
     </section>`;
   } else if (mode === 'pin') {
     gate.innerHTML = `<section class="auth-card auth-card-pin" aria-labelledby="auth-title">
       <div class="auth-lock-mark" aria-hidden="true">••••</div>
       <h1 id="auth-title">Введите PIN-код</h1>
-      <p>Введите четыре цифры, заданные при первом запуске.</p>
+      <p>Четыре цифры — и рабочее пространство откроется автоматически.</p>
       <form id="auth-pin-login-form" class="auth-form">
         <label class="auth-pin-label">PIN-код${pinInput('pin', 'off')}</label>
-        <p id="auth-login-error" class="auth-error" role="alert">${authSafe(message)}</p>
+        <p id="auth-login-error" class="auth-error" role="alert" aria-live="polite">${authSafe(message)}</p>
         <button type="submit">Открыть</button>
       </form>
     </section>`;
   } else {
     gate.innerHTML = `<section class="auth-card" aria-labelledby="auth-title">
-      <h1 id="auth-title">Вход в систему</h1>
-      <p>Используйте локальный аккаунт сотрудника. Пароль и документы не передаются во внешние сервисы.</p>
+      <h1 id="auth-title">Персональный вход</h1>
+      <p>Расширенный режим отдельных аккаунтов включён администратором этой установки.</p>
       <form id="auth-login-form" class="auth-form">
         <label>Имя пользователя<input name="username" autocomplete="username" required></label>
         <label>Пароль<input name="password" type="password" autocomplete="current-password" required></label>
@@ -102,6 +108,7 @@ function showLogin(message = '', payload = authState.payload) {
 function hideLogin() {
   ensureAuthGate().classList.add('hidden');
   authState.showingLogin = false;
+  authState.setupPin = '';
 }
 
 function requestWithCsrf(input, init = {}) {
@@ -148,13 +155,13 @@ function ensurePinDialog() {
   dialog.className = 'auth-pin-dialog';
   dialog.innerHTML = `<form id="auth-pin-change-form" method="dialog" class="auth-form">
     <div class="auth-dialog-header">
-      <div><strong>Сменить PIN-код</strong><p>Введите текущий и новый PIN из четырёх цифр.</p></div>
+      <div><strong>Сменить PIN-код</strong><p>Текущий код нужен один раз. Новый код — четыре цифры.</p></div>
       <button class="auth-dialog-close" type="button" data-auth-pin-close aria-label="Закрыть">×</button>
     </div>
     <label>Текущий PIN-код${pinInput('currentPin')}</label>
     <label>Новый PIN-код${pinInput('newPin', 'new-password')}</label>
     <label>Повторите новый PIN${pinInput('newPinConfirm', 'new-password')}</label>
-    <p id="auth-pin-change-error" class="auth-error" role="alert"></p>
+    <p id="auth-pin-change-error" class="auth-error" role="alert" aria-live="polite"></p>
     <button type="submit">Сохранить PIN-код</button>
   </form>`;
   document.body.append(dialog);
@@ -178,12 +185,13 @@ function applyProfile(payload) {
   const personId = payload.user?.person?.id || '';
   if (personId) localStorage.setItem('kafedra-current-person-id', personId);
   if (!payload.authenticated || !payload.user) return;
+  const mode = normalizeAuthMode(payload);
   let control = document.querySelector('#auth-user-control');
-  const buttonLabel = payload.authMode === 'pin'
+  const buttonLabel = mode === 'pin'
     ? 'Доступ'
     : (payload.user.person?.displayName || payload.user.username);
-  const secretLabel = payload.authMode === 'pin' ? 'Сменить PIN-код' : 'Сменить пароль';
-  const secretAction = payload.authMode === 'pin' ? 'pin' : 'password';
+  const secretLabel = mode === 'pin' ? 'Сменить PIN-код' : 'Сменить пароль';
+  const secretAction = mode === 'pin' ? 'pin' : 'password';
   if (!control) {
     control = document.createElement('div');
     control.id = 'auth-user-control';
@@ -249,7 +257,9 @@ async function initializeAuth() {
   }
   applyProfile(payload);
   hideLogin();
-  if (payload.authMode === 'accounts' && payload.mustChangePassword) showPasswordDialog(true);
+  if (normalizeAuthMode(payload) === 'accounts' && payload.mustChangePassword) {
+    showPasswordDialog(true);
+  }
   return payload;
 }
 
@@ -284,15 +294,17 @@ window.fetch = async function authenticatedFetch(input, init = {}) {
     && authState.payload
   ) {
     const current = authState.payload;
+    const mode = normalizeAuthMode(current);
     const payload = {
       ...current,
+      authMode: mode,
       authenticated: false,
-      pinConfigured: current.authMode === 'pin'
+      pinConfigured: mode === 'pin'
         ? Boolean(current.pinConfigured || current.authenticated)
         : null
     };
     showLogin(
-      payload.authMode === 'pin'
+      mode === 'pin'
         ? (payload.pinConfigured ? 'Сессия завершена. Введите PIN-код снова.' : '')
         : 'Сессия завершена. Войдите снова.',
       payload
@@ -314,7 +326,9 @@ window.kafedraAuthReady = initializeAuth().catch((error) => {
 });
 window.kafedraAuth = authState;
 
-async function submitAuthForm(form, path, payload) {
+async function submitAuthForm(form, path, payload, { clearPinOnError = false } = {}) {
+  if (form.dataset.submitting === 'true') return false;
+  form.dataset.submitting = 'true';
   const errorNode = form.querySelector('.auth-error');
   if (errorNode) errorNode.textContent = '';
   const button = form.querySelector('button[type="submit"]');
@@ -326,10 +340,83 @@ async function submitAuthForm(form, path, payload) {
       body: JSON.stringify(payload)
     });
     window.location.reload();
+    return true;
   } catch (error) {
     if (errorNode) errorNode.textContent = error.message;
+    if (clearPinOnError) {
+      const input = form.querySelector('.auth-pin-input');
+      if (input) input.value = '';
+    }
+    form.dataset.submitting = 'false';
     if (button) button.disabled = false;
     form.querySelector('input')?.focus();
+    return false;
+  }
+}
+
+function updatePinSetupStep(form, stage, message = '') {
+  const confirming = stage === 'confirm';
+  form.dataset.pinStage = confirming ? 'confirm' : 'create';
+  const title = document.querySelector('#auth-title');
+  const description = document.querySelector('#auth-pin-description');
+  const step = document.querySelector('#auth-pin-step');
+  const label = form.querySelector('#auth-pin-field-label');
+  const button = form.querySelector('button[type="submit"]');
+  const errorNode = form.querySelector('#auth-login-error');
+  const input = form.querySelector('input[name="pin"]');
+  if (title) title.textContent = confirming ? 'Повторите PIN-код' : 'Задайте PIN-код';
+  if (description) {
+    description.textContent = confirming
+      ? 'Введите те же четыре цифры ещё раз — это защищает от случайной опечатки.'
+      : 'Придумайте четыре цифры. Логин, регистрация и временный пароль не нужны.';
+  }
+  if (step) step.textContent = confirming ? 'Шаг 2 из 2' : 'Шаг 1 из 2';
+  if (label) label.textContent = confirming ? 'Повторите PIN-код' : 'Новый PIN-код';
+  if (button) button.textContent = confirming ? 'Сохранить и открыть' : 'Продолжить';
+  if (errorNode) errorNode.textContent = message;
+  if (input) {
+    input.value = '';
+    input.setAttribute(
+      'aria-label',
+      confirming ? 'Повторите PIN-код из четырёх цифр' : 'Новый PIN-код из четырёх цифр'
+    );
+  }
+  setTimeout(() => input?.focus(), 0);
+}
+
+async function submitPinSetup(form) {
+  const input = form.querySelector('input[name="pin"]');
+  const pin = input?.value || '';
+  const errorNode = form.querySelector('#auth-login-error');
+  if (!/^\d{4}$/.test(pin)) {
+    if (errorNode) errorNode.textContent = 'Введите ровно четыре цифры.';
+    input?.focus();
+    return;
+  }
+
+  if (form.dataset.pinStage !== 'confirm') {
+    authState.setupPin = pin;
+    updatePinSetupStep(form, 'confirm');
+    return;
+  }
+
+  if (!authState.setupPin || authState.setupPin !== pin) {
+    authState.setupPin = '';
+    updatePinSetupStep(form, 'create', 'PIN-коды не совпали. Введите новый код ещё раз.');
+    return;
+  }
+
+  const chosenPin = authState.setupPin;
+  authState.setupPin = '';
+  const success = await submitAuthForm(
+    form,
+    '/api/auth/setup-pin',
+    { pin: chosenPin },
+    { clearPinOnError: true }
+  );
+  if (!success) {
+    const message = errorNode?.textContent || 'Не удалось сохранить PIN-код.';
+    updatePinSetupStep(form, 'create', message);
   }
 }
 
@@ -342,20 +429,18 @@ document.addEventListener('submit', (event) => {
   }
   if (form.id === 'auth-pin-login-form') {
     event.preventDefault();
-    const pin = new FormData(form).get('pin');
-    submitAuthForm(form, '/api/auth/login', { pin });
+    const pin = String(new FormData(form).get('pin') || '');
+    if (!/^\d{4}$/.test(pin)) {
+      form.querySelector('#auth-login-error').textContent = 'Введите ровно четыре цифры.';
+      form.querySelector('input[name="pin"]')?.focus();
+      return;
+    }
+    submitAuthForm(form, '/api/auth/login', { pin }, { clearPinOnError: true });
     return;
   }
   if (form.id === 'auth-pin-setup-form') {
     event.preventDefault();
-    const values = Object.fromEntries(new FormData(form));
-    const errorNode = form.querySelector('.auth-error');
-    if (values.pin !== values.pinConfirm) {
-      errorNode.textContent = 'PIN-коды не совпадают.';
-      form.querySelector('input[name="pinConfirm"]')?.focus();
-      return;
-    }
-    submitAuthForm(form, '/api/auth/setup-pin', { pin: values.pin });
+    submitPinSetup(form);
     return;
   }
   if (form.id === 'auth-pin-change-form') {
@@ -364,9 +449,14 @@ document.addEventListener('submit', (event) => {
     const errorNode = form.querySelector('#auth-pin-change-error');
     if (values.newPin !== values.newPinConfirm) {
       errorNode.textContent = 'Новые PIN-коды не совпадают.';
+      form.querySelector('input[name="newPin"]').value = '';
+      form.querySelector('input[name="newPinConfirm"]').value = '';
+      form.querySelector('input[name="newPin"]')?.focus();
       return;
     }
     const button = form.querySelector('button[type="submit"]');
+    if (form.dataset.submitting === 'true') return;
+    form.dataset.submitting = 'true';
     button.disabled = true;
     errorNode.textContent = '';
     authJson('/api/auth/change-pin', {
@@ -377,16 +467,29 @@ document.addEventListener('submit', (event) => {
       .then(() => window.location.reload())
       .catch((error) => {
         errorNode.textContent = error.message;
+        form.dataset.submitting = 'false';
         button.disabled = false;
+        form.querySelector('input[name="currentPin"]').value = '';
+        form.querySelector('input[name="currentPin"]')?.focus();
       });
   }
 });
 
 document.addEventListener('input', (event) => {
-  const input = event.target.closest('#auth-pin-login-form input[name="pin"]');
+  const input = event.target.closest('.auth-pin-input');
   if (!input) return;
   input.value = input.value.replace(/\D/g, '').slice(0, 4);
-  if (/^\d{4}$/.test(input.value)) input.form?.requestSubmit();
+  if (!/^\d{4}$/.test(input.value)) return;
+
+  const form = input.form;
+  if (form?.dataset.submitting === 'true') return;
+  if (form?.id === 'auth-pin-login-form' || form?.id === 'auth-pin-setup-form') {
+    queueMicrotask(() => {
+      if (/^\d{4}$/.test(input.value) && form.dataset.submitting !== 'true') {
+        form.requestSubmit();
+      }
+    });
+  }
 });
 
 function closeAuthMenu() {

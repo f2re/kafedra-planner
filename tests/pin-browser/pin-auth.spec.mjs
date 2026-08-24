@@ -22,10 +22,25 @@ async function pinLogin(page, pin) {
   await expect(page.locator('#auth-user-control')).toBeVisible();
 }
 
-test('первый вход задаёт четыре цифры, затем система просит только PIN', async ({ page }) => {
+test('первый вход пошагово задаёт четыре цифры, затем система просит только PIN', async ({ page }) => {
+  let firstProfile = true;
+  await page.route('**/api/auth/me', async (route) => {
+    const response = await route.fetch();
+    if (!firstProfile) {
+      await route.fulfill({ response });
+      return;
+    }
+    firstProfile = false;
+    const payload = await response.json();
+    delete payload.authMode;
+    await route.fulfill({ response, json: payload });
+  });
+
   await page.goto('/');
   await expect(page.locator('#auth-gate')).toBeVisible();
   await expect(page.locator('#auth-title')).toHaveText('Задайте PIN-код');
+  await expect(page.locator('#auth-pin-step')).toHaveText('Шаг 1 из 2');
+  await expect(page.locator('#auth-gate input')).toHaveCount(1);
   await expect(page.locator('#auth-gate input[name="username"]')).toHaveCount(0);
   await expect(page.locator('#auth-gate input[name="password"]')).toHaveCount(0);
 
@@ -33,14 +48,28 @@ test('первый вход задаёт четыре цифры, затем с�
   await expect(page.locator('#auth-title')).toHaveText('Задайте PIN-код');
   await expect(page.locator('#auth-pin-setup-form')).toBeVisible();
 
-  await page.locator('#auth-pin-setup-form input[name="pin"]').fill('4826');
-  await page.locator('#auth-pin-setup-form input[name="pinConfirm"]').fill('4826');
-  const [setupResponse] = await Promise.all([
-    page.waitForResponse((candidate) => candidate.url().endsWith('/api/auth/setup-pin') && candidate.request().method() === 'POST'),
-    page.waitForNavigation({ waitUntil: 'domcontentloaded' }),
-    page.locator('#auth-pin-setup-form button[type="submit"]').click()
-  ]);
+  const setupInput = page.locator('#auth-pin-setup-form input[name="pin"]');
+  await setupInput.fill('4826');
+  await expect(page.locator('#auth-title')).toHaveText('Повторите PIN-код');
+  await expect(page.locator('#auth-pin-step')).toHaveText('Шаг 2 из 2');
+  await expect(setupInput).toHaveValue('');
+
+  await setupInput.fill('1111');
+  await expect(page.locator('#auth-title')).toHaveText('Задайте PIN-код');
+  await expect(page.locator('#auth-pin-step')).toHaveText('Шаг 1 из 2');
+  await expect(page.locator('#auth-login-error')).toHaveText('PIN-коды не совпали. Введите новый код ещё раз.');
+  await expect(setupInput).toHaveValue('');
+
+  await setupInput.fill('4826');
+  await expect(page.locator('#auth-title')).toHaveText('Повторите PIN-код');
+  const setupResponsePromise = page.waitForResponse(
+    (candidate) => candidate.url().endsWith('/api/auth/setup-pin') && candidate.request().method() === 'POST'
+  );
+  const setupNavigationPromise = page.waitForNavigation({ waitUntil: 'domcontentloaded' });
+  await setupInput.fill('4826');
+  const setupResponse = await setupResponsePromise;
   expect(setupResponse.ok()).toBe(true);
+  await setupNavigationPromise;
   await expect(page.locator('#auth-user-control')).toBeVisible();
   await expect(page.locator('.auth-user-button')).toHaveText('Доступ');
 
@@ -57,10 +86,12 @@ test('первый вход задаёт четыре цифры, затем с�
   const wrongResponsePromise = page.waitForResponse(
     (candidate) => candidate.url().endsWith('/api/auth/login') && candidate.request().method() === 'POST'
   );
-  await page.locator('#auth-pin-login-form input[name="pin"]').fill('1111');
+  await pinInput.fill('1111');
   const wrongResponse = await wrongResponsePromise;
   expect(wrongResponse.status()).toBe(401);
   await expect(page.locator('#auth-login-error')).toHaveText('Неверный PIN-код.');
+  await expect(pinInput).toHaveValue('');
+  await expect(pinInput).toBeFocused();
 
   await pinLogin(page, '4826');
   await page.locator('.auth-user-button').click();
