@@ -61,7 +61,8 @@ log_event() {
 }
 
 write_state() {
-  local name="$1" value="$2" tmp="$TX_DIR/.${name}.tmp.$$"
+  local name="$1" value="$2"
+  local tmp="$TX_DIR/.${name}.tmp.$$"
   printf '%s\n' "$value" > "$tmp"
   chmod 0600 "$tmp"
   mv -f "$tmp" "$TX_DIR/$name"
@@ -347,8 +348,12 @@ recover_transaction() {
   trap - ERR INT TERM
   [[ -d "$TX_DIR" && -f "$TX_DIR/active" ]] || return 0
   log_event "Обнаружена незавершённая транзакция обновления: $reason. Восстанавливаю прежнее рабочее состояние."
-  stop_services_verified || status=1
-  if (( status == 0 )); then restore_backup_if_available || status=1; fi
+  if ! stop_services_verified; then
+    write_state phase rollback-failed || true
+    log_event "АВАРИЙНО: rollback не продолжен, потому что службы не удалось гарантированно остановить. Данные/current/config не изменялись дальше; journal сохранён в $TX_DIR."
+    return 90
+  fi
+  restore_backup_if_available || status=1
   if [[ ! -f "$TX_DIR/database.existed" && -z "$(backup_path_from_log)" ]]; then
     rm -f "$DATA_DIR/kafedra-planner.sqlite3" "$DATA_DIR/kafedra-planner.sqlite3-wal" "$DATA_DIR/kafedra-planner.sqlite3-shm"
   fi
@@ -490,6 +495,12 @@ verify_success() {
   [[ "$deployed_version" == "$VERSION" ]] || { log_event "После обновления активна версия $deployed_version вместо $VERSION."; return 1; }
   systemctl is-active --quiet "$API_SERVICE" || { log_event "API не active после обновления."; return 1; }
   systemctl is-active --quiet "$WORKER_SERVICE" || { log_event "Worker не active после обновления."; return 1; }
+  for _attempt in $(seq 1 30); do
+    health_request && return 0
+    sleep 1
+  done
+  log_event "API active, но /api/system/health не подтвердил работоспособность после обновления."
+  return 1
 }
 
 abort_transaction() {
