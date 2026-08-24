@@ -41,7 +41,7 @@ jobs:
       - name: Проверить shell/Python-сценарии поставки
         run: |
           bash -n scripts/offline/*.sh deploy/install.sh
-          python3 -m py_compile scripts/offline/python-runtime.py scripts/recognition/ocr.py
+          python3 -m py_compile scripts/offline/python-runtime.py scripts/recognition/ocr.py scripts/offline/project-control-package.py
       - name: Проверить системный preflight
         run: npm run preflight -- --json
 
@@ -91,7 +91,7 @@ jobs:
           REQUIRE_ARCHIVE_SHA256=true SKIP_SYSTEM_PREFLIGHT=true npm run --silent bundle:verify -- "$ARCHIVE"
 
   offline_bundle:
-    name: Full offline Debian 12
+    name: Full offline Debian 12 + Project Control
     needs: [node_minimum, test, browser, host_node_25]
     runs-on: ubuntu-latest
     steps:
@@ -208,6 +208,80 @@ jobs:
       - name: Проверить offline llama.cpp/GGUF установку под systemd
         shell: bash
         run: bash scripts/offline/systemd-deploy-selftest.sh "$RUNNER_TEMP/kafedra-full-llm-test"
+      - name: Собрать и проверить Project Control update
+        env:
+          SOURCE_SHA: ${{ github.sha }}
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          OUT="$RUNNER_TEMP/kafedra-full"
+          VERSION="$(tr -d '[:space:]' < VERSION)"
+          ARCHIVE="$(find "$OUT" -maxdepth 1 -type f -name 'kafedra-planner-*.tar.gz' -print -quit)"
+          [[ -f "$ARCHIVE" && -f "$ARCHIVE.sha256" ]]
+          python3 scripts/offline/project-control-package.py \
+            --archive "$ARCHIVE" \
+            --output "$OUT" \
+            --project-id kafedra-planner \
+            --display-name "Кафедра Planner" \
+            --adapter kafedra-planner-v1 \
+            --version "$VERSION" \
+            --source-commit "$SOURCE_SHA" \
+            --native-format kafedra-full-airgap-v2
+          PACKAGE="$OUT/kafedra-planner-${VERSION}-project-control.f2re.zip"
+          [[ -f "$PACKAGE" && -f "$PACKAGE.sha256" ]]
+          (cd "$OUT" && sha256sum -c --strict "$(basename "$PACKAGE.sha256")")
+          python3 - "$PACKAGE" "$ARCHIVE" "$VERSION" "$SOURCE_SHA" <<'PY'
+          import hashlib, json, sys, tarfile, zipfile
+          from pathlib import Path
+
+          package, native = map(Path, sys.argv[1:3])
+          version, source_sha = sys.argv[3:5]
+
+          def sha256(path):
+              digest = hashlib.sha256()
+              with path.open("rb") as stream:
+                  for chunk in iter(lambda: stream.read(1024 * 1024), b""):
+                      digest.update(chunk)
+              return digest.hexdigest()
+
+          with zipfile.ZipFile(package) as archive:
+              manifest = json.loads(archive.read("f2re-service.json"))
+              payload = manifest["payload"]["path"]
+              assert set(archive.namelist()) == {"f2re-service.json", payload}
+              assert manifest["schema"] == "f2re-managed-service/v1"
+              assert manifest["controllerApi"] == 1
+              assert manifest["projectId"] == "kafedra-planner"
+              assert manifest["adapter"] == "kafedra-planner-v1"
+              assert manifest["nativeBundleFormat"] == "kafedra-full-airgap-v2"
+              assert manifest["version"] == version
+              assert manifest["sourceCommit"] == source_sha
+              digest = hashlib.sha256()
+              size = 0
+              with archive.open(payload) as stream:
+                  for chunk in iter(lambda: stream.read(1024 * 1024), b""):
+                      size += len(chunk)
+                      digest.update(chunk)
+              assert digest.hexdigest() == manifest["payload"]["sha256"] == sha256(native)
+              assert size == manifest["payload"]["size"] == native.stat().st_size
+
+          with tarfile.open(native, "r:gz") as archive:
+              names = {member.name.rstrip("/") for member in archive if member.name}
+          roots = {name.split("/", 1)[0] for name in names}
+          assert len(roots) == 1
+          root = next(iter(roots))
+          for required in ("install.sh", "application/VERSION", "deployment.json"):
+              assert f"{root}/{required}" in names, required
+          PY
+      - name: Опубликовать Project Control update
+        if: (github.event_name == 'push' || github.event_name == 'workflow_dispatch') && github.ref == 'refs/heads/main'
+        uses: actions/upload-artifact@v4
+        with:
+          name: kafedra-planner-project-control-${{ github.sha }}
+          path: |
+            ${{ runner.temp }}/kafedra-full/*-project-control.f2re.zip
+            ${{ runner.temp }}/kafedra-full/*-project-control.f2re.zip.sha256
+          if-no-files-found: error
+          retention-days: 30
       - name: Опубликовать готовый full offline bundle
         if: (github.event_name == 'push' || github.event_name == 'workflow_dispatch') && github.ref == 'refs/heads/main'
         uses: actions/upload-artifact@v4
