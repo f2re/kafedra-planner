@@ -454,7 +454,10 @@ async function patchManualDetail() {
       edit.dataset.manualEditItem = item.id;
       edit.textContent = 'Изменить';
     }
-    if (actionCell && !$m('[data-manual-support]', actionCell)) {
+    if (actionCell && !$m(
+      '[data-manual-support], [data-supporting-open][data-target-kind="plan_item"]',
+      actionCell
+    )) {
       const count = (item.supporting_documents || []).length;
       actionCell.insertAdjacentHTML('beforeend', `<button class="row-button" type="button" data-manual-support="${escapeManual(item.id)}">Документы${count ? ` · ${count}` : ''}</button>`);
     }
