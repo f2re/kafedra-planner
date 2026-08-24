@@ -13,6 +13,10 @@ import { createPeriodicTasksRouter } from './periodic-tasks-router.mjs';
 import { createSearchRouter } from './search-router.mjs';
 import { createAuthRouter } from './auth-router.mjs';
 import { createAccessRouter } from './access-router.mjs';
+import { createOrganizationRouter } from './organization-router.mjs';
+import { createScienceLifecycleRouter } from './science-lifecycle-router.mjs';
+import { createScienceImportRouter020 } from './science-import-router-020.mjs';
+import { createScienceReportsRouter } from './science-reports-router.mjs';
 import { resolveAuthContext } from '../../../packages/auth/src/service.mjs';
 import { authorizeApiRequest } from '../../../packages/auth/src/policy.mjs';
 import { authorizeCsrfRequest } from '../../../packages/auth/src/csrf.mjs';
@@ -30,6 +34,10 @@ export function createApp({ database, config, logger }) {
   const planItemsRouter = createPlanItemsRouter({ database, config, logger });
   const plansRouter = createPlansRouter({ database, config, logger });
   const meetingsRouter = createMeetingsRouter({ database, config, logger });
+  const organizationRouter = createOrganizationRouter({ database, logger });
+  const scienceLifecycleRouter = createScienceLifecycleRouter({ database, logger });
+  const scienceImportRouter020 = createScienceImportRouter020({ database });
+  const scienceReportsRouter = createScienceReportsRouter({ database, config, logger });
   const planFactRouter = createPlanFactRouter({ database, config, logger });
   const router = createRouter({ database, config, logger });
   return createServer(async (request, response) => {
@@ -81,7 +89,14 @@ export function createApp({ database, config, logger }) {
           const accessHandled = !preferencesHandled && !notificationHandled && !responsibilityHandled && !periodicHandled && !searchHandled && !manualPlansHandled && !planItemHandled && !plansHandled && !meetingsHandled && !response.headersSent && request.auth?.enabled
             ? await accessRouter(request, response, url, requestId)
             : false;
+          let extensionHandled = false;
           if (!preferencesHandled && !notificationHandled && !responsibilityHandled && !periodicHandled && !searchHandled && !manualPlansHandled && !planItemHandled && !plansHandled && !meetingsHandled && !accessHandled && !response.headersSent) {
+            extensionHandled = await organizationRouter(request, response, url, requestId);
+            if (!extensionHandled && !response.headersSent) extensionHandled = await scienceLifecycleRouter(request, response, url, requestId);
+            if (!extensionHandled && !response.headersSent) extensionHandled = await scienceImportRouter020(request, response, url, requestId);
+            if (!extensionHandled && !response.headersSent) extensionHandled = await scienceReportsRouter(request, response, url, requestId);
+          }
+          if (!preferencesHandled && !notificationHandled && !responsibilityHandled && !periodicHandled && !searchHandled && !manualPlansHandled && !planItemHandled && !plansHandled && !meetingsHandled && !accessHandled && !extensionHandled && !response.headersSent) {
             const handled = await planFactRouter(request, response, url, requestId);
             if (!handled && !response.headersSent) await router(request, response, url, requestId);
           }

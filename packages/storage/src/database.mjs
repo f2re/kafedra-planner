@@ -137,6 +137,17 @@ export class Database {
     this.db.close();
   }
 
+  getSchemaVersion() {
+    return Number(this.get(`
+      SELECT COALESCE(MAX(version), 0) AS version
+      FROM schema_migrations
+    `)?.version || 0);
+  }
+
+  foreignKeyCheck() {
+    return this.all('PRAGMA foreign_key_check');
+  }
+
   quickCheck() {
     return this.get('PRAGMA quick_check')?.quick_check === 'ok';
   }

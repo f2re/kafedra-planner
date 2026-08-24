@@ -1,0 +1,38 @@
+.science-lifecycle-panel{display:grid;gap:14px}
+.science-lifecycle-summary{display:flex;align-items:center;justify-content:space-between;gap:12px}
+.science-lifecycle-summary>div:first-child{display:flex;align-items:center;gap:9px;flex-wrap:wrap}
+.science-lifecycle-panel-actions,.science-lifecycle-inline-actions{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+.science-lifecycle-chip{display:inline-flex;padding:5px 9px;border-radius:999px;background:var(--surface-soft,#f7f8fa);font-size:.8rem}
+.science-lifecycle-chip[data-status="submitted"],.science-lifecycle-chip[data-status="revision"]{background:#fff6e5;color:#8a5200}
+.science-lifecycle-chip[data-status="accepted"],.science-lifecycle-chip[data-status="published"]{background:var(--success-soft,#eaf7ef);color:var(--success,#216e45)}
+.science-lifecycle-chip[data-status="rejected"]{background:var(--danger-soft,#fff0ef);color:var(--danger,#b42318)}
+.science-lifecycle-facts{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:9px;margin:0}
+.science-lifecycle-facts>div{display:grid;gap:3px;padding:10px 11px;border:1px solid var(--border,#e4e7ec);border-radius:12px;background:var(--surface-soft,#f7f8fa)}
+.science-lifecycle-facts dt{font-size:.78rem;color:var(--muted,#687386)}
+.science-lifecycle-facts dd{margin:0;overflow-wrap:anywhere}
+.science-lifecycle-subhead{display:flex;align-items:center;justify-content:space-between;gap:10px}
+.science-affiliation-list,.science-lifecycle-history{display:grid;gap:7px;margin:0;padding:0;list-style:none}
+.science-affiliation-list li,.science-lifecycle-history li{display:grid;gap:3px;padding:10px 11px;border:1px solid var(--border,#e4e7ec);border-radius:12px}
+.science-affiliation-list span,.science-affiliation-list small,.science-lifecycle-history span,.science-lifecycle-muted{color:var(--muted,#687386)}
+.science-affiliation-list small{font-size:.78rem}
+.science-lifecycle-backdrop{position:fixed;inset:0;z-index:124;background:rgba(15,23,42,.34);backdrop-filter:blur(3px)}
+.science-lifecycle-modal{position:fixed;z-index:125;inset:50% auto auto 50%;transform:translate(-50%,-50%);width:min(720px,calc(100vw - 32px));max-height:min(900px,calc(100vh - 36px));overflow:auto;border:1px solid var(--border,#e4e7ec);border-radius:20px;background:var(--surface,#fff);box-shadow:0 24px 80px rgba(15,23,42,.22)}
+.science-lifecycle-modal-head{display:flex;align-items:flex-start;justify-content:space-between;gap:14px;padding:18px 20px;border-bottom:1px solid var(--border,#e4e7ec)}
+.science-lifecycle-modal-head h3{margin:3px 0 0}
+.science-lifecycle-modal-body{display:grid;gap:14px;padding:20px}
+.science-lifecycle-grid-two{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px}
+.science-lifecycle-actions{display:flex;justify-content:flex-end;gap:10px;margin-top:4px}
+.science-lifecycle-error{padding:10px 12px;border-radius:12px;background:var(--danger-soft,#fff0ef);color:var(--danger,#b42318)}
+.science-lifecycle-helper{margin:0;color:var(--muted,#687386);font-size:.86rem}
+.science-executors{display:grid;gap:10px;padding:12px;border:1px solid var(--border,#e4e7ec);border-radius:13px}
+.science-people-list{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:7px}
+.science-person-choice{display:flex;align-items:center;gap:8px;padding:8px;border-radius:10px;background:var(--surface-soft,#f7f8fa)}
+body.science-lifecycle-modal-open{overflow:hidden}
+@media(max-width:720px){
+  .science-lifecycle-summary{align-items:flex-start;flex-direction:column}
+  .science-lifecycle-panel-actions,.science-lifecycle-panel-actions button,.science-lifecycle-inline-actions,.science-lifecycle-inline-actions button{width:100%}
+  .science-lifecycle-facts,.science-lifecycle-grid-two,.science-people-list{grid-template-columns:1fr}
+  .science-lifecycle-modal{inset:auto 0 0;transform:none;width:100%;max-height:92vh;border-radius:20px 20px 0 0}
+  .science-lifecycle-actions{flex-direction:column-reverse}
+  .science-lifecycle-actions button{width:100%}
+}
