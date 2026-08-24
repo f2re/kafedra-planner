@@ -55,7 +55,7 @@ async function closeEventSheet(page) {
   await expect(page.locator('#event-sheet')).toHaveClass(/hidden/);
 }
 
-test('обучаемый UX охватывает новые даты, типы и фильтры, но не перестраивает интерфейс', async ({ page }) => {
+test('обучаемый UX охватывает новые даты, типы и фильтры, но не перестраивает интерфейс', async ({ page }, testInfo) => {
   await page.addInitScript((seed) => {
     localStorage.setItem('kafedra-ui-preferences-v2', JSON.stringify(seed));
   }, learned);
@@ -68,6 +68,7 @@ test('обучаемый UX охватывает новые даты, типы �
     const date = new Date();
     return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
   });
+  const eventTitle = `Проверка общего обучаемого UX ${testInfo.project.name}`;
 
   await page.locator('#create-button').click();
   await expect(page.locator('#event-kind')).toHaveValue('task');
@@ -77,11 +78,18 @@ test('обучаемый UX охватывает новые даты, типы �
   const learnedDate = addDays(today, 7);
   await expect(page.locator('#event-date')).toHaveValue(learnedDate);
 
-  await page.locator('#event-title').fill('Проверка общего обучаемого UX');
+  await page.locator('#event-title').fill(eventTitle);
   await selectNativeWithKeyboard(page.locator('#event-category'), 'education');
   const userDate = await changeDateWithKeyboard(page.locator('#event-date'));
   expect(userDate).not.toBe(learnedDate);
+  expect(await page.locator('#event-form').evaluate((form) => form.checkValidity())).toBeTruthy();
+  const createResponse = page.waitForResponse(
+    (response) => response.url().endsWith('/api/calendar') && response.request().method() === 'POST',
+    { timeout: 15_000 }
+  );
   await page.locator('#event-form button[type="submit"]').click();
+  const created = await createResponse;
+  expect(created.ok(), await created.text()).toBeTruthy();
   await expect(page.locator('#event-sheet')).toHaveClass(/hidden/);
 
   await expect.poll(async () => {
@@ -95,7 +103,7 @@ test('обучаемый UX охватывает новые даты, типы �
 
   const tasksResponse = await page.request.get('/api/tasks?limit=100');
   expect(tasksResponse.ok()).toBeTruthy();
-  const saved = (await tasksResponse.json()).items.find((item) => item.title === 'Проверка общего обучаемого UX');
+  const saved = (await tasksResponse.json()).items.find((item) => item.title === eventTitle);
   expect(saved).toBeTruthy();
   expect(saved.category).toBe('education');
   expect(String(saved.starts_at).slice(0, 10)).toBe(userDate);
