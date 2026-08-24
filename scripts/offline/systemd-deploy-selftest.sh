@@ -93,9 +93,7 @@ run_installer
 assert_deployed
 assert_llm_deployed
 
-docker exec "$CONTAINER" test -s /root/kafedra-planner-first-login.txt
-[[ "$(docker exec "$CONTAINER" stat -c %a /root/kafedra-planner-first-login.txt)" == 600 ]] || { echo "Неверные права first-login file" >&2; exit 5; }
-FIRST_LOGIN_SHA="$(docker exec "$CONTAINER" sha256sum /root/kafedra-planner-first-login.txt | awk '{print $1}')"
+docker exec "$CONTAINER" test ! -e /root/kafedra-planner-first-login.txt
 FIRST_RELEASE="$(docker exec "$CONTAINER" readlink -f /opt/kafedra-planner/current)"
 [[ -n "$FIRST_RELEASE" ]] || { echo "current release не определён" >&2; exit 5; }
 FIRST_MODEL_INODE=""
@@ -115,8 +113,7 @@ if [[ "$EXPECT_LLM" == true ]]; then
   [[ "$FIRST_MODEL_INODE" == "$SECOND_MODEL_INODE" ]] || { echo "Повторный install заменил уже проверенную GGUF" >&2; exit 6; }
 fi
 docker exec "$CONTAINER" test ! -e /tmp/kafedra-config-executed
-SECOND_LOGIN_SHA="$(docker exec "$CONTAINER" sha256sum /root/kafedra-planner-first-login.txt | awk '{print $1}')"
-[[ "$FIRST_LOGIN_SHA" == "$SECOND_LOGIN_SHA" ]] || { echo "Повторный install изменил first-login credential file" >&2; exit 6; }
+docker exec "$CONTAINER" test ! -e /root/kafedra-planner-first-login.txt
 SECOND_RELEASE="$(docker exec "$CONTAINER" readlink -f /opt/kafedra-planner/current)"
 [[ "$FIRST_RELEASE" == "$SECOND_RELEASE" ]] || { echo "Повторный install создал другой release для того же bundle" >&2; exit 6; }
 RELEASE_COUNT="$(docker exec "$CONTAINER" bash -lc "find /opt/kafedra-planner/releases -mindepth 1 -maxdepth 1 -type d ! -name '.*' | wc -l")"

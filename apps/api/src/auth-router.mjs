@@ -2,9 +2,13 @@ import { AppError } from '../../../packages/core/src/errors.mjs';
 import {
   auditAction,
   authenticateAccount,
+  authenticatePin,
   changeOwnPassword,
+  changeOwnPin,
   clearSessionCookie,
+  configureLocalPin,
   createAuthAccount,
+  isLocalPinConfigured,
   listAuthAccounts,
   resetAuthPassword,
   revokeSession,
@@ -24,6 +28,10 @@ import {
   requireSession
 } from '../../../packages/auth/src/policy.mjs';
 import { readJson, sendJson } from './http-utils.mjs';
+
+function authMode(config) {
+  return config.authMode || 'accounts';
+}
 
 function defaultWorkspace(database, request) {
   const requested = request.headers['x-workspace-id'];
@@ -59,9 +67,11 @@ function workspaceFor(database, request) {
 
 function mePayload(database, request, config) {
   const context = request.auth;
+  const mode = authMode(config);
   if (!config.authEnabled) {
     return {
       authEnabled: false,
+      authMode: mode,
       authenticated: true,
       role: 'admin',
       csrfToken: null,
@@ -71,9 +81,12 @@ function mePayload(database, request, config) {
     };
   }
   if (!context?.authenticated) {
+    const workspace = defaultWorkspace(database, request);
     return {
       authEnabled: true,
+      authMode: mode,
       authenticated: false,
+      pinConfigured: mode === 'pin' ? isLocalPinConfigured(database, workspace.id) : null,
       csrfToken: null,
       user: null,
       subordinates: []
@@ -91,10 +104,12 @@ function mePayload(database, request, config) {
       : [];
   return {
     authEnabled: true,
+    authMode: mode,
     authenticated: true,
+    pinConfigured: mode === 'pin' ? true : null,
     role: context.role,
     csrfToken: context.csrfToken,
-    mustChangePassword: context.mustChangePassword,
+    mustChangePassword: mode === 'accounts' ? context.mustChangePassword : false,
     permissions: {
       manageAccounts: context.role === 'admin',
       manageSessions: context.role === 'admin',
@@ -119,10 +134,24 @@ function audit(database, request, workspaceId, action, targetKind, targetId, det
   });
 }
 
+function setSessionResponse(response, config, result, status) {
+  response.setHeader(
+    'set-cookie',
+    sessionCookie(config, result.session.token, result.session.expiresAt)
+  );
+  sendJson(response, 200, {
+    status,
+    user: result.account,
+    csrfToken: result.session.csrfToken,
+    mustChangePassword: Boolean(result.account.mustChangePassword)
+  });
+}
+
 export function createAuthRouter({ database, config }) {
   return async function routeAuth(request, response, url) {
     const method = request.method || 'GET';
     const path = url.pathname;
+    const mode = authMode(config);
     const accountMatch = path.match(/^\/api\/admin\/accounts\/([^/]+)$/);
     const resetMatch = path.match(/^\/api\/admin\/accounts\/([^/]+)\/reset-password$/);
     const accountSessionsMatch = path.match(
@@ -132,8 +161,10 @@ export function createAuthRouter({ database, config }) {
       /^\/api\/admin\/sessions\/([^/]+)\/revoke$/
     );
     const recognized = path === '/api/auth/me'
+      || path === '/api/auth/setup-pin'
       || path === '/api/auth/login'
       || path === '/api/auth/logout'
+      || path === '/api/auth/change-pin'
       || path === '/api/auth/change-password'
       || path === '/api/admin/accounts'
       || path === '/api/admin/sessions'
@@ -151,6 +182,19 @@ export function createAuthRouter({ database, config }) {
       sendJson(response, 200, mePayload(database, request, config));
       return true;
     }
+    if (method === 'POST' && path === '/api/auth/setup-pin') {
+      if (!config.authEnabled) {
+        throw new AppError('auth_disabled', 'Авторизация отключена конфигурацией.', 409);
+      }
+      if (mode !== 'pin') {
+        throw new AppError('pin_mode_disabled', 'В этом окружении используется вход по аккаунтам.', 409);
+      }
+      const workspace = defaultWorkspace(database, request);
+      const body = await readJson(request);
+      const result = configureLocalPin(database, workspace.id, body.pin, request, config);
+      setSessionResponse(response, config, result, 'pin_configured');
+      return true;
+    }
     if (method === 'POST' && path === '/api/auth/login') {
       if (!config.authEnabled) {
         throw new AppError(
@@ -161,24 +205,17 @@ export function createAuthRouter({ database, config }) {
       }
       const workspace = defaultWorkspace(database, request);
       const body = await readJson(request);
-      const result = authenticateAccount(
-        database,
-        workspace.id,
-        body.username,
-        body.password,
-        request,
-        config
-      );
-      response.setHeader(
-        'set-cookie',
-        sessionCookie(config, result.session.token, result.session.expiresAt)
-      );
-      sendJson(response, 200, {
-        status: 'authenticated',
-        user: result.account,
-        csrfToken: result.session.csrfToken,
-        mustChangePassword: result.account.mustChangePassword
-      });
+      const result = mode === 'pin'
+        ? authenticatePin(database, workspace.id, body.pin, request, config)
+        : authenticateAccount(
+            database,
+            workspace.id,
+            body.username,
+            body.password,
+            request,
+            config
+          );
+      setSessionResponse(response, config, result, 'authenticated');
       return true;
     }
     if (method === 'POST' && path === '/api/auth/logout') {
@@ -187,7 +224,20 @@ export function createAuthRouter({ database, config }) {
       sendJson(response, 200, { status: 'signed_out' });
       return true;
     }
+    if (method === 'POST' && path === '/api/auth/change-pin') {
+      if (mode !== 'pin') {
+        throw new AppError('pin_mode_disabled', 'В этом окружении используется вход по аккаунтам.', 409);
+      }
+      requireSession(request.auth);
+      const body = await readJson(request);
+      changeOwnPin(database, request.auth, body.currentPin, body.newPin);
+      sendJson(response, 200, { status: 'pin_changed' });
+      return true;
+    }
     if (method === 'POST' && path === '/api/auth/change-password') {
+      if (mode !== 'accounts') {
+        throw new AppError('account_mode_disabled', 'Для локального доступа используется PIN-код.', 409);
+      }
       requireSession(request.auth);
       const body = await readJson(request);
       changeOwnPassword(

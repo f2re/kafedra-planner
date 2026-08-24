@@ -21,7 +21,7 @@ export default defineConfig({
     viewport: { width: 1440, height: 960 }
   },
   webServer: {
-    command: `KAFEDRA_BROWSER_PORT=${port} node tests/browser/start-release-server.mjs`,
+    command: `KAFEDRA_AUTH_MODE=accounts KAFEDRA_BROWSER_PORT=${port} node tests/browser/start-release-server.mjs`,
     url: `http://127.0.0.1:${port}/api/system/health`,
     reuseExistingServer: false,
     timeout: 120_000

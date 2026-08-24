@@ -2,11 +2,15 @@ import { AppError } from '../../core/src/errors.mjs';
 import { newId } from '../../core/src/ids.mjs';
 import {
   hashPassword,
+  hashPin,
   hashSessionToken,
+  isPinHash,
   opaqueNetworkHash,
   randomSessionToken,
   validatePassword,
-  verifyPassword
+  validatePin,
+  verifyPassword,
+  verifyPin
 } from './passwords.mjs';
 
 const ROLES = new Set(['staff', 'manager', 'admin']);
@@ -83,6 +87,23 @@ function accountQuery() {
     JOIN people p ON p.id = a.person_id
     LEFT JOIN people manager ON manager.id = p.manager_id
   `;
+}
+
+function activeAdminRow(database, workspaceId) {
+  return database.get(`${accountQuery()}
+    WHERE a.workspace_id = ? AND a.role = 'admin' AND a.is_active = 1
+    ORDER BY a.created_at, a.id
+    LIMIT 1
+  `, workspaceId);
+}
+
+function localPinRow(database, workspaceId) {
+  return database.get(`${accountQuery()}
+    WHERE a.workspace_id = ? AND a.role = 'admin' AND a.is_active = 1
+      AND a.password_hash LIKE 'pin$%'
+    ORDER BY a.created_at, a.id
+    LIMIT 1
+  `, workspaceId);
 }
 
 export function auditAction(database, {
@@ -243,6 +264,19 @@ export function clearSessionCookie(config) {
   return parts.join('; ');
 }
 
+function successfulLogin(database, row, request, config, now) {
+  const session = database.transaction(() => {
+    database.run(`
+      UPDATE auth_accounts
+      SET failed_attempts = 0, locked_until = NULL, last_login_at = ?, updated_at = ?
+      WHERE id = ?
+    `, now.toISOString(), now.toISOString(), row.id);
+    database.run('DELETE FROM auth_sessions WHERE expires_at < ? OR revoked_at IS NOT NULL', now.toISOString());
+    return createSession(database, row.id, request, config, now);
+  });
+  return session;
+}
+
 export function authenticateAccount(database, workspaceId, username, password, request, config, now = new Date()) {
   const normalized = normalizeUsername(username);
   const row = database.get(`${accountQuery()}
@@ -270,15 +304,7 @@ export function authenticateAccount(database, workspaceId, username, password, r
     throw new AppError('invalid_credentials', 'Неверное имя пользователя или пароль.', 401);
   }
 
-  const session = database.transaction(() => {
-    database.run(`
-      UPDATE auth_accounts
-      SET failed_attempts = 0, locked_until = NULL, last_login_at = ?, updated_at = ?
-      WHERE id = ?
-    `, now.toISOString(), now.toISOString(), row.id);
-    database.run('DELETE FROM auth_sessions WHERE expires_at < ? OR revoked_at IS NOT NULL', now.toISOString());
-    return createSession(database, row.id, request, config, now);
-  });
+  const session = successfulLogin(database, row, request, config, now);
   auditAction(database, {
     workspaceId,
     accountId: row.id,
@@ -288,6 +314,136 @@ export function authenticateAccount(database, workspaceId, username, password, r
     now: now.toISOString()
   });
   return { account: serializeAccount({ ...row, last_login_at: now.toISOString() }), session };
+}
+
+export function isLocalPinConfigured(database, workspaceId) {
+  return Boolean(localPinRow(database, workspaceId));
+}
+
+export function configureLocalPin(database, workspaceId, pin, request, config, now = new Date()) {
+  const pinError = validatePin(pin);
+  if (pinError) throw new AppError('pin_invalid', pinError, 400);
+  const result = database.transaction(() => {
+    if (localPinRow(database, workspaceId)) {
+      throw new AppError('pin_already_configured', 'PIN-код уже настроен.', 409);
+    }
+    const row = activeAdminRow(database, workspaceId);
+    if (!row) {
+      throw new AppError(
+        'pin_admin_missing',
+        'Внутренняя учётная запись доступа не создана. Повторите штатную установку и откройте страницу снова.',
+        409
+      );
+    }
+    const changedAt = now.toISOString();
+    database.run(`
+      UPDATE auth_accounts
+      SET password_hash = ?, password_changed_at = ?, must_change_password = 0,
+        failed_attempts = 0, locked_until = NULL, last_login_at = ?, updated_at = ?
+      WHERE id = ?
+    `, hashPin(pin), changedAt, changedAt, changedAt, row.id);
+    database.run(
+      'UPDATE auth_sessions SET revoked_at = COALESCE(revoked_at, ?) WHERE account_id = ?',
+      changedAt,
+      row.id
+    );
+    const updated = database.get(`${accountQuery()} WHERE a.id = ?`, row.id);
+    const session = createSession(database, row.id, request, config, now);
+    return { row: updated, session };
+  });
+  auditAction(database, {
+    workspaceId,
+    accountId: result.row.id,
+    personId: result.row.person_id,
+    action: 'auth.pin_configured',
+    details: { sessionId: result.session.id },
+    now: now.toISOString()
+  });
+  return {
+    account: serializeAccount({ ...result.row, last_login_at: now.toISOString() }),
+    session: result.session
+  };
+}
+
+export function authenticatePin(database, workspaceId, pin, request, config, now = new Date()) {
+  const row = localPinRow(database, workspaceId);
+  const locked = row?.locked_until && new Date(row.locked_until).getTime() > now.getTime();
+  const validPin = verifyPin(pin, row?.password_hash);
+  if (!row) {
+    throw new AppError('pin_setup_required', 'Сначала задайте PIN-код из 4 цифр.', 409);
+  }
+  if (locked) {
+    auditAction(database, {
+      workspaceId,
+      accountId: row.id,
+      personId: row.person_id,
+      action: 'auth.pin_failed',
+      details: { locked: true },
+      now: now.toISOString()
+    });
+    throw new AppError('account_locked', 'Вход временно заблокирован после нескольких неверных PIN-кодов.', 429);
+  }
+  if (!validPin) {
+    const attempts = Number(row.failed_attempts || 0) + 1;
+    const shouldLock = attempts >= MAX_FAILED_ATTEMPTS;
+    const lockedUntil = shouldLock ? isoAfterMinutes(now, LOCK_MINUTES) : null;
+    database.run(`
+      UPDATE auth_accounts SET failed_attempts = ?, locked_until = ?, updated_at = ? WHERE id = ?
+    `, attempts, lockedUntil, now.toISOString(), row.id);
+    auditAction(database, {
+      workspaceId,
+      accountId: row.id,
+      personId: row.person_id,
+      action: 'auth.pin_failed',
+      details: { locked: shouldLock, attempts },
+      now: now.toISOString()
+    });
+    if (shouldLock) {
+      throw new AppError('account_locked', 'Слишком много неверных PIN-кодов. Вход заблокирован на 15 минут.', 429);
+    }
+    throw new AppError('invalid_pin', 'Неверный PIN-код.', 401);
+  }
+
+  const session = successfulLogin(database, row, request, config, now);
+  auditAction(database, {
+    workspaceId,
+    accountId: row.id,
+    personId: row.person_id,
+    action: 'auth.pin_login',
+    details: { sessionId: session.id },
+    now: now.toISOString()
+  });
+  return { account: serializeAccount({ ...row, last_login_at: now.toISOString() }), session };
+}
+
+export function resetLocalPin(database, workspaceId, pin, now = new Date().toISOString()) {
+  const pinError = validatePin(pin);
+  if (pinError) throw new AppError('pin_invalid', pinError, 400);
+  const row = localPinRow(database, workspaceId) || activeAdminRow(database, workspaceId);
+  if (!row) {
+    throw new AppError('pin_admin_missing', 'Внутренняя учётная запись доступа не найдена.', 404);
+  }
+  database.transaction(() => {
+    database.run(`
+      UPDATE auth_accounts
+      SET password_hash = ?, password_changed_at = ?, must_change_password = 0,
+        failed_attempts = 0, locked_until = NULL, updated_at = ?
+      WHERE id = ?
+    `, hashPin(pin), now, now, row.id);
+    database.run(
+      'UPDATE auth_sessions SET revoked_at = COALESCE(revoked_at, ?) WHERE account_id = ?',
+      now,
+      row.id
+    );
+  });
+  auditAction(database, {
+    workspaceId,
+    accountId: row.id,
+    personId: row.person_id,
+    action: 'auth.pin_reset',
+    now
+  });
+  return serializeAccount(database.get(`${accountQuery()} WHERE a.id = ?`, row.id));
 }
 
 export function resolveAuthContext(database, request, config, now = new Date()) {
@@ -384,6 +540,38 @@ export function changeOwnPassword(database, context, currentPassword, newPasswor
     accountId: context.accountId,
     personId: context.personId,
     action: 'auth.password_changed',
+    now
+  });
+  return true;
+}
+
+export function changeOwnPin(database, context, currentPin, newPin, now = new Date().toISOString()) {
+  if (!context?.authenticated || !context.accountId) {
+    throw new AppError('authentication_required', 'Требуется вход в систему.', 401);
+  }
+  const account = database.get('SELECT * FROM auth_accounts WHERE id = ?', context.accountId);
+  if (!account || !isPinHash(account.password_hash) || !verifyPin(currentPin, account.password_hash)) {
+    throw new AppError('current_pin_invalid', 'Текущий PIN-код указан неверно.', 400);
+  }
+  const pinError = validatePin(newPin);
+  if (pinError) throw new AppError('pin_invalid', pinError, 400);
+  database.transaction(() => {
+    database.run(`
+      UPDATE auth_accounts
+      SET password_hash = ?, password_changed_at = ?, must_change_password = 0,
+        failed_attempts = 0, locked_until = NULL, updated_at = ?
+      WHERE id = ?
+    `, hashPin(newPin), now, now, context.accountId);
+    database.run(`
+      UPDATE auth_sessions SET revoked_at = COALESCE(revoked_at, ?)
+      WHERE account_id = ? AND id <> ?
+    `, now, context.accountId, context.sessionId);
+  });
+  auditAction(database, {
+    workspaceId: context.workspaceId,
+    accountId: context.accountId,
+    personId: context.personId,
+    action: 'auth.pin_changed',
     now
   });
   return true;

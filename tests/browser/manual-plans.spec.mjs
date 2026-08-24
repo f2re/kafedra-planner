@@ -72,6 +72,7 @@ test.beforeEach(async ({ page }, testInfo) => {
 test('Планы: ручной план → календарь → поручение → документ → DOCX', async ({ page }, testInfo) => {
   const dir = await mkdtemp(join(tmpdir(), `kafedra-manual-plan-ui-${testInfo.project.name}-`));
   const sourcePath = join(dir, `План кафедры образец ${testInfo.project.name}.docx`);
+  const itemTitle = `Подготовить годовой отчёт ${testInfo.project.name}`;
   try {
     await createPlanDocx(sourcePath);
     const executor = await createPerson(page, `Исполнитель ${testInfo.project.name}`);
@@ -97,7 +98,7 @@ test('Планы: ручной план → календарь → поруче�
     expect(planValue).toBeTruthy();
     await page.locator('#manual-calendar-plan-select').selectOption(planValue);
     await page.locator('[data-manual-calendar-plan-next]').click();
-    await page.locator('#manual-plan-item-form [name="title"]').fill('Подготовить годовой отчёт');
+    await page.locator('#manual-plan-item-form [name="title"]').fill(itemTitle);
     await page.locator('#manual-plan-item-form [name="startsAt"]').fill('2026-09-10');
     await page.locator('#manual-plan-item-form [name="dueDate"]').fill('2026-09-20');
     await page.locator('#manual-plan-item-form [name="executionMode"]').selectOption('assigned');
@@ -106,13 +107,14 @@ test('Планы: ручной план → календарь → поруче�
     await page.locator('#manual-plan-item-form button[type="submit"]').click();
 
     await navigationButton(page, 'plans').click();
-    await expect(page.locator('#plan-detail')).toContainText('Подготовить годовой отчёт', { timeout: 15_000 });
-    const itemRow = page.locator('[data-plan-item-row]').filter({ hasText: 'Подготовить годовой отчёт' }).first();
+    await expect(page.locator('#plan-detail')).toContainText(itemTitle, { timeout: 15_000 });
+    const itemRow = page.locator('[data-plan-item-row]').filter({ hasText: itemTitle }).first();
     await expect(itemRow).toContainText('Режим: Поручение');
     await expect(itemRow).toContainText(`Исполнители: Исполнитель ${testInfo.project.name}`);
 
     const planItemSupport = itemRow.locator('[data-supporting-open][data-target-kind="plan_item"]');
-    await expect(planItemSupport).toBeVisible({ timeout: 15_000 });
+    await expect(planItemSupport).toHaveCount(1, { timeout: 15_000 });
+    await expect(planItemSupport).toBeVisible();
     await planItemSupport.click();
     const planItemSupportForm = page.locator('[data-supporting-form]');
     await expect(planItemSupportForm).toBeVisible();
@@ -127,7 +129,7 @@ test('Планы: ручной план → календарь → поруче�
     await navigationButton(page, 'work').click();
     await expect(page.locator('[data-view-panel="work"]')).toBeVisible();
     const assignmentCard = page.locator('.work-card[data-work-kind="assignment"]')
-      .filter({ hasText: 'Подготовить годовой отчёт' }).first();
+      .filter({ hasText: itemTitle }).first();
     await expect(assignmentCard).toBeVisible({ timeout: 15_000 });
     await assignmentCard.click();
     await expect(page.locator('#standalone-assignment-inspector')).toBeVisible({ timeout: 15_000 });
@@ -182,18 +184,18 @@ test('Планы: ручной план → календарь → поруче�
     await expect.poll(async () => {
       const response = await page.request.get('/api/assignments?limit=2000');
       const payload = await response.json();
-      return payload.items?.find((item) => item.title === 'Подготовить годовой отчёт')?.status;
+      return payload.items?.find((item) => item.title === itemTitle)?.status;
     }, { timeout: 15_000 }).toBe('completed');
     const planFactResponse = await page.request.get('/api/plan-fact?limit=500');
     expect(planFactResponse.ok()).toBeTruthy();
     const planFact = await planFactResponse.json();
     expect((planFact.items || []).some((item) =>
-      item.title === 'Подготовить годовой отчёт' && item.status === 'completed'
+      item.title === itemTitle && item.status === 'completed'
     )).toBeTruthy();
 
     await page.locator('#ux-inspector-close').click();
     await navigationButton(page, 'plans').click();
-    await expect(page.locator('#plan-detail')).toContainText('Подготовить годовой отчёт', { timeout: 15_000 });
+    await expect(page.locator('#plan-detail')).toContainText(itemTitle, { timeout: 15_000 });
     const generate = page.locator('[data-manual-plan-generate]').first();
     await expect(generate).toBeVisible();
     await generate.click();
@@ -214,14 +216,14 @@ test('Планы: ручной план → календарь → поруче�
     const calendar = await calendarResponse.json();
     expect((calendar.items || []).some((item) =>
       item.source_kind === 'plan_item'
-      && item.title === 'Подготовить годовой отчёт'
+      && item.title === itemTitle
       && item.origin_document_id === null
       && item.starts_at === '2026-09-10'
     )).toBeTruthy();
     expect((calendar.items || []).some((item) =>
       item.source_kind === 'plan_item'
       && item.item_kind === 'task'
-      && item.title.includes('Подготовить годовой отчёт')
+      && item.title.includes(itemTitle)
       && item.status === 'completed'
       && item.completed_at
     )).toBeTruthy();

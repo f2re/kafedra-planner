@@ -335,7 +335,7 @@ function decoratePlanItems() {
     button.dataset.targetKind = 'plan_item';
     button.dataset.targetId = id;
     button.dataset.targetLabel = $sd('strong', row)?.textContent || 'Пункт плана';
-    button.textContent = 'Документы';
+    button.textContent = button.textContent.trim() || 'Документы';
   });
 }
 

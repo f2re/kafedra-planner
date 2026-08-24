@@ -11,6 +11,14 @@ function boolean(value, fallback) {
   return !['0', 'false', 'no', 'off', 'нет'].includes(String(value).trim().toLocaleLowerCase('ru-RU'));
 }
 
+function choice(value, fallback, allowed, name) {
+  const normalized = String(value ?? fallback).trim().toLocaleLowerCase('ru-RU') || fallback;
+  if (!allowed.includes(normalized)) {
+    throw new Error(`${name} должен быть одним из: ${allowed.join(', ')}.`);
+  }
+  return normalized;
+}
+
 export function loadConfig(env = process.env, cwd = process.cwd()) {
   const dataDir = resolve(env.KAFEDRA_DATA_DIR || resolve(cwd, 'data'));
   const applicationDir = resolve(env.KAFEDRA_APPLICATION_DIR || cwd);
@@ -44,6 +52,7 @@ export function loadConfig(env = process.env, cwd = process.cwd()) {
     llmParallel: integer(env.KAFEDRA_LLM_PARALLEL, 1, { min: 1, max: 32 }),
     llmStartTimeoutSeconds: integer(env.KAFEDRA_LLM_START_TIMEOUT_SECONDS, 180, { min: 10, max: 900 }),
     authEnabled: boolean(env.KAFEDRA_AUTH_ENABLED, true),
+    authMode: choice(env.KAFEDRA_AUTH_MODE, 'pin', ['pin', 'accounts'], 'KAFEDRA_AUTH_MODE'),
     authCookieName: String(env.KAFEDRA_AUTH_COOKIE_NAME || 'kafedra_session').trim() || 'kafedra_session',
     authSessionHours: integer(env.KAFEDRA_AUTH_SESSION_HOURS, 12, { min: 1, max: 720 }),
     authSecureCookies: boolean(env.KAFEDRA_AUTH_SECURE_COOKIES, false),
