@@ -1,0 +1,122 @@
+name: Project Control release
+
+on:
+  workflow_run:
+    workflows: ["Проверка"]
+    types: [completed]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: project-control-release-${{ github.event.workflow_run.head_branch }}
+  cancel-in-progress: true
+
+jobs:
+  package:
+    if: >-
+      github.event.workflow_run.conclusion == 'success' &&
+      github.event.workflow_run.event == 'push' &&
+      github.event.workflow_run.head_branch == 'main'
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - name: Checkout exact verified commit
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.workflow_run.head_sha }}
+
+      - name: Validate Project Control release scripts
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          bash -n scripts/offline/build-project-control-bundle.sh
+          python3 -m py_compile scripts/offline/project-control-package.py
+
+      - name: Build full Project Control update package on Debian 12
+        env:
+          SOURCE_SHA: ${{ github.event.workflow_run.head_sha }}
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          OUT="$RUNNER_TEMP/kafedra-project-control"
+          mkdir -p "$OUT"
+          docker run --rm \
+            -e SOURCE_SHA="$SOURCE_SHA" \
+            -v "$GITHUB_WORKSPACE:/src:ro" \
+            -v "$OUT:/out" \
+            node:24-bookworm bash -lc '
+              set -Eeuo pipefail
+              apt-get update
+              DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends \
+                python3 git ca-certificates curl xz-utils binutils systemd
+              cd /src
+              test "$(git rev-parse HEAD)" = "$SOURCE_SHA"
+              KAFEDRA_FULL_BUNDLE_CACHE_DIR=/tmp/kafedra-cache \
+                bash scripts/offline/build-project-control-bundle.sh --output /out
+            '
+
+      - name: Verify Project Control contract and native payload
+        env:
+          SOURCE_SHA: ${{ github.event.workflow_run.head_sha }}
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          VERSION="$(tr -d '[:space:]' < VERSION)"
+          OUT="$RUNNER_TEMP/kafedra-project-control"
+          PACKAGE="$OUT/kafedra-planner-${VERSION}-project-control.f2re.zip"
+          NATIVE="$(find "$OUT" -maxdepth 1 -type f -name "kafedra-planner-${VERSION}-*.tar.gz" -print -quit)"
+          [[ -f "$PACKAGE" && -f "$PACKAGE.sha256" && -f "$NATIVE" ]]
+          (cd "$OUT" && sha256sum -c --strict "$(basename "$PACKAGE.sha256")")
+          python3 - "$PACKAGE" "$NATIVE" "$VERSION" "$SOURCE_SHA" <<'PY'
+          import hashlib, json, sys, tarfile, zipfile
+          from pathlib import Path
+
+          package, native = map(Path, sys.argv[1:3])
+          version, source_sha = sys.argv[3:5]
+
+          def sha256(path):
+              digest = hashlib.sha256()
+              with path.open("rb") as stream:
+                  for chunk in iter(lambda: stream.read(1024 * 1024), b""):
+                      digest.update(chunk)
+              return digest.hexdigest()
+
+          with zipfile.ZipFile(package) as archive:
+              manifest = json.loads(archive.read("f2re-service.json"))
+              payload = manifest["payload"]["path"]
+              assert set(archive.namelist()) == {"f2re-service.json", payload}
+              assert manifest["schema"] == "f2re-managed-service/v1"
+              assert manifest["controllerApi"] == 1
+              assert manifest["projectId"] == "kafedra-planner"
+              assert manifest["adapter"] == "kafedra-planner-v1"
+              assert manifest["nativeBundleFormat"] == "kafedra-full-airgap-v2"
+              assert manifest["version"] == version
+              assert manifest["sourceCommit"] == source_sha
+              digest = hashlib.sha256()
+              size = 0
+              with archive.open(payload) as stream:
+                  for chunk in iter(lambda: stream.read(1024 * 1024), b""):
+                      size += len(chunk)
+                      digest.update(chunk)
+              assert digest.hexdigest() == manifest["payload"]["sha256"] == sha256(native)
+              assert size == manifest["payload"]["size"] == native.stat().st_size
+
+          with tarfile.open(native, "r:gz") as archive:
+              names = {member.name.rstrip("/") for member in archive if member.name}
+          roots = {name.split("/", 1)[0] for name in names}
+          assert len(roots) == 1
+          root = next(iter(roots))
+          for required in ("install.sh", "application/VERSION", "deployment.json"):
+              assert f"{root}/{required}" in names, required
+          PY
+
+      - name: Publish Project Control update
+        uses: actions/upload-artifact@v4
+        with:
+          name: kafedra-planner-project-control-${{ github.event.workflow_run.head_sha }}
+          path: |
+            ${{ runner.temp }}/kafedra-project-control/*-project-control.f2re.zip
+            ${{ runner.temp }}/kafedra-project-control/*-project-control.f2re.zip.sha256
+          if-no-files-found: error
+          retention-days: 30
