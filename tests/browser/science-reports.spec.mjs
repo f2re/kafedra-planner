@@ -17,12 +17,12 @@ async function createBadTemplate(path) {
   });
 }
 
-async function uploadScience(page, suffix) {
+async function uploadScience(page, suffix, year) {
   await navigationButton(page, 'documents').click();
   await page.locator('#file-input').setInputFiles({
     name: `science-report-source-${suffix}.txt`,
     mimeType: 'text/plain',
-    buffer: Buffer.from(`УДК 551.509\nИванов И.И.\nНаучный отчётный материал ${suffix}\nЖурнал Метеорология, 2026\nDOI: 10.2000/${suffix}\nПубликация входит в ВАК и РИНЦ.`, 'utf8')
+    buffer: Buffer.from(`УДК 551.509\nИванов И.И.\nНаучный отчётный материал ${suffix}\nЖурнал Метеорология, ${year}\nDOI: 10.2000/${suffix}\nПубликация входит в ВАК и РИНЦ.`, 'utf8')
   });
   await expect.poll(async () => {
     const payload = await (await page.request.get(`/api/science?q=${encodeURIComponent(`Научный отчётный материал ${suffix}`)}`)).json();
@@ -55,11 +55,12 @@ test('Наука: фильтры → поля → ошибка образца б
   const dir = await mkdtemp(join(tmpdir(), `kafedra-science-report-${testInfo.project.name}-`));
   const templateName = `bad-science-template-${testInfo.project.name}.docx`;
   const templatePath = join(dir, templateName);
+  const reportYear = testInfo.project.name.includes('mobile') ? '2027' : '2026';
   try {
     await createBadTemplate(templatePath);
     await page.goto('/');
     await page.waitForFunction(() => typeof window.kafedraSetView === 'function', null, { timeout: 12_000 });
-    await uploadScience(page, testInfo.project.name);
+    await uploadScience(page, testInfo.project.name, reportYear);
     await uploadTemplate(page, templatePath, templateName);
 
     await navigationButton(page, 'science').click();
@@ -68,8 +69,8 @@ test('Наука: фильтры → поля → ошибка образца б
     const form = page.locator('[data-science-report-form]');
     await expect(form).toBeVisible();
     await form.locator('[name="title"]').fill(`Научный отчёт ${testInfo.project.name}`);
-    await form.locator('[name="yearFrom"]').fill('2026');
-    await form.locator('[name="yearTo"]').fill('2026');
+    await form.locator('[name="yearFrom"]').fill(reportYear);
+    await form.locator('[name="yearTo"]').fill(reportYear);
     await form.locator('[name="classification"]').fill('ВАК');
     await form.locator('[data-science-report-preview-button]').click();
     await expect(form.locator('[data-science-report-preview]')).toContainText('1', { timeout: 15_000 });
@@ -106,11 +107,11 @@ test('Наука: фильтры → поля → ошибка образца б
 
     const repeated = await page.request.post('/api/science-reports', {
       data: {
-        title: `Научный отчёт ${testInfo.project.name}`,
-        format: 'csv',
-        filters: { yearFrom: '2026', yearTo: '2026', classification: 'ВАК', lifecycleStatus: null, unitId: null, personId: null, kind: null },
-        fields: ['title','kind','year','authors','unit','status','doi','venue','classifications','evidence'],
-        templateDocumentId: null,
+        title: run.title,
+        format: run.format,
+        filters: run.filters,
+        fields: run.fields,
+        templateDocumentId: templateValue,
         idempotencyKey: run.idempotency_key
       }
     });

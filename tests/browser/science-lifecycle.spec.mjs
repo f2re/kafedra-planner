@@ -14,7 +14,7 @@ async function uploadScience(page, suffix) {
   await page.locator('#file-input').setInputFiles({
     name,
     mimeType: 'text/plain',
-    buffer: Buffer.from(`УДК 551.509\nИванов И.И.\nРадарный прогноз осадков ${suffix}\nАннотация. Рассмотрены методы наукастинга.\nКлючевые слова: радар, прогноз.`, 'utf8')
+    buffer: Buffer.from(`УДК 551.509\nИванов И.И.\nРадарный прогноз осадков ${suffix}\nАннотация. Рассмотрены методы наукастинга.\nЖурнал Метеорология, 2026\nDOI: 10.3000/lifecycle-${suffix}\nПубликация входит в ВАК и РИНЦ.\nКлючевые слова: радар, прогноз.`, 'utf8')
   });
   await expect.poll(async () => {
     const response = await page.request.get(`/api/science?q=${encodeURIComponent(`Радарный прогноз осадков ${suffix}`)}`);
