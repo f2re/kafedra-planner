@@ -67,11 +67,15 @@ function authorRows(database, scientificItemId) {
 }
 
 function classificationRows(database, scientificItemId) {
-  return database.all(`SELECT * FROM scientific_item_classifications WHERE scientific_item_id = ? ORDER BY classification`, scientificItemId);
+  return database.all(`
+    SELECT * FROM scientific_item_classifications
+    WHERE scientific_item_id = ?
+    ORDER BY classification_kind, classification_value
+  `, scientificItemId);
 }
 
 function classificationValue(row) {
-  return row.classification || row.code || row.value || row.label || null;
+  return row.classification_value || row.classification || row.code || row.value || row.label || null;
 }
 
 function overrideRow(database, workspaceId, scientificItemId) {
@@ -102,7 +106,7 @@ function effectiveObject(database, workspaceId, base) {
   return {
     ...base,
     title: override?.title || base.title,
-    kind: override?.kind || base.kind,
+    kind: override?.kind || base.item_kind,
     doi: override?.doi || base.doi,
     publication_year: override?.publication_year ?? base.publication_year,
     published_at: override?.published_at || base.published_at,
@@ -332,7 +336,7 @@ export function linkScienceToPlan(database, workspaceId, scientificItemId, input
       startsAt: date(input.startsAt, 'startsAt'),
       dueDate: date(input.dueDate || science.next_action_due, 'dueDate'),
       direction: 'science',
-      expectedResult: text(input.expectedResult, 4000) || science.lifecycle_status === 'published' ? 'Публикация' : 'Научный материал',
+      expectedResult: text(input.expectedResult, 4000) || (science.lifecycle_status === 'published' ? 'Публикация' : 'Научный материал'),
       executionMode: input.executionMode || 'track',
       responsiblePersonId: input.responsiblePersonId || null,
       executorPersonIds: input.executorPersonIds || [],

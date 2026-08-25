@@ -156,6 +156,14 @@ export async function readZipEntry(path, name, { maxBuffer = 256 * 1024 * 1024 }
   return Buffer.isBuffer(stdout) ? stdout : Buffer.from(stdout || '');
 }
 
+export async function readZipArchive(path, options = {}) {
+  const archive = new Map();
+  for (const name of await listZipEntries(path)) {
+    if (!name.endsWith('/')) archive.set(name, await readZipEntry(path, name, options));
+  }
+  return archive;
+}
+
 export async function writeZipArchive(outputPath, entries) {
   async function *source() {
     for (const [name, value] of Object.entries(entries || {})) yield { name, data: value };

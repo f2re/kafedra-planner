@@ -5,15 +5,25 @@ export {
 } from './units.mjs';
 export {
   listPersonAppointments, resolvePersonAppointment, listOrganizationPeople,
-  createPersonAppointment, updatePersonAppointment, refreshDerivedAffiliations
+  updatePersonAppointment, refreshDerivedAffiliations
 } from './appointments.mjs';
 export {
   listScientificAuthorAffiliations, setScientificAuthorAffiliation
 } from './affiliations.mjs';
 
 import { organizationTree, listOrganizationPositions } from './units.mjs';
-import { listOrganizationPeople } from './appointments.mjs';
+import {
+  createPersonAppointment as createPersonAppointmentBase,
+  listOrganizationPeople
+} from './appointments.mjs';
 import { isoDate, today } from './shared.mjs';
+
+export function createPersonAppointment(database, workspaceId, personId, input = {}, actorPersonId = null, now = new Date().toISOString()) {
+  const normalized = input.managerPersonId === undefined
+    ? { ...input, managerPersonId: null }
+    : input;
+  return createPersonAppointmentBase(database, workspaceId, personId, normalized, actorPersonId, now);
+}
 
 export function organizationSnapshot(database, workspaceId, { asOf = today(), includeInactive = false } = {}) {
   const date = isoDate(asOf, 'asOf');
