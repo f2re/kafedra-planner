@@ -3,6 +3,7 @@ import { addSearchFragment } from '../../storage/src/search.mjs';
 import { getPlan } from './queries.mjs';
 import { planKindLabel, planLabel } from './shared.mjs';
 import { addFacet, addReview, documentForVersion, findPerson, insertCalendarItem } from './persist-helpers.mjs';
+import { linkPlanItemsToSourceRows, persistPlanSourceRows } from './source-rows.mjs';
 
 export function persistPlan(database, {
   workspaceId,
@@ -53,6 +54,8 @@ export function persistPlan(database, {
       locator: result.evidence?.period || { kind: 'plan', planId }
     });
 
+    persistPlanSourceRows(database, planId, result.sourceRows || [], now);
+
     const missingDates = [];
     for (const item of result.items || []) {
       const responsible = item.responsibleRaw ? findPerson(database, workspaceId, item.responsibleRaw) : null;
@@ -102,6 +105,8 @@ export function persistPlan(database, {
       }
       if (!item.startsAt && !item.dueDate) missingDates.push({ id: itemId, title: item.title, sourceItemKey: item.sourceItemKey });
     }
+
+    linkPlanItemsToSourceRows(database, planId, now);
 
     if (missingDates.length) {
       addReview(database, workspaceId, documentVersionId, 'plan_items_without_date',

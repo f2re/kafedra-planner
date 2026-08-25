@@ -11,11 +11,11 @@ function directionFor(text) {
 }
 
 function cellAt(row, mapping, name) {
-  const index = mapping[name];
-  return index === undefined ? null : row.cells[index] || null;
+  const column = mapping[name];
+  return column === undefined ? null : row.cells.find((cell) => cell.column === column) || null;
 }
 
-function sourceKey(row) {
+export function sourceKeyForRow(row) {
   if (row.groupKind === 'sheet') return `sheet:${row.groupName}:row:${row.rowNumber}`;
   if (row.groupKind === 'table') return `table:${row.groupName}:row:${row.rowNumber}`;
   const loc = row.cells[0]?.locator || row.locator || {};
@@ -24,7 +24,7 @@ function sourceKey(row) {
   return `${row.groupKey}:row:${row.rowNumber}`;
 }
 
-function rowLocator(row) {
+export function rowLocatorForRow(row) {
   const first = row.cells[0]?.locator || row.locator || {};
   return {
     ...first,
@@ -72,36 +72,74 @@ function itemFromRow(row, mapping, period) {
     deadline: deadlineCell, responsible: responsibleCell, direction: directionCell,
     expectedResult: resultCell, sourceStatus: statusCell
   })) {
-    if (cell) evidenceFields[name] = { raw: cell.text, locator: cell.locator || rowLocator(row) };
+    if (cell) evidenceFields[name] = { raw: cell.text, locator: cell.locator || rowLocatorForRow(row) };
   }
   return {
-    sourceItemKey: sourceKey(row), itemNo, title,
+    sourceItemKey: sourceKeyForRow(row), itemNo, title,
     description: clean(descriptionCell?.text) || null, startsAt, endsAt, dueDate,
     responsibleRaw, direction, expectedResult: clean(resultCell?.text) || null,
     confidence,
-    evidence: { locator: rowLocator(row), fields: evidenceFields },
+    evidence: { locator: rowLocatorForRow(row), fields: evidenceFields },
     warnings: timePresent ? [] : ['date_missing']
   };
 }
 
-export function extractTableItems(blocks, period) {
+function rowRole(row, header, rowIndex) {
+  if (header && rowIndex === header.index) return 'header';
+  if (bestHeader([row])) return 'header';
+  return 'context';
+}
+
+export function extractPlanSourceRows(blocks, period) {
   const rows = allRows(blocks);
   const byGroup = new Map();
   for (const row of rows) {
     if (!byGroup.has(row.groupKey)) byGroup.set(row.groupKey, []);
     byGroup.get(row.groupKey).push(row);
   }
-  const items = [];
+
+  const result = [];
   for (const groupRows of byGroup.values()) {
     const header = bestHeader(groupRows);
-    if (!header) continue;
-    for (const row of groupRows.slice(header.index + 1)) {
-      if (bestHeader([row])) continue;
-      const item = itemFromRow(row, header.mapping, period);
-      if (item) items.push(item);
-    }
+    const mappedColumns = new Set(Object.values(header?.mapping || {}));
+    const headerLabels = new Map((header?.row?.cells || []).map((cell) => [cell.column, cell.text]));
+    groupRows.forEach((row, index) => {
+      if (!row.cells.length) return;
+      let role = rowRole(row, header, index);
+      let suggestion = null;
+      if (header && index > header.index && role !== 'header') {
+        suggestion = itemFromRow(row, header.mapping, period);
+        if (suggestion) role = 'item';
+      }
+      const unmapped = role === 'header' ? [] : row.cells
+        .filter((cell) => !mappedColumns.has(cell.column))
+        .map((cell) => ({
+          text: cell.text, column: cell.column, label: headerLabels.get(cell.column) || null, locator: cell.locator || {}
+        }));
+      result.push({
+        sourceRowKey: sourceKeyForRow(row),
+        groupKind: row.groupKind,
+        groupName: row.groupName,
+        rowNumber: row.rowNumber,
+        role,
+        rawText: row.cells.map((cell) => cell.text).filter(Boolean).join(' | '),
+        cells: row.cells.map((cell) => ({
+          text: cell.text, column: cell.column, label: headerLabels.get(cell.column) || null, locator: cell.locator || {}
+        })),
+        locator: rowLocatorForRow(row),
+        suggestion,
+        unmapped,
+        confidence: suggestion?.confidence ?? (role === 'header' ? 1 : 0.25)
+      });
+    });
   }
-  return items;
+  return result;
+}
+
+export function extractTableItems(blocks, period) {
+  return extractPlanSourceRows(blocks, period)
+    .filter((row) => row.role === 'item' && row.suggestion)
+    .map((row) => row.suggestion);
 }
 
 export function extractLineItems(blocks, period) {
@@ -140,6 +178,22 @@ export function extractLineItems(blocks, period) {
     });
   }
   return items;
+}
+
+export function sourceRowsForLineItems(items) {
+  return (items || []).map((item, index) => ({
+    sourceRowKey: item.sourceItemKey,
+    groupKind: 'line',
+    groupName: 'text',
+    rowNumber: Number(item.evidence?.locator?.line || index + 1),
+    role: 'item',
+    rawText: item.evidence?.fields?.title?.raw || item.title,
+    cells: [{ text: item.evidence?.fields?.title?.raw || item.title, column: 1, locator: item.evidence?.locator || {} }],
+    locator: item.evidence?.locator || { line: index + 1 },
+    suggestion: item,
+    unmapped: [],
+    confidence: item.confidence || 0
+  }));
 }
 
 export function deduplicateItems(items) {

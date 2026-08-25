@@ -87,9 +87,10 @@ function headerMap(row) {
   const mapping = {};
   let score = 0;
   for (let index = 0; index < row.cells.length; index += 1) {
-    const field = classifyHeader(row.cells[index].text);
+    const cell = row.cells[index];
+    const field = classifyHeader(cell.text);
     if (!field || Object.prototype.hasOwnProperty.call(mapping, field)) continue;
-    mapping[field] = index;
+    mapping[field] = cell.column || index + 1;
     score += field === 'title' || field === 'date' || field === 'deadline' ? 2 : 1;
   }
   return { mapping, score };
