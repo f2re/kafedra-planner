@@ -49,6 +49,7 @@ await import('./organization-next.js');
 await import('./science-lifecycle-next.js');
 await import('./science-import-next.js');
 await import('./science-reports-next.js');
+await import('./directive-archive-next.js');
 await import('./calendar-start-settings.js');
 await window.kafedraCalendarStartReady;
 await import('./ui-preferences.js');
