@@ -55,7 +55,7 @@ test('Наука: фильтры → поля → ошибка образца б
   const dir = await mkdtemp(join(tmpdir(), `kafedra-science-report-${testInfo.project.name}-`));
   const templateName = `bad-science-template-${testInfo.project.name}.docx`;
   const templatePath = join(dir, templateName);
-  const reportYear = testInfo.project.name.includes('mobile') ? '2027' : '2026';
+  const reportYear = testInfo.project.name.includes('mobile') ? '2028' : '2027';
   try {
     await createBadTemplate(templatePath);
     await page.goto('/');
