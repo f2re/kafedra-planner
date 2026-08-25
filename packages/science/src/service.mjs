@@ -58,6 +58,31 @@ function row(database, workspaceId, itemId) {
   };
 }
 
+function normalizedClassification(entry) {
+  if (typeof entry === 'string') {
+    const value = entry.trim();
+    return value ? { kind: 'manual', value } : null;
+  }
+  const value = String(entry?.value ?? entry?.classification_value ?? '').trim();
+  if (!value) return null;
+  const kind = String(entry?.kind ?? entry?.classification_kind ?? 'manual').trim() || 'manual';
+  return { kind, value };
+}
+
+function normalizedClassifications(entries) {
+  if (!Array.isArray(entries)) return [];
+  return entries.map(normalizedClassification).filter(Boolean);
+}
+
+function hasLifecycleColumn(database) {
+  return database.all('PRAGMA table_info(scientific_items)').some((column) => column.name === 'lifecycle_status');
+}
+
+function initialLifecycleStatus(result) {
+  if (result.lifecycleStatus) return result.lifecycleStatus;
+  return result.publishedAt || result.publicationYear || result.doi ? 'published' : 'idea';
+}
+
 export function persistScientificItem(database, {
   workspaceId,
   documentVersionId = null,
@@ -83,21 +108,36 @@ export function persistScientificItem(database, {
     }
   }
 
+  const classifications = normalizedClassifications(result.classifications);
   const id = newId('science');
   database.transaction(() => {
-    database.run(`
-      INSERT INTO scientific_items(
-        id, workspace_id, source_document_version_id, item_kind, title,
-        abstract_text, published_at, publication_year, venue, doi,
-        identifiers_json, status, direction, confidence, evidence_json,
-        created_at, updated_at
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'science', ?, ?, ?, ?)
-    `, id, workspaceId, documentVersionId, result.kind || 'article',
-    result.title || documentTitle || 'Научный материал', result.abstractText || null,
-    result.publishedAt || null, result.publicationYear || null, result.venue || null,
-    result.doi || null, JSON.stringify(result.identifiers || {}),
-    result.confidence >= 0.72 ? 'confirmed' : 'proposed', result.confidence || 0,
-    JSON.stringify(result.evidence || {}), now, now);
+    const values = [
+      id, workspaceId, documentVersionId, result.kind || 'article',
+      result.title || documentTitle || 'Научный материал', result.abstractText || null,
+      result.publishedAt || null, result.publicationYear || null, result.venue || null,
+      result.doi || null, JSON.stringify(result.identifiers || {}),
+      result.confidence >= 0.72 ? 'confirmed' : 'proposed', result.confidence || 0,
+      JSON.stringify(result.evidence || {})
+    ];
+    if (hasLifecycleColumn(database)) {
+      database.run(`
+        INSERT INTO scientific_items(
+          id, workspace_id, source_document_version_id, item_kind, title,
+          abstract_text, published_at, publication_year, venue, doi,
+          identifiers_json, status, direction, confidence, evidence_json,
+          lifecycle_status, created_at, updated_at
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'science', ?, ?, ?, ?, ?)
+      `, ...values, initialLifecycleStatus(result), now, now);
+    } else {
+      database.run(`
+        INSERT INTO scientific_items(
+          id, workspace_id, source_document_version_id, item_kind, title,
+          abstract_text, published_at, publication_year, venue, doi,
+          identifiers_json, status, direction, confidence, evidence_json,
+          created_at, updated_at
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'science', ?, ?, ?, ?)
+      `, ...values, now, now);
+    }
 
     (result.authors || []).forEach((author, index) => {
       const person = personByName(database, workspaceId, author);
@@ -108,7 +148,7 @@ export function persistScientificItem(database, {
       `, id, person?.id || null, author, index + 1, null, now);
       addFacet(database, workspaceId, id, 'author', author, now);
     });
-    (result.classifications || []).forEach((classification) => {
+    classifications.forEach((classification) => {
       database.run(`
         INSERT OR IGNORE INTO scientific_item_classifications(
           id, scientific_item_id, classification_kind, classification_value,
@@ -135,7 +175,7 @@ export function persistScientificItem(database, {
       documentVersionId,
       title: result.title || documentTitle || 'Научный материал',
       content: [result.title, result.abstractText, result.venue, result.doi,
-        ...(result.authors || []), ...(result.classifications || []).map((entry) => entry.value)]
+        ...(result.authors || []), ...classifications.map((entry) => entry.value)]
         .filter(Boolean).join('\n'),
       locator: { kind: 'scientific_item', itemId: id }
     });
@@ -155,7 +195,7 @@ export function createScientificItem(database, workspaceId, body, now = new Date
       publicationYear: body.publicationYear || (body.publishedAt ? Number(String(body.publishedAt).slice(0, 4)) : null),
       venue: body.venue || null, doi: body.doi || null,
       authors: Array.isArray(body.authors) ? body.authors : [],
-      classifications: Array.isArray(body.classifications) ? body.classifications : [],
+      classifications: normalizedClassifications(body.classifications),
       identifiers: body.identifiers || {}, confidence: 1, evidence: { manual: true }
     },
     now

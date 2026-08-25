@@ -41,7 +41,7 @@ function addDocument(database, workspaceId, id, versionId, originalName, {
   return { id, versionId };
 }
 
-test('schema 19 обновляет существующий план без потери источника и разрешает ручные планы', async () => {
+test('обновление с schema 18 применяет ручные планы из 019 и все последующие миграции без потери источника', async () => {
   const dir = await mkdtemp(join(tmpdir(), 'kafedra-schema19-'));
   const oldMigrations = join(dir, 'migrations18');
   const dbPath = join(dir, 'upgrade.sqlite3');
@@ -74,7 +74,7 @@ test('schema 19 обновляет существующий план без по
 
     database = new Database(dbPath, { migrationsDir });
     try {
-      assert.equal(database.get('SELECT MAX(version) AS version FROM schema_migrations').version, 19);
+      assert.equal(database.get('SELECT MAX(version) AS version FROM schema_migrations').version, 24);
       const plan = database.get("SELECT * FROM plans WHERE id='plan_old'");
       const item = database.get("SELECT * FROM plan_items WHERE id='item_old'");
       assert.equal(plan.source_document_version_id, 'ver_old_plan');
