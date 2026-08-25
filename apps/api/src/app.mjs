@@ -13,6 +13,7 @@ import { createPeriodicTasksRouter } from './periodic-tasks-router.mjs';
 import { createSearchRouter } from './search-router.mjs';
 import { createAuthRouter } from './auth-router.mjs';
 import { createAccessRouter } from './access-router.mjs';
+import { createDirectiveArchiveRouter } from './directive-archive-router.mjs';
 import { resolveAuthContext } from '../../../packages/auth/src/service.mjs';
 import { authorizeApiRequest } from '../../../packages/auth/src/policy.mjs';
 import { authorizeCsrfRequest } from '../../../packages/auth/src/csrf.mjs';
@@ -21,6 +22,7 @@ import { sendError, serveStatic } from './http-utils.mjs';
 export function createApp({ database, config, logger }) {
   const authRouter = createAuthRouter({ database, config, logger });
   const accessRouter = createAccessRouter({ database, config, logger });
+  const directiveArchiveRouter = createDirectiveArchiveRouter({ database, config, logger });
   const uiPreferencesRouter = createUiPreferencesRouter({ database, config, logger });
   const notificationDeliveryRouter = createNotificationDeliveryRouter({ database, config, logger });
   const assignmentResponsibilityRouter = createAssignmentResponsibilityRouter({ database, config, logger });
@@ -81,7 +83,10 @@ export function createApp({ database, config, logger }) {
           const accessHandled = !preferencesHandled && !notificationHandled && !responsibilityHandled && !periodicHandled && !searchHandled && !manualPlansHandled && !planItemHandled && !plansHandled && !meetingsHandled && !response.headersSent && request.auth?.enabled
             ? await accessRouter(request, response, url, requestId)
             : false;
-          if (!preferencesHandled && !notificationHandled && !responsibilityHandled && !periodicHandled && !searchHandled && !manualPlansHandled && !planItemHandled && !plansHandled && !meetingsHandled && !accessHandled && !response.headersSent) {
+          const directiveArchiveHandled = !preferencesHandled && !notificationHandled && !responsibilityHandled && !periodicHandled && !searchHandled && !manualPlansHandled && !planItemHandled && !plansHandled && !meetingsHandled && !accessHandled && !response.headersSent
+            ? await directiveArchiveRouter(request, response, url, requestId)
+            : false;
+          if (!preferencesHandled && !notificationHandled && !responsibilityHandled && !periodicHandled && !searchHandled && !manualPlansHandled && !planItemHandled && !plansHandled && !meetingsHandled && !accessHandled && !directiveArchiveHandled && !response.headersSent) {
             const handled = await planFactRouter(request, response, url, requestId);
             if (!handled && !response.headersSent) await router(request, response, url, requestId);
           }
