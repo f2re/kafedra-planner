@@ -13,6 +13,7 @@ import { createPeriodicTasksRouter } from './periodic-tasks-router.mjs';
 import { createSearchRouter } from './search-router.mjs';
 import { createAuthRouter } from './auth-router.mjs';
 import { createAccessRouter } from './access-router.mjs';
+import { createDirectiveArchiveRouter } from './directive-archive-router.mjs';
 import { createOrganizationRouter } from './organization-router.mjs';
 import { createScienceLifecycleRouter } from './science-lifecycle-router.mjs';
 import { createScienceImportRouter020 } from './science-import-router-020.mjs';
@@ -25,6 +26,7 @@ import { sendError, serveStatic } from './http-utils.mjs';
 export function createApp({ database, config, logger }) {
   const authRouter = createAuthRouter({ database, config, logger });
   const accessRouter = createAccessRouter({ database, config, logger });
+  const directiveArchiveRouter = createDirectiveArchiveRouter({ database, config, logger });
   const uiPreferencesRouter = createUiPreferencesRouter({ database, config, logger });
   const notificationDeliveryRouter = createNotificationDeliveryRouter({ database, config, logger });
   const assignmentResponsibilityRouter = createAssignmentResponsibilityRouter({ database, config, logger });
@@ -89,14 +91,17 @@ export function createApp({ database, config, logger }) {
           const accessHandled = !preferencesHandled && !notificationHandled && !responsibilityHandled && !periodicHandled && !searchHandled && !manualPlansHandled && !planItemHandled && !plansHandled && !meetingsHandled && !response.headersSent && request.auth?.enabled
             ? await accessRouter(request, response, url, requestId)
             : false;
+          const directiveArchiveHandled = !preferencesHandled && !notificationHandled && !responsibilityHandled && !periodicHandled && !searchHandled && !manualPlansHandled && !planItemHandled && !plansHandled && !meetingsHandled && !accessHandled && !response.headersSent
+            ? await directiveArchiveRouter(request, response, url, requestId)
+            : false;
           let extensionHandled = false;
-          if (!preferencesHandled && !notificationHandled && !responsibilityHandled && !periodicHandled && !searchHandled && !manualPlansHandled && !planItemHandled && !plansHandled && !meetingsHandled && !accessHandled && !response.headersSent) {
+          if (!preferencesHandled && !notificationHandled && !responsibilityHandled && !periodicHandled && !searchHandled && !manualPlansHandled && !planItemHandled && !plansHandled && !meetingsHandled && !accessHandled && !directiveArchiveHandled && !response.headersSent) {
             extensionHandled = await organizationRouter(request, response, url, requestId);
             if (!extensionHandled && !response.headersSent) extensionHandled = await scienceLifecycleRouter(request, response, url, requestId);
             if (!extensionHandled && !response.headersSent) extensionHandled = await scienceImportRouter020(request, response, url, requestId);
             if (!extensionHandled && !response.headersSent) extensionHandled = await scienceReportsRouter(request, response, url, requestId);
           }
-          if (!preferencesHandled && !notificationHandled && !responsibilityHandled && !periodicHandled && !searchHandled && !manualPlansHandled && !planItemHandled && !plansHandled && !meetingsHandled && !accessHandled && !extensionHandled && !response.headersSent) {
+          if (!preferencesHandled && !notificationHandled && !responsibilityHandled && !periodicHandled && !searchHandled && !manualPlansHandled && !planItemHandled && !plansHandled && !meetingsHandled && !accessHandled && !directiveArchiveHandled && !extensionHandled && !response.headersSent) {
             const handled = await planFactRouter(request, response, url, requestId);
             if (!handled && !response.headersSent) await router(request, response, url, requestId);
           }
