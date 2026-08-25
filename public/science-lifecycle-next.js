@@ -349,7 +349,7 @@ document.addEventListener('submit', async (event) => {
 new MutationObserver(() => {
   clearTimeout(scienceLifecycleState.mutationTimer);
   scienceLifecycleState.mutationTimer = setTimeout(decorateScienceInspector, 50);
-}).observe(document.body, { childList: true, subtree: true, attributes: true, attributeFilter: ['class'] });
+}).observe(document.body, { subtree: true, attributes: true, attributeFilter: ['class'] });
 
 ensureScienceLifecycleStyles();
 ensureScienceLifecycleModal();
