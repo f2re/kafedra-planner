@@ -40,6 +40,7 @@ await import('./manual-plans-next.js');
 await import('./manual-plans-bootstrap.js');
 await import('./meetings-next.js');
 await import('./search-next.js');
+await import('./directive-archive-next.js');
 await import('./view-bridge.js');
 await import('./ux-base.js');
 await import('./standalone-assignment-next.js');
