@@ -1,13 +1,16 @@
 import { test, expect } from '@playwright/test';
 
 test('Архив распоряжений: загрузка, материал, поиск и календарь', async ({ page }, testInfo) => {
-  const suffix = testInfo.project.name.includes('mobile') ? 'моб' : 'деск';
+  const mobile = testInfo.project.name.includes('mobile');
+  const suffix = mobile ? 'моб' : 'деск';
   const number = `DA-${suffix}-25`;
   const title = `Проверка архива распоряжений ${suffix}`;
   const materialTitle = `Итоговый отчёт архива ${suffix}`;
 
   await page.goto('/');
-  const archiveTab = page.locator('[data-view="directive-archive"]:visible').first();
+  const archiveTab = mobile
+    ? page.locator('.mobile-tab[data-view="directive-archive"]')
+    : page.locator('#navigation .nav-item[data-view="directive-archive"]');
   await expect(archiveTab).toBeVisible();
   await archiveTab.click();
   await expect(page.locator('[data-view-panel="directive-archive"]')).toBeVisible();
@@ -17,8 +20,8 @@ test('Архив распоряжений: загрузка, материал, �
   const createForm = page.locator('#directive-create-form');
   await expect(createForm).toBeVisible();
   await createForm.locator('input[name="file"]').setInputFiles({
-    name: `directive-${suffix}.pdf`, mimeType: 'application/pdf',
-    buffer: Buffer.from('%PDF-1.4\narchive directive fixture\n%%EOF')
+    name: `directive-${suffix}.txt`, mimeType: 'text/plain',
+    buffer: Buffer.from(`Распоряжение № ${number}\n${title}\nПредставить итоговый отчёт.`, 'utf8')
   });
   await createForm.locator('input[name="number"]').fill(number);
   await createForm.locator('input[name="issuedAt"]').fill('2026-08-25');
@@ -55,7 +58,7 @@ test('Архив распоряжений: загрузка, материал, �
   await page.locator('#directive-report').selectOption('with');
   await expect(row).toBeVisible();
 
-  await page.getByRole('button', { name: 'Календарь' }).click();
+  await page.locator('[data-directive-mode="calendar"]').click();
   const calendarEntry = page.locator('.directive-calendar-entry').filter({ hasText: number }).first();
   await expect(calendarEntry).toBeVisible();
   await calendarEntry.click();
