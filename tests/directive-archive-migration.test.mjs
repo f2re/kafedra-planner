@@ -67,7 +67,7 @@ test('обновление 019 → 020 переносит существующи
 
     database = new Database(databasePath, { migrationsDir });
     try {
-      assert.equal(database.get('SELECT MAX(version) AS v FROM schema_migrations').v, 25);
+      assert.equal(database.get('SELECT MAX(version) AS v FROM schema_migrations').v, 26);
       assert.ok(database.get(`
         SELECT name FROM sqlite_master
         WHERE type='table' AND name='directive_report_materials'

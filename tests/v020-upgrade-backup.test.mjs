@@ -29,7 +29,7 @@ function sqlLiteral(path) {
   return `'${String(path).replaceAll("'", "''")}'`;
 }
 
-test('схема 19 обновляется до 25 и восстанавливается без изменения устойчивых таблиц 0.2.0', async () => {
+test('схема 19 обновляется до 26 и восстанавливается без изменения устойчивых таблиц 0.2.0', async () => {
   const root = await mkdtemp(join(tmpdir(), 'kafedra-v020-upgrade-'));
   const path = join(root, 'database.sqlite3');
   const restoredPath = join(root, 'restored.sqlite3');
@@ -58,7 +58,7 @@ test('схема 19 обновляется до 25 и восстанавлива
 
   database = new Database(path, { migrationsDir });
   try {
-    assert.equal(database.getSchemaVersion(), 25);
+    assert.equal(database.getSchemaVersion(), 26);
     const rootUnit = organizationSnapshot(database, workspace.id, { includeInactive: true }).tree[0];
     const position = createOrganizationPosition(database, workspace.id, { name: 'Старший научный сотрудник' }, actor.id);
     createPersonAppointment(database, workspace.id, employee.id, {
