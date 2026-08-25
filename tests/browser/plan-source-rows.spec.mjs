@@ -44,7 +44,7 @@ async function createPerson(page, displayName) {
   return await response.json();
 }
 
-test('DOCX с русским именем: строка плана → автополя → две задачи → несколько исполнителей', async ({ page }, testInfo) => {
+test('Планы: DOCX с русским именем → автополя → две задачи → несколько исполнителей', async ({ page }, testInfo) => {
   const dir = await mkdtemp(join(tmpdir(), `kafedra-source-row-ui-${testInfo.project.name}-`));
   const sourcePath = join(dir, 'План кафедры — рабочий 2026.docx');
   const browserErrors = [];

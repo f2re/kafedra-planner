@@ -50,18 +50,19 @@ function simplifyPlansChrome() {
   if (!view) return;
   ensureStyles();
   const copy = $s('.plans-heading p', view);
-  if (copy) copy.textContent = 'Загрузите план: система разберёт таблицы и предложит задачи, сроки и ответственных. Проверять нужно только неоднозначные строки.';
+  const copyText = 'Загрузите план: система разберёт таблицы и предложит задачи, сроки и ответственных. Проверять нужно только неоднозначные строки.';
+  if (copy && copy.textContent !== copyText) copy.textContent = copyText;
   const upload = $s('#plans-upload-button', view);
   const generate = $s('#plans-generate-button', view);
   if (upload) {
     upload.classList.remove('secondary-button');
     upload.classList.add('primary-button');
-    upload.textContent = 'Загрузить план';
+    if (upload.textContent !== 'Загрузить план') upload.textContent = 'Загрузить план';
   }
   if (generate) {
     generate.classList.remove('primary-button');
     generate.classList.add('secondary-button');
-    generate.textContent = 'Сформировать DOCX';
+    if (generate.textContent !== 'Сформировать DOCX') generate.textContent = 'Сформировать DOCX';
   }
 
   const filterbar = $s('.plans-filterbar', view);
@@ -459,11 +460,18 @@ document.addEventListener('submit', (event) => {
   saveSourceRow(event.target);
 }, true);
 
+let sourceRowSyncScheduled = false;
+function scheduleSourceRowSync() {
+  if (sourceRowSyncScheduled) return;
+  sourceRowSyncScheduled = true;
+  queueMicrotask(() => {
+    sourceRowSyncScheduled = false;
+    simplifyPlansChrome();
+    loadForCurrentPlan();
+  });
+}
+
 ensureStyles();
-simplifyPlansChrome();
-const observer = new MutationObserver(() => {
-  simplifyPlansChrome();
-  queueMicrotask(loadForCurrentPlan);
-});
+const observer = new MutationObserver(scheduleSourceRowSync);
 observer.observe(document.body, { childList: true, subtree: true });
-queueMicrotask(loadForCurrentPlan);
+scheduleSourceRowSync();
