@@ -58,38 +58,25 @@ test('резервная копия проверяется и восстанав
     assert.equal(verified.status, 'ok');
     assert.equal((await stat(created.archivePath)).mode & 0o077, 0);
     assert.equal(verified.manifest.appVersion, '0.1.0-rc.3');
-    assert.equal(verified.manifest.schemaVersion, 24);
+    assert.equal(verified.manifest.schemaVersion, 25);
     assert.ok(verified.fileCount >= 4);
 
     const latest = await readLatestBackupStatus(backupDir);
     assert.equal(latest.archiveName, created.archiveName);
     assert.equal(latest.status, 'success');
 
-    const dryRun = await restoreBackup({
-      archivePath: created.archivePath,
-      targetDataDir: join(root, 'dry-run')
-    });
+    const dryRun = await restoreBackup({ archivePath: created.archivePath, targetDataDir: join(root, 'dry-run') });
     assert.equal(dryRun.status, 'dry-run-ok');
 
     const targetDataDir = join(root, 'restored-data');
     const targetConfigPath = join(root, 'restored.env');
     const targetApplicationDir = join(root, 'restored-application');
-    const restored = await restoreBackup({
-      archivePath: created.archivePath,
-      targetDataDir,
-      targetConfigPath,
-      targetApplicationDir,
-      apply: true,
-      force: true
-    });
+    const restored = await restoreBackup({ archivePath: created.archivePath, targetDataDir, targetConfigPath, targetApplicationDir, apply: true, force: true });
     assert.equal(restored.status, 'restored');
 
     const restoredDatabase = new Database(join(targetDataDir, 'kafedra-planner.sqlite3'), { readonly: true });
     assert.equal(restoredDatabase.quickCheck(), true);
-    assert.equal(
-      restoredDatabase.get('SELECT display_name FROM people WHERE id = ?', 'person-backup').display_name,
-      'Проверяемый Сотрудник'
-    );
+    assert.equal(restoredDatabase.get('SELECT display_name FROM people WHERE id = ?', 'person-backup').display_name, 'Проверяемый Сотрудник');
     restoredDatabase.close();
     assert.equal(await readFile(join(targetDataDir, 'blobs', 'evidence.bin'), 'utf8'), 'verified-evidence');
     assert.match(await readFile(targetConfigPath, 'utf8'), /KAFEDRA_HOST=127\.0\.0\.1/);
@@ -98,18 +85,10 @@ test('резервная копия проверяется и восстанав
     const changed = new Database(databasePath, { migrationsDir: resolve('migrations') });
     changed.run('DELETE FROM people WHERE id = ?', 'person-backup');
     changed.close();
-    const databaseRollback = await restoreDatabaseFile({
-      archivePath: created.archivePath,
-      targetDatabasePath: databasePath,
-      apply: true,
-      force: true
-    });
+    const databaseRollback = await restoreDatabaseFile({ archivePath: created.archivePath, targetDatabasePath: databasePath, apply: true, force: true });
     assert.equal(databaseRollback.status, 'restored');
     const rolledBack = new Database(databasePath, { readonly: true });
-    assert.equal(
-      rolledBack.get('SELECT display_name FROM people WHERE id = ?', 'person-backup').display_name,
-      'Проверяемый Сотрудник'
-    );
+    assert.equal(rolledBack.get('SELECT display_name FROM people WHERE id = ?', 'person-backup').display_name, 'Проверяемый Сотрудник');
     rolledBack.close();
 
     const unpacked = join(root, 'unpacked');
@@ -118,10 +97,7 @@ test('резервная копия проверяется и восстанав
     await writeFile(join(unpacked, 'kafedra-backup', 'unmanifested.txt'), 'must be rejected');
     const unmanifested = join(root, 'unmanifested.tar.gz');
     await run('tar', ['-C', unpacked, '-czf', unmanifested, 'kafedra-backup']);
-    await assert.rejects(
-      () => verifyBackup({ archivePath: unmanifested }),
-      /manifest file count mismatch|unmanifested file/i
-    );
+    await assert.rejects(() => verifyBackup({ archivePath: unmanifested }), /manifest file count mismatch|unmanifested file/i);
 
     const maliciousRoot = join(root, 'malicious', 'kafedra-backup');
     await mkdir(maliciousRoot, { recursive: true });
@@ -129,10 +105,7 @@ test('резервная копия проверяется и восстанав
     await symlink('/tmp', join(maliciousRoot, 'external-link'));
     const malicious = join(root, 'malicious.tar.gz');
     await run('tar', ['-C', join(root, 'malicious'), '-czf', malicious, 'kafedra-backup']);
-    await assert.rejects(
-      () => verifyBackup({ archivePath: malicious }),
-      /unsupported archive entry type/i
-    );
+    await assert.rejects(() => verifyBackup({ archivePath: malicious }), /unsupported archive entry type/i);
 
     const corrupt = join(root, 'corrupt.tar.gz');
     const bytes = await readFile(created.archivePath);
