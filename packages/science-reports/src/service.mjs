@@ -241,7 +241,8 @@ async function createDocx(database, workspaceId, title, filters, data, templateD
   const original = await readDocumentXml(source.storage_path);
   if (!original.includes('{{SCIENCE_TABLE}}')) fail('science_report_template_placeholder_missing');
   const table = scienceTableXml(data);
-  let generated = original.replace(/<w:p\b[^>]*>[\s\S]*?\{\{SCIENCE_TABLE\}\}[\s\S]*?<\/w:p>/u, table);
+  const placeholderParagraph = /<w:p\b[^>]*>(?:(?!<\/w:p>)[\s\S])*?\{\{SCIENCE_TABLE\}\}(?:(?!<\/w:p>)[\s\S])*?<\/w:p>/u;
+  let generated = original.replace(placeholderParagraph, table);
   if (generated === original) fail('science_report_template_placeholder_invalid');
   generated = generated
     .replaceAll('{{SCIENCE_TITLE}}', xml(title))
