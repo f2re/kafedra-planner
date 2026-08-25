@@ -44,6 +44,7 @@ await import('./view-bridge.js');
 await import('./ux-base.js');
 await import('./standalone-assignment-next.js');
 await import('./supporting-documents-next.js');
+await import('./directive-archive-next.js');
 await import('./calendar-start-settings.js');
 await window.kafedraCalendarStartReady;
 await import('./ui-preferences.js');
