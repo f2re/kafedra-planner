@@ -179,8 +179,12 @@ function renderOrganization(snapshot) {
   if ($o('#organization-people-count')) $o('#organization-people-count').textContent = `${(snapshot.people || []).length}`;
 }
 
+function authGateVisible() {
+  return Boolean($o('#auth-gate') && !$o('#auth-gate')?.classList.contains('hidden'));
+}
+
 async function loadOrganization() {
-  if (!ensureOrganizationUi() || organizationState.loading) return;
+  if (authGateVisible() || !ensureOrganizationUi() || organizationState.loading) return;
   organizationState.loading = true;
   setOrganizationNotice('Загрузка структуры…');
   try {
@@ -378,7 +382,7 @@ document.addEventListener('change', (event) => {
 });
 
 new MutationObserver(() => {
-  if (ensureOrganizationUi() && adminHost()?.classList.contains('active') && !organizationState.snapshot) loadOrganization();
+  if (!authGateVisible() && ensureOrganizationUi() && adminHost()?.classList.contains('active') && !organizationState.snapshot) loadOrganization();
 }).observe(document.body, { childList: true, subtree: true, attributes: true, attributeFilter: ['class'] });
 
 ensureOrganizationUi();
