@@ -2,7 +2,9 @@ import { findRussianDates } from '../../protocols/src/russian-date.mjs';
 import { clean, clamp, extractPlanPeriod, lower } from './date.mjs';
 export { parsePlanDateWindow } from './date.mjs';
 import { allRows, bestHeader } from './rows.mjs';
-import { deduplicateItems, extractLineItems, extractTableItems } from './items.mjs';
+import {
+  deduplicateItems, extractLineItems, extractPlanSourceRows, sourceRowsForLineItems
+} from './items.mjs';
 
 const REQUESTED_KINDS = new Map([
   ['department_plan', 'department'],
@@ -51,8 +53,12 @@ export function extractPlan({ text = '', blocks = [], title = '', requestedType 
   const kind = inferPlanKind(source, requestedType);
   const period = extractPlanPeriod(text, title);
   const owner = kind.kind === 'personal' ? ownerFromText(source) : { raw: null, evidence: null };
-  let items = extractTableItems(blocks, period);
-  if (!items.length) items = extractLineItems(blocks, period);
+  let sourceRows = extractPlanSourceRows(blocks, period);
+  let items = sourceRows.filter((row) => row.role === 'item' && row.suggestion).map((row) => row.suggestion);
+  if (!items.length) {
+    items = extractLineItems(blocks, period);
+    if (!sourceRows.length) sourceRows = sourceRowsForLineItems(items);
+  }
   items = deduplicateItems(items);
 
   const warnings = [];
@@ -82,6 +88,7 @@ export function extractPlan({ text = '', blocks = [], title = '', requestedType 
       owner: owner.evidence
     },
     items,
+    sourceRows,
     warnings,
     requiresReview: warnings.length > 0
   };
