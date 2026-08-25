@@ -34,7 +34,7 @@ test('акт 0.2.0 содержит все новые устойчивые та�
     assert.equal(before.tables.person_appointments.rows, 1);
     assert.equal(before.tables.scientific_author_affiliations.rows, 1);
 
-    database.run(`UPDATE person_appointments SET reason = 'Проверяемое изменение акта' WHERE person_id = ?`, person.id);
+    database.run(`UPDATE person_appointments SET change_reason = 'Проверяемое изменение акта' WHERE person_id = ?`, person.id);
     const after = collectV020DatabaseEvidence(path);
     assert.notEqual(before.digest, after.digest);
     const comparison = compareAcceptanceEvidence020(
