@@ -81,7 +81,7 @@ test('Оргструктура: подразделение → должност�
   await employeeCard.locator('[data-organization-history]').click();
   await expect(page.locator('.organization-history')).toContainText('2020-01-01');
   await expect(page.locator('.organization-history')).toContainText('2023-01-01');
-  await page.locator('#organization-modal [data-organization-close]').click();
+  await page.locator('#organization-modal .secondary-button[data-organization-close]').click();
   await expect(page.locator('#organization-modal')).toHaveClass(/hidden/);
 
   await employeeCard.locator('[data-organization-appoint]').click();
