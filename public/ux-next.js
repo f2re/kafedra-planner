@@ -44,6 +44,7 @@ await import('./view-bridge.js');
 await import('./ux-base.js');
 await import('./standalone-assignment-next.js');
 await import('./supporting-documents-next.js');
+await import('./organization-shell.js');
 await import('./organization-next.js');
 await import('./science-lifecycle-next.js');
 await import('./science-import-next.js');

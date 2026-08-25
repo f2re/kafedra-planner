@@ -42,8 +42,9 @@ test('схема 19 обновляется до 24 и восстанавлива
   let science;
   try {
     workspace = ensureDefaultWorkspace(database);
-    actor = createPerson(database, workspace.id, { displayName: 'Руководитель До 0.2.0', position: 'Заведующий кафедрой' });
-    employee = createPerson(database, workspace.id, { displayName: 'Сотрудник До 0.2.0', position: 'Доцент', managerId: actor.id });
+    const legacyCreatedAt = '2025-01-01T00:00:00.000Z';
+    actor = createPerson(database, workspace.id, { displayName: 'Руководитель До 0.2.0', position: 'Заведующий кафедрой' }, legacyCreatedAt);
+    employee = createPerson(database, workspace.id, { displayName: 'Сотрудник До 0.2.0', position: 'Доцент', managerId: actor.id }, legacyCreatedAt);
     plan = createManualPlan(database, workspace.id, {
       title: 'План до 0.2.0', planKind: 'department', periodKind: 'calendar', yearStart: 2026
     }, actor.id);

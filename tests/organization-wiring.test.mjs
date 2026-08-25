@@ -6,6 +6,6 @@ test('API и UI организационной структуры подключ
   const app = await readFile('apps/api/src/app.mjs', 'utf8');
   const ux = await readFile('public/ux-next.js', 'utf8');
   assert.match(app, /createOrganizationRouter/u);
-  assert.match(app, /organizationHandled/u);
+  assert.match(app, /organizationRouter\(request, response, url, requestId\)/u);
   assert.match(ux, /organization-next\.js/u);
 });

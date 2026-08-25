@@ -6,13 +6,11 @@ async function createPerson(page, displayName) {
   return response.json();
 }
 
-async function openAdmin(page) {
+async function openOrganization(page) {
   await page.goto('/');
-  await page.waitForFunction(() => typeof window.kafedraSetView === 'function', null, { timeout: 12_000 });
-  const trigger = page.locator('button[data-view="admin"]:visible, [data-view="admin"]:visible').first();
-  if (await trigger.count()) await trigger.click();
-  else await page.evaluate(() => window.kafedraSetView('admin'));
-  await expect(page.locator('[data-view-panel="admin"], #admin-view, .admin-view').first()).toBeVisible();
+  await page.waitForFunction(() => typeof window.kafedraOpenOrganization === 'function', null, { timeout: 12_000 });
+  await page.evaluate(() => window.kafedraOpenOrganization());
+  await expect(page.locator('#organization-shell-panel')).toBeVisible();
   await expect(page.locator('#organization-admin')).toBeVisible({ timeout: 15_000 });
   await page.evaluate(() => window.kafedraLoadOrganization?.());
   await expect(page.locator('#organization-tree')).not.toContainText('Загрузка структуры', { timeout: 15_000 });
@@ -28,7 +26,7 @@ test.beforeEach(async ({ page }, testInfo) => {
 test('Оргструктура: подразделение → должность → назначение → историческая дата', async ({ page }, testInfo) => {
   const employee = await createPerson(page, `Сотрудник структуры ${testInfo.project.name}`);
   const manager = await createPerson(page, `Руководитель структуры ${testInfo.project.name}`);
-  await openAdmin(page);
+  await openOrganization(page);
 
   await page.locator('[data-organization-add-unit]').click();
   const unitForm = page.locator('[data-organization-unit-form]');
