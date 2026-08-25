@@ -17,6 +17,7 @@ import { createOrganizationRouter } from './organization-router.mjs';
 import { createScienceLifecycleRouter } from './science-lifecycle-router.mjs';
 import { createScienceImportRouter020 } from './science-import-router-020.mjs';
 import { createScienceReportsRouter } from './science-reports-router.mjs';
+import { createDirectiveArchiveRouter } from './directive-archive-router.mjs';
 import { resolveAuthContext } from '../../../packages/auth/src/service.mjs';
 import { authorizeApiRequest } from '../../../packages/auth/src/policy.mjs';
 import { authorizeCsrfRequest } from '../../../packages/auth/src/csrf.mjs';
@@ -25,6 +26,7 @@ import { sendError, serveStatic } from './http-utils.mjs';
 export function createApp({ database, config, logger }) {
   const authRouter = createAuthRouter({ database, config, logger });
   const accessRouter = createAccessRouter({ database, config, logger });
+  const directiveArchiveRouter = createDirectiveArchiveRouter({ database, config, logger });
   const uiPreferencesRouter = createUiPreferencesRouter({ database, config, logger });
   const notificationDeliveryRouter = createNotificationDeliveryRouter({ database, config, logger });
   const assignmentResponsibilityRouter = createAssignmentResponsibilityRouter({ database, config, logger });
@@ -95,6 +97,7 @@ export function createApp({ database, config, logger }) {
             if (!extensionHandled && !response.headersSent) extensionHandled = await scienceLifecycleRouter(request, response, url, requestId);
             if (!extensionHandled && !response.headersSent) extensionHandled = await scienceImportRouter020(request, response, url, requestId);
             if (!extensionHandled && !response.headersSent) extensionHandled = await scienceReportsRouter(request, response, url, requestId);
+            if (!extensionHandled && !response.headersSent) extensionHandled = await directiveArchiveRouter(request, response, url, requestId);
           }
           if (!preferencesHandled && !notificationHandled && !responsibilityHandled && !periodicHandled && !searchHandled && !manualPlansHandled && !planItemHandled && !plansHandled && !meetingsHandled && !accessHandled && !extensionHandled && !response.headersSent) {
             const handled = await planFactRouter(request, response, url, requestId);
