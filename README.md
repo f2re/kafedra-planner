@@ -191,5 +191,7 @@ npm run test:browser:acl
 - [`docs/ROADMAP.md`](docs/ROADMAP.md) — текущий рубеж и следующие этапы;
 - [`docs/UX_FLOWS.md`](docs/UX_FLOWS.md) — пользовательские сценарии;
 - [`docs/CALENDAR_START_MODE.md`](docs/CALENDAR_START_MODE.md) — стабильный стартовый режим календаря;
+- [`docs/design.md`](docs/design.md) — общие принципы простого и стабильного интерфейса;
+- [`docs/CODEX_AGENTS.md`](docs/CODEX_AGENTS.md) — роли Codex, handoff и критерии готовности;
 - [`docs/RELEASE_CANDIDATE.md`](docs/RELEASE_CANDIDATE.md) — текущий RC и release-gates;
 - [`docs/TARGET_ACCEPTANCE.md`](docs/TARGET_ACCEPTANCE.md) — реальная Astra/Debian приёмка перед stable.
