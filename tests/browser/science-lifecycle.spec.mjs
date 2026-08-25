@@ -7,22 +7,18 @@ function navigationButton(page, view) {
     : page.locator(`.nav-item[data-view="${view}"]`);
 }
 
-async function uploadScience(page, suffix) {
+async function createScience(page, suffix) {
   await page.goto('/');
-  await navigationButton(page, 'documents').click();
-  const name = `science-lifecycle-${suffix}.txt`;
-  await page.locator('#file-input').setInputFiles({
-    name,
-    mimeType: 'text/plain',
-    buffer: Buffer.from(`УДК 551.509\nИванов И.И.\nРадарный прогноз осадков ${suffix}\nАннотация. Рассмотрены методы наукастинга.\nЖурнал Метеорология, 2026\nDOI: 10.3000/lifecycle-${suffix}\nПубликация входит в ВАК и РИНЦ.\nКлючевые слова: радар, прогноз.`, 'utf8')
+  const response = await page.request.post('/api/science', {
+    data: {
+      title: `Радарный прогноз осадков ${suffix}`,
+      kind: 'article',
+      authors: ['Иванов Иван Иванович'],
+      classifications: ['ВАК', 'РИНЦ']
+    }
   });
-  await expect.poll(async () => {
-    const response = await page.request.get(`/api/science?q=${encodeURIComponent(`Радарный прогноз осадков ${suffix}`)}`);
-    const payload = await response.json();
-    return payload.items?.[0]?.id || null;
-  }, { timeout: 30_000 }).toBeTruthy();
-  const payload = await (await page.request.get(`/api/science?q=${encodeURIComponent(`Радарный прогноз осадков ${suffix}`)}`)).json();
-  return payload.items[0];
+  expect(response.ok()).toBeTruthy();
+  return response.json();
 }
 
 async function createManualPlan(page, suffix) {
@@ -49,7 +45,7 @@ test.beforeEach(async ({ page }, testInfo) => {
 
 test('Наука: редактор → этапы → мероприятие в плане', async ({ page }, testInfo) => {
   const suffix = testInfo.project.name;
-  const science = await uploadScience(page, suffix);
+  const science = await createScience(page, suffix);
   const plan = await createManualPlan(page, suffix);
 
   await navigationButton(page, 'science').click();
@@ -57,7 +53,7 @@ test('Наука: редактор → этапы → мероприятие в 
   await expect(card).toBeVisible({ timeout: 20_000 });
   await card.click();
   await expect(page.locator('#science-lifecycle-panel')).toBeVisible({ timeout: 15_000 });
-  await expect(page.locator('#science-lifecycle-panel')).toContainText(/Замысел|Опубликовано/);
+  await expect(page.locator('#science-lifecycle-panel')).toContainText('Замысел');
 
   await page.locator('[data-science-editor]').click();
   const editor = page.locator('[data-science-editor-form]');
@@ -80,10 +76,14 @@ test('Наука: редактор → этапы → мероприятие в 
   await transition.locator('[name="status"]').selectOption('published');
   await transition.locator('[name="eventDate"]').fill('2026-08-20');
   await transition.locator('[name="note"]').fill('Недопустимый прямой переход должен сохранить форму');
+  const invalidResponsePromise = page.waitForResponse(
+    (response) => response.url().endsWith(`/api/science/${science.id}/lifecycle-events`) && response.request().method() === 'POST'
+  );
   await transition.locator('button[type="submit"]').click();
+  expect((await invalidResponsePromise).status()).toBe(409);
   await expect(transition.locator('[data-science-lifecycle-error]')).toContainText('переход', { timeout: 15_000 });
   await expect(transition.locator('[name="note"]')).toHaveValue('Недопустимый прямой переход должен сохранить форму');
-  await page.locator('[data-science-lifecycle-close]').first().click();
+  await page.locator('#science-lifecycle-modal .secondary-button[data-science-lifecycle-close]').click();
 
   for (const [status, eventDate] of [['drafting','2026-08-20'], ['submitted','2026-09-16'], ['accepted','2026-10-01']]) {
     await page.locator('[data-science-transition]').click();
