@@ -75,7 +75,11 @@ test('Наука: фильтры → поля → ошибка образца б
     await expect(form.locator('[data-science-report-preview]')).toContainText('1', { timeout: 15_000 });
     await expect(form.locator('[data-science-report-preview]')).toContainText(`Научный отчётный материал ${testInfo.project.name}`);
 
-    await form.locator('[name="templateDocumentId"]').selectOption({ label: /bad-science-template/ });
+    const templateSelect = form.locator('[name="templateDocumentId"]');
+    const templateOption = templateSelect.locator('option').filter({ hasText: 'bad-science-template' }).first();
+    const templateValue = await templateOption.getAttribute('value');
+    expect(templateValue).toBeTruthy();
+    await templateSelect.selectOption(templateValue);
     await form.locator('button[type="submit"]').click();
     await expect(form.locator('[data-science-report-error]')).toContainText('{{SCIENCE_TABLE}}', { timeout: 20_000 });
     await expect(form.locator('[name="title"]')).toHaveValue(`Научный отчёт ${testInfo.project.name}`);

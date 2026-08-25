@@ -46,36 +46,46 @@ test('Оргструктура: подразделение → должност�
   const employeeCard = page.locator(`[data-organization-person-id="${employee.id}"]`);
   await expect(employeeCard).toBeVisible();
   await employeeCard.locator('[data-organization-appoint]').click();
-  const appointmentForm = page.locator('[data-organization-appointment-form]');
-  await appointmentForm.locator('[name="unitId"]').selectOption({ label: `Кафедра истории ${testInfo.project.name}` });
-  await appointmentForm.locator('[name="positionId"]').selectOption({ label: `Доцент ${testInfo.project.name}` });
-  await appointmentForm.locator('[name="managerPersonId"]').selectOption(manager.id);
-  await appointmentForm.locator('[name="validFrom"]').fill('2020-01-01');
-  await appointmentForm.locator('[name="validTo"]').fill('2022-12-31');
-  await appointmentForm.locator('button[type="submit"]').click();
-  await expect(employeeCard).toContainText(`Доцент ${testInfo.project.name}`, { timeout: 15_000 });
-
-  await employeeCard.locator('[data-organization-appoint]').click();
-  const nextAppointment = page.locator('[data-organization-appointment-form]');
-  await nextAppointment.locator('[name="unitId"]').selectOption({ label: `Кафедра истории ${testInfo.project.name}` });
-  await nextAppointment.locator('[name="positionId"]').selectOption({ label: `Доцент ${testInfo.project.name}` });
-  await nextAppointment.locator('[name="validFrom"]').fill('2023-01-01');
-  await nextAppointment.locator('button[type="submit"]').click();
+  const historicalForm = page.locator('[data-organization-appointment-form]');
+  await historicalForm.locator('[name="unitId"]').selectOption({ label: `Кафедра истории ${testInfo.project.name}` });
+  await historicalForm.locator('[name="positionId"]').selectOption({ label: `Доцент ${testInfo.project.name}` });
+  await historicalForm.locator('[name="managerPersonId"]').selectOption(manager.id);
+  await historicalForm.locator('[name="validFrom"]').fill('2020-01-01');
+  await historicalForm.locator('[name="validTo"]').fill('2022-12-31');
+  await historicalForm.locator('button[type="submit"]').click();
   await expect(page.locator('#organization-notice')).toContainText('Назначение сохранено', { timeout: 15_000 });
 
   const oldResponse = await page.request.get(`/api/people/${encodeURIComponent(employee.id)}/organization?asOf=2021-06-01`);
   expect(oldResponse.ok()).toBeTruthy();
   const old = await oldResponse.json();
   expect(old.appointment.unit_name).toBe(`Кафедра истории ${testInfo.project.name}`);
+  expect(old.appointment.position_name).toBe(`Доцент ${testInfo.project.name}`);
   expect(old.appointment.valid_to).toBe('2022-12-31');
+
+  await employeeCard.locator('[data-organization-appoint]').click();
+  const currentForm = page.locator('[data-organization-appointment-form]');
+  await currentForm.locator('[name="unitId"]').selectOption({ label: `Кафедра истории ${testInfo.project.name}` });
+  await currentForm.locator('[name="positionId"]').selectOption({ label: `Доцент ${testInfo.project.name}` });
+  await currentForm.locator('[name="managerPersonId"]').selectOption(manager.id);
+  await currentForm.locator('[name="validFrom"]').fill('2023-01-01');
+  await currentForm.locator('button[type="submit"]').click();
+  await expect(page.locator('#organization-notice')).toContainText('Назначение сохранено', { timeout: 15_000 });
+  await expect(employeeCard).toContainText(`Доцент ${testInfo.project.name}`, { timeout: 15_000 });
+
+  const currentResponse = await page.request.get(`/api/people/${encodeURIComponent(employee.id)}/organization?asOf=2026-08-25`);
+  expect(currentResponse.ok()).toBeTruthy();
+  const current = await currentResponse.json();
+  expect(current.appointment.position_name).toBe(`Доцент ${testInfo.project.name}`);
+  expect(current.appointment.valid_from).toBe('2023-01-01');
 
   await employeeCard.locator('[data-organization-history]').click();
   await expect(page.locator('.organization-history')).toContainText('2020-01-01');
   await expect(page.locator('.organization-history')).toContainText('2023-01-01');
 
-  await page.locator('[data-organization-appoint]').last().click();
+  await employeeCard.locator('[data-organization-appoint]').click();
   const overlap = page.locator('[data-organization-appointment-form]');
   await overlap.locator('[name="unitId"]').selectOption({ label: `Кафедра истории ${testInfo.project.name}` });
+  await overlap.locator('[name="positionId"]').selectOption({ label: `Доцент ${testInfo.project.name}` });
   await overlap.locator('[name="validFrom"]').fill('2024-01-01');
   await overlap.locator('[name="validTo"]').fill('2025-01-01');
   await overlap.locator('[name="closePrevious"]').uncheck();
