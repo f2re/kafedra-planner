@@ -74,6 +74,15 @@ function normalizedClassifications(entries) {
   return entries.map(normalizedClassification).filter(Boolean);
 }
 
+function hasLifecycleColumn(database) {
+  return database.all('PRAGMA table_info(scientific_items)').some((column) => column.name === 'lifecycle_status');
+}
+
+function initialLifecycleStatus(result) {
+  if (result.lifecycleStatus) return result.lifecycleStatus;
+  return result.publishedAt || result.publicationYear || result.doi ? 'published' : 'idea';
+}
+
 export function persistScientificItem(database, {
   workspaceId,
   documentVersionId = null,
@@ -102,19 +111,33 @@ export function persistScientificItem(database, {
   const classifications = normalizedClassifications(result.classifications);
   const id = newId('science');
   database.transaction(() => {
-    database.run(`
-      INSERT INTO scientific_items(
-        id, workspace_id, source_document_version_id, item_kind, title,
-        abstract_text, published_at, publication_year, venue, doi,
-        identifiers_json, status, direction, confidence, evidence_json,
-        created_at, updated_at
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'science', ?, ?, ?, ?)
-    `, id, workspaceId, documentVersionId, result.kind || 'article',
-    result.title || documentTitle || 'Научный материал', result.abstractText || null,
-    result.publishedAt || null, result.publicationYear || null, result.venue || null,
-    result.doi || null, JSON.stringify(result.identifiers || {}),
-    result.confidence >= 0.72 ? 'confirmed' : 'proposed', result.confidence || 0,
-    JSON.stringify(result.evidence || {}), now, now);
+    const values = [
+      id, workspaceId, documentVersionId, result.kind || 'article',
+      result.title || documentTitle || 'Научный материал', result.abstractText || null,
+      result.publishedAt || null, result.publicationYear || null, result.venue || null,
+      result.doi || null, JSON.stringify(result.identifiers || {}),
+      result.confidence >= 0.72 ? 'confirmed' : 'proposed', result.confidence || 0,
+      JSON.stringify(result.evidence || {})
+    ];
+    if (hasLifecycleColumn(database)) {
+      database.run(`
+        INSERT INTO scientific_items(
+          id, workspace_id, source_document_version_id, item_kind, title,
+          abstract_text, published_at, publication_year, venue, doi,
+          identifiers_json, status, direction, confidence, evidence_json,
+          lifecycle_status, created_at, updated_at
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'science', ?, ?, ?, ?, ?)
+      `, ...values, initialLifecycleStatus(result), now, now);
+    } else {
+      database.run(`
+        INSERT INTO scientific_items(
+          id, workspace_id, source_document_version_id, item_kind, title,
+          abstract_text, published_at, publication_year, venue, doi,
+          identifiers_json, status, direction, confidence, evidence_json,
+          created_at, updated_at
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'science', ?, ?, ?, ?)
+      `, ...values, now, now);
+    }
 
     (result.authors || []).forEach((author, index) => {
       const person = personByName(database, workspaceId, author);
