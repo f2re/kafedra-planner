@@ -1,8 +1,8 @@
-# Release candidate 0.1.0-rc.9
+# Release candidate 0.2.0
 
 ## Статус
 
-`0.1.0-rc.9` — текущий эксплуатационный release candidate, схема SQLite **19**. Основные функциональные контуры работают автономно и проходят unit/integration/Chromium/full-offline gates. Stable не объявляется до фактической приёмки на целевых Astra Linux/Debian по [`TARGET_ACCEPTANCE.md`](TARGET_ACCEPTANCE.md) и issue #27.
+`0.2.0` — текущий эксплуатационный release candidate, схема SQLite **24**. Основные функциональные контуры работают автономно и проходят unit/integration/Chromium/full-offline gates. Stable не объявляется до фактической приёмки на целевых Astra Linux/Debian по [`TARGET_ACCEPTANCE.md`](TARGET_ACCEPTANCE.md) и issue #27.
 
 `rc.9` упрощает штатный доступ к локальной системе: при первом открытии пользователь задаёт PIN-код из четырёх цифр, дальше входит только по PIN. Installer больше не требует от оператора искать логин и временный пароль; в штатном PIN-режиме файл `/root/kafedra-planner-first-login.txt` не создаётся. Внутренние роли/ACL и расширенный `KAFEDRA_AUTH_MODE=accounts` сохраняются для совместимости.
 
