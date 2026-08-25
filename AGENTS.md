@@ -92,3 +92,16 @@ squash merge с проверкой head SHA
 - Новые пользовательские сценарии проверять unit/integration и Playwright там, где есть UI; учитывать desktop и mobile.
 - Локальная или фокусная проверка не заменяет полный GitHub CI.
 - После изменения синхронизировать затронутые README/VERSION/ROADMAP/архитектурные документы только тогда, когда меняется соответствующий контракт или рубеж продукта.
+
+## Codex project roles
+
+Repository-local role skills live in `codex/skills/`; their shared routing is in `docs/CODEX_AGENTS.md` and their design contract is `docs/design.md`. For a matching task, read the role skill before acting:
+
+- `kafedra-flow-intake` for a new or materially changed user workflow;
+- `kafedra-design` for interaction, layout, and responsive UX work;
+- `kafedra-data` for persisted data, entities, migrations, projections, or recovery;
+- `kafedra-tests` for test strategy or coverage;
+- `kafedra-feature` for implementation of a vertical slice;
+- `kafedra-release` for versioning, migration rollout, offline deployment, backup/restore, or rollback.
+
+Follow the documented handoff whenever the task crosses roles. These skills refine project-specific decisions; they do not replace authorization boundaries or the mandatory CI/release gates above.
