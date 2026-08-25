@@ -36,8 +36,8 @@ SELECT
   d.id,
   trim(
     CASE
-      WHEN lower(d.directive_kind) LIKE '%приказ%' THEN 'Приказ'
-      WHEN lower(d.directive_kind) LIKE '%указ%' THEN 'Указ'
+      WHEN d.directive_kind IN ('Приказ', 'приказ') OR lower(d.directive_kind) LIKE '%order%' THEN 'Приказ'
+      WHEN d.directive_kind IN ('Указ', 'указ') OR lower(d.directive_kind) LIKE '%decree%' THEN 'Указ'
       ELSE 'Распоряжение'
     END
     || CASE WHEN d.document_number IS NOT NULL AND trim(d.document_number) <> '' THEN ' № ' || d.document_number ELSE '' END
@@ -80,8 +80,8 @@ BEGIN
     NEW.id,
     trim(
       CASE
-        WHEN lower(NEW.directive_kind) LIKE '%приказ%' THEN 'Приказ'
-        WHEN lower(NEW.directive_kind) LIKE '%указ%' THEN 'Указ'
+        WHEN NEW.directive_kind IN ('Приказ', 'приказ') OR lower(NEW.directive_kind) LIKE '%order%' THEN 'Приказ'
+        WHEN NEW.directive_kind IN ('Указ', 'указ') OR lower(NEW.directive_kind) LIKE '%decree%' THEN 'Указ'
         ELSE 'Распоряжение'
       END
       || CASE WHEN NEW.document_number IS NOT NULL AND trim(NEW.document_number) <> '' THEN ' № ' || NEW.document_number ELSE '' END
@@ -124,8 +124,8 @@ BEGIN
     NEW.id,
     trim(
       CASE
-        WHEN lower(NEW.directive_kind) LIKE '%приказ%' THEN 'Приказ'
-        WHEN lower(NEW.directive_kind) LIKE '%указ%' THEN 'Указ'
+        WHEN NEW.directive_kind IN ('Приказ', 'приказ') OR lower(NEW.directive_kind) LIKE '%order%' THEN 'Приказ'
+        WHEN NEW.directive_kind IN ('Указ', 'указ') OR lower(NEW.directive_kind) LIKE '%decree%' THEN 'Указ'
         ELSE 'Распоряжение'
       END
       || CASE WHEN NEW.document_number IS NOT NULL AND trim(NEW.document_number) <> '' THEN ' № ' || NEW.document_number ELSE '' END
@@ -156,8 +156,8 @@ BEGIN
   SET
     title = trim(
       CASE
-        WHEN lower(NEW.directive_kind) LIKE '%приказ%' THEN 'Приказ'
-        WHEN lower(NEW.directive_kind) LIKE '%указ%' THEN 'Указ'
+        WHEN NEW.directive_kind IN ('Приказ', 'приказ') OR lower(NEW.directive_kind) LIKE '%order%' THEN 'Приказ'
+        WHEN NEW.directive_kind IN ('Указ', 'указ') OR lower(NEW.directive_kind) LIKE '%decree%' THEN 'Указ'
         ELSE 'Распоряжение'
       END
       || CASE WHEN NEW.document_number IS NOT NULL AND trim(NEW.document_number) <> '' THEN ' № ' || NEW.document_number ELSE '' END
