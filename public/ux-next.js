@@ -39,7 +39,7 @@ await import('./plans-next.js');
 await import('./manual-plans-next.js');
 await import('./manual-plans-bootstrap.js');
 await import('./plan-source-rows-next.js');
-await import('./lifecycle-next.js');
+await import('./lifecycle-safe.js');
 await import('./meetings-next.js');
 await import('./search-next.js');
 await import('./view-bridge.js');
