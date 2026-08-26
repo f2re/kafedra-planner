@@ -1,0 +1,123 @@
+name: Publish offline release
+
+on:
+  push:
+    tags: ['v*']
+
+concurrency:
+  group: github-release-${{ github.ref_name }}
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  validate:
+    name: Validate release tag
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Require the exact VERSION tag on main
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          VERSION="$(tr -d '[:space:]' < VERSION)"
+          test "$GITHUB_REF_TYPE" = tag
+          test "$GITHUB_REF_NAME" = "v$VERSION"
+          git fetch origin main --depth=1
+          git merge-base --is-ancestor "$GITHUB_SHA" origin/main
+
+  quality:
+    name: Release quality and recovery checks
+    needs: validate
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+      - run: npm ci --ignore-scripts --no-audit --no-fund
+      - run: npm run check
+      - run: npm test
+      - run: npm run smoke
+      - run: npm run backup:selftest
+
+  bundle:
+    name: Build and verify full Debian 12 bundle
+    needs: [validate, quality]
+    runs-on: ubuntu-24.04
+    timeout-minutes: 50
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build and verify the distributable bundle
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          OUT="$RUNNER_TEMP/kafedra-github-release"
+          mkdir -p "$OUT"
+          docker run --rm \
+            -e GITHUB_SHA="$GITHUB_SHA" \
+            -v "$GITHUB_WORKSPACE:/src:ro" \
+            -v "$OUT:/out" \
+            node:24-bookworm bash -lc '
+              set -Eeuo pipefail
+              apt-get update
+              DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends \
+                python3 ca-certificates curl xz-utils binutils systemd
+              cd /src
+              OUT_DIR=/out KAFEDRA_FULL_BUNDLE_CACHE_DIR=/tmp/kafedra-cache \
+                bash scripts/offline/build-full-bundle.sh
+              ARCHIVE="$(find /out -maxdepth 1 -type f -name "kafedra-planner-*.tar.gz" -print -quit)"
+              [[ -f "$ARCHIVE" && -f "$ARCHIVE.sha256" ]]
+              REQUIRE_ARCHIVE_SHA256=true SKIP_SYSTEM_PREFLIGHT=true \
+                bash scripts/offline/verify-bundle.sh "$ARCHIVE"
+            '
+          ARCHIVE="$(find "$OUT" -maxdepth 1 -type f -name 'kafedra-planner-*.tar.gz' -print -quit)"
+          [[ -f "$ARCHIVE" && -f "$ARCHIVE.sha256" ]]
+          [[ -x "$OUT/install-kafedra-planner.sh" && -f "$OUT/README-INSTALL.txt" ]]
+      - uses: actions/upload-artifact@v4
+        with:
+          name: github-release-assets
+          path: |
+            ${{ runner.temp }}/kafedra-github-release/*.tar.gz
+            ${{ runner.temp }}/kafedra-github-release/*.tar.gz.sha256
+            ${{ runner.temp }}/kafedra-github-release/install-kafedra-planner.sh
+            ${{ runner.temp }}/kafedra-github-release/README-INSTALL.txt
+          if-no-files-found: error
+          retention-days: 7
+
+  release:
+    name: Create GitHub prerelease
+    needs: bundle
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: github-release-assets
+          path: release-assets
+      - name: Publish verified assets
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ github.ref_name }}
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          gh release view "$TAG" >/dev/null 2>&1 && {
+            echo "GitHub Release $TAG already exists; refusing to replace assets." >&2
+            exit 1
+          }
+          shopt -s nullglob
+          assets=(release-assets/*.tar.gz release-assets/*.tar.gz.sha256 release-assets/install-kafedra-planner.sh release-assets/README-INSTALL.txt)
+          (( ${#assets[@]} == 4 ))
+          gh release create "$TAG" "${assets[@]}" \
+            --title "Кафедра Planner $TAG" \
+            --prerelease \
+            --generate-notes
