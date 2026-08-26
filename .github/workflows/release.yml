@@ -2,7 +2,7 @@ name: Публикация GitHub Release
 
 on:
   workflow_run:
-    workflows: ["Release gate 0.3.1"]
+    workflows: ["Release gate 0.3.2"]
     types: [completed]
   workflow_dispatch:
 
@@ -60,7 +60,7 @@ jobs:
           set -Eeuo pipefail
           required=(
             "Проверка"
-            "Release gate 0.3.1"
+            "Release gate 0.3.2"
             "Оргструктура"
             "Научные отчёты"
             "Научный жизненный цикл"
@@ -117,6 +117,7 @@ jobs:
         run: |
           npx playwright install --with-deps chromium
           npm run test:browser:plans
+          npx playwright test tests/browser/auto-assignment.spec.mjs
 
       - name: Собрать полный автономный bundle
         if: steps.release.outputs.exists != 'true'

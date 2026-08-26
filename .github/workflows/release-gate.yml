@@ -1,4 +1,4 @@
-name: Release gate 0.3.1
+name: Release gate 0.3.2
 
 on:
   push:
@@ -65,7 +65,7 @@ jobs:
           cache: npm
       - run: npm ci --ignore-scripts --no-audit --no-fund
       - run: npx playwright install --with-deps chromium
-      - name: Complete 0.3.1 scenarios
+      - name: Complete 0.3.2 scenarios
         run: >-
           npx playwright test
           tests/browser/organization.spec.mjs
@@ -74,6 +74,7 @@ jobs:
           tests/browser/science-reports.spec.mjs
           tests/browser/plan-source-rows.spec.mjs
           tests/browser/lifecycle.spec.mjs
+          tests/browser/auto-assignment.spec.mjs
 
   release-gate:
     name: release-gate
