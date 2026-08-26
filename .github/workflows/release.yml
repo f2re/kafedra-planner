@@ -93,7 +93,7 @@ jobs:
             local previous="${recovered_from[$name]-}"
             if [[ -z "$previous" ]]; then
               ensure_exact_main
-              echo "Инфраструктурный запуск '$name' не создал ни одного completed job; запускаю один workflow_dispatch."
+              echo "Инфраструктурный запуск '$name' не создал выполняемых jobs; запускаю один workflow_dispatch."
               gh workflow run "${workflow_files[$name]}" --repo "$GITHUB_REPOSITORY" --ref main
               recovered_from["$name"]="$failed_run_id"
               return 0
@@ -102,7 +102,7 @@ jobs:
               echo "Ожидаю появление повторного запуска '$name'."
               return 0
             fi
-            echo "Повторный запуск '$name' также завершился до выполнения jobs; автоматическое скрытие ошибки запрещено." >&2
+            echo "Повторный запуск '$name' также завершился без выполняемых jobs; автоматическое скрытие ошибки запрещено." >&2
             exit 1
           }
 
@@ -130,40 +130,45 @@ jobs:
               conclusion="$(jq -r '.conclusion // ""' <<<"$run")"
               printf '%s: %s:%s (run %s)\n' "$name" "$status" "$conclusion" "$run_id"
 
-              if [[ "$status" == completed && "$conclusion" == success ]]; then
-                continue
+              if [[ "$status" != completed ]]; then
+                all_success=0
+                case "$status" in
+                  queued|in_progress|requested|waiting|pending) continue ;;
+                  *) echo "Неизвестное состояние обязательного workflow '$name': $status:$conclusion." >&2; exit 1 ;;
+                esac
               fi
-              all_success=0
 
-              case "$status:$conclusion" in
-                queued:*|in_progress:*|requested:*|waiting:*|pending:*)
+              jobs="$(gh api "repos/$GITHUB_REPOSITORY/actions/runs/$run_id/jobs?per_page=100")"
+              job_count="$(jq '.jobs | length' <<<"$jobs")"
+              if (( job_count > 0 )); then
+                running_jobs="$(jq '[.jobs[] | select(.status != "completed")] | length' <<<"$jobs")"
+                failed_jobs="$(jq '[.jobs[] | select(.status == "completed" and .conclusion != "success")] | length' <<<"$jobs")"
+                success_jobs="$(jq '[.jobs[] | select(.status == "completed" and .conclusion == "success")] | length' <<<"$jobs")"
+
+                if (( failed_jobs > 0 )); then
+                  jq -r '.jobs[] | select(.status == "completed" and .conclusion != "success") | "job \(.name): \(.conclusion)"' <<<"$jobs" >&2
+                  echo "Обязательный workflow '$name' реально выполнял jobs и завершился ошибкой; повторять его автоматически нельзя." >&2
+                  exit 1
+                fi
+                if (( running_jobs > 0 )); then
+                  all_success=0
                   continue
-                  ;;
-                completed:startup_failure)
-                  dispatch_once "$name" "$run_id"
-                  ;;
-                completed:failure|completed:cancelled)
-                  jobs="$(gh api "repos/$GITHUB_REPOSITORY/actions/runs/$run_id/jobs?per_page=100")"
-                  completed_jobs="$(jq '[.jobs[] | select(.status == "completed")] | length' <<<"$jobs")"
-                  if (( completed_jobs == 0 )); then
-                    dispatch_once "$name" "$run_id"
-                  else
-                    echo "Обязательный workflow '$name' реально выполнял jobs и завершился $conclusion; повторять его автоматически нельзя." >&2
-                    exit 1
+                fi
+                if (( success_jobs == job_count )); then
+                  if [[ "$conclusion" != success ]]; then
+                    echo "Метаданные run '$name' расходятся с jobs ($conclusion), но все $job_count jobs фактически завершились success."
                   fi
-                  ;;
-                completed:skipped)
-                  echo "Обязательный workflow '$name' неожиданно пропущен." >&2
-                  exit 1
-                  ;;
-                completed:*)
-                  echo "Обязательный workflow '$name' завершился с недопустимым состоянием $conclusion." >&2
-                  exit 1
-                  ;;
-                *)
-                  echo "Неизвестное состояние обязательного workflow '$name': $status:$conclusion." >&2
-                  exit 1
-                  ;;
+                  continue
+                fi
+                echo "Workflow '$name' завершил jobs в неизвестном сочетании состояний." >&2
+                exit 1
+              fi
+
+              all_success=0
+              case "$conclusion" in
+                startup_failure|failure|cancelled|success|'') dispatch_once "$name" "$run_id" ;;
+                skipped) echo "Обязательный workflow '$name' неожиданно пропущен." >&2; exit 1 ;;
+                *) echo "Обязательный workflow '$name' завершился с недопустимым состоянием $conclusion." >&2; exit 1 ;;
               esac
             done
 
