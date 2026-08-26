@@ -1,6 +1,6 @@
 # Автоматическая проверка release candidate
 
-Актуальный рубеж: `0.3.2`, схема SQLite **27**. Автоматический gate проверяет код, данные, browser UX и поставочный контракт, но не подменяет фактическую приёмку #27 на Astra Linux/Debian.
+Актуальный рубеж: `0.3.3`, схема SQLite **28**. Автоматический gate проверяет код, данные, browser UX и поставочный контракт, но не подменяет фактическую приёмку #27 на Astra Linux/Debian.
 
 ## Статические и Node-проверки
 
@@ -17,14 +17,16 @@
 
 Unit/integration отдельно проверяют:
 
-- миграции старых поддерживаемых схем до 27;
+- миграции старых поддерживаемых схем до 28;
 - `PRAGMA quick_check` и `foreign_key_check`;
 - immutable blob и SHA-256;
 - сохранение `source_document_version_id`, `plan_item`, calendar origin, assignment и evidence;
 - исходные строки плана и идемпотентное разложение одной строки на несколько задач;
 - точное автоматическое сопоставление ответственного, контролирующего из оргструктуры, отсутствие назначения при неоднозначности и сохранение terminal assignment;
 - impact summary, archive/restore, self/cross-workspace/cycle guards;
-- backup/restore и logical digest lifecycle/replacement-состояния.
+- настройки Оформлятора без PIN, внешние связи сотрудников и upgrade `27 → 28`;
+- mock health/readiness/auth/data, первый и повторный импорт, rename/inactive без дублей;
+- backup/restore и logical digest lifecycle/replacement/integration-состояния.
 
 ## Browser release gate
 
@@ -49,19 +51,32 @@ npm run test:browser:acl
 - документ → русские состояния → переименование → impact → архив с заменой → восстановление;
 - план → impact → архив с преемником → проверка неизменных календарных/предметных ссылок → восстановление.
 
-Дополнительный сценарий `tests/browser/auto-assignment.spec.mjs` на desktop/mobile захватывает точный `documentId` текущей загрузки, находит созданный из него `planId`, проверяет назначение конкретного сотрудника и затем единый реестр поручений. Наличие старых планов или одинаковых типовых мероприятий не должно менять объект проверки.
+Дополнительные desktop/mobile сценарии проверяют:
 
-Lifecycle-действия не считаются обучаемым выбором. Desktop и mobile проходят один предметный сценарий с разной компоновкой.
+- точную цепочку `upload documentId → source planId → конкретный сотрудник → поручение` при уже существующих данных;
+- Оформлятор: адрес → порт → health/readiness/data → пространство → группа → preview → идемпотентный импорт.
 
-## Release gate 0.3.2
+Lifecycle-действия и код внешней системы не считаются обучаемым выбором. Desktop и mobile проходят один предметный сценарий с разной компоновкой.
+
+## Release gate 0.3.3
 
 Обязательный агрегирующий workflow требует успешного завершения:
 
 - quality: check, unit/integration и smoke;
-- migrations/backup: организация, наука, source rows, lifecycle, acceptance evidence и restore;
-- browser: организация, научные сценарии, source rows, lifecycle и автоматические назначения.
+- migrations/backup: организация, Оформлятор, наука, source rows, lifecycle, acceptance evidence и restore;
+- browser: организация, импорт сотрудников, научные сценарии, source rows, lifecycle и автоматические назначения.
 
 Failure, cancelled, pending или неожиданно skipped не считаются зелёным результатом.
+
+Все обязательные post-merge workflow поддерживают `workflow_dispatch`. Publisher классифицирует результат по фактическим jobs:
+
+- queued/in-progress jobs ожидаются;
+- все completed jobs должны иметь `success`;
+- top-level `startup_failure`/`failure` с фактически успешными jobs не подменяет результат jobs;
+- реальная job failure/cancelled/skipped немедленно останавливает выпуск и не повторяется автоматически;
+- run без выполняемых jobs допускает только один explicit dispatch;
+- второй инфраструктурный отказ не скрывается;
+- перед retry и публикацией `main` должен точно совпадать с `SOURCE_SHA`.
 
 ## Full offline gate
 
@@ -75,20 +90,20 @@ Failure, cancelled, pending или неожиданно skipped не счита�
 6. отдельно собирает LLM-вариант с fake `llama-server` и двумя fake GGUF;
 7. разворачивает LLM bundle без сети и проверяет systemd, health/models, повторный install, forced rollback с сохранением model cache и отключение LLM при работающих API/worker.
 
-Fake LLM fixture не публикуется как production artifact и не заменяет реальную LLM/Astra приёмку.
+Fake LLM fixture и mock Оформлятора не публикуются как production assets и не заменяют реальную целевую приёмку.
 
 ## Публикация
 
 На PR release artifact не публикуется. После squash merge workflow публикации привязывается к точному SHA нового `main` и ждёт успешного завершения всех обязательных post-merge workflows:
 
 - `Проверка`;
-- `Release gate 0.3.2`;
+- `Release gate 0.3.3`;
 - `Оргструктура`;
 - `Научные отчёты`;
 - `Научный жизненный цикл`;
 - `Массовый импорт науки`.
 
-Только после этого повторно запускаются check/test/smoke/backup, browser plans и точное automatic-assignment E2E, собираются full offline bundle и F2RE Project Control package, проверяются SHA-256, создаётся GitHub Release `v0.3.2` и подтверждается, что тег указывает на тот же SHA `main`.
+Только после этого повторно запускаются check/test/smoke/backup, browser plans, automatic-assignment и Docomator E2E, собираются full offline bundle и F2RE Project Control package, проверяются SHA-256, создаётся GitHub Release `v0.3.3` и подтверждается, что тег указывает на тот же SHA `main`.
 
 Существующий тег с другим SHA считается ошибкой и не перезаписывается молча.
 
@@ -98,12 +113,13 @@ Fake LLM fixture не публикуется как production artifact и не 
 
 - embedded Node/glibc совместимость;
 - реальный OCR/LibreOffice на ведомственных файлах;
-- install/update существующей базы до схемы 27;
-- сохранение plan source rows, lifecycle, replacement, automatic assignment evidence и blob;
+- install/update существующей базы до схемы 28;
+- сохранение plan source rows, lifecycle, replacement, automatic assignment evidence, Docomator links и blob;
 - зашифрованный backup/restore и equality acceptance evidence;
 - forced rollback;
 - права каталогов и systemd hardening;
 - desktop/mobile UX оператором;
+- при доступной интеграции — реальный Оформлятор в локальной сети;
 - при использовании LLM — настоящий `llama-server` и GGUF.
 
 Процедура: [`TARGET_ACCEPTANCE.md`](TARGET_ACCEPTANCE.md).
