@@ -63,6 +63,8 @@ Lifecycle-действия не считаются обучаемым выбор
 
 Failure, cancelled, pending или неожиданно skipped не считаются зелёным результатом.
 
+Все обязательные post-merge workflow поддерживают `workflow_dispatch`. Publisher может выполнить только один автоматический повтор, если GitHub завершил run как `startup_failure` либо не создал ни одного completed job. Запуск, в котором реально выполнялся хотя бы один job и возникла test/build/migration failure, автоматически не повторяется и не маскируется. Перед повтором и перед публикацией publisher проверяет, что `main` всё ещё указывает на тот же `SOURCE_SHA`; выпуск устаревшего commit запрещён.
+
 ## Full offline gate
 
 После базовых jobs CI:

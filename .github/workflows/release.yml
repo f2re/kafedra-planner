@@ -11,7 +11,7 @@ concurrency:
   cancel-in-progress: false
 
 permissions:
-  actions: read
+  actions: write
   contents: write
 
 jobs:
@@ -19,7 +19,7 @@ jobs:
     name: Проверить, собрать и опубликовать
     if: >-
       github.event_name == 'workflow_dispatch' ||
-      (github.event.workflow_run.conclusion == 'success' && github.event.workflow_run.head_branch == 'main')
+      github.event.workflow_run.head_branch == 'main'
     runs-on: ubuntu-24.04
     timeout-minutes: 180
     env:
@@ -53,7 +53,7 @@ jobs:
             echo "exists=false" >> "$GITHUB_OUTPUT"
           fi
 
-      - name: Дождаться всех обязательных post-merge workflow
+      - name: Дождаться и при необходимости восстановить post-merge workflow
         if: steps.release.outputs.exists != 'true'
         shell: bash
         run: |
@@ -66,27 +66,109 @@ jobs:
             "Научный жизненный цикл"
             "Массовый импорт науки"
           )
+          declare -A workflow_files=(
+            ["Проверка"]="ci.yml"
+            ["Release gate 0.3.2"]="release-gate.yml"
+            ["Оргструктура"]="organization.yml"
+            ["Научные отчёты"]="science-reports.yml"
+            ["Научный жизненный цикл"]="science-lifecycle.yml"
+            ["Массовый импорт науки"]="science-import.yml"
+          )
+          declare -A recovered_from=()
+          recovery_after=$((SECONDS + 120))
           deadline=$((SECONDS + 7200))
+
+          ensure_exact_main() {
+            local main_sha
+            main_sha="$(gh api "repos/$GITHUB_REPOSITORY/git/ref/heads/main" --jq '.object.sha')"
+            if [[ "$main_sha" != "$SOURCE_SHA" ]]; then
+              echo "main уже изменился: ожидался $SOURCE_SHA, фактически $main_sha. Выпуск старого commit запрещён." >&2
+              exit 1
+            fi
+          }
+
+          dispatch_once() {
+            local name="$1"
+            local failed_run_id="$2"
+            local previous="${recovered_from[$name]-}"
+            if [[ -z "$previous" ]]; then
+              ensure_exact_main
+              echo "Инфраструктурный запуск '$name' не создал ни одного completed job; запускаю один workflow_dispatch."
+              gh workflow run "${workflow_files[$name]}" --repo "$GITHUB_REPOSITORY" --ref main
+              recovered_from["$name"]="$failed_run_id"
+              return 0
+            fi
+            if [[ "$previous" == "$failed_run_id" ]]; then
+              echo "Ожидаю появление повторного запуска '$name'."
+              return 0
+            fi
+            echo "Повторный запуск '$name' также завершился до выполнения jobs; автоматическое скрытие ошибки запрещено." >&2
+            exit 1
+          }
+
           while (( SECONDS < deadline )); do
             gh api --paginate \
               "repos/$GITHUB_REPOSITORY/actions/runs?head_sha=$SOURCE_SHA&per_page=100" \
               --jq '.workflow_runs' | jq -s '{workflow_runs: add}' > "$RUNNER_TEMP/runs.json"
-            waiting=0
+            all_success=1
             for name in "${required[@]}"; do
-              state="$(jq -r --arg name "$name" '
+              run="$(jq -c --arg name "$name" '
                 [.workflow_runs[] | select(.name == $name)]
                 | sort_by(.created_at) | last
-                | if . == null then "missing"
-                  else (.status + ":" + (.conclusion // "")) end
               ' "$RUNNER_TEMP/runs.json")"
-              printf '%s: %s\n' "$name" "$state"
-              case "$state" in
-                completed:success) ;;
-                completed:*) echo "Обязательный workflow завершился неуспешно: $name ($state)" >&2; exit 1 ;;
-                *) waiting=1 ;;
+              if [[ "$run" == null ]]; then
+                printf '%s: missing\n' "$name"
+                all_success=0
+                if (( SECONDS >= recovery_after )); then
+                  dispatch_once "$name" missing
+                fi
+                continue
+              fi
+
+              run_id="$(jq -r '.id' <<<"$run")"
+              status="$(jq -r '.status' <<<"$run")"
+              conclusion="$(jq -r '.conclusion // ""' <<<"$run")"
+              printf '%s: %s:%s (run %s)\n' "$name" "$status" "$conclusion" "$run_id"
+
+              if [[ "$status" == completed && "$conclusion" == success ]]; then
+                continue
+              fi
+              all_success=0
+
+              case "$status:$conclusion" in
+                queued:*|in_progress:*|requested:*|waiting:*|pending:*)
+                  continue
+                  ;;
+                completed:startup_failure)
+                  dispatch_once "$name" "$run_id"
+                  ;;
+                completed:failure|completed:cancelled)
+                  jobs="$(gh api "repos/$GITHUB_REPOSITORY/actions/runs/$run_id/jobs?per_page=100")"
+                  completed_jobs="$(jq '[.jobs[] | select(.status == "completed")] | length' <<<"$jobs")"
+                  if (( completed_jobs == 0 )); then
+                    dispatch_once "$name" "$run_id"
+                  else
+                    echo "Обязательный workflow '$name' реально выполнял jobs и завершился $conclusion; повторять его автоматически нельзя." >&2
+                    exit 1
+                  fi
+                  ;;
+                completed:skipped)
+                  echo "Обязательный workflow '$name' неожиданно пропущен." >&2
+                  exit 1
+                  ;;
+                completed:*)
+                  echo "Обязательный workflow '$name' завершился с недопустимым состоянием $conclusion." >&2
+                  exit 1
+                  ;;
+                *)
+                  echo "Неизвестное состояние обязательного workflow '$name': $status:$conclusion." >&2
+                  exit 1
+                  ;;
               esac
             done
-            if (( waiting == 0 )); then
+
+            if (( all_success == 1 )); then
+              ensure_exact_main
               echo "Все обязательные workflow для $SOURCE_SHA завершились успешно."
               break
             fi
