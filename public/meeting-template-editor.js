@@ -24,33 +24,61 @@ function safeNumber(value, min = -1000, max = 3000) {
   return Number.isFinite(number) && number >= min && number <= max ? number : null;
 }
 
-function safeColor(value) {
-  return /^#[0-9A-F]{6}$/iu.test(String(value || '')) ? String(value) : null;
+function nearest(value, steps) {
+  const number = Number(value);
+  if (!Number.isFinite(number)) return null;
+  return steps.reduce((best, candidate) =>
+    Math.abs(candidate - number) < Math.abs(best - number) ? candidate : best, steps[0]);
 }
 
-function safeFont(value) {
-  const text = String(value || '').trim();
-  return text && /^[\p{L}\p{N} .,_-]{1,80}$/u.test(text) ? text : null;
+function spacingClass(prefix, value) {
+  const number = safeNumber(value, 0, 144);
+  if (number === null || number === 0) return null;
+  return `${prefix}-${nearest(number, [6, 12, 18, 24, 36, 48, 72, 96, 144])}`;
 }
 
-function paragraphStyle(style = {}) {
-  const declarations = [];
+function lineClass(value) {
+  const number = safeNumber(value, 6, 96);
+  return number === null ? null : `meeting-template-line-${nearest(number, [10, 12, 14, 16, 18, 20, 24, 28, 32, 36, 48, 60, 72])}`;
+}
+
+function paragraphClasses(style = {}) {
+  const classes = ['meeting-template-element'];
   const alignment = style.alignment === 'both' ? 'justify' : style.alignment;
-  if (['left', 'center', 'right', 'justify'].includes(alignment)) declarations.push(`text-align:${alignment}`);
-  const values = [
-    ['margin-left', safeNumber(style.marginLeftPt)],
-    ['margin-right', safeNumber(style.marginRightPt)],
-    ['padding-top', safeNumber(style.spaceBeforePt, 0)],
-    ['margin-bottom', safeNumber(style.spaceAfterPt, 0)]
+  if (['left', 'center', 'right', 'justify'].includes(alignment)) classes.push(`meeting-template-align-${alignment}`);
+  const mapped = [
+    spacingClass('meeting-template-ml', style.marginLeftPt),
+    spacingClass('meeting-template-mr', style.marginRightPt),
+    spacingClass('meeting-template-before', style.spaceBeforePt),
+    spacingClass('meeting-template-after', style.spaceAfterPt),
+    spacingClass('meeting-template-indent', style.firstLinePt),
+    spacingClass('meeting-template-hanging', style.hangingPt),
+    lineClass(style.linePt)
   ];
-  for (const [name, value] of values) if (value !== null) declarations.push(`${name}:${value}pt`);
-  const firstLine = safeNumber(style.firstLinePt);
-  const hanging = safeNumber(style.hangingPt);
-  if (firstLine !== null) declarations.push(`text-indent:${firstLine}pt`);
-  else if (hanging !== null) declarations.push(`text-indent:${-hanging}pt`);
-  const line = safeNumber(style.linePt, 0);
-  if (line !== null && line > 0) declarations.push(`line-height:${line}pt`);
-  return declarations.join(';');
+  for (const item of mapped) if (item) classes.push(item);
+  if (style.numbering) classes.push('meeting-template-numbered');
+  return classes;
+}
+
+function fontFamilyClass(value) {
+  const family = String(value || '').trim().toLocaleLowerCase('ru-RU');
+  if (!family) return null;
+  if (family.includes('times') || family.includes('liberation serif') || family.includes('pt serif')) return 'meeting-template-font-serif';
+  if (family.includes('arial') || family.includes('liberation sans')) return 'meeting-template-font-arial';
+  if (family.includes('calibri') || family.includes('carlito')) return 'meeting-template-font-calibri';
+  if (family.includes('courier') || family.includes('liberation mono')) return 'meeting-template-font-mono';
+  return null;
+}
+
+function colorClass(prefix, value) {
+  const color = String(value || '').toUpperCase();
+  const colors = new Map([
+    ['#000000', 'black'], ['#FFFFFF', 'white'], ['#FF0000', 'red'], ['#C00000', 'dark-red'],
+    ['#0000FF', 'blue'], ['#0070C0', 'dark-blue'], ['#008000', 'green'], ['#00B050', 'light-green'],
+    ['#808080', 'gray'], ['#D9D9D9', 'light-gray'], ['#FFFF00', 'yellow']
+  ]);
+  const name = colors.get(color);
+  return name ? `${prefix}-${name}` : null;
 }
 
 function runHtml(run) {
@@ -60,36 +88,43 @@ function runHtml(run) {
   if (style.italic) classes.push('is-italic');
   if (style.underline) classes.push('is-underline');
   if (style.strike) classes.push('is-strike');
-  const declarations = [];
-  const fontSize = safeNumber(style.fontSizePt, 5, 96);
-  const fontFamily = safeFont(style.fontFamily);
-  const color = safeColor(style.color);
-  const background = safeColor(style.backgroundColor);
-  if (fontSize !== null) declarations.push(`font-size:${fontSize}pt`);
-  if (fontFamily) declarations.push(`font-family:'${fontFamily.replaceAll("'", '')}'`);
-  if (color) declarations.push(`color:${color}`);
-  if (background) declarations.push(`background:${background}`);
-  return `<span class="${classes.join(' ')}"${declarations.length ? ` style="${declarations.join(';')}"` : ''}>${escMeeting(run.text)}</span>`;
+  const size = safeNumber(style.fontSizePt, 5, 96);
+  if (size !== null) classes.push(`meeting-template-size-${nearest(size, [8, 9, 10, 11, 12, 14, 16, 18, 20, 22, 24, 28, 32, 36, 48, 60, 72])}`);
+  const family = fontFamilyClass(style.fontFamily);
+  const color = colorClass('meeting-template-color', style.color);
+  const background = colorClass('meeting-template-bg', style.backgroundColor);
+  if (family) classes.push(family);
+  if (color) classes.push(color);
+  if (background) classes.push(background);
+  return `<span class="${classes.join(' ')}">${escMeeting(run.text)}</span>`;
 }
 
 function elementHtml(element) {
   const runs = (element.runs || []).map(runHtml).join('') || escMeeting(element.text || ' ');
-  return `<p class="meeting-template-element" data-template-element="${escMeeting(element.elementId)}" style="${paragraphStyle(element.style)}">${runs}</p>`;
+  return `<p class="${paragraphClasses(element.style).join(' ')}" data-template-element="${escMeeting(element.elementId)}">${runs}</p>`;
+}
+
+function widthClass(width, total) {
+  if (!Number.isFinite(width) || !Number.isFinite(total) || total <= 0) return null;
+  const percentage = Math.max(10, Math.min(100, Math.round((width / total) * 10) * 10));
+  return `meeting-template-width-${percentage}`;
 }
 
 function tableHtml(block) {
-  return `<table class="meeting-template-table"><tbody>${(block.rows || []).map((row) =>
-    `<tr>${(row.cells || []).map((cell) => {
-      const declarations = [];
-      const width = safeNumber(cell.widthPt, 0, 5000);
-      const background = safeColor(cell.backgroundColor);
-      if (width !== null) declarations.push(`width:${width}pt`);
-      if (background) declarations.push(`background:${background}`);
+  return `<table class="meeting-template-table"><tbody>${(block.rows || []).map((row) => {
+    const total = row.cells.reduce((sum, cell) => sum + (Number(cell.widthPt) || 0), 0);
+    return `<tr>${(row.cells || []).map((cell) => {
+      const classes = [];
+      const width = widthClass(Number(cell.widthPt), total);
+      const background = colorClass('meeting-template-bg', cell.backgroundColor);
+      if (width) classes.push(width);
+      if (background) classes.push(background);
+      if (cell.verticalMerge) classes.push(`meeting-template-vmerge-${cell.verticalMerge}`);
       const span = Number.isInteger(Number(cell.columnSpan)) && Number(cell.columnSpan) > 1
         ? ` colspan="${Number(cell.columnSpan)}"` : '';
-      return `<td${span}${declarations.length ? ` style="${declarations.join(';')}"` : ''}>${(cell.paragraphs || []).map(elementHtml).join('')}</td>`;
-    }).join('')}</tr>`
-  ).join('')}</tbody></table>`;
+      return `<td${span}${classes.length ? ` class="${classes.join(' ')}"` : ''}>${(cell.paragraphs || []).map(elementHtml).join('')}</td>`;
+    }).join('')}</tr>`;
+  }).join('')}</tbody></table>`;
 }
 
 function fieldLabel(key) {
@@ -143,10 +178,11 @@ function renderStatus(profile = null) {
   if (!target || !editorState) return;
   const state = requiredState();
   const percent = state.required.length ? Math.round((state.ready / state.required.length) * 100) : 100;
+  const progress = Math.max(0, Math.min(100, Math.round(percent / 10) * 10));
   const status = profile?.status || editorState.analysis.latestProfile?.status || (state.missing.length ? 'draft' : 'ready');
   target.innerHTML = `
     <strong>${status === 'ready' ? 'Шаблон готов' : `Назначено ${state.ready} из ${state.required.length} обязательных полей`}</strong>
-    <div class="meeting-template-progress"><span style="width:${percent}%"></span></div>
+    <div class="meeting-template-progress"><span class="meeting-template-progress-${progress}"></span></div>
     <span>${state.missing.length ? `Осталось: ${state.missing.map((field) => escMeeting(field.label)).join(', ')}` : escMeeting(inferredRepeat())}</span>
     ${editorState.analysis.legacyReady ? '<div class="meeting-template-legacy-note">Это совместимый старый шаблон с {{AGENDA}}. Его можно использовать без профиля или постепенно разметить визуально.</div>' : ''}
   `;
@@ -352,7 +388,7 @@ export async function refreshMeetingSettingsState() {
   return data;
 }
 
-function templateResource(kind, versionId) {
+function templateResource(versionId) {
   return (meetingsState.resources.templates || []).find((template) => template.version_id === versionId) || null;
 }
 
@@ -393,8 +429,9 @@ function updateConfigureButton(field, kind) {
   const select = field.querySelector('select');
   const button = field.querySelector('[data-configure-meeting-template]');
   if (!select || !button) return;
-  const template = templateResource(kind, select.value);
-  button.textContent = configureLabel(template, kind);
+  const template = templateResource(select.value);
+  const label = configureLabel(template, kind);
+  if (button.textContent !== label) button.textContent = label;
   button.disabled = !select.value;
   button.classList.toggle('meeting-template-profile-ready', templateProfile(template, kind)?.status === 'ready');
 }
@@ -403,12 +440,12 @@ function enhanceSettingsForm() {
   const form = $m('#meeting-settings-form');
   if (!form) return;
   const helper = form.querySelector('.meeting-helper');
-  if (helper) {
-    helper.textContent = 'Загрузите обычный DOCX, затем назначьте изменяемые поля прямо в предпросмотре. Старые шаблоны с {{AGENDA}} продолжают работать.';
-  }
+  const helperText = 'Загрузите обычный DOCX, затем назначьте изменяемые поля прямо в предпросмотре. Старые шаблоны с {{AGENDA}} продолжают работать.';
+  if (helper && helper.textContent !== helperText) helper.textContent = helperText;
   for (const callout of form.querySelectorAll('.meeting-callout')) {
     if (callout.textContent.includes('{{AGENDA}}')) {
-      callout.textContent = 'Загрузите шаблон протокола и шаблон выписки. Для обычного DOCX после загрузки откройте «Настроить поля».';
+      const text = 'Загрузите шаблон протокола и шаблон выписки. Для обычного DOCX после загрузки откройте «Настроить поля».';
+      if (callout.textContent !== text) callout.textContent = text;
     }
   }
   for (const field of form.querySelectorAll('.meeting-template-field')) {
@@ -426,7 +463,7 @@ function enhanceSettingsForm() {
         const versionId = select.value;
         if (!versionId) return showMeetingNotice('Сначала загрузите или выберите DOCX.');
         const draft = formDraft(form);
-        const template = templateResource(kind, versionId);
+        const template = templateResource(versionId);
         await openMeetingTemplateEditor({
           kind,
           versionId,
@@ -448,8 +485,6 @@ export function installMeetingTemplateEditorEnhancer() {
   if (enhancerInstalled) return;
   enhancerInstalled = true;
   ensureStyles();
-  const observer = new MutationObserver(() => enhanceSettingsForm());
-  observer.observe(document.body, { childList: true, subtree: true });
-  document.addEventListener('meeting-modal-opened', () => enhanceSettingsForm());
+  document.addEventListener('meeting-modal-opened', enhanceSettingsForm);
   enhanceSettingsForm();
 }
