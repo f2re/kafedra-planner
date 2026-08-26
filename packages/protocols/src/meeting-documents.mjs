@@ -5,6 +5,7 @@ import { addSearchFragment } from '../../storage/src/search.mjs';
 import { storeGeneratedFile } from '../../document-intake/src/blob-store.mjs';
 import { ensureObjectPolicy } from '../../access-control/src/service.mjs';
 import { meetingDocumentHash, meetingDocumentModel, renderMeetingDocumentFile } from './meeting-docx.mjs';
+import { latestMeetingTemplateProfile } from './meeting-template-profile.mjs';
 import { assertDocxTemplate, clean, fail, writeAudit } from './meeting-common.mjs';
 import { getMeetingSettings } from './meeting-settings.mjs';
 import { getMeeting, syncMeetingSearch } from './meeting-core.mjs';
@@ -38,7 +39,7 @@ function generatedFileName(meeting, kind, items) {
 }
 
 function registerGeneratedDocument(database, {
-  workspaceId, meeting, kind, items, template, blob, text, requestHash, actorPersonId, now
+  workspaceId, meeting, kind, items, template, profile, blob, text, requestHash, actorPersonId, now
 }) {
   const documentId = newId('doc');
   const versionId = newId('docv');
@@ -90,9 +91,32 @@ function registerGeneratedDocument(database, {
     documentId,
     documentVersionId: versionId,
     questionNumbers: items.map((item) => item.item_no),
+    templateVersionId: template.version_id,
+    templateProfileVersionId: profile?.profileVersionId || profile?.profile_version_id || null,
+    templateProfileSha256: profile?.profileSha256 || null,
     requestHash
   }, now);
   return { recordId, documentId, versionId, title, originalName };
+}
+
+function snapshottedProfile(meeting, kind) {
+  try {
+    const evidence = JSON.parse(meeting.evidence_json || '{}');
+    return evidence?.templateProfiles?.[kind] || null;
+  } catch {
+    return null;
+  }
+}
+
+function templateMode(database, templateVersionId) {
+  return database.get('SELECT structure_status FROM document_versions WHERE id = ?', templateVersionId)?.structure_status || null;
+}
+
+function resolveProfile(database, workspaceId, meeting, kind, templateVersionId, mode) {
+  const snapshot = snapshottedProfile(meeting, kind);
+  if (snapshot && snapshot.templateVersionId === templateVersionId && snapshot.status === 'ready') return snapshot;
+  if (mode === 'template') return null;
+  return latestMeetingTemplateProfile(database, workspaceId, templateVersionId, kind, true);
 }
 
 export async function generateMeetingDocument(database, config, workspaceId, meetingId, input, actorPersonId = null) {
@@ -109,6 +133,9 @@ export async function generateMeetingDocument(database, config, workspaceId, mee
     : (meeting.extract_template_version_id || settings?.extract_template_version_id);
   if (!templateVersionId) fail('meeting_settings_incomplete');
   const template = assertDocxTemplate(database, workspaceId, templateVersionId);
+  const mode = templateMode(database, templateVersionId);
+  const profile = resolveProfile(database, workspaceId, meeting, kind, templateVersionId, mode);
+  if (mode !== 'template' && !profile) fail('meeting_template_profile_incomplete');
   const materializedMeeting = {
     ...meeting,
     quorum_required: meeting.quorum_required || settings?.quorum || null,
@@ -116,7 +143,12 @@ export async function generateMeetingDocument(database, config, workspaceId, mee
     secretary_raw: meeting.secretary_raw || settings?.secretary_name || ''
   };
   const model = meetingDocumentModel({ meeting: materializedMeeting, items, kind });
-  const requestHash = meetingDocumentHash({ templateSha256: template.blob_sha256, model, kind });
+  const requestHash = meetingDocumentHash({
+    templateSha256: template.blob_sha256,
+    profileSha256: profile?.profileSha256 || null,
+    model,
+    kind
+  });
   const existing = database.get(`
     SELECT md.*, d.title, dv.original_name
     FROM meeting_documents md
@@ -128,9 +160,13 @@ export async function generateMeetingDocument(database, config, workspaceId, mee
 
   await mkdir(config.tempDir, { recursive: true });
   const outputPath = join(config.tempDir, `${meetingId}-${kind}-${requestHash.slice(0, 16)}-${process.pid}-${newId('tmp')}.docx`);
-  let rendered;
   try {
-    rendered = await renderMeetingDocumentFile({ templatePath: template.storage_path, outputPath, model });
+    const rendered = await renderMeetingDocumentFile({
+      templatePath: template.storage_path,
+      outputPath,
+      model,
+      profile
+    });
     const blob = await storeGeneratedFile(outputPath, {
       blobDir: config.blobDir,
       mediaType: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document'
@@ -150,8 +186,17 @@ export async function generateMeetingDocument(database, config, workspaceId, mee
         return;
       }
       result = registerGeneratedDocument(database, {
-        workspaceId, meeting: materializedMeeting, kind, items, template, blob,
-        text: rendered.text, requestHash, actorPersonId, now
+        workspaceId,
+        meeting: materializedMeeting,
+        kind,
+        items,
+        template,
+        profile,
+        blob,
+        text: rendered.text,
+        requestHash,
+        actorPersonId,
+        now
       });
       if (kind === 'protocol') {
         database.run(`

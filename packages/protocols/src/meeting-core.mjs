@@ -55,13 +55,9 @@ function deleteMeetingSearch(database, workspaceId, meetingId) {
 }
 
 export function syncMeetingSearch(database, workspaceId, meetingId) {
-  const meeting = database.get(`
-    SELECT * FROM meetings WHERE workspace_id = ? AND id = ?
-  `, workspaceId, meetingId);
+  const meeting = database.get('SELECT * FROM meetings WHERE workspace_id = ? AND id = ?', workspaceId, meetingId);
   if (!meeting) return;
-  const agenda = database.all(`
-    SELECT * FROM agenda_items WHERE meeting_id = ? ORDER BY item_no, created_at, id
-  `, meetingId);
+  const agenda = database.all('SELECT * FROM agenda_items WHERE meeting_id = ? ORDER BY item_no, created_at, id', meetingId);
   deleteMeetingSearch(database, workspaceId, meetingId);
   addSearchFragment(database, {
     workspaceId,
@@ -131,12 +127,25 @@ export function getMeeting(database, workspaceId, meetingId) {
     WHERE m.workspace_id = ? AND m.id = ?
   `, workspaceId, meetingId);
   if (!meeting) return null;
-  const agenda = database.all(`
-    SELECT * FROM agenda_items
-    WHERE meeting_id = ?
-    ORDER BY item_no, created_at, id
-  `, meetingId);
+  const agenda = database.all('SELECT * FROM agenda_items WHERE meeting_id = ? ORDER BY item_no, created_at, id', meetingId);
   return { ...meeting, agenda, documents: meetingDocuments(database, meetingId) };
+}
+
+function snapshotProfile(profile) {
+  if (!profile) return null;
+  return {
+    schema: profile.schema,
+    templateVersionId: profile.templateVersionId,
+    documentKind: profile.documentKind,
+    sourceSha256: profile.sourceSha256,
+    structureSha256: profile.structureSha256,
+    profileSha256: profile.profileSha256,
+    revision: profile.revision,
+    status: profile.status,
+    bindings: profile.bindings,
+    repeat: profile.repeat,
+    profileVersionId: profile.profile_version_id || null
+  };
 }
 
 export function createMeeting(database, workspaceId, input, actorPersonId = null, now = new Date().toISOString()) {
@@ -151,7 +160,14 @@ export function createMeeting(database, workspaceId, input, actorPersonId = null
   `, workspaceId, meetingDate, protocolNumber);
   if (duplicate) fail('meeting_duplicate');
   const id = newId('meeting');
-  const evidence = JSON.stringify({ kind: 'operator', source: 'meeting_editor' });
+  const evidence = JSON.stringify({
+    kind: 'operator',
+    source: 'meeting_editor',
+    templateProfiles: {
+      protocol: snapshotProfile(settings.protocolProfile),
+      extract: snapshotProfile(settings.extractProfile)
+    }
+  });
   database.transaction(() => {
     database.run(`
       INSERT INTO meetings(
@@ -170,7 +186,11 @@ export function createMeeting(database, workspaceId, input, actorPersonId = null
     ensureMeetingCalendar(database, meeting, now);
     syncMeetingSearch(database, workspaceId, id);
     writeAudit(database, workspaceId, actorPersonId, 'meeting.created', 'meeting', id, {
-      meetingDate, protocolNumber, title
+      meetingDate,
+      protocolNumber,
+      title,
+      protocolTemplateProfileVersionId: settings.protocolProfile?.profile_version_id || null,
+      extractTemplateProfileVersionId: settings.extractProfile?.profile_version_id || null
     }, now);
   });
   return getMeeting(database, workspaceId, id);
