@@ -33,9 +33,12 @@ function navigationButton(page, view) {
 
 test('Автоматическое назначение: сотрудник из плана сразу получает поручение, а форма периодической задачи не занимает экран', async ({ page }, testInfo) => {
   const dir = await mkdtemp(join(tmpdir(), `kafedra-auto-assignment-${testInfo.project.name}-`));
-  const file = join(dir, `Автоплан ${testInfo.project.name}.docx`);
+  const fixtureVariant = testInfo.project.name === 'mobile' ? 'Мобильный' : 'Настольный';
+  const file = join(dir, `Автоплан ${fixtureVariant}.docx`);
   try {
-    const responsibleName = `Авто Исполнитель ${testInfo.project.name}`;
+    // Суффикс должен участвовать в нормализации ФИО. Латинские desktop/mobile
+    // отбрасываются предметным matcher и делают второй проект зависимым от первого.
+    const responsibleName = `Авто Исполнитель ${fixtureVariant}`;
     await createDocx(file, responsibleName);
     const personResponse = await page.request.post('/api/people', { data: { displayName: responsibleName } });
     expect(personResponse.ok()).toBeTruthy();
