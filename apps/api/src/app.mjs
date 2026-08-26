@@ -16,6 +16,7 @@ import { createSearchRouter } from './search-router.mjs';
 import { createAuthRouter } from './auth-router.mjs';
 import { createAccessRouter } from './access-router.mjs';
 import { createOrganizationRouter } from './organization-router.mjs';
+import { createDocomatorIntegrationRouter } from './docomator-integration-router.mjs';
 import { createScienceLifecycleRouter } from './science-lifecycle-router.mjs';
 import { createScienceImportRouter020 } from './science-import-router-020.mjs';
 import { createScienceReportsRouter } from './science-reports-router.mjs';
@@ -41,6 +42,7 @@ export function createApp({ database, config, logger }) {
   const plansRouter = createPlansRouter({ database, config, logger });
   const meetingsRouter = createMeetingsRouter({ database, config, logger });
   const organizationRouter = createOrganizationRouter({ database, logger });
+  const docomatorIntegrationRouter = createDocomatorIntegrationRouter({ database, config, logger });
   const scienceLifecycleRouter = createScienceLifecycleRouter({ database, logger });
   const scienceImportRouter020 = createScienceImportRouter020({ database });
   const scienceReportsRouter = createScienceReportsRouter({ database, config, logger });
@@ -102,7 +104,8 @@ export function createApp({ database, config, logger }) {
             : false;
           let extensionHandled = false;
           if (!preferencesHandled && !notificationHandled && !responsibilityHandled && !periodicHandled && !searchHandled && !manualPlansHandled && !planItemHandled && !planSourceRowsHandled && !plansHandled && !meetingsHandled && !accessHandled && !response.headersSent) {
-            extensionHandled = await organizationRouter(request, response, url, requestId);
+            extensionHandled = await docomatorIntegrationRouter(request, response, url, requestId);
+            if (!extensionHandled && !response.headersSent) extensionHandled = await organizationRouter(request, response, url, requestId);
             if (!extensionHandled && !response.headersSent) extensionHandled = await scienceLifecycleRouter(request, response, url, requestId);
             if (!extensionHandled && !response.headersSent) extensionHandled = await scienceImportRouter020(request, response, url, requestId);
             if (!extensionHandled && !response.headersSent) extensionHandled = await scienceReportsRouter(request, response, url, requestId);
