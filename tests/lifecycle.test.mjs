@@ -36,7 +36,7 @@ function addImportedPlan(database, workspaceId, planId, versionId, title) {
     INSERT INTO plans(
       id,workspace_id,source_document_version_id,origin_kind,plan_kind,period_kind,
       period_key,year_start,year_end,title,status,confidence,evidence_json,created_at,updated_at
-    ) VALUES (?,?,?,'document','department','calendar','2026',2026,2026,?,'active',1,?, ?, ?)
+    ) VALUES (?,?,?,'document','department','calendar','2026',2026,2026,?,'active',1,?,?,?)
   `, planId, workspaceId, versionId, title, JSON.stringify({ source: versionId }), now, now);
 }
 
@@ -55,20 +55,20 @@ function addPlanWork(database, workspaceId, planId, itemId, assignmentId) {
       id,plan_id,source_item_key,origin_kind,execution_mode,item_no,title,due_date,
       direction,expected_result,status,confidence,evidence_json,created_at,updated_at
     ) VALUES (?,?,'row:1','extracted','assigned','1','Подготовить отчёт','2026-10-20',
-      'science','Отчёт','planned',1,?, ?, ?)
+      'science','Отчёт','planned',1,?,?,?)
   `, itemId, planId, JSON.stringify({ locator: { table: 1, row: 2 } }), now, now);
   database.run(`
     INSERT INTO calendar_items(
       id,workspace_id,source_kind,source_id,item_kind,title,starts_at,ends_at,all_day,
       category,importance,status,created_at,updated_at,origin_kind,origin_id,origin_label
-    ) VALUES (?,?, 'plan_item',?,'task','Подготовить отчёт','2026-10-20','2026-10-20',1,
-      'science','normal','open',?,?, 'plan',?, 'План кафедры')
+    ) VALUES (?,?,'plan_item',?,'task','Подготовить отчёт','2026-10-20','2026-10-20',1,
+      'science','normal','open',?,?,'plan',?,'План кафедры')
   `, `cal-${itemId}`, workspaceId, itemId, now, now, planId);
   database.run(`
     INSERT INTO assignments(
       id,workspace_id,title,instruction_text,due_date,direction,priority,status,
       expected_result,report_required,confidence,evidence_json,created_at,updated_at
-    ) VALUES (?,?, 'Подготовить отчёт','Подготовить отчёт','2026-10-20','science','normal','open',
+    ) VALUES (?,?,'Подготовить отчёт','Подготовить отчёт','2026-10-20','science','normal','open',
       'Отчёт',1,1,'{}',?,?)
   `, assignmentId, workspaceId, now, now);
   database.run(`
@@ -78,14 +78,14 @@ function addPlanWork(database, workspaceId, planId, itemId, assignmentId) {
   `, itemId, assignmentId, now, now);
 }
 
-test('миграция 25 → 26 добавляет lifecycle без изменения источников и доказательств', async () => {
+test('миграция 26 → 27 добавляет lifecycle без изменения источников и доказательств', async () => {
   const root = await mkdtemp(join(tmpdir(), 'kafedra-lifecycle-upgrade-'));
-  const legacyDir = join(root, 'migrations-025');
+  const legacyDir = join(root, 'migrations-026');
   const databasePath = join(root, 'existing.sqlite3');
   await mkdir(legacyDir, { recursive: true });
   try {
     const names = (await readdir(migrationsDir))
-      .filter((name) => /^\d+_.*\.sql$/u.test(name) && Number.parseInt(name, 10) <= 25)
+      .filter((name) => /^\d+_.*\.sql$/u.test(name) && Number.parseInt(name, 10) <= 26)
       .sort();
     for (const name of names) await copyFile(join(migrationsDir, name), join(legacyDir, name));
     let database = new Database(databasePath, { migrationsDir: legacyDir });
@@ -93,16 +93,17 @@ test('миграция 25 → 26 добавляет lifecycle без измен�
     addDocument(database, workspace.id, 'doc-source', 'ver-source', 'Исходный план');
     addImportedPlan(database, workspace.id, 'plan-source', 'ver-source', 'План кафедры');
     addPlanWork(database, workspace.id, 'plan-source', 'item-source', 'assignment-source');
-    assert.equal(database.getSchemaVersion(), 25);
+    assert.equal(database.getSchemaVersion(), 26);
     database.close();
 
     database = new Database(databasePath, { migrationsDir });
     try {
-      assert.equal(database.getSchemaVersion(), 26);
+      assert.equal(database.getSchemaVersion(), 27);
       assert.equal(database.get("SELECT lifecycle_status FROM documents WHERE id='doc-source'").lifecycle_status, 'active');
       assert.equal(database.get("SELECT status FROM plans WHERE id='plan-source'").status, 'active');
       assert.equal(database.get("SELECT source_document_version_id FROM plans WHERE id='plan-source'").source_document_version_id, 'ver-source');
       assert.match(database.get("SELECT evidence_json FROM plan_items WHERE id='item-source'").evidence_json, /table/u);
+      assert.ok(database.get("SELECT name FROM sqlite_master WHERE type='table' AND name='plan_source_rows'"));
       assert.deepEqual(database.foreignKeyCheck(), []);
       assert.equal(database.quickCheck(), true);
     } finally {
@@ -154,7 +155,6 @@ test('архивирование документа и плана сохраня
     assert.equal(database.get("SELECT COUNT(*) AS count FROM plan_items WHERE plan_id='plan-old'").count, 1);
     assert.equal(database.get("SELECT COUNT(*) AS count FROM assignments WHERE id='assignment-old'").count, 1);
     assert.match(database.get("SELECT evidence_json FROM plan_items WHERE id='item-old'").evidence_json, /locator/u);
-
     assert.equal(database.get("SELECT COUNT(*) AS count FROM audit_log WHERE action='document.archived'").count, 1);
     assert.equal(database.get("SELECT COUNT(*) AS count FROM audit_log WHERE action='plan.archived'").count, 1);
 
