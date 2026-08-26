@@ -7,8 +7,8 @@ function value(value, maximum = 500) {
   return result ? result.slice(0, maximum) : null;
 }
 
-function requiredTitle(value) {
-  const title = value(value, 500);
+function requiredTitle(input) {
+  const title = value(input, 500);
   if (!title) throw new AppError('lifecycle_title_required', 'Укажите понятное название.', 400);
   return title;
 }
