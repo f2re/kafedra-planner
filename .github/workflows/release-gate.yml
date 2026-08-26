@@ -77,6 +77,7 @@ jobs:
           tests/browser/docomator-integration.spec.mjs
           tests/browser/docomator-fields.spec.mjs
           tests/browser/meeting-template-editor.spec.mjs
+          tests/browser/manual-plan-preferences.spec.mjs
           tests/browser/science-lifecycle.spec.mjs
           tests/browser/science-import.spec.mjs
           tests/browser/science-reports.spec.mjs
