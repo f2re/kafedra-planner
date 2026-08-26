@@ -2,10 +2,29 @@ import { basename } from 'node:path';
 import { newId } from '../../core/src/ids.mjs';
 import { storeIncomingStream } from '../../document-intake/src/blob-store.mjs';
 import { ensureObjectPolicy } from '../../access-control/src/service.mjs';
-import { validateMeetingTemplateFile } from './meeting-docx.mjs';
+import {
+  analyzeMeetingTemplatePath,
+  latestMeetingTemplateProfile
+} from './meeting-template-profile.mjs';
 import {
   activePerson, assertDocxTemplate, fail, positiveInteger, required, writeAudit
 } from './meeting-common.mjs';
+
+function templateStructure(database, versionId) {
+  return database.get('SELECT structure_status FROM document_versions WHERE id = ?', versionId)?.structure_status || null;
+}
+
+function resolvedTemplate(database, workspaceId, versionId, kind) {
+  const template = assertDocxTemplate(database, workspaceId, versionId);
+  const structureStatus = templateStructure(database, versionId);
+  const profile = latestMeetingTemplateProfile(database, workspaceId, template.version_id, kind, true);
+  const visual = structureStatus === 'meeting_template_visual';
+  // Только новые загрузки, явно зарегистрированные как visual-profile, обязаны
+  // иметь готовый профиль. Все ранее существовавшие template/generated записи
+  // остаются в совместимом marker-based режиме и проверяются генератором.
+  if (visual && !profile) fail('meeting_template_profile_incomplete');
+  return { ...template, structure_status: structureStatus, profile, legacy: !visual };
+}
 
 export async function uploadMeetingTemplate(database, config, workspaceId, stream, {
   kind,
@@ -22,24 +41,32 @@ export async function uploadMeetingTemplate(database, config, workspaceId, strea
     maxBytes: config.maxUploadBytes,
     mediaType
   });
+  let analysis;
   try {
-    await validateMeetingTemplateFile(blob.storagePath);
-  } catch (error) {
-    if (String(error?.code || error?.message || error) === 'meeting_template_agenda_marker_required') throw error;
+    analysis = await analyzeMeetingTemplatePath(blob.storagePath, blob.sha256);
+  } catch {
     fail('meeting_template_must_be_docx');
   }
   const uploadKey = `meeting-template:${workspaceId}:${kind}:${blob.sha256}`;
   const existing = database.get(`
-    SELECT d.id AS document_id, dv.id AS version_id, d.title, dv.original_name
+    SELECT d.id AS document_id, dv.id AS version_id, d.title, dv.original_name,
+      dv.structure_status
     FROM document_versions dv JOIN documents d ON d.id = dv.document_id
     WHERE d.workspace_id = ? AND dv.upload_key = ?
   `, workspaceId, uploadKey);
-  if (existing) return { ...existing, duplicateRequest: true };
+  if (existing) {
+    return {
+      ...existing,
+      profile: latestMeetingTemplateProfile(database, workspaceId, existing.version_id, kind, false),
+      duplicateRequest: true
+    };
+  }
 
   const now = new Date().toISOString();
   const documentId = newId('doc');
   const versionId = newId('docv');
   const title = kind === 'protocol' ? 'Шаблон протокола заседания' : 'Шаблон выписки из протокола';
+  const structureStatus = analysis.legacyReady ? 'template' : 'meeting_template_visual';
   database.transaction(() => {
     database.run(`
       INSERT OR IGNORE INTO file_blobs(sha256, size_bytes, media_type, storage_path, created_at)
@@ -54,17 +81,28 @@ export async function uploadMeetingTemplate(database, config, workspaceId, strea
         id, document_id, version_no, blob_sha256, original_name, media_type, detected_format,
         processing_status, extracted_text, extraction_error, upload_key, uploaded_at,
         structure_status, ocr_status, preview_status
-      ) VALUES (?, ?, 1, ?, ?, ?, 'docx', 'processed', NULL, NULL, ?, ?, 'template', 'not_needed', 'not_requested')
-    `, versionId, documentId, blob.sha256, fileName, mediaType, uploadKey, now);
+      ) VALUES (?, ?, 1, ?, ?, ?, 'docx', 'processed', ?, NULL, ?, ?, ?, 'not_needed', 'not_requested')
+    `, versionId, documentId, blob.sha256, fileName, mediaType, analysis.text, uploadKey, now, structureStatus);
     ensureObjectPolicy(database, {
       workspaceId, objectKind: 'document', objectId: documentId,
       ownerPersonId: actorPersonId, accessScope: 'workspace', now
     });
     writeAudit(database, workspaceId, actorPersonId, 'meeting.template.uploaded', 'document', documentId, {
-      kind, versionId, originalName: fileName, blobSha256: blob.sha256
+      kind, versionId, originalName: fileName, blobSha256: blob.sha256,
+      structureSha256: analysis.structureSha256,
+      templateMode: analysis.legacyReady ? 'legacy_markers' : 'visual_profile'
     }, now);
   });
-  return { document_id: documentId, version_id: versionId, title, original_name: fileName, duplicateRequest: false };
+  return {
+    document_id: documentId,
+    version_id: versionId,
+    title,
+    original_name: fileName,
+    structure_status: structureStatus,
+    legacyReady: analysis.legacyReady,
+    profile: null,
+    duplicateRequest: false
+  };
 }
 
 export function meetingSettingsResources(database, workspaceId) {
@@ -76,7 +114,7 @@ export function meetingSettingsResources(database, workspaceId) {
   `, workspaceId);
   const templates = database.all(`
     SELECT dv.id AS version_id, d.id AS document_id, d.title, dv.original_name, dv.detected_format,
-      d.document_type, d.updated_at
+      dv.structure_status, d.document_type, d.updated_at
     FROM documents d
     JOIN document_versions dv ON dv.id = d.current_version_id
     WHERE d.workspace_id = ?
@@ -84,7 +122,12 @@ export function meetingSettingsResources(database, workspaceId) {
       AND (dv.detected_format = 'docx' OR lower(dv.original_name) LIKE '%.docx')
     ORDER BY d.updated_at DESC, d.title COLLATE NOCASE
     LIMIT 500
-  `, workspaceId);
+  `, workspaceId).map((template) => ({
+    ...template,
+    legacy_ready: template.structure_status !== 'meeting_template_visual',
+    protocol_profile: latestMeetingTemplateProfile(database, workspaceId, template.version_id, 'protocol', false),
+    extract_profile: latestMeetingTemplateProfile(database, workspaceId, template.version_id, 'extract', false)
+  }));
   return { users, templates };
 }
 
@@ -95,8 +138,10 @@ export function getMeetingSettings(database, workspaceId) {
       secretary.display_name AS secretary_name,
       protocol_doc.title AS protocol_template_title,
       protocol_version.original_name AS protocol_template_name,
+      protocol_version.structure_status AS protocol_template_structure_status,
       extract_doc.title AS extract_template_title,
-      extract_version.original_name AS extract_template_name
+      extract_version.original_name AS extract_template_name,
+      extract_version.structure_status AS extract_template_structure_status
     FROM meeting_settings ms
     LEFT JOIN people chair ON chair.id = ms.chairperson_person_id
     LEFT JOIN people secretary ON secretary.id = ms.secretary_person_id
@@ -106,7 +151,16 @@ export function getMeetingSettings(database, workspaceId) {
     LEFT JOIN documents extract_doc ON extract_doc.id = extract_version.document_id
     WHERE ms.workspace_id = ?
   `, workspaceId) || null;
-  return settings;
+  if (!settings) return null;
+  return {
+    ...settings,
+    protocol_profile: settings.protocol_template_version_id
+      ? latestMeetingTemplateProfile(database, workspaceId, settings.protocol_template_version_id, 'protocol', true)
+      : null,
+    extract_profile: settings.extract_template_version_id
+      ? latestMeetingTemplateProfile(database, workspaceId, settings.extract_template_version_id, 'extract', true)
+      : null
+  };
 }
 
 export function saveMeetingSettings(database, workspaceId, input, actorPersonId = null, now = new Date().toISOString()) {
@@ -115,8 +169,8 @@ export function saveMeetingSettings(database, workspaceId, input, actorPersonId 
   const secretary = activePerson(database, workspaceId, input?.secretaryPersonId);
   if (!chair) fail('meeting_chairperson_invalid');
   if (!secretary) fail('meeting_secretary_invalid');
-  const protocolTemplate = assertDocxTemplate(database, workspaceId, input?.protocolTemplateVersionId);
-  const extractTemplate = assertDocxTemplate(database, workspaceId, input?.extractTemplateVersionId);
+  const protocolTemplate = resolvedTemplate(database, workspaceId, input?.protocolTemplateVersionId, 'protocol');
+  const extractTemplate = resolvedTemplate(database, workspaceId, input?.extractTemplateVersionId, 'extract');
 
   database.transaction(() => {
     database.run(`
@@ -141,7 +195,9 @@ export function saveMeetingSettings(database, workspaceId, input, actorPersonId 
         chairpersonPersonId: chair.id,
         secretaryPersonId: secretary.id,
         protocolTemplateVersionId: protocolTemplate.version_id,
-        extractTemplateVersionId: extractTemplate.version_id
+        protocolTemplateProfileVersionId: protocolTemplate.profile?.profile_version_id || null,
+        extractTemplateVersionId: extractTemplate.version_id,
+        extractTemplateProfileVersionId: extractTemplate.profile?.profile_version_id || null
       }, now);
   });
   return getMeetingSettings(database, workspaceId);
@@ -157,7 +213,13 @@ export function requireCompleteSettings(database, workspaceId) {
   const chair = activePerson(database, workspaceId, settings.chairperson_person_id);
   const secretary = activePerson(database, workspaceId, settings.secretary_person_id);
   if (!chair || !secretary) fail('meeting_settings_incomplete');
-  assertDocxTemplate(database, workspaceId, settings.protocol_template_version_id);
-  assertDocxTemplate(database, workspaceId, settings.extract_template_version_id);
-  return { ...settings, chair, secretary };
+  const protocolTemplate = resolvedTemplate(database, workspaceId, settings.protocol_template_version_id, 'protocol');
+  const extractTemplate = resolvedTemplate(database, workspaceId, settings.extract_template_version_id, 'extract');
+  return {
+    ...settings,
+    chair,
+    secretary,
+    protocolProfile: protocolTemplate.profile,
+    extractProfile: extractTemplate.profile
+  };
 }
