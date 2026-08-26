@@ -1,6 +1,6 @@
 # Автоматическая проверка release candidate
 
-Актуальный рубеж: `0.3.3`, схема SQLite **28**. Автоматический gate проверяет код, данные, browser UX и поставочный контракт, но не подменяет фактическую приёмку #27 на Astra Linux/Debian.
+Актуальный рубеж: `0.3.4`, схема SQLite **29**. Автоматический gate проверяет код, данные, browser UX и поставочный контракт, но не подменяет фактическую приёмку #27 на Astra Linux/Debian.
 
 ## Статические и Node-проверки
 
@@ -17,15 +17,15 @@
 
 Unit/integration отдельно проверяют:
 
-- миграции старых поддерживаемых схем до 28;
+- миграции старых поддерживаемых схем до 29;
 - `PRAGMA quick_check` и `foreign_key_check`;
 - immutable blob и SHA-256;
 - сохранение `source_document_version_id`, `plan_item`, calendar origin, assignment и evidence;
 - исходные строки плана и идемпотентное разложение одной строки на несколько задач;
 - точное автоматическое сопоставление ответственного, контролирующего из оргструктуры, отсутствие назначения при неоднозначности и сохранение terminal assignment;
 - impact summary, archive/restore, self/cross-workspace/cycle guards;
-- настройки Оформлятора без PIN, внешние связи сотрудников и upgrade `27 → 28`;
-- mock health/readiness/auth/data, первый и повторный импорт, rename/inactive без дублей;
+- настройки Оформлятора без PIN, внешние связи сотрудников, upgrade `27 → 28` и field mapping `28 → 29`;
+- mock health/readiness/auth/data, discovery property definitions, выбор e-mail/должности/дополнительных полей, первый и повторный импорт, rename/inactive без дублей;
 - backup/restore и logical digest lifecycle/replacement/integration-состояния.
 
 ## Browser release gate

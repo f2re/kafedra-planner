@@ -9,7 +9,7 @@
 
 Kafedra Planner is an offline-first daily work system for an academic department: calendar, annual plans, assignments, documents, meetings, reporting, research activity, and auditable evidence.
 
-> Current milestone: **`0.3.3`**, SQLite schema **28**. Core workflows do not require Internet access, an LLM, Docker, Docomator, or cloud services. The project remains a release candidate until the real Astra Linux/Debian installation, upgrade, restoration, and rollback acceptance in [TARGET_ACCEPTANCE.md](docs/TARGET_ACCEPTANCE.md) and issue #27 is complete.
+> Current milestone: **`0.3.4`**, SQLite schema **29**. Core workflows do not require Internet access, an LLM, Docker, Docomator, or cloud services. The project remains a release candidate until the real Astra Linux/Debian installation, upgrade, restoration, and rollback acceptance in [TARGET_ACCEPTANCE.md](docs/TARGET_ACCEPTANCE.md) and issue #27 is complete.
 
 **[Download an offline bundle](https://github.com/f2re/kafedra-planner/releases)** · **[Install guide](docs/GITHUB_RELEASES.md)** · **[Security policy](SECURITY.md)** · **[Contributing](CONTRIBUTING.md)**
 
