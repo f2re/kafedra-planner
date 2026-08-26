@@ -1,6 +1,7 @@
 import { AppError } from '../../../packages/core/src/errors.mjs';
 import {
   addAgendaItem,
+  analyzeMeetingTemplate,
   createMeeting,
   deleteAgendaItem,
   generateMeetingDocument,
@@ -12,6 +13,7 @@ import {
   meetingSettingsResources,
   moveAgendaItem,
   saveMeetingSettings,
+  saveMeetingTemplateProfile,
   updateAgendaItem,
   updateMeeting,
   uploadMeetingTemplate
@@ -44,9 +46,21 @@ function mappedError(cause) {
     meeting_template_not_found: ['Выбранный шаблон не найден.', 404],
     meeting_template_name_required: ['Передайте имя DOCX-шаблона.', 400],
     meeting_template_kind_invalid: ['Не удалось определить назначение шаблона.', 400],
-    meeting_template_must_be_docx: ['Для протокола и выписки требуется шаблон DOCX.', 400],
-    meeting_template_agenda_marker_required: ['В шаблоне нужен отдельный абзац {{AGENDA}} — в него будут подставлены вопросы.', 422],
+    meeting_template_must_be_docx: ['Не удалось прочитать DOCX. Проверьте, что файл открывается в Word или LibreOffice.', 400],
+    meeting_template_agenda_marker_required: ['В совместимом старом шаблоне нужен отдельный абзац {{AGENDA}}.', 422],
     meeting_template_marker_loop: ['Шаблон содержит некорректное повторение служебного маркера.', 422],
+    meeting_template_bindings_required: ['Назначьте хотя бы одно поле в документе.', 400],
+    meeting_template_bindings_too_many: ['В одном профиле слишком много назначений полей.', 400],
+    meeting_template_field_invalid: ['Выбрано неизвестное поле шаблона.', 400],
+    meeting_template_field_duplicate: ['Одно поле нельзя назначить двум местам одновременно.', 409],
+    meeting_template_locator_stale: ['Документ изменился или выбранное место больше не существует. Повторно откройте шаблон.', 409],
+    meeting_template_structure_changed: ['Структура DOCX изменилась после открытия. Повторите анализ текущей версии.', 409],
+    meeting_template_range_invalid: ['Выделенный диапазон текста некорректен.', 400],
+    meeting_template_ranges_overlap: ['Назначенные поля пересекаются. Уточните выделение.', 409],
+    meeting_template_repeat_required: ['Назначьте поля одного вопроса повестки, чтобы определить повторяемый блок.', 422],
+    meeting_template_repeat_invalid: ['Повторяемый блок больше не соответствует документу.', 409],
+    meeting_template_repeat_incompatible: ['Поля вопроса должны находиться в одной строке таблицы либо в непрерывной группе абзацев.', 422],
+    meeting_template_profile_incomplete: ['Шаблон ещё не готов: назначьте все обязательные поля и повторяемый вопрос.', 409],
     meeting_date_required: ['Укажите дату заседания.', 400],
     meeting_date_invalid: ['Укажите корректную дату заседания.', 400],
     meeting_protocol_number_required: ['Укажите номер протокола.', 400],
@@ -76,12 +90,15 @@ export function createMeetingsRouter({ database, config }) {
     const agendaItemMatch = path.match(/^\/api\/meetings\/([^/]+)\/agenda\/([^/]+)$/u);
     const agendaMoveMatch = path.match(/^\/api\/meetings\/([^/]+)\/agenda\/([^/]+)\/move$/u);
     const documentsMatch = path.match(/^\/api\/meetings\/([^/]+)\/documents$/u);
+    const templateAnalysisMatch = path.match(/^\/api\/meeting-templates\/([^/]+)\/analysis$/u);
+    const templateProfilesMatch = path.match(/^\/api\/meeting-templates\/([^/]+)\/profiles$/u);
     const recognized = path === '/api/meeting-settings'
       || path === '/api/meeting-agenda-sources'
       || path === '/api/meeting-links'
       || path === '/api/meeting-templates'
       || path === '/api/meetings'
-      || meetingMatch || agendaCollectionMatch || agendaItemMatch || agendaMoveMatch || documentsMatch;
+      || meetingMatch || agendaCollectionMatch || agendaItemMatch || agendaMoveMatch || documentsMatch
+      || templateAnalysisMatch || templateProfilesMatch;
     if (!recognized) return false;
 
     const workspace = workspaceOf(database, request);
@@ -110,6 +127,20 @@ export function createMeetingsRouter({ database, config }) {
           actorPersonId
         });
         return sendJson(response, uploaded.duplicateRequest ? 200 : 201, uploaded);
+      }
+      if (templateAnalysisMatch && method === 'GET') {
+        const versionId = decodeURIComponent(templateAnalysisMatch[1]);
+        const kind = String(url.searchParams.get('kind') || '');
+        return sendJson(response, 200, await analyzeMeetingTemplate(database, workspace.id, versionId, kind));
+      }
+      if (templateProfilesMatch && method === 'POST') {
+        const versionId = decodeURIComponent(templateProfilesMatch[1]);
+        const kind = String(url.searchParams.get('kind') || '');
+        const body = await readJson(request);
+        const profile = await saveMeetingTemplateProfile(
+          database, config, workspace.id, versionId, kind, body, actorPersonId
+        );
+        return sendJson(response, profile.duplicateRequest ? 200 : 201, profile);
       }
       if (method === 'GET' && path === '/api/meeting-agenda-sources') {
         return sendJson(response, 200, {
