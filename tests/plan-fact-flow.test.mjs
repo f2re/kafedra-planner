@@ -22,7 +22,9 @@ test('строит подтверждённый план-факт из пору�
     const now = '2026-08-05T10:00:00.000Z';
     database.run("INSERT INTO file_blobs VALUES ('sha-pf-a', 1, 'text/plain', '/tmp/a', ?)", now);
     database.run("INSERT INTO file_blobs VALUES ('sha-pf-b', 1, 'text/plain', '/tmp/b', ?)", now);
-    database.run(`INSERT INTO documents VALUES ('doc-pf-base', ?, 'Распоряжение 82-р', 'directive', 'processed', 'dv-pf-base', ?, ?)`, workspace.id, now, now);
+    database.run(`INSERT INTO documents(
+      id, workspace_id, title, document_type, status, current_version_id, created_at, updated_at
+    ) VALUES ('doc-pf-base', ?, 'Распоряжение 82-р', 'directive', 'processed', 'dv-pf-base', ?, ?)`, workspace.id, now, now);
     database.run(`INSERT INTO document_versions(id, document_id, version_no, blob_sha256, original_name, media_type, detected_format, processing_status, extracted_text, uploaded_at, ocr_status, preview_status, structure_status)
       VALUES ('dv-pf-base','doc-pf-base',1,'sha-pf-a','base.txt','text/plain','text','processed','РАСПОРЯЖЕНИЕ № 82-р',?,'not_needed','unsupported','ready')`, now);
     database.run(`INSERT INTO directives(id, workspace_id, source_document_version_id, directive_kind, document_number, issued_at, title, direction, confidence, evidence_json, created_at, updated_at)
@@ -39,7 +41,9 @@ test('строит подтверждённый план-факт из пору�
       VALUES ('as-pf','p-pf-manager','Петров Пётр Петрович','controller',?)`, now);
     database.run(`INSERT INTO calendar_items(id, workspace_id, source_kind, source_id, title, starts_at, category, importance, status, item_kind, revision, created_at, updated_at)
       VALUES ('cal-pf',?,'assignment','as-pf','Подготовить статьи ВАК','2026-08-20','science','high','open','task',1,?,?)`, workspace.id, now, now);
-    database.run(`INSERT INTO documents VALUES ('doc-pf-report', ?, 'Отчёт по распоряжению № 82-р', 'report', 'processed', 'dv-pf-report', ?, ?)`, workspace.id, now, now);
+    database.run(`INSERT INTO documents(
+      id, workspace_id, title, document_type, status, current_version_id, created_at, updated_at
+    ) VALUES ('doc-pf-report', ?, 'Отчёт по распоряжению № 82-р', 'report', 'processed', 'dv-pf-report', ?, ?)`, workspace.id, now, now);
     database.run(`INSERT INTO document_versions(id, document_id, version_no, blob_sha256, original_name, media_type, detected_format, processing_status, extracted_text, uploaded_at, ocr_status, preview_status, structure_status)
       VALUES ('dv-pf-report','doc-pf-report',1,'sha-pf-b','report.txt','text/plain','text','processed',?,?,'not_needed','unsupported','ready')`,
       'ОТЧЁТ ПО РАСПОРЯЖЕНИЮ № 82-р\nПоказатель: статьи ВАК; план: 5; факт: 4\nПоручение выполнено частично.', now);
