@@ -6,6 +6,28 @@ function addDays(key, days) {
   return `${date.getUTCFullYear()}-${String(date.getUTCMonth() + 1).padStart(2, '0')}-${String(date.getUTCDate()).padStart(2, '0')}`;
 }
 
+async function selectOptionAsUser(select, value) {
+  const optionIndex = await select.locator('option').evaluateAll(
+    (options, target) => options.findIndex((option) => option.value === target),
+    value
+  );
+  expect(optionIndex).toBeGreaterThanOrEqual(0);
+  await select.focus();
+  await select.press('Home');
+  for (let index = 0; index < optionIndex; index += 1) await select.press('ArrowDown');
+  await select.press('Tab');
+  await expect(select).toHaveValue(value);
+}
+
+async function fillDateAsUser(input, value) {
+  const digits = `${value.slice(5, 7)}${value.slice(8, 10)}${value.slice(0, 4)}`;
+  await input.focus();
+  await input.press('Control+A');
+  await input.pressSequentially(digits);
+  await input.press('Tab');
+  await expect(input).toHaveValue(value);
+}
+
 function navigationButton(page, view) {
   const mobile = Number(page.viewportSize()?.width || 0) <= 720;
   return mobile ? page.locator(`.mobile-tab[data-view="${view}"]`) : page.locator(`.nav-item[data-view="${view}"]`);
@@ -123,10 +145,10 @@ test('ручной пункт плана: безопасные defaults, рук�
 
   form = await openNewItem(page, plan.id);
   const startValue = await form.locator('[name="startsAt"]').inputValue();
-  await form.locator('[name="direction"]').selectOption('education');
-  await form.locator('[name="primaryExecutorPersonId"]').selectOption(otherExecutor.id);
+  await selectOptionAsUser(form.locator('[name="direction"]'), 'education');
+  await selectOptionAsUser(form.locator('[name="primaryExecutorPersonId"]'), otherExecutor.id);
   await expect(form.locator('[name="controllerPersonId"]')).toHaveValue(secondManager.id);
-  await form.locator('[name="dueDate"]').fill(addDays(startValue, 21));
+  await fillDateAsUser(form.locator('[name="dueDate"]'), addDays(startValue, 21));
   const secondTitle = `Провести обсуждение ${suffix}`;
   await form.locator('[name="title"]').fill(secondTitle);
   const secondResponse = page.waitForResponse((response) =>
