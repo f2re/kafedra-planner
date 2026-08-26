@@ -17,7 +17,9 @@ test('автосопоставление отчёта завершается п�
     const now = '2026-08-05T10:00:00.000Z';
     database.run("INSERT INTO file_blobs VALUES ('sha-a', 1, 'text/plain', '/tmp/a', ?)", now);
     database.run("INSERT INTO file_blobs VALUES ('sha-b', 1, 'text/plain', '/tmp/b', ?)", now);
-    database.run(`INSERT INTO documents VALUES ('doc-base', ?, 'Распоряжение 47-р', 'directive', 'processed', 'dv-base', ?, ?)`, workspace.id, now, now);
+    database.run(`INSERT INTO documents(
+      id, workspace_id, title, document_type, status, current_version_id, created_at, updated_at
+    ) VALUES ('doc-base', ?, 'Распоряжение 47-р', 'directive', 'processed', 'dv-base', ?, ?)`, workspace.id, now, now);
     database.run(`INSERT INTO document_versions(id, document_id, version_no, blob_sha256, original_name, media_type, detected_format, processing_status, extracted_text, uploaded_at, ocr_status, preview_status, structure_status)
       VALUES ('dv-base','doc-base',1,'sha-a','base.txt','text/plain','text','processed','РАСПОРЯЖЕНИЕ № 47-р',?,'not_needed','unsupported','ready')`, now);
     database.run(`INSERT INTO directives(id, workspace_id, source_document_version_id, directive_kind, document_number, issued_at, title, direction, confidence, evidence_json, created_at, updated_at)
@@ -28,7 +30,9 @@ test('автосопоставление отчёта завершается п�
     database.run(`INSERT INTO assignment_executors(assignment_id, person_id, executor_raw, role, created_at) VALUES ('as-1','p-1','Иванов Иван Иванович','executor',?)`, now);
     database.run(`INSERT INTO calendar_items(id, workspace_id, source_kind, source_id, title, starts_at, category, importance, status, item_kind, revision, created_at, updated_at)
       VALUES ('cal-1',?,'assignment','as-1','Подготовить отчёт по НИР','2026-08-20','science','normal','open','task',1,?,?)`, workspace.id, now, now);
-    database.run(`INSERT INTO documents VALUES ('doc-report', ?, 'Отчёт по распоряжению № 47-р', 'report', 'processed', 'dv-report', ?, ?)`, workspace.id, now, now);
+    database.run(`INSERT INTO documents(
+      id, workspace_id, title, document_type, status, current_version_id, created_at, updated_at
+    ) VALUES ('doc-report', ?, 'Отчёт по распоряжению № 47-р', 'report', 'processed', 'dv-report', ?, ?)`, workspace.id, now, now);
     database.run(`INSERT INTO document_versions(id, document_id, version_no, blob_sha256, original_name, media_type, detected_format, processing_status, extracted_text, uploaded_at, ocr_status, preview_status, structure_status)
       VALUES ('dv-report','doc-report',1,'sha-b','report.txt','text/plain','text','processed','Иванов Иван Иванович подготовил отчёт по НИР. Распоряжение № 47-р выполнено.',?,'not_needed','unsupported','ready')`, now);
 
