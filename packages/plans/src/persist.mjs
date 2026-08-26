@@ -4,6 +4,7 @@ import { getPlan } from './queries.mjs';
 import { planKindLabel, planLabel } from './shared.mjs';
 import { addFacet, addReview, documentForVersion, findPerson, insertCalendarItem } from './persist-helpers.mjs';
 import { linkPlanItemsToSourceRows, persistPlanSourceRows } from './source-rows.mjs';
+import { autoAssignImportedPlanItem } from './auto-assignment.mjs';
 
 export function persistPlan(database, {
   workspaceId,
@@ -103,6 +104,7 @@ export function persistPlan(database, {
           kind: 'task', status: 'open', reminderMinutes: 10080, now
         });
       }
+      if (responsible) autoAssignImportedPlanItem(database, workspaceId, itemId, now);
       if (!item.startsAt && !item.dueDate) missingDates.push({ id: itemId, title: item.title, sourceItemKey: item.sourceItemKey });
     }
 

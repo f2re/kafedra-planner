@@ -1,0 +1,45 @@
+.work-periodic-form.work-smart-collapsed {
+  display: none !important;
+}
+
+.work-create-periodic {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  justify-content: flex-end;
+  margin-left: auto;
+}
+
+.work-create-periodic .primary-button {
+  white-space: nowrap;
+}
+
+.work-origin-plan {
+  font-weight: 700;
+}
+
+.auto-assignment-status {
+  display: inline-flex;
+  margin-top: 5px;
+  padding: 2px 7px;
+  border-radius: 999px;
+  background: var(--surface-subtle, #eef4fb);
+  font-size: 11px;
+  font-weight: 700;
+  line-height: 1.4;
+}
+
+.auto-assignment-status.needs-review {
+  font-weight: 600;
+}
+
+@media (max-width: 720px) {
+  .work-create-periodic {
+    width: 100%;
+    justify-content: stretch;
+  }
+
+  .work-create-periodic .primary-button {
+    width: 100%;
+  }
+}
