@@ -1,11 +1,17 @@
 import { AppError } from '../../../packages/core/src/errors.mjs';
-import { newId } from '../../../packages/core/src/ids.mjs';
 import { assertObjectAccess, resolveObjectAccess } from '../../../packages/access-control/src/service.mjs';
 import { assertPlanAccess, resolvePlanAccess } from '../../../packages/plans/src/access.mjs';
 import { getPlan, listPlans } from '../../../packages/plans/src/service.mjs';
 import { getDocument } from '../../../packages/storage/src/documents.mjs';
 import {
-  archiveDocument, archivePlan, documentImpact, planImpact, restoreDocument, restorePlan
+  archiveDocument,
+  archivePlan,
+  documentImpact,
+  planImpact,
+  restoreDocument,
+  restorePlan,
+  updateDocumentMetadata,
+  updatePlanMetadata
 } from '../../../packages/lifecycle/src/service.mjs';
 import { readJson, sendJson } from './http-utils.mjs';
 
@@ -117,64 +123,11 @@ function enrichPlan(database, workspaceId, plan) {
         FROM plans WHERE workspace_id = ? AND id = ?
       `, workspaceId, plan.replacement_plan_id)
     : null;
-  return { ...plan, replacement };
-}
-
-function metadataTitle(input) {
-  const title = String(input || '').trim();
-  if (!title) throw new AppError('lifecycle_title_required', 'Укажите понятное название.', 400);
-  return title.slice(0, 500);
-}
-
-function metadataDocumentType(input) {
-  const type = String(input || '').trim();
-  if (!type || !/^[a-z][a-z0-9_]*$/u.test(type)) {
-    throw new AppError('document_type_invalid', 'Выберите допустимый вид документа.', 400);
-  }
-  return type.slice(0, 80);
-}
-
-function writeAudit(database, workspaceId, actorPersonId, action, subjectKind, subjectId, details, now) {
-  database.run(`
-    INSERT INTO audit_log(id, workspace_id, actor, action, subject_kind, subject_id, details_json, created_at)
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-  `, newId('audit'), workspaceId, actorPersonId || 'operator', action,
-  subjectKind, subjectId, JSON.stringify(details), now);
-}
-
-function updateDocument(database, workspaceId, documentId, body, actorPersonId) {
-  const current = database.get('SELECT * FROM documents WHERE workspace_id = ? AND id = ?', workspaceId, documentId);
-  if (!current) throw new AppError('document_not_found', 'Документ не найден.', 404);
-  const title = Object.prototype.hasOwnProperty.call(body, 'title') ? metadataTitle(body.title) : current.title;
-  const documentType = Object.prototype.hasOwnProperty.call(body, 'documentType')
-    ? metadataDocumentType(body.documentType) : current.document_type;
-  const now = new Date().toISOString();
-  database.transaction(() => {
-    database.run(`
-      UPDATE documents SET title = ?, document_type = ?, updated_at = ?
-      WHERE workspace_id = ? AND id = ?
-    `, title, documentType, now, workspaceId, documentId);
-    writeAudit(database, workspaceId, actorPersonId, 'document.metadata_updated', 'document', documentId, {
-      before: { title: current.title, documentType: current.document_type },
-      after: { title, documentType }
-    }, now);
-  });
-  return enrichDocument(database, workspaceId, getDocument(database, workspaceId, documentId));
-}
-
-function updatePlan(database, workspaceId, planId, body, actorPersonId) {
-  const current = database.get('SELECT * FROM plans WHERE workspace_id = ? AND id = ?', workspaceId, planId);
-  if (!current) throw new AppError('plan_not_found', 'План не найден.', 404);
-  const title = Object.prototype.hasOwnProperty.call(body, 'title') ? metadataTitle(body.title) : current.title;
-  const now = new Date().toISOString();
-  database.transaction(() => {
-    database.run('UPDATE plans SET title = ?, updated_at = ? WHERE workspace_id = ? AND id = ?',
-      title, now, workspaceId, planId);
-    writeAudit(database, workspaceId, actorPersonId, 'plan.metadata_updated', 'plan', planId, {
-      before: { title: current.title }, after: { title }
-    }, now);
-  });
-  return enrichPlan(database, workspaceId, getPlan(database, workspaceId, planId));
+  return {
+    ...plan,
+    lifecycle_status: plan.status === 'archived' ? 'archived' : 'active',
+    replacement
+  };
 }
 
 export function createLifecycleRouter({ database }) {
@@ -231,9 +184,7 @@ export function createLifecycleRouter({ database }) {
       const documentId = decodeURIComponent(documentMatch[1]);
       assertObjectAccess(database, workspace.id, context, 'document', documentId, method === 'GET' ? 'read' : 'edit');
       if (method === 'PATCH') {
-        return sendJson(response, 200, updateDocument(
-          database, workspace.id, documentId, await readJson(request), actorPersonId
-        ));
+        updateDocumentMetadata(database, workspace.id, documentId, await readJson(request), actorPersonId);
       }
       const document = getDocument(database, workspace.id, documentId);
       if (!document) throw new AppError('document_not_found', 'Документ не найден.', 404);
@@ -290,9 +241,7 @@ export function createLifecycleRouter({ database }) {
       const planId = decodeURIComponent(planMatch[1]);
       assertPlanAccess(database, workspace.id, context, planId, method === 'GET' ? 'read' : 'edit');
       if (method === 'PATCH') {
-        return sendJson(response, 200, updatePlan(
-          database, workspace.id, planId, await readJson(request), actorPersonId
-        ));
+        updatePlanMetadata(database, workspace.id, planId, await readJson(request), actorPersonId);
       }
       const plan = getPlan(database, workspace.id, planId);
       if (!plan) throw new AppError('plan_not_found', 'План не найден.', 404);
