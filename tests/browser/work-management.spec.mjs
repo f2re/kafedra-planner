@@ -92,6 +92,12 @@ test('периодическая задача разделяет плановы�
   await page.goto('/');
   await viewButton(page, 'work', mobile).click();
   const form = page.locator('#periodic-task-form');
+  const launcher = page.locator('#work-create-periodic');
+  await expect(launcher).toBeVisible();
+  await expect(launcher).toHaveAttribute('aria-expanded', 'false');
+  await expect(form).not.toBeVisible();
+  await launcher.click();
+  await expect(launcher).toHaveAttribute('aria-expanded', 'true');
   await expect(form).toBeVisible();
   await form.locator('input[name="title"]').fill(`Контрольная задача ${suffix}`);
   await form.locator('select[name="ownerPersonId"]').selectOption(owner.id);
