@@ -28,6 +28,10 @@ export async function uploadMeetingTemplateInput(input) {
     if (select) {
       select.innerHTML = templateOptions(data.version_id);
       select.value = data.version_id;
+      // Программный выбор должен пройти тот же локальный UI-путь, что ручной.
+      // Событие не загружает файл повторно: обработчик upload привязан только к
+      // input[data-meeting-template-upload], а редактор профиля слушает select.
+      select.dispatchEvent(new Event('change', { bubbles: true }));
     }
   }
   input.value = '';
@@ -138,4 +142,3 @@ export async function generateDocument(kind) {
     ? 'Такой документ уже был сформирован — показан существующий файл.'
     : kind === 'extract' ? 'Выписка сформирована.' : 'Протокол сформирован.');
 }
-
