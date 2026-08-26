@@ -10,6 +10,21 @@ export {
   saveMeetingTemplateProfile
 } from './meeting-template-profile.mjs';
 export {
+  archiveMeetingTemplateCatalogEntry,
+  assertMeetingTemplateCatalogSelectable,
+  ensureMeetingTemplateCatalog,
+  getMeetingTemplateCatalogEntry,
+  listMeetingTemplateCatalog,
+  meetingTemplateImpact,
+  registerMeetingTemplateCatalogEntry,
+  restoreMeetingTemplateCatalogEntry,
+  setMeetingTemplateDefault,
+  syncMeetingTemplateCatalog,
+  syncMeetingTemplateDefaults,
+  testMeetingTemplateCatalogEntry
+} from './meeting-template-library.mjs';
+export { enrichMeetingDocumentTemplateMetadata } from './meeting-document-metadata.mjs';
+export {
   createMeeting, getMeeting, listMeetingLinks, listMeetings, syncMeetingSearch, updateMeeting
 } from './meeting-core.mjs';
 export {

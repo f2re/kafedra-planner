@@ -2,18 +2,29 @@ import { AppError } from '../../../packages/core/src/errors.mjs';
 import {
   addAgendaItem,
   analyzeMeetingTemplate,
+  archiveMeetingTemplateCatalogEntry,
+  assertMeetingTemplateCatalogSelectable,
   createMeeting,
   deleteAgendaItem,
+  enrichMeetingDocumentTemplateMetadata,
   generateMeetingDocument,
   getMeeting,
   getMeetingSettings,
   listAgendaSources,
+  listMeetingTemplateCatalog,
   listMeetings,
   listMeetingLinks,
   meetingSettingsResources,
+  meetingTemplateImpact,
   moveAgendaItem,
+  registerMeetingTemplateCatalogEntry,
+  restoreMeetingTemplateCatalogEntry,
   saveMeetingSettings,
   saveMeetingTemplateProfile,
+  setMeetingTemplateDefault,
+  syncMeetingTemplateCatalog,
+  syncMeetingTemplateDefaults,
+  testMeetingTemplateCatalogEntry,
   updateAgendaItem,
   updateMeeting,
   uploadMeetingTemplate
@@ -61,6 +72,11 @@ function mappedError(cause) {
     meeting_template_repeat_invalid: ['Повторяемый блок больше не соответствует документу.', 409],
     meeting_template_repeat_incompatible: ['Поля вопроса должны находиться в одной строке таблицы либо в непрерывной группе абзацев.', 422],
     meeting_template_profile_incomplete: ['Шаблон ещё не готов: назначьте все обязательные поля и повторяемый вопрос.', 409],
+    meeting_template_catalog_not_found: ['Шаблон не найден в библиотеке.', 404],
+    meeting_template_catalog_archived: ['Этот шаблон находится в архиве. Сначала восстановите его.', 409],
+    meeting_template_replacement_invalid: ['Для замены нужен другой готовый активный шаблон того же вида.', 400],
+    meeting_template_default_archive_requires_replacement: ['Перед архивированием основного шаблона выберите другой готовый шаблон того же вида.', 409],
+    meeting_template_archive_reason_required: ['Укажите причину архивирования шаблона.', 400],
     meeting_date_required: ['Укажите дату заседания.', 400],
     meeting_date_invalid: ['Укажите корректную дату заседания.', 400],
     meeting_protocol_number_required: ['Укажите номер протокола.', 400],
@@ -81,6 +97,14 @@ function mappedError(cause) {
   return new AppError(code, message, status);
 }
 
+function meetingWithTemplateMetadata(database, meeting) {
+  if (!meeting) return meeting;
+  return {
+    ...meeting,
+    documents: enrichMeetingDocumentTemplateMetadata(database, meeting.documents || [])
+  };
+}
+
 export function createMeetingsRouter({ database, config }) {
   return async function routeMeetings(request, response, url) {
     const method = request.method || 'GET';
@@ -92,13 +116,15 @@ export function createMeetingsRouter({ database, config }) {
     const documentsMatch = path.match(/^\/api\/meetings\/([^/]+)\/documents$/u);
     const templateAnalysisMatch = path.match(/^\/api\/meeting-templates\/([^/]+)\/analysis$/u);
     const templateProfilesMatch = path.match(/^\/api\/meeting-templates\/([^/]+)\/profiles$/u);
+    const libraryActionMatch = path.match(/^\/api\/meeting-template-library\/([^/]+)\/(default|impact|archive|restore|test)$/u);
     const recognized = path === '/api/meeting-settings'
       || path === '/api/meeting-agenda-sources'
       || path === '/api/meeting-links'
       || path === '/api/meeting-templates'
+      || path === '/api/meeting-template-library'
       || path === '/api/meetings'
       || meetingMatch || agendaCollectionMatch || agendaItemMatch || agendaMoveMatch || documentsMatch
-      || templateAnalysisMatch || templateProfilesMatch;
+      || templateAnalysisMatch || templateProfilesMatch || libraryActionMatch;
     if (!recognized) return false;
 
     const workspace = workspaceOf(database, request);
@@ -106,6 +132,7 @@ export function createMeetingsRouter({ database, config }) {
 
     try {
       if (method === 'GET' && path === '/api/meeting-settings') {
+        listMeetingTemplateCatalog(database, workspace.id);
         return sendJson(response, 200, {
           settings: getMeetingSettings(database, workspace.id),
           resources: meetingSettingsResources(database, workspace.id)
@@ -113,7 +140,10 @@ export function createMeetingsRouter({ database, config }) {
       }
       if (method === 'PUT' && path === '/api/meeting-settings') {
         const body = await readJson(request);
+        assertMeetingTemplateCatalogSelectable(database, workspace.id, body?.protocolTemplateVersionId, 'protocol');
+        assertMeetingTemplateCatalogSelectable(database, workspace.id, body?.extractTemplateVersionId, 'extract');
         const settings = saveMeetingSettings(database, workspace.id, body, actorPersonId);
+        syncMeetingTemplateDefaults(database, workspace.id, settings);
         return sendJson(response, 200, { settings, resources: meetingSettingsResources(database, workspace.id) });
       }
       if (method === 'POST' && path === '/api/meeting-templates') {
@@ -121,12 +151,48 @@ export function createMeetingsRouter({ database, config }) {
         if (!encodedName) throw mappedError(Object.assign(new Error('meeting_template_name_required'), { code: 'meeting_template_name_required' }));
         let originalName = encodedName;
         try { originalName = decodeURIComponent(encodedName); } catch {}
+        const kind = String(url.searchParams.get('kind') || '');
         const uploaded = await uploadMeetingTemplate(database, config, workspace.id, request, {
-          kind: String(url.searchParams.get('kind') || ''),
+          kind,
           originalName,
           actorPersonId
         });
+        uploaded.catalog = registerMeetingTemplateCatalogEntry(database, workspace.id, uploaded, {
+          kind,
+          seriesId: url.searchParams.get('seriesId'),
+          displayName: url.searchParams.get('displayName') || originalName,
+          actorPersonId
+        });
         return sendJson(response, uploaded.duplicateRequest ? 200 : 201, uploaded);
+      }
+      if (method === 'GET' && path === '/api/meeting-template-library') {
+        return sendJson(response, 200, {
+          items: listMeetingTemplateCatalog(database, workspace.id, {
+            includeArchived: url.searchParams.get('includeArchived') === '1',
+            kind: url.searchParams.get('kind') || null
+          })
+        });
+      }
+      if (libraryActionMatch) {
+        const catalogId = decodeURIComponent(libraryActionMatch[1]);
+        const action = libraryActionMatch[2];
+        if (method === 'GET' && action === 'impact') {
+          return sendJson(response, 200, meetingTemplateImpact(database, workspace.id, catalogId));
+        }
+        if (method === 'POST' && action === 'default') {
+          return sendJson(response, 200, setMeetingTemplateDefault(database, workspace.id, catalogId, actorPersonId));
+        }
+        if (method === 'POST' && action === 'archive') {
+          const body = await readJson(request);
+          return sendJson(response, 200, archiveMeetingTemplateCatalogEntry(database, workspace.id, catalogId, body, actorPersonId));
+        }
+        if (method === 'POST' && action === 'restore') {
+          return sendJson(response, 200, restoreMeetingTemplateCatalogEntry(database, workspace.id, catalogId, actorPersonId));
+        }
+        if (method === 'POST' && action === 'test') {
+          const result = await testMeetingTemplateCatalogEntry(database, config, workspace.id, catalogId, actorPersonId);
+          return sendJson(response, result.duplicateRequest ? 200 : 201, result);
+        }
       }
       if (templateAnalysisMatch && method === 'GET') {
         const versionId = decodeURIComponent(templateAnalysisMatch[1]);
@@ -140,6 +206,7 @@ export function createMeetingsRouter({ database, config }) {
         const profile = await saveMeetingTemplateProfile(
           database, config, workspace.id, versionId, kind, body, actorPersonId
         );
+        syncMeetingTemplateCatalog(database, workspace.id, versionId, kind);
         return sendJson(response, profile.duplicateRequest ? 200 : 201, profile);
       }
       if (method === 'GET' && path === '/api/meeting-agenda-sources') {
@@ -157,42 +224,42 @@ export function createMeetingsRouter({ database, config }) {
       }
       if (method === 'POST' && path === '/api/meetings') {
         const body = await readJson(request);
-        return sendJson(response, 201, createMeeting(database, workspace.id, body, actorPersonId));
+        return sendJson(response, 201, meetingWithTemplateMetadata(database, createMeeting(database, workspace.id, body, actorPersonId)));
       }
       if (meetingMatch) {
         const meetingId = decodeURIComponent(meetingMatch[1]);
         if (method === 'GET') {
-          const meeting = getMeeting(database, workspace.id, meetingId);
+          const meeting = meetingWithTemplateMetadata(database, getMeeting(database, workspace.id, meetingId));
           if (!meeting) throw mappedError(Object.assign(new Error('meeting_not_found'), { code: 'meeting_not_found' }));
           return sendJson(response, 200, meeting);
         }
         if (method === 'PATCH') {
           const body = await readJson(request);
-          return sendJson(response, 200, updateMeeting(database, workspace.id, meetingId, body, actorPersonId));
+          return sendJson(response, 200, meetingWithTemplateMetadata(database, updateMeeting(database, workspace.id, meetingId, body, actorPersonId)));
         }
       }
       if (agendaCollectionMatch && method === 'POST') {
         const meetingId = decodeURIComponent(agendaCollectionMatch[1]);
         const body = await readJson(request);
-        return sendJson(response, 201, addAgendaItem(database, workspace.id, meetingId, body, actorPersonId));
+        return sendJson(response, 201, meetingWithTemplateMetadata(database, addAgendaItem(database, workspace.id, meetingId, body, actorPersonId)));
       }
       if (agendaMoveMatch && method === 'POST') {
         const meetingId = decodeURIComponent(agendaMoveMatch[1]);
         const itemId = decodeURIComponent(agendaMoveMatch[2]);
         const body = await readJson(request);
-        return sendJson(response, 200, moveAgendaItem(
+        return sendJson(response, 200, meetingWithTemplateMetadata(database, moveAgendaItem(
           database, workspace.id, meetingId, itemId, String(body?.direction || ''), actorPersonId
-        ));
+        )));
       }
       if (agendaItemMatch) {
         const meetingId = decodeURIComponent(agendaItemMatch[1]);
         const itemId = decodeURIComponent(agendaItemMatch[2]);
         if (method === 'PATCH') {
           const body = await readJson(request);
-          return sendJson(response, 200, updateAgendaItem(database, workspace.id, meetingId, itemId, body, actorPersonId));
+          return sendJson(response, 200, meetingWithTemplateMetadata(database, updateAgendaItem(database, workspace.id, meetingId, itemId, body, actorPersonId)));
         }
         if (method === 'DELETE') {
-          return sendJson(response, 200, deleteAgendaItem(database, workspace.id, meetingId, itemId, actorPersonId));
+          return sendJson(response, 200, meetingWithTemplateMetadata(database, deleteAgendaItem(database, workspace.id, meetingId, itemId, actorPersonId)));
         }
       }
       if (documentsMatch && method === 'POST') {
