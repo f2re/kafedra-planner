@@ -5,7 +5,7 @@ import { newId } from '../../core/src/ids.mjs';
 import { ensureObjectPolicy } from '../../access-control/src/service.mjs';
 import { storeGeneratedFile } from '../../document-intake/src/blob-store.mjs';
 import { buildDocumentPreview } from '../../document-intake/src/preview.mjs';
-import { meetingDocumentHash, meetingDocumentModel, renderMeetingDocumentFile } from './meeting-docx.mjs';
+import { meetingDocumentModel, renderMeetingDocumentFile } from './meeting-docx.mjs';
 import {
   analyzeMeetingTemplatePath,
   latestMeetingTemplateProfile,
@@ -411,6 +411,115 @@ async function materializeTestResult(database, workspaceId, row, duplicateReques
   };
 }
 
+function previewFailure(error) {
+  return {
+    status: 'failed',
+    blob: null,
+    mediaType: null,
+    error: String(error?.code || error?.message || error || 'preview_failed').slice(0, 1200)
+  };
+}
+
+async function createOptionalPreview(config, outputPath, originalName, blob) {
+  if (config.previewEnabled === false) {
+    return { status: 'disabled', blob: null, mediaType: null, error: null };
+  }
+  try {
+    return await buildDocumentPreview({
+      sourcePath: outputPath,
+      format: 'docx',
+      originalName,
+      originalMediaType: blob.mediaType,
+      originalBlob: blob,
+      blobDir: config.blobDir,
+      tempDir: config.tempDir,
+      enabled: true
+    });
+  } catch (error) {
+    return previewFailure(error);
+  }
+}
+
+function registerTestDocument(database, {
+  workspaceId,
+  entry,
+  profile,
+  requestHash,
+  model,
+  rendered,
+  blob,
+  actorPersonId,
+  now
+}) {
+  const raced = database.get(`
+    SELECT id FROM meeting_template_test_runs WHERE catalog_id = ? AND request_hash = ?
+  `, entry.id, requestHash);
+  if (raced) return { runId: raced.id, duplicateRequest: true };
+
+  const documentId = newId('doc');
+  const versionId = newId('docv');
+  const runId = newId('mttest');
+  database.run(`
+    INSERT OR IGNORE INTO file_blobs(sha256, size_bytes, media_type, storage_path, created_at)
+    VALUES (?, ?, ?, ?, ?)
+  `, blob.sha256, blob.sizeBytes, blob.mediaType, blob.storagePath, now);
+  database.run(`
+    INSERT INTO documents(id, workspace_id, title, document_type, status, current_version_id, created_at, updated_at)
+    VALUES (?, ?, ?, 'meeting_template_test', 'processed', ?, ?, ?)
+  `, documentId, workspaceId, `Проверка шаблона «${entry.display_name}»`, versionId, now, now);
+  database.run(`
+    INSERT INTO document_versions(
+      id, document_id, version_no, blob_sha256, original_name, media_type, detected_format,
+      processing_status, extracted_text, extraction_error, upload_key, uploaded_at,
+      structure_status, ocr_status, preview_status, preview_blob_sha256,
+      preview_media_type, preview_error
+    ) VALUES (?, ?, 1, ?, ?, ?, 'docx', 'processed', ?, NULL, ?, ?,
+      'generated', 'not_needed', 'pending', NULL, NULL, NULL)
+  `, versionId, documentId, blob.sha256, `Проверка ${entry.display_name}.docx`, blob.mediaType,
+  rendered.text, `meeting-template-test:${entry.id}:${requestHash}`, now);
+  ensureObjectPolicy(database, {
+    workspaceId, objectKind: 'document', objectId: documentId,
+    ownerPersonId: actorPersonId, accessScope: 'workspace', now
+  });
+  database.run(`
+    INSERT INTO meeting_template_test_runs(
+      id, workspace_id, catalog_id, profile_version_id, request_hash, model_json,
+      generated_document_id, generated_document_version_id, preview_status,
+      preview_error, created_by_person_id, created_at
+    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'pending', NULL, ?, ?)
+  `, runId, workspaceId, entry.id, profile?.profile_version_id || null, requestHash,
+  JSON.stringify(model), documentId, versionId, actorPersonId, now);
+  return { runId, documentId, versionId, duplicateRequest: false };
+}
+
+function applyTestPreview(database, workspaceId, registration, preview, entry, actorPersonId, now) {
+  database.transaction(() => {
+    if (preview.blob) {
+      database.run(`
+        INSERT OR IGNORE INTO file_blobs(sha256, size_bytes, media_type, storage_path, created_at)
+        VALUES (?, ?, ?, ?, ?)
+      `, preview.blob.sha256, preview.blob.sizeBytes,
+      preview.mediaType || preview.blob.mediaType, preview.blob.storagePath, now);
+    }
+    database.run(`
+      UPDATE document_versions
+      SET preview_status = ?, preview_blob_sha256 = ?, preview_media_type = ?, preview_error = ?
+      WHERE id = ?
+    `, preview.status, preview.blob?.sha256 || null, preview.mediaType || null,
+    preview.error || null, registration.versionId);
+    database.run(`
+      UPDATE meeting_template_test_runs SET preview_status = ?, preview_error = ? WHERE id = ?
+    `, preview.status, preview.error || null, registration.runId);
+    writeAudit(database, workspaceId, actorPersonId, 'meeting.template_catalog.tested', 'meeting_template_catalog', entry.id, {
+      runId: registration.runId,
+      documentId: registration.documentId,
+      documentVersionId: registration.versionId,
+      previewStatus: preview.status,
+      previewError: preview.error || null
+    }, now);
+  });
+}
+
 export async function testMeetingTemplateCatalogEntry(database, config, workspaceId, catalogId, actorPersonId = null) {
   const entry = requireSelectable(requireCatalogEntry(database, workspaceId, catalogId));
   const template = assertDocxTemplate(database, workspaceId, entry.document_version_id);
@@ -420,7 +529,7 @@ export async function testMeetingTemplateCatalogEntry(database, config, workspac
   if (entry.readiness === 'ready' && !profile) fail('meeting_template_profile_incomplete');
   const model = sampleModel(entry.document_kind);
   const requestHash = createHash('sha256').update(JSON.stringify({
-    schema: 1,
+    schema: 2,
     catalogId: entry.id,
     templateSha256: template.blob_sha256,
     profileSha256: profile?.profileSha256 || null,
@@ -444,68 +553,39 @@ export async function testMeetingTemplateCatalogEntry(database, config, workspac
       blobDir: config.blobDir,
       mediaType: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document'
     });
-    const preview = await buildDocumentPreview({
-      sourcePath: outputPath,
-      format: 'docx',
-      originalName: `Проверка ${entry.display_name}.docx`,
-      originalMediaType: blob.mediaType,
-      originalBlob: blob,
-      blobDir: config.blobDir,
-      tempDir: config.tempDir,
-      enabled: config.previewEnabled !== false
-    });
     const now = new Date().toISOString();
-    const documentId = newId('doc');
-    const versionId = newId('docv');
-    const runId = newId('mttest');
+    let registration;
     database.transaction(() => {
-      database.run(`
-        INSERT OR IGNORE INTO file_blobs(sha256, size_bytes, media_type, storage_path, created_at)
-        VALUES (?, ?, ?, ?, ?)
-      `, blob.sha256, blob.sizeBytes, blob.mediaType, blob.storagePath, now);
-      if (preview.blob) {
-        database.run(`
-          INSERT OR IGNORE INTO file_blobs(sha256, size_bytes, media_type, storage_path, created_at)
-          VALUES (?, ?, ?, ?, ?)
-        `, preview.blob.sha256, preview.blob.sizeBytes, preview.mediaType || preview.blob.mediaType, preview.blob.storagePath, now);
-      }
-      database.run(`
-        INSERT INTO documents(id, workspace_id, title, document_type, status, current_version_id, created_at, updated_at)
-        VALUES (?, ?, ?, 'meeting_template_test', 'processed', ?, ?, ?)
-      `, documentId, workspaceId, `Проверка шаблона «${entry.display_name}»`, versionId, now, now);
-      database.run(`
-        INSERT INTO document_versions(
-          id, document_id, version_no, blob_sha256, original_name, media_type, detected_format,
-          processing_status, extracted_text, extraction_error, upload_key, uploaded_at,
-          structure_status, ocr_status, preview_status, preview_blob_sha256,
-          preview_media_type, preview_error
-        ) VALUES (?, ?, 1, ?, ?, ?, 'docx', 'processed', ?, NULL, ?, ?,
-          'generated', 'not_needed', ?, ?, ?, ?)
-      `, versionId, documentId, blob.sha256, `Проверка ${entry.display_name}.docx`, blob.mediaType,
-      rendered.text, `meeting-template-test:${entry.id}:${requestHash}`, now,
-      preview.status, preview.blob?.sha256 || null, preview.mediaType || null, preview.error || null);
-      ensureObjectPolicy(database, {
-        workspaceId, objectKind: 'document', objectId: documentId,
-        ownerPersonId: actorPersonId, accessScope: 'workspace', now
+      registration = registerTestDocument(database, {
+        workspaceId,
+        entry,
+        profile,
+        requestHash,
+        model,
+        rendered,
+        blob,
+        actorPersonId,
+        now
       });
-      database.run(`
-        INSERT INTO meeting_template_test_runs(
-          id, workspace_id, catalog_id, profile_version_id, request_hash, model_json,
-          generated_document_id, generated_document_version_id, preview_status,
-          preview_error, created_by_person_id, created_at
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-      `, runId, workspaceId, entry.id, profile?.profile_version_id || null, requestHash,
-      JSON.stringify(model), documentId, versionId, preview.status, preview.error || null,
-      actorPersonId, now);
-      writeAudit(database, workspaceId, actorPersonId, 'meeting.template_catalog.tested', 'meeting_template_catalog', entry.id, {
-        runId,
-        documentId,
-        documentVersionId: versionId,
-        previewStatus: preview.status,
-        previewError: preview.error || null
-      }, now);
     });
-    return materializeTestResult(database, workspaceId, testRunRow(database, workspaceId, runId), false);
+    if (registration.duplicateRequest) {
+      return materializeTestResult(database, workspaceId,
+        testRunRow(database, workspaceId, registration.runId), true);
+    }
+
+    // К этому моменту DOCX и его версия уже атомарно зарегистрированы и
+    // доступны. Preview — отдельная необязательная проекция: ни отсутствие
+    // LibreOffice, ни ошибка конвертации не могут отменить готовый DOCX.
+    const preview = await createOptionalPreview(
+      config,
+      outputPath,
+      `Проверка ${entry.display_name}.docx`,
+      blob
+    );
+    applyTestPreview(database, workspaceId, registration, preview, entry, actorPersonId,
+      new Date().toISOString());
+    return materializeTestResult(database, workspaceId,
+      testRunRow(database, workspaceId, registration.runId), false);
   } finally {
     await rm(outputPath, { force: true });
   }
