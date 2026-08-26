@@ -8,8 +8,8 @@ import { ensureDefaultWorkspace } from '../packages/storage/src/bootstrap.mjs';
 
 const migrationsDir = resolve('migrations');
 
-test('schema 25 обновляется до 26 без потери существующих планов', async () => {
-  const dir = await mkdtemp(join(tmpdir(), 'kafedra-schema26-'));
+test('schema 25 обновляется через 26 до 27 без потери существующих планов', async () => {
+  const dir = await mkdtemp(join(tmpdir(), 'kafedra-schema27-'));
   const oldMigrations = join(dir, 'migrations25');
   const dbPath = join(dir, 'upgrade.sqlite3');
   await mkdir(oldMigrations);
@@ -31,10 +31,11 @@ test('schema 25 обновляется до 26 без потери сущест�
 
     database = new Database(dbPath, { migrationsDir });
     try {
-      assert.equal(database.get('SELECT MAX(version) AS version FROM schema_migrations').version, 26);
+      assert.equal(database.get('SELECT MAX(version) AS version FROM schema_migrations').version, 27);
       assert.equal(database.get("SELECT title FROM plans WHERE id='plan_before_26'").title, 'План до обновления');
       assert.ok(database.get("SELECT name FROM sqlite_master WHERE type='table' AND name='plan_source_rows'"));
       assert.ok(database.get("SELECT name FROM sqlite_master WHERE type='table' AND name='plan_source_row_items'"));
+      assert.equal(database.get("SELECT lifecycle_status FROM documents LIMIT 1")?.lifecycle_status ?? 'active', 'active');
       assert.deepEqual(database.all('PRAGMA foreign_key_check'), []);
       assert.equal(database.quickCheck(), true);
     } finally {
