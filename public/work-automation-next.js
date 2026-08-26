@@ -11,21 +11,11 @@ const workAutomationState = {
 
 function ensureWorkAutomationStyles() {
   if ($wa('#work-automation-next-styles')) return;
-  const style = document.createElement('style');
-  style.id = 'work-automation-next-styles';
-  style.textContent = `
-    .work-periodic-form.work-smart-collapsed{display:none!important}
-    .work-create-periodic{display:flex;gap:8px;align-items:center;justify-content:flex-end;margin-left:auto}
-    .work-create-periodic .primary-button{white-space:nowrap}
-    .work-origin-plan{font-weight:700}
-    .auto-assignment-status{display:inline-flex;margin-top:5px;padding:2px 7px;border-radius:999px;background:var(--surface-subtle,#eef4fb);font-size:11px;font-weight:700;line-height:1.4}
-    .auto-assignment-status.needs-review{font-weight:600}
-    @media(max-width:720px){
-      .work-create-periodic{width:100%;justify-content:stretch}
-      .work-create-periodic .primary-button{width:100%}
-    }
-  `;
-  document.head.append(style);
+  const link = document.createElement('link');
+  link.id = 'work-automation-next-styles';
+  link.rel = 'stylesheet';
+  link.href = '/work-automation-next.css';
+  document.head.append(link);
 }
 
 async function json(path) {
@@ -83,12 +73,10 @@ async function tagWorkOrigins() {
     if (!assignment) continue;
     const fromPlan = assignment.evidence?.source === 'plan_item' || (!assignment.directive_id && assignment.evidence?.planItemId);
     if (!fromPlan) continue;
-    card.dataset.workOrigin = 'plan';
+    if (card.dataset.workOrigin !== 'plan') card.dataset.workOrigin = 'plan';
     const pill = $wa('.work-pill', card);
-    if (pill && pill.textContent !== 'поручение из плана') {
-      pill.textContent = 'поручение из плана';
-      pill.classList.add('work-origin-plan');
-    }
+    if (pill && pill.textContent !== 'поручение из плана') pill.textContent = 'поручение из плана';
+    if (pill && !pill.classList.contains('work-origin-plan')) pill.classList.add('work-origin-plan');
   }
 }
 
@@ -111,19 +99,19 @@ async function tagPlanResponsibility() {
   const items = new Map((plan.items || []).map((item) => [item.id, item]));
   for (const row of rows) {
     const item = items.get(row.dataset.planItemRow);
-    if (!item) continue;
+    if (!item || item.origin_kind !== 'extracted') continue;
     const cell = row.children?.[3];
     if (!cell) continue;
     let badge = $wa('[data-auto-assignment-status]', cell);
     const state = item.assignment
-      ? { text: 'Назначен', className: '' }
+      ? { text: 'Назначен', needsReview: false }
       : item.responsible_person_id
-        ? { text: 'Предлагается назначить', className: '' }
+        ? { text: 'Предлагается назначить', needsReview: false }
         : item.responsible_raw
-          ? { text: 'Нужно уточнить сотрудника', className: 'needs-review' }
+          ? { text: 'Нужно уточнить сотрудника', needsReview: true }
           : null;
     if (!state) {
-      badge?.remove();
+      if (badge) badge.remove();
       continue;
     }
     if (!badge) {
@@ -132,8 +120,10 @@ async function tagPlanResponsibility() {
       badge.className = 'auto-assignment-status';
       cell.append(document.createElement('br'), badge);
     }
-    badge.textContent = state.text;
-    badge.classList.toggle('needs-review', Boolean(state.className));
+    if (badge.textContent !== state.text) badge.textContent = state.text;
+    if (badge.classList.contains('needs-review') !== state.needsReview) {
+      badge.classList.toggle('needs-review', state.needsReview);
+    }
   }
 }
 
