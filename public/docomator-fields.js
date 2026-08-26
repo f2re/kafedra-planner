@@ -235,11 +235,12 @@ document.addEventListener('click', (event) => {
 
 document.addEventListener('click', async (event) => {
   const button = event.target.closest?.('[data-docomator-import]');
-  if (!button || docomatorFieldsState.importReplay || !docomatorFieldsState.savePromise) return;
+  if (!button || docomatorFieldsState.importReplay) return;
   event.preventDefault();
   event.stopImmediatePropagation();
   try {
-    await docomatorFieldsState.savePromise;
+    if (docomatorFieldsState.savePromise) await docomatorFieldsState.savePromise;
+    else await persistMapping();
     docomatorFieldsState.importReplay = true;
     button.click();
   } finally {
