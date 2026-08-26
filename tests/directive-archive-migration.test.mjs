@@ -5,10 +5,11 @@ import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 import { Database } from '../packages/storage/src/database.mjs';
 import { ensureDefaultWorkspace } from '../packages/storage/src/bootstrap.mjs';
+import { CURRENT_SCHEMA_VERSION } from './helpers/current-schema.mjs';
 
 const migrationsDir = resolve('migrations');
 
-test('обновление 019 → 020 переносит существующие распоряжения в календарь без потери данных', async () => {
+test('обновление 019 → текущая схема переносит существующие распоряжения в календарь без потери данных', async () => {
   const root = await mkdtemp(join(tmpdir(), 'kafedra-directive-archive-upgrade-'));
   const legacyMigrations = join(root, 'migrations-019');
   const databasePath = join(root, 'existing.sqlite3');
@@ -67,7 +68,7 @@ test('обновление 019 → 020 переносит существующи
 
     database = new Database(databasePath, { migrationsDir });
     try {
-      assert.equal(database.get('SELECT MAX(version) AS v FROM schema_migrations').v, 27);
+      assert.equal(database.get('SELECT MAX(version) AS v FROM schema_migrations').v, CURRENT_SCHEMA_VERSION);
       assert.ok(database.get(`
         SELECT name FROM sqlite_master
         WHERE type='table' AND name='directive_report_materials'

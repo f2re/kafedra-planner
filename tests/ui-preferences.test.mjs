@@ -7,6 +7,7 @@ import { Database } from '../packages/storage/src/database.mjs';
 import { ensureDefaultWorkspace } from '../packages/storage/src/bootstrap.mjs';
 import { listUiPreferences, recordUiPreferences } from '../packages/preferences/src/service.mjs';
 import { createUiPreferencesRouter } from '../apps/api/src/ui-preferences-router.mjs';
+import { CURRENT_SCHEMA_VERSION } from './helpers/current-schema.mjs';
 
 function insertPerson(database, workspaceId, id, name) {
   const now = '2026-08-15T06:00:00.000Z';
@@ -147,7 +148,7 @@ test('обучаемые defaults считают только уникальны
       interactionId: 'bad-security', choices: [{ key: 'admin.account.role', value: 'admin' }]
     }), (error) => error?.code === 'ui_preference_key_invalid');
 
-    assert.equal(database.get('SELECT MAX(version) AS v FROM schema_migrations').v, 27);
+    assert.equal(database.get('SELECT MAX(version) AS v FROM schema_migrations').v, CURRENT_SCHEMA_VERSION);
 
     const router = createUiPreferencesRouter({ database });
     const auth = { accountId: 'account_main', workspaceId: workspace.id };
@@ -198,7 +199,7 @@ test('существующая schema 17 обновляется через 019 �
     oldDatabase.close();
 
     upgraded = new Database(databasePath, { migrationsDir: resolve('migrations') });
-    assert.equal(upgraded.get('SELECT MAX(version) AS v FROM schema_migrations').v, 27);
+    assert.equal(upgraded.get('SELECT MAX(version) AS v FROM schema_migrations').v, CURRENT_SCHEMA_VERSION);
     assert.equal(upgraded.get("SELECT title FROM calendar_items WHERE id='existing-task'").title, 'Существующая задача');
     assert.equal(upgraded.get("SELECT display_name FROM people WHERE id='person_existing'").display_name, 'Существующий Сотрудник');
     recordUiPreferences(upgraded, workspace.id, 'account_existing', {

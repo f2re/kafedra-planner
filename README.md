@@ -9,7 +9,7 @@
 
 Автономная система повседневной работы кафедры: календарь, годовые планы, поручения, документы, заседания, отчётность, научная деятельность и проверяемые доказательства.
 
-> Текущий рубеж: **`0.3.2`**, схема SQLite **27**. Основные пользовательские контуры работают без обязательного Интернета, LLM, Docker и внешних облачных сервисов. До stable остаётся реальная эксплуатационная приёмка установки, обновления, восстановления и rollback на Astra Linux/Debian по [`docs/TARGET_ACCEPTANCE.md`](docs/TARGET_ACCEPTANCE.md) и issue #27.
+> Текущий рубеж: **`0.3.3`**, схема SQLite **28**. Основные пользовательские контуры работают без обязательного Интернета, LLM, Docker и внешних облачных сервисов. До stable остаётся реальная эксплуатационная приёмка установки, обновления, восстановления и rollback на Astra Linux/Debian по [`docs/TARGET_ACCEPTANCE.md`](docs/TARGET_ACCEPTANCE.md) и issue #27.
 
 **[Скачать проверенный offline bundle](https://github.com/f2re/kafedra-planner/releases)** · **[Установить на Debian/Astra](docs/GITHUB_RELEASES.md)** · **[Открыть документацию](#архитектура-и-эксплуатационные-документы)** · **[Сообщить об уязвимости](SECURITY.md)**
 
@@ -44,6 +44,7 @@
 - **План / факт** — плановые и фактические показатели, доказательства и риск срока;
 - **Заседания** — повестка, решения, протоколы и выписки;
 - **Наука** — статьи и другие научные материалы на общем контуре документов/поиска;
+- **Настройки** — PIN, стартовый календарь, структура кафедры и импорт сотрудников из Оформлятора;
 - **Проверка** — только неоднозначности, которые система не может безопасно разрешить сама.
 
 ## Годовой план и исполнение
@@ -61,6 +62,14 @@
 ![Годовой план кафедры](docs/screenshots/annual-plan.webp)
 
 Подробно: [`docs/PLANS.md`](docs/PLANS.md), [`docs/MANUAL_PLANS.md`](docs/MANUAL_PLANS.md) и [`docs/AUTOMATIC_ASSIGNMENTS.md`](docs/AUTOMATIC_ASSIGNMENTS.md).
+
+## Импорт сотрудников из Оформлятора
+
+В **Настройки → Структура кафедры → Импорт из Оформлятора** администратор указывает HTTP/HTTPS, адрес и порт локального сервера. Проверка соединения отдельно проверяет `/healthz`, `/readyz` и доступ к прикладным данным. При необходимости четырёхзначный код Оформлятора используется только для текущего запроса и не сохраняется.
+
+После подключения можно выбрать пространство, группу или всех сотрудников пространства и предварительно увидеть количество и ФИО. Синхронизация идемпотентна по `remote employee id`; первая загрузка может сопоставить существующего человека по нормализованному ФИО. Повторный импорт обновляет ту же запись и не удаляет локальные планы, задачи, отчёты, назначения и историю.
+
+Интеграция необязательна: локальный справочник и все основные сценарии полностью работают без Оформлятора и без сети. Подробно: [`docs/DOCOMATOR_PEOPLE_IMPORT.md`](docs/DOCOMATOR_PEOPLE_IMPORT.md).
 
 ## Архив и безопасная замена
 
@@ -100,7 +109,7 @@
 - FTS5 и фасетный поиск;
 - ручная коррекция без уничтожения машинного результата.
 
-В `rc.7` внешние document converters являются дополнительными capabilities. На здоровой поддерживаемой ОС full bundle устанавливает и строго проверяет их все. Если target уже имеет конфликтный APT, installer не исправляет и не меняет системные пакеты автоматически: API/worker устанавливаются в degraded mode, исходные документы сохраняются, а недоступные OCR/PDF/Office функции явно показываются диагностикой.
+Внешние document converters являются дополнительными capabilities. На здоровой поддерживаемой ОС full bundle устанавливает и строго проверяет их все. Если target уже имеет конфликтный APT, installer не исправляет и не меняет системные пакеты автоматически: API/worker устанавливаются в degraded mode, исходные документы сохраняются, а недоступные OCR/PDF/Office функции явно показываются диагностикой.
 
 Подробно: [`docs/OCR_AND_PREVIEW.md`](docs/OCR_AND_PREVIEW.md), [`docs/STRUCTURED_DOCUMENTS.md`](docs/STRUCTURED_DOCUMENTS.md) и [`docs/OFFLINE_INSTALL.md`](docs/OFFLINE_INSTALL.md).
 
@@ -149,7 +158,7 @@ sudo KAFEDRA_APT_MODE=bundle ./install-kafedra-planner.sh
 
 После установки откройте адрес, который напечатает installer, и задайте четырёхзначный PIN. Штатный PIN-режим не создаёт `/root/kafedra-planner-first-login.txt` и не требует поиска логина или временного пароля.
 
-Package contract `rc.7` — `full-airgap-v2 / additive-only-v2`: перед изменением ОС выполняется `apt-get check`, запрашиваются только отсутствующие document packages, а `--no-upgrade --no-remove` и simulation guard не позволяют заменить уже установленную Astra/Debian версию. `apt --fix-broken` автоматически не вызывается.
+Package contract — `full-airgap-v2 / additive-only-v2`: перед изменением ОС выполняется `apt-get check`, запрашиваются только отсутствующие document packages, а `--no-upgrade --no-remove` и simulation guard не позволяют заменить уже установленную Astra/Debian версию. `apt --fix-broken` автоматически не вызывается.
 
 После установки строгая проверка:
 
@@ -204,13 +213,14 @@ npm run test:browser:release
 npm run test:browser:acl
 ```
 
-`npm run test:browser:auth` проверяет и legacy account/ACL regression, и штатный PIN-flow на desktop/mobile. `npm run check` включает проверку согласованности документации и текущей версии выпуска. CI дополнительно проверяет миграции, backup/restore, минимальный Node 24.15, host Node 25, desktop/mobile Chromium, full-offline Debian 12, additive APT policy и два systemd сценария: обычный и LLM/GGUF.
+`npm run check` включает проверку согласованности документации и текущей версии выпуска. CI дополнительно проверяет миграции до schema 028, backup/restore, минимальный Node 24.15, host Node 25, desktop/mobile Chromium, интеграцию Оформлятора, full-offline Debian 12, additive APT policy и systemd-сценарии с LLM и без него.
 
 ## Архитектура и эксплуатационные документы
 
 - [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) — слои и инварианты;
 - [`docs/ROADMAP.md`](docs/ROADMAP.md) — текущий рубеж и следующие этапы;
 - [`docs/UX_FLOWS.md`](docs/UX_FLOWS.md) — пользовательские сценарии;
+- [`docs/DOCOMATOR_PEOPLE_IMPORT.md`](docs/DOCOMATOR_PEOPLE_IMPORT.md) — подключение Оформлятора и идемпотентный импорт сотрудников;
 - [`docs/DOCUMENT_PLAN_LIFECYCLE.md`](docs/DOCUMENT_PLAN_LIFECYCLE.md) — архивирование, восстановление и безопасная замена;
 - [`docs/CALENDAR_START_MODE.md`](docs/CALENDAR_START_MODE.md) — стабильный стартовый режим календаря;
 - [`docs/design.md`](docs/design.md) — общие принципы простого и стабильного интерфейса;
