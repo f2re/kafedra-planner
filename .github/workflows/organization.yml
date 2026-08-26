@@ -17,7 +17,7 @@ jobs:
   organization-browser:
     name: organization-browser
     runs-on: ubuntu-24.04
-    timeout-minutes: 20
+    timeout-minutes: 25
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -25,5 +25,8 @@ jobs:
           node-version-file: .nvmrc
           cache: npm
       - run: npm ci --ignore-scripts --no-audit --no-fund
+      - name: Проверить интеграцию Оформлятора и миграцию
+        run: node --test tests/docomator-integration.test.mjs tests/docomator-integration-migration.test.mjs
       - run: npx playwright install --with-deps chromium
-      - run: npx playwright test tests/browser/organization.spec.mjs
+      - name: Проверить оргструктуру и импорт сотрудников
+        run: npx playwright test tests/browser/organization.spec.mjs tests/browser/docomator-integration.spec.mjs

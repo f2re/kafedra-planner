@@ -2,7 +2,7 @@ name: Публикация GitHub Release
 
 on:
   workflow_run:
-    workflows: ["Release gate 0.3.2"]
+    workflows: ["Release gate 0.3.3"]
     types: [completed]
   workflow_dispatch:
 
@@ -60,7 +60,7 @@ jobs:
           set -Eeuo pipefail
           required=(
             "Проверка"
-            "Release gate 0.3.2"
+            "Release gate 0.3.3"
             "Оргструктура"
             "Научные отчёты"
             "Научный жизненный цикл"
@@ -112,12 +112,13 @@ jobs:
           npm run smoke
           npm run backup:selftest
 
-      - name: Проверить планы и lifecycle в браузере
+      - name: Проверить планы, назначения и интеграцию Оформлятора в браузере
         if: steps.release.outputs.exists != 'true'
         run: |
           npx playwright install --with-deps chromium
           npm run test:browser:plans
           npx playwright test tests/browser/auto-assignment.spec.mjs
+          npx playwright test tests/browser/docomator-integration.spec.mjs
 
       - name: Собрать полный автономный bundle
         if: steps.release.outputs.exists != 'true'
