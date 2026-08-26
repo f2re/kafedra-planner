@@ -21,7 +21,7 @@ async function uploadText(page, name, content) {
       'content-type': 'text/plain',
       'x-file-name': encodeURIComponent(name),
       'x-document-type': 'auto',
-      'idempotency-key': `lifecycle-browser:${name}`
+      'idempotency-key': encodeURIComponent(`lifecycle-browser:${name}`)
     },
     data: content
   });
@@ -47,7 +47,7 @@ test.beforeEach(async ({ page }, testInfo) => {
   });
 });
 
-test('Документы: понятные примеры → исправление → архив с заменой → восстановление', async ({ page }, testInfo) => {
+test('Планы: документы — понятные примеры → исправление → архив с заменой → восстановление', async ({ page }, testInfo) => {
   const suffix = `${testInfo.project.name}-${Date.now()}`;
   const oldId = await uploadText(page, `Черновой документ ${suffix}.txt`, 'Черновой документ кафедры');
   const replacementId = await uploadText(page, `Утверждённый документ ${suffix}.txt`, 'Утверждённый документ кафедры');
