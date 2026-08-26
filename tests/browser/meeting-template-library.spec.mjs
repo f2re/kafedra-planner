@@ -59,8 +59,12 @@ async function uploadConfigure(page, kind, name, buffer) {
   await expect(page.locator('#meeting-settings-form')).toBeVisible();
 }
 
-function libraryCard(page, version) {
-  return page.locator('.meeting-template-library-card').filter({ hasText: `Версия ${version}` }).filter({ hasText: 'Протокол' }).first();
+function protocolSeriesCards(page, variant) {
+  return page.locator('.meeting-template-library-card').filter({ hasText: `Протокол ${variant} v1.docx` });
+}
+
+function libraryCard(page, variant, version) {
+  return protocolSeriesCards(page, variant).filter({ hasText: `Версия ${version}` }).first();
 }
 
 test('Шаблоны заседаний: версии, тест двумя вопросами, основной, impact, архив и восстановление', async ({ page }, testInfo) => {
@@ -103,8 +107,9 @@ test('Шаблоны заседаний: версии, тест двумя во�
     await expect(page.locator('[data-open-template-library]')).toBeVisible();
     await page.locator('[data-open-template-library]').click();
     await expect(page.locator('#meeting-template-library-list')).toBeVisible();
-    await expect(page.locator('.meeting-template-library-card')).toHaveCount(2);
-    const first = libraryCard(page, 1);
+    await expect(protocolSeriesCards(page, variant)).toHaveCount(1);
+    await expect(page.locator('.meeting-template-library-card').filter({ hasText: `Выписка ${variant}.docx` })).toHaveCount(1);
+    const first = libraryCard(page, variant, 1);
     await expect(first).toContainText('Основной');
     await expect(first).toContainText('Готов');
 
@@ -116,7 +121,7 @@ test('Шаблоны заседаний: версии, тест двумя во�
     await page.locator('[data-return-template-library]').click();
     await expect(page.locator('#meeting-template-library-list')).toBeVisible();
 
-    await libraryCard(page, 1).locator('[data-template-library-version]').click();
+    await libraryCard(page, variant, 1).locator('[data-template-library-version]').click();
     await page.locator('#meeting-template-library-version-file').setInputFiles({
       name: `Протокол ${variant} v2.docx`, mimeType: DOCX_TYPE, buffer: await readFile(protocolTwo)
     });
@@ -125,11 +130,11 @@ test('Шаблоны заседаний: версии, тест двумя во�
     await expect(page.locator('#meeting-notice')).toContainText('Профиль сохранён');
     await page.locator('[data-template-editor-back]').click();
     await expect(page.locator('#meeting-template-library-list')).toBeVisible();
-    await expect(page.locator('.meeting-template-library-card').filter({ hasText: 'Протокол' })).toHaveCount(2);
-    const second = libraryCard(page, 2);
+    await expect(protocolSeriesCards(page, variant)).toHaveCount(2);
+    const second = libraryCard(page, variant, 2);
     await expect(second).toContainText('Готов');
     await second.locator('[data-template-library-default]').click();
-    await expect(libraryCard(page, 2)).toContainText('Основной');
+    await expect(libraryCard(page, variant, 2)).toContainText('Основной');
 
     const generated = await page.request.post(`/api/meetings/${encodeURIComponent(meeting.id)}/documents`, { data: { kind: 'protocol' } });
     expect(generated.ok()).toBeTruthy();
@@ -137,20 +142,20 @@ test('Шаблоны заседаний: версии, тест двумя во�
     const meetingDetail = await detail.json();
     expect(meetingDetail.documents[0].template_version_no).toBe(1);
 
-    await libraryCard(page, 1).locator('[data-template-library-archive]').click();
+    await libraryCard(page, variant, 1).locator('[data-template-library-archive]').click();
     await expect(page.locator('.meeting-template-impact')).toContainText('1');
     await page.locator('#meeting-template-archive-form [name="reason"]').fill('Заменён новой утверждённой формой');
     await page.locator('#meeting-template-archive-form button[type="submit"]').click();
     await expect(page.locator('#meeting-template-library-list')).toBeVisible();
-    await expect(libraryCard(page, 1)).toHaveCount(0);
+    await expect(libraryCard(page, variant, 1)).toHaveCount(0);
     await page.locator('[data-template-library-filter="archived"]').click();
-    const archived = libraryCard(page, 1);
+    const archived = libraryCard(page, variant, 1);
     await expect(archived).toContainText('Архив');
     await expect(archived).toContainText('Заменён новой утверждённой формой');
     await archived.locator('[data-template-library-restore]').click();
     await expect(page.locator('#meeting-template-library-list')).toBeVisible();
     await page.locator('[data-template-library-filter="active"]').click();
-    await expect(libraryCard(page, 1)).toBeVisible();
+    await expect(libraryCard(page, variant, 1)).toBeVisible();
 
     await page.locator('[data-close-meeting-modal]').click();
     await page.reload();
