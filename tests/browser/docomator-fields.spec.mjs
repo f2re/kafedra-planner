@@ -6,7 +6,7 @@ async function openOrganization(page) {
   await page.evaluate(() => window.kafedraOpenOrganization());
   await expect(page.locator('#organization-shell-panel')).toBeVisible();
   await expect(page.locator('#docomator-integration')).toBeVisible({ timeout: 15_000 });
-  await expect(page.locator('#docomator-fields-panel')).toBeVisible({ timeout: 15_000 });
+  await expect(page.locator('#docomator-fields-panel')).toBeAttached({ timeout: 15_000 });
 }
 
 test('Оформлятор: предложенные и дополнительные поля сохраняются до каждого импорта', async ({ page }) => {
@@ -73,10 +73,12 @@ test('Оформлятор: предложенные и дополнительн
 
   await openOrganization(page);
   const section = page.locator('#docomator-integration');
+  await expect(section.locator('#docomator-fields-panel')).toBeHidden();
   await section.locator('[name="host"]').fill('192.168.1.50');
   await section.locator('[name="accessCode"]').fill('1234');
   await section.locator('[data-docomator-check]').click();
   await expect(section.locator('#docomator-space')).toHaveValue('space-1', { timeout: 15_000 });
+  await expect(section.locator('#docomator-fields-panel')).toBeVisible({ timeout: 15_000 });
 
   await expect(section.locator('#docomator-email-field')).toHaveValue('email', { timeout: 15_000 });
   await expect(section.locator('#docomator-position-field')).toHaveValue('position');
