@@ -58,3 +58,4 @@ await import('./directive-archive-next.js');
 await import('./calendar-start-settings.js');
 await window.kafedraCalendarStartReady;
 await import('./ui-preferences.js');
+await import('./manual-plan-preferences.js');
