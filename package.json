@@ -1,6 +1,6 @@
 {
   "name": "kafedra-planner",
-  "version": "0.2.0",
+  "version": "0.3.0",
   "private": true,
   "description": "Автономная платформа календаря, документов, решений, сроков и деятельности кафедры.",
   "type": "module",
@@ -25,7 +25,7 @@
     "test": "node --test --test-reporter=spec tests/*.test.mjs",
     "smoke": "node scripts/smoke-test.mjs",
     "test:browser": "npm run test:browser:plans && npm run test:browser:core",
-    "test:browser:plans": "playwright test tests/browser/plans.spec.mjs tests/browser/manual-plans.spec.mjs tests/browser/plan-source-rows.spec.mjs",
+    "test:browser:plans": "playwright test tests/browser/plans.spec.mjs tests/browser/manual-plans.spec.mjs tests/browser/plan-source-rows.spec.mjs tests/browser/lifecycle.spec.mjs",
     "test:browser:core": "playwright test --grep-invert 'Планы:'",
     "test:browser:reports-science": "playwright test --config=playwright.reports-science.config.mjs",
     "test:browser:plan-fact": "playwright test --config=playwright.plan-fact.config.mjs && playwright test --config=playwright.plan-fact-tools.config.mjs",

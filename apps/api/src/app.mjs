@@ -1,6 +1,7 @@
 import { createServer } from 'node:http';
 import { randomUUID } from 'node:crypto';
 import { createRouter } from './router.mjs';
+import { createLifecycleRouter } from './lifecycle-router.mjs';
 import { createPlanFactRouter } from './plan-fact-router.mjs';
 import { createPlansRouter } from './plans-router.mjs';
 import { createPlanItemsRouter } from './plan-items-router.mjs';
@@ -26,6 +27,7 @@ import { sendError, serveStatic } from './http-utils.mjs';
 
 export function createApp({ database, config, logger }) {
   const authRouter = createAuthRouter({ database, config, logger });
+  const lifecycleRouter = createLifecycleRouter({ database, config, logger });
   const accessRouter = createAccessRouter({ database, config, logger });
   const directiveArchiveRouter = createDirectiveArchiveRouter({ database, config, logger });
   const uiPreferencesRouter = createUiPreferencesRouter({ database, config, logger });
@@ -65,6 +67,8 @@ export function createApp({ database, config, logger }) {
         const authHandled = await authRouter(request, response, url, requestId);
         if (!authHandled && !response.headersSent) {
           authorizeApiRequest(request.auth, url.pathname);
+          const lifecycleHandled = await lifecycleRouter(request, response, url, requestId);
+          if (lifecycleHandled || response.headersSent) return;
           const preferencesHandled = await uiPreferencesRouter(request, response, url, requestId);
           const notificationHandled = !preferencesHandled && !response.headersSent
             ? await notificationDeliveryRouter(request, response, url, requestId)

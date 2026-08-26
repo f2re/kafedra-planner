@@ -96,7 +96,7 @@ test('явная настройка календаря отделена от lea
     assert.equal(response.status, 200);
     assert.equal(JSON.parse(response.body).calendarStartMode, 'tasks');
 
-    assert.equal(database.get('SELECT MAX(version) AS v FROM schema_migrations').v, 26);
+    assert.equal(database.get('SELECT MAX(version) AS v FROM schema_migrations').v, 27);
   } finally {
     database.close();
     await rm(root, { recursive: true, force: true });

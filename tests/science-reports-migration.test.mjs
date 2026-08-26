@@ -18,7 +18,7 @@ async function migrationsThrough(root, maxVersion) {
   return target;
 }
 
-test('обновление 23 → 26 сохраняет научный реестр', async () => {
+test('обновление 23 → 27 сохраняет научный реестр', async () => {
   const root = await mkdtemp(join(tmpdir(), 'kafedra-science-report-migration-'));
   const path = join(root, 'database.sqlite3');
   const old = await migrationsThrough(root, 23);
@@ -35,7 +35,7 @@ test('обновление 23 → 26 сохраняет научный реес�
   }
   database = new Database(path, { migrationsDir });
   try {
-    assert.equal(database.getSchemaVersion(), 26);
+    assert.equal(database.getSchemaVersion(), 27);
     assert.equal(database.get('SELECT title FROM scientific_items WHERE id = ?', science.id).title, 'Материал до отчётной схемы');
     assert.equal(database.get('SELECT COUNT(*) AS n FROM science_report_runs').n, 0);
     assert.deepEqual(database.foreignKeyCheck(), []);

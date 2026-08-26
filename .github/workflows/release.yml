@@ -1,0 +1,221 @@
+name: Публикация GitHub Release
+
+on:
+  workflow_run:
+    workflows: ["Release gate 0.3.0"]
+    types: [completed]
+  workflow_dispatch:
+
+concurrency:
+  group: publish-release-${{ github.event.workflow_run.head_sha || github.sha }}
+  cancel-in-progress: false
+
+permissions:
+  actions: read
+  contents: write
+
+jobs:
+  release:
+    name: Проверить, собрать и опубликовать
+    if: >-
+      github.event_name == 'workflow_dispatch' ||
+      (github.event.workflow_run.conclusion == 'success' && github.event.workflow_run.head_branch == 'main')
+    runs-on: ubuntu-24.04
+    timeout-minutes: 180
+    env:
+      GH_TOKEN: ${{ github.token }}
+      SOURCE_SHA: ${{ github.event.workflow_run.head_sha || github.sha }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ env.SOURCE_SHA }}
+
+      - name: Определить выпуск
+        id: release
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          VERSION="$(tr -d '[:space:]' < VERSION)"
+          TAG="v${VERSION}"
+          [[ "$VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+          echo "tag=$TAG" >> "$GITHUB_OUTPUT"
+          if gh release view "$TAG" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
+            OBJECT_TYPE="$(gh api "repos/$GITHUB_REPOSITORY/git/ref/tags/$TAG" --jq '.object.type')"
+            OBJECT_SHA="$(gh api "repos/$GITHUB_REPOSITORY/git/ref/tags/$TAG" --jq '.object.sha')"
+            if [[ "$OBJECT_TYPE" == tag ]]; then
+              OBJECT_SHA="$(gh api "repos/$GITHUB_REPOSITORY/git/tags/$OBJECT_SHA" --jq '.object.sha')"
+            fi
+            [[ "$OBJECT_SHA" == "$SOURCE_SHA" ]]
+            echo "exists=true" >> "$GITHUB_OUTPUT"
+            echo "Release $TAG уже опубликован из проверяемого commit $SOURCE_SHA."
+          else
+            echo "exists=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Дождаться всех обязательных post-merge workflow
+        if: steps.release.outputs.exists != 'true'
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          required=(
+            "Проверка"
+            "Release gate 0.3.0"
+            "Оргструктура"
+            "Научные отчёты"
+            "Научный жизненный цикл"
+            "Массовый импорт науки"
+          )
+          deadline=$((SECONDS + 7200))
+          while (( SECONDS < deadline )); do
+            gh api --paginate \
+              "repos/$GITHUB_REPOSITORY/actions/runs?head_sha=$SOURCE_SHA&per_page=100" \
+              --jq '.workflow_runs' | jq -s '{workflow_runs: add}' > "$RUNNER_TEMP/runs.json"
+            waiting=0
+            for name in "${required[@]}"; do
+              state="$(jq -r --arg name "$name" '
+                [.workflow_runs[] | select(.name == $name)]
+                | sort_by(.created_at) | last
+                | if . == null then "missing"
+                  else (.status + ":" + (.conclusion // "")) end
+              ' "$RUNNER_TEMP/runs.json")"
+              printf '%s: %s\n' "$name" "$state"
+              case "$state" in
+                completed:success) ;;
+                completed:*) echo "Обязательный workflow завершился неуспешно: $name ($state)" >&2; exit 1 ;;
+                *) waiting=1 ;;
+              esac
+            done
+            if (( waiting == 0 )); then
+              echo "Все обязательные workflow для $SOURCE_SHA завершились успешно."
+              break
+            fi
+            sleep 30
+          done
+          (( SECONDS < deadline )) || { echo "Истекло время ожидания обязательного CI." >&2; exit 1; }
+
+      - uses: actions/setup-node@v4
+        if: steps.release.outputs.exists != 'true'
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+
+      - name: Установить зависимости проверки
+        if: steps.release.outputs.exists != 'true'
+        run: npm ci --ignore-scripts --no-audit --no-fund
+
+      - name: Повторно проверить исходный код и данные
+        if: steps.release.outputs.exists != 'true'
+        run: |
+          npm run check
+          npm test
+          npm run smoke
+          npm run backup:selftest
+
+      - name: Проверить планы и lifecycle в браузере
+        if: steps.release.outputs.exists != 'true'
+        run: |
+          npx playwright install --with-deps chromium
+          npm run test:browser:plans
+
+      - name: Собрать полный автономный bundle
+        if: steps.release.outputs.exists != 'true'
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          OUT="$RUNNER_TEMP/kafedra-release"
+          mkdir -p "$OUT"
+          docker run --rm \
+            -e GITHUB_SHA="$SOURCE_SHA" \
+            -v "$GITHUB_WORKSPACE:/src:ro" \
+            -v "$OUT:/out" \
+            node:24-bookworm bash -lc '
+              set -Eeuo pipefail
+              apt-get update
+              DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends \
+                python3 ca-certificates curl xz-utils binutils systemd
+              cd /src
+              OUT_DIR=/out KAFEDRA_FULL_BUNDLE_CACHE_DIR=/tmp/kafedra-cache \
+                bash scripts/offline/build-full-bundle.sh
+            '
+          ARCHIVE="$(find "$OUT" -maxdepth 1 -type f -name 'kafedra-planner-*.tar.gz' -print -quit)"
+          [[ -f "$ARCHIVE" && -f "$ARCHIVE.sha256" ]]
+          [[ -x "$OUT/install-kafedra-planner.sh" ]]
+          [[ -f "$OUT/README-INSTALL.txt" ]]
+          REQUIRE_ARCHIVE_SHA256=true SKIP_SYSTEM_PREFLIGHT=true \
+            bash scripts/offline/verify-bundle.sh "$ARCHIVE"
+          echo "OUT=$OUT" >> "$GITHUB_ENV"
+          echo "ARCHIVE=$ARCHIVE" >> "$GITHUB_ENV"
+
+      - name: Собрать пакет F2RE Project Control
+        if: steps.release.outputs.exists != 'true'
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          VERSION="${{ steps.release.outputs.version }}"
+          python3 scripts/offline/project-control-package.py \
+            --archive "$ARCHIVE" \
+            --output "$OUT" \
+            --project-id kafedra-planner \
+            --display-name "Кафедра Planner" \
+            --adapter kafedra-planner-v1 \
+            --version "$VERSION" \
+            --source-commit "$SOURCE_SHA" \
+            --native-format kafedra-full-airgap-v2
+          PACKAGE="$OUT/kafedra-planner-${VERSION}-project-control.f2re.zip"
+          [[ -f "$PACKAGE" && -f "$PACKAGE.sha256" ]]
+          (cd "$OUT" && sha256sum -c --strict "$(basename "$PACKAGE.sha256")")
+
+      - name: Сформировать общие контрольные суммы
+        if: steps.release.outputs.exists != 'true'
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          VERSION="${{ steps.release.outputs.version }}"
+          cd "$OUT"
+          sha256sum \
+            "$(basename "$ARCHIVE")" \
+            install-kafedra-planner.sh \
+            README-INSTALL.txt \
+            "kafedra-planner-${VERSION}-project-control.f2re.zip" \
+            > SHA256SUMS
+          sha256sum -c --strict SHA256SUMS
+
+      - name: Опубликовать GitHub Release с bundle
+        if: steps.release.outputs.exists != 'true'
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          VERSION="${{ steps.release.outputs.version }}"
+          TAG="${{ steps.release.outputs.tag }}"
+          gh release create "$TAG" \
+            "$ARCHIVE" \
+            "$ARCHIVE.sha256" \
+            "$OUT/install-kafedra-planner.sh" \
+            "$OUT/README-INSTALL.txt" \
+            "$OUT/kafedra-planner-${VERSION}-project-control.f2re.zip" \
+            "$OUT/kafedra-planner-${VERSION}-project-control.f2re.zip.sha256" \
+            "$OUT/SHA256SUMS" \
+            --repo "$GITHUB_REPOSITORY" \
+            --target "$SOURCE_SHA" \
+            --title "Kafedra Planner ${VERSION}" \
+            --notes-file "docs/releases/${VERSION}.md" \
+            --latest
+
+      - name: Проверить опубликованный тег и артефакты
+        if: steps.release.outputs.exists != 'true'
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          TAG="${{ steps.release.outputs.tag }}"
+          RELEASE="$(gh api "repos/$GITHUB_REPOSITORY/releases/tags/$TAG")"
+          [[ "$(jq -r '.draft' <<<"$RELEASE")" == false ]]
+          [[ "$(jq -r '.prerelease' <<<"$RELEASE")" == false ]]
+          [[ "$(jq -r '.assets | length' <<<"$RELEASE")" -ge 7 ]]
+          OBJECT_TYPE="$(gh api "repos/$GITHUB_REPOSITORY/git/ref/tags/$TAG" --jq '.object.type')"
+          OBJECT_SHA="$(gh api "repos/$GITHUB_REPOSITORY/git/ref/tags/$TAG" --jq '.object.sha')"
+          if [[ "$OBJECT_TYPE" == tag ]]; then
+            OBJECT_SHA="$(gh api "repos/$GITHUB_REPOSITORY/git/tags/$OBJECT_SHA" --jq '.object.sha')"
+          fi
+          [[ "$OBJECT_SHA" == "$SOURCE_SHA" ]]
+          gh release view "$TAG" --repo "$GITHUB_REPOSITORY" --json url,tagName,name,isDraft,isPrerelease
