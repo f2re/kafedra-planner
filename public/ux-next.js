@@ -49,6 +49,7 @@ await import('./work-automation-next.js');
 await import('./supporting-documents-next.js');
 await import('./organization-shell.js');
 await import('./organization-next.js');
+await import('./docomator-integration.js');
 await import('./science-lifecycle-next.js');
 await import('./science-import-next.js');
 await import('./science-reports-next.js');
