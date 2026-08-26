@@ -94,8 +94,13 @@ test('Оформлятор: предложенные и дополнительн
   expect(importBody.spaceId).toBe('space-1');
   expect(importBody.accessCode).toBe('1234');
 
-  // Затем оператор добавляет произвольное поле; повторный импорт должен использовать уже новый mapping.
-  await section.locator('#docomator-extra-fields input[value="phone"]').check();
+  // Затем оператор раскрывает дополнительные поля и добавляет телефон.
+  const extraDetails = section.locator('.docomator-extra-details');
+  await extraDetails.locator('summary').click();
+  await expect(extraDetails).toHaveJSProperty('open', true);
+  const phone = section.locator('#docomator-extra-fields input[value="phone"]');
+  await expect(phone).toBeVisible();
+  await phone.check();
   await expect(section.locator('#docomator-extra-count')).toHaveText('1 выбрано');
   await expect.poll(() => savedMapping?.extraPropertyKeys || [], { timeout: 10_000 }).toEqual(['phone']);
   importBody = null;
