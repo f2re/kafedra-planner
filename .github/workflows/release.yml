@@ -1,0 +1,166 @@
+name: Публикация GitHub Release
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+concurrency:
+  group: publish-release-${{ github.ref }}
+  cancel-in-progress: false
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    name: Проверить, собрать и опубликовать
+    runs-on: ubuntu-24.04
+    timeout-minutes: 120
+    env:
+      GH_TOKEN: ${{ github.token }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Определить выпуск
+        id: release
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          VERSION="$(tr -d '[:space:]' < VERSION)"
+          TAG="v${VERSION}"
+          [[ "$VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+          echo "tag=$TAG" >> "$GITHUB_OUTPUT"
+          if gh release view "$TAG" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
+            echo "exists=true" >> "$GITHUB_OUTPUT"
+            echo "Release $TAG уже опубликован; повторная публикация не требуется."
+          else
+            echo "exists=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - uses: actions/setup-node@v4
+        if: steps.release.outputs.exists != 'true'
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+
+      - name: Установить зависимости проверки
+        if: steps.release.outputs.exists != 'true'
+        run: npm ci --ignore-scripts --no-audit --no-fund
+
+      - name: Проверить исходный код и данные
+        if: steps.release.outputs.exists != 'true'
+        run: |
+          npm run check
+          npm test
+          npm run smoke
+          npm run backup:selftest
+
+      - name: Проверить планы и lifecycle в браузере
+        if: steps.release.outputs.exists != 'true'
+        run: |
+          npx playwright install --with-deps chromium
+          npm run test:browser:plans
+
+      - name: Собрать полный автономный bundle
+        if: steps.release.outputs.exists != 'true'
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          OUT="$RUNNER_TEMP/kafedra-release"
+          mkdir -p "$OUT"
+          docker run --rm \
+            -e GITHUB_SHA="$GITHUB_SHA" \
+            -v "$GITHUB_WORKSPACE:/src:ro" \
+            -v "$OUT:/out" \
+            node:24-bookworm bash -lc '
+              set -Eeuo pipefail
+              apt-get update
+              DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends \
+                python3 ca-certificates curl xz-utils binutils systemd
+              cd /src
+              OUT_DIR=/out KAFEDRA_FULL_BUNDLE_CACHE_DIR=/tmp/kafedra-cache \
+                bash scripts/offline/build-full-bundle.sh
+            '
+          ARCHIVE="$(find "$OUT" -maxdepth 1 -type f -name 'kafedra-planner-*.tar.gz' -print -quit)"
+          [[ -f "$ARCHIVE" && -f "$ARCHIVE.sha256" ]]
+          [[ -x "$OUT/install-kafedra-planner.sh" ]]
+          [[ -f "$OUT/README-INSTALL.txt" ]]
+          REQUIRE_ARCHIVE_SHA256=true SKIP_SYSTEM_PREFLIGHT=true \
+            bash scripts/offline/verify-bundle.sh "$ARCHIVE"
+          echo "OUT=$OUT" >> "$GITHUB_ENV"
+          echo "ARCHIVE=$ARCHIVE" >> "$GITHUB_ENV"
+
+      - name: Собрать пакет F2RE Project Control
+        if: steps.release.outputs.exists != 'true'
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          VERSION="${{ steps.release.outputs.version }}"
+          python3 scripts/offline/project-control-package.py \
+            --archive "$ARCHIVE" \
+            --output "$OUT" \
+            --project-id kafedra-planner \
+            --display-name "Кафедра Planner" \
+            --adapter kafedra-planner-v1 \
+            --version "$VERSION" \
+            --source-commit "$GITHUB_SHA" \
+            --native-format kafedra-full-airgap-v2
+          PACKAGE="$OUT/kafedra-planner-${VERSION}-project-control.f2re.zip"
+          [[ -f "$PACKAGE" && -f "$PACKAGE.sha256" ]]
+          (cd "$OUT" && sha256sum -c --strict "$(basename "$PACKAGE.sha256")")
+
+      - name: Сформировать общие контрольные суммы
+        if: steps.release.outputs.exists != 'true'
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          VERSION="${{ steps.release.outputs.version }}"
+          cd "$OUT"
+          sha256sum \
+            "$(basename "$ARCHIVE")" \
+            install-kafedra-planner.sh \
+            README-INSTALL.txt \
+            "kafedra-planner-${VERSION}-project-control.f2re.zip" \
+            > SHA256SUMS
+          sha256sum -c --strict SHA256SUMS
+
+      - name: Опубликовать GitHub Release с bundle
+        if: steps.release.outputs.exists != 'true'
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          VERSION="${{ steps.release.outputs.version }}"
+          TAG="${{ steps.release.outputs.tag }}"
+          gh release create "$TAG" \
+            "$ARCHIVE" \
+            "$ARCHIVE.sha256" \
+            "$OUT/install-kafedra-planner.sh" \
+            "$OUT/README-INSTALL.txt" \
+            "$OUT/kafedra-planner-${VERSION}-project-control.f2re.zip" \
+            "$OUT/kafedra-planner-${VERSION}-project-control.f2re.zip.sha256" \
+            "$OUT/SHA256SUMS" \
+            --repo "$GITHUB_REPOSITORY" \
+            --target "$GITHUB_SHA" \
+            --title "Kafedra Planner ${VERSION}" \
+            --notes-file "docs/releases/${VERSION}.md" \
+            --latest
+
+      - name: Проверить опубликованный тег и артефакты
+        if: steps.release.outputs.exists != 'true'
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          TAG="${{ steps.release.outputs.tag }}"
+          RELEASE="$(gh api "repos/$GITHUB_REPOSITORY/releases/tags/$TAG")"
+          [[ "$(jq -r '.draft' <<<"$RELEASE")" == false ]]
+          [[ "$(jq -r '.prerelease' <<<"$RELEASE")" == false ]]
+          [[ "$(jq -r '.assets | length' <<<"$RELEASE")" -ge 7 ]]
+          OBJECT_TYPE="$(gh api "repos/$GITHUB_REPOSITORY/git/ref/tags/$TAG" --jq '.object.type')"
+          OBJECT_SHA="$(gh api "repos/$GITHUB_REPOSITORY/git/ref/tags/$TAG" --jq '.object.sha')"
+          if [[ "$OBJECT_TYPE" == tag ]]; then
+            OBJECT_SHA="$(gh api "repos/$GITHUB_REPOSITORY/git/tags/$OBJECT_SHA" --jq '.object.sha')"
+          fi
+          [[ "$OBJECT_SHA" == "$GITHUB_SHA" ]]
+          gh release view "$TAG" --repo "$GITHUB_REPOSITORY" --json url,tagName,name,isDraft,isPrerelease
