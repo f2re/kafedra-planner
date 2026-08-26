@@ -7,6 +7,7 @@ import {
   wordVisibleText
 } from '../../plan-docx/src/ooxml-shared.mjs';
 import { readZipEntry, rewriteZipArchive } from '../../plan-docx/src/archive.mjs';
+import { renderVisualMeetingTemplateXml } from './meeting-template-profile.mjs';
 
 const GLOBAL_MARKERS = Object.freeze({
   '{{DOCUMENT_KIND}}': (model) => model.documentKind,
@@ -99,11 +100,12 @@ export function meetingDocumentText(model) {
   return [...header, '', ...model.items.flatMap((item) => [...agendaLines(item), ''])].join('\n').trim();
 }
 
-export function meetingDocumentHash({ templateSha256, model, kind }) {
+export function meetingDocumentHash({ templateSha256, profileSha256 = null, model, kind }) {
   return createHash('sha256').update(JSON.stringify({
-    schema: 1,
+    schema: 2,
     kind,
     templateSha256,
+    profileSha256,
     meeting: {
       protocolNumber: model.protocolNumber,
       meetingDate: model.meetingDate,
@@ -130,7 +132,7 @@ export async function validateMeetingTemplateFile(templatePath) {
   return true;
 }
 
-export function renderMeetingDocumentXml(templateXml, model) {
+function legacyMeetingDocumentXml(templateXml, model) {
   let xml = String(templateXml || '');
   for (const [marker, getter] of Object.entries(GLOBAL_MARKERS)) {
     xml = replaceEveryVisible(xml, marker, getter(model));
@@ -152,9 +154,43 @@ export function renderMeetingDocumentXml(templateXml, model) {
   return replaceBodyChild(xml, agendaParagraph, paragraphs.join(''));
 }
 
-export async function renderMeetingDocumentFile({ templatePath, outputPath, model }) {
+function profileGlobalValues(model) {
+  return {
+    document_kind: model.documentKind,
+    protocol_number: model.protocolNumber,
+    meeting_date: model.meetingDate,
+    meeting_title: model.meetingTitle,
+    chairperson: model.chairperson,
+    secretary: model.secretary,
+    quorum: model.quorum
+  };
+}
+
+function profileAgendaValues(model) {
+  return model.items.map((item) => ({
+    item_no: String(item.item_no),
+    title: item.title,
+    heard: item.heard_text,
+    discussed: item.discussed_text,
+    decision: item.decision_text
+  }));
+}
+
+export function renderMeetingDocumentXml(templateXml, model, profile = null) {
+  if (profile) {
+    return renderVisualMeetingTemplateXml(
+      templateXml,
+      profile,
+      profileGlobalValues(model),
+      profileAgendaValues(model)
+    );
+  }
+  return legacyMeetingDocumentXml(templateXml, model);
+}
+
+export async function renderMeetingDocumentFile({ templatePath, outputPath, model, profile = null }) {
   const templateXml = (await readZipEntry(templatePath, DOCUMENT_XML)).toString('utf8');
-  const renderedXml = renderMeetingDocumentXml(templateXml, model);
+  const renderedXml = renderMeetingDocumentXml(templateXml, model, profile);
   await rewriteZipArchive(templatePath, outputPath, { [DOCUMENT_XML]: renderedXml });
   return { xml: renderedXml, text: meetingDocumentText(model) };
 }
