@@ -1,4 +1,4 @@
-name: Release gate 0.2.0
+name: Release gate 0.3.0
 
 on:
   push:
@@ -29,7 +29,7 @@ jobs:
       - run: npm test
       - run: npm run smoke
 
-  v020-migrations:
+  migrations:
     name: release-migrations-backup
     runs-on: ubuntu-24.04
     timeout-minutes: 20
@@ -47,14 +47,16 @@ jobs:
           tests/science-lifecycle-migration.test.mjs
           tests/science-import-migration.test.mjs
           tests/science-reports-migration.test.mjs
+          tests/plan-source-rows-migration.test.mjs
+          tests/lifecycle.test.mjs
           tests/acceptance-020.test.mjs
           tests/backup-restore.test.mjs
           tests/target-acceptance.test.mjs
 
-  v020-browser:
+  browser:
     name: release-browser-desktop-mobile
     runs-on: ubuntu-24.04
-    timeout-minutes: 30
+    timeout-minutes: 35
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -63,25 +65,27 @@ jobs:
           cache: npm
       - run: npm ci --ignore-scripts --no-audit --no-fund
       - run: npx playwright install --with-deps chromium
-      - name: Complete 0.2.0 scenarios
+      - name: Complete 0.3.0 scenarios
         run: >-
           npx playwright test
           tests/browser/organization.spec.mjs
           tests/browser/science-lifecycle.spec.mjs
           tests/browser/science-import.spec.mjs
           tests/browser/science-reports.spec.mjs
+          tests/browser/plan-source-rows.spec.mjs
+          tests/browser/lifecycle.spec.mjs
 
   release-gate:
     name: release-gate
     if: always()
-    needs: [quality, v020-migrations, v020-browser]
+    needs: [quality, migrations, browser]
     runs-on: ubuntu-24.04
     steps:
       - name: Require every release job
         env:
           QUALITY: ${{ needs.quality.result }}
-          MIGRATIONS: ${{ needs.v020-migrations.result }}
-          BROWSER: ${{ needs.v020-browser.result }}
+          MIGRATIONS: ${{ needs.migrations.result }}
+          BROWSER: ${{ needs.browser.result }}
         run: |
           printf 'quality=%s\nmigrations=%s\nbrowser=%s\n' "$QUALITY" "$MIGRATIONS" "$BROWSER"
           test "$QUALITY" = success
