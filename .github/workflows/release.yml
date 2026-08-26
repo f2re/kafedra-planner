@@ -206,7 +206,7 @@ jobs:
           npm run test:browser:plans
           npx playwright test tests/browser/auto-assignment.spec.mjs
           npx playwright test tests/browser/docomator-integration.spec.mjs tests/browser/docomator-fields.spec.mjs
-          npx playwright test tests/browser/meeting-template-editor.spec.mjs
+          npx playwright test tests/browser/meeting-template-editor.spec.mjs tests/browser/manual-plan-preferences.spec.mjs
 
       - name: Собрать полный автономный bundle
         if: steps.release.outputs.exists != 'true'
