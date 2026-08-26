@@ -35,7 +35,9 @@ async function createFixture() {
 
   database.run("INSERT INTO file_blobs VALUES ('sha-corr-a', 1, 'text/plain', '/tmp/a', ?)", now);
   database.run("INSERT INTO file_blobs VALUES ('sha-corr-b', 1, 'text/plain', '/tmp/b', ?)", now);
-  database.run(`INSERT INTO documents VALUES ('doc-corr-base', ?, 'Распоряжение 82-р', 'directive', 'processed', 'dv-corr-base', ?, ?)`, workspace.id, now, now);
+  database.run(`INSERT INTO documents(
+    id, workspace_id, title, document_type, status, current_version_id, created_at, updated_at
+  ) VALUES ('doc-corr-base', ?, 'Распоряжение 82-р', 'directive', 'processed', 'dv-corr-base', ?, ?)`, workspace.id, now, now);
   database.run(`INSERT INTO document_versions(id, document_id, version_no, blob_sha256, original_name, media_type, detected_format, processing_status, extracted_text, uploaded_at, ocr_status, preview_status, structure_status)
     VALUES ('dv-corr-base','doc-corr-base',1,'sha-corr-a','base.txt','text/plain','text','processed','РАСПОРЯЖЕНИЕ № 82-р',?,'not_needed','unsupported','ready')`, now);
   database.run(`INSERT INTO directives(id, workspace_id, source_document_version_id, directive_kind, document_number, issued_at, title, direction, confidence, evidence_json, created_at, updated_at)
@@ -50,7 +52,9 @@ async function createFixture() {
     VALUES ('as-corr','p-corr-owner','Сидоров Сергей Сергеевич','executor',?)`, now);
   database.run(`INSERT INTO assignment_executors(assignment_id, person_id, executor_raw, role, created_at)
     VALUES ('as-corr','p-corr-manager','Петров Пётр Петрович','controller',?)`, now);
-  database.run(`INSERT INTO documents VALUES ('doc-corr-report', ?, 'Отчёт по распоряжению № 82-р', 'report', 'processed', 'dv-corr-report', ?, ?)`, workspace.id, now, now);
+  database.run(`INSERT INTO documents(
+    id, workspace_id, title, document_type, status, current_version_id, created_at, updated_at
+  ) VALUES ('doc-corr-report', ?, 'Отчёт по распоряжению № 82-р', 'report', 'processed', 'dv-corr-report', ?, ?)`, workspace.id, now, now);
   database.run(`INSERT INTO document_versions(id, document_id, version_no, blob_sha256, original_name, media_type, detected_format, processing_status, extracted_text, uploaded_at, ocr_status, preview_status, structure_status)
     VALUES ('dv-corr-report','doc-corr-report',1,'sha-corr-b','report.txt','text/plain','text','processed',?,?,'not_needed','unsupported','ready')`,
     'ОТЧЁТ ПО РАСПОРЯЖЕНИЮ № 82-р\nПоказатель: статьи ВАК; план: 5; факт: 4\nПоручение выполнено частично.', now);
