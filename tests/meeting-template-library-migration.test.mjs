@@ -77,11 +77,9 @@ test('обновление 28 → 29 сохраняет настройки и п
     assert.equal(extractEntry.readiness, 'legacy_compatible');
     assert.equal(extractEntry.is_default, 1);
     const settings = database.get('SELECT quorum, protocol_template_version_id, extract_template_version_id FROM meeting_settings WHERE workspace_id = ?', workspace.id);
-    assert.deepEqual(settings, {
-      quorum: 4,
-      protocol_template_version_id: protocol.version_id,
-      extract_template_version_id: extract.version_id
-    });
+    assert.equal(settings.quorum, 4);
+    assert.equal(settings.protocol_template_version_id, protocol.version_id);
+    assert.equal(settings.extract_template_version_id, extract.version_id);
     assert.deepEqual(database.foreignKeyCheck(), []);
     assert.equal(database.quickCheck(), true);
   } finally {
