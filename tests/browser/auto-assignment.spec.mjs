@@ -31,6 +31,20 @@ function navigationButton(page, view) {
   return mobile ? page.locator(`.mobile-tab[data-view="${view}"]`) : page.locator(`.nav-item[data-view="${view}"]`);
 }
 
+async function waitForUploadedDocument(page, originalName) {
+  const deadline = Date.now() + 30_000;
+  while (Date.now() < deadline) {
+    const response = await page.request.get(`/api/documents?lifecycle=all&limit=1000&q=${encodeURIComponent(originalName)}`);
+    if (response.ok()) {
+      const payload = await response.json();
+      const document = (payload.items || []).find((entry) => entry.original_name === originalName);
+      if (document) return document;
+    }
+    await page.waitForTimeout(200);
+  }
+  throw new Error(`Загруженный документ «${originalName}» не появился за 30 секунд.`);
+}
+
 async function waitForImportedPlan(page, documentId, taskTitle) {
   const deadline = Date.now() + 30_000;
   while (Date.now() < deadline) {
@@ -55,7 +69,8 @@ async function waitForImportedPlan(page, documentId, taskTitle) {
 test('Автоматическое назначение: сотрудник из плана сразу получает поручение, а форма периодической задачи не занимает экран', async ({ page }, testInfo) => {
   const suffix = `${testInfo.project.name}-${Date.now()}`;
   const dir = await mkdtemp(join(tmpdir(), `kafedra-auto-assignment-${suffix}-`));
-  const file = join(dir, `Автоплан ${suffix}.docx`);
+  const fileName = `Автоплан ${suffix}.docx`;
+  const file = join(dir, fileName);
   try {
     const responsibleName = `Авто Исполнитель ${suffix}`;
     const taskTitle = `Подготовить автоматический отчёт кафедры ${suffix}`;
@@ -69,17 +84,11 @@ test('Автоматическое назначение: сотрудник из
     await navigationButton(page, 'plans').click();
     await expect(page.locator('[data-view-panel="plans"]')).toBeVisible();
 
-    const uploadResponsePromise = page.waitForResponse((response) => {
-      const url = new URL(response.url());
-      return response.request().method() === 'POST' && url.pathname === '/api/documents';
-    });
     await page.locator('#plans-upload-input').setInputFiles(file);
-    const uploadResponse = await uploadResponsePromise;
-    expect(uploadResponse.ok()).toBeTruthy();
-    const uploaded = await uploadResponse.json();
-    expect(uploaded.documentId).toBeTruthy();
+    const uploaded = await waitForUploadedDocument(page, fileName);
+    expect(uploaded.id).toBeTruthy();
 
-    const { plan, item } = await waitForImportedPlan(page, uploaded.documentId, taskTitle);
+    const { plan, item } = await waitForImportedPlan(page, uploaded.id, taskTitle);
     await expect(page.locator(`.plan-card.active[data-plan-id="${plan.id}"]`)).toBeVisible({ timeout: 30_000 });
     await expect(page.locator('#plan-source-workbench')).toBeVisible({ timeout: 30_000 });
 
