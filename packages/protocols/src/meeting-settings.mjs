@@ -18,9 +18,12 @@ function resolvedTemplate(database, workspaceId, versionId, kind) {
   const template = assertDocxTemplate(database, workspaceId, versionId);
   const structureStatus = templateStructure(database, versionId);
   const profile = latestMeetingTemplateProfile(database, workspaceId, template.version_id, kind, true);
-  const legacy = structureStatus === 'template';
-  if (!legacy && !profile) fail('meeting_template_profile_incomplete');
-  return { ...template, structure_status: structureStatus, profile, legacy };
+  const visual = structureStatus === 'meeting_template_visual';
+  // Только новые загрузки, явно зарегистрированные как visual-profile, обязаны
+  // иметь готовый профиль. Все ранее существовавшие template/generated записи
+  // остаются в совместимом marker-based режиме и проверяются генератором.
+  if (visual && !profile) fail('meeting_template_profile_incomplete');
+  return { ...template, structure_status: structureStatus, profile, legacy: !visual };
 }
 
 export async function uploadMeetingTemplate(database, config, workspaceId, stream, {
@@ -121,7 +124,7 @@ export function meetingSettingsResources(database, workspaceId) {
     LIMIT 500
   `, workspaceId).map((template) => ({
     ...template,
-    legacy_ready: template.structure_status === 'template',
+    legacy_ready: template.structure_status !== 'meeting_template_visual',
     protocol_profile: latestMeetingTemplateProfile(database, workspaceId, template.version_id, 'protocol', false),
     extract_profile: latestMeetingTemplateProfile(database, workspaceId, template.version_id, 'extract', false)
   }));

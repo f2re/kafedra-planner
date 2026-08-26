@@ -115,7 +115,7 @@ function templateMode(database, templateVersionId) {
 function resolveProfile(database, workspaceId, meeting, kind, templateVersionId, mode) {
   const snapshot = snapshottedProfile(meeting, kind);
   if (snapshot && snapshot.templateVersionId === templateVersionId && snapshot.status === 'ready') return snapshot;
-  if (mode === 'template') return null;
+  if (mode !== 'meeting_template_visual') return null;
   return latestMeetingTemplateProfile(database, workspaceId, templateVersionId, kind, true);
 }
 
@@ -135,7 +135,7 @@ export async function generateMeetingDocument(database, config, workspaceId, mee
   const template = assertDocxTemplate(database, workspaceId, templateVersionId);
   const mode = templateMode(database, templateVersionId);
   const profile = resolveProfile(database, workspaceId, meeting, kind, templateVersionId, mode);
-  if (mode !== 'template' && !profile) fail('meeting_template_profile_incomplete');
+  if (mode === 'meeting_template_visual' && !profile) fail('meeting_template_profile_incomplete');
   const materializedMeeting = {
     ...meeting,
     quorum_required: meeting.quorum_required || settings?.quorum || null,
