@@ -17,6 +17,7 @@ const FIXED_VALUES = new Map([
   ['plans.filter.kind', new Set(['department', 'faculty', 'personal', 'unit', 'organization'])],
   ['plans.filter.direction', new Set(['education', 'science', 'organizational', 'everyday'])],
   ['plan.item.direction', new Set(['organizational', 'education', 'science', 'everyday'])],
+  ['plan.item.execution_mode', new Set(['track', 'assigned', 'open'])],
   ['search.filter.source_kind', new Set(['document', 'protocol', 'directive', 'assignment', 'periodic_task', 'plans', 'science'])],
   ['search.filter.direction', new Set(['science', 'education', 'organizational', 'personnel', 'safety', 'finance', 'digital'])],
   ['search.filter.role', new Set(['executor', 'controller', 'observer'])],
@@ -42,6 +43,8 @@ const PERSON_KEYS = new Map([
   ['work.periodic.manager', { allowEmpty: true }],
   ['work.responsibility.executor', { allowEmpty: true }],
   ['work.responsibility.controller', { allowEmpty: true }],
+  ['plan.item.executor', { allowEmpty: true }],
+  ['plan.item.controller', { allowEmpty: true }],
   ['profile.current_person', { allowEmpty: true }]
 ]);
 
@@ -49,7 +52,10 @@ const DATE_OFFSET_KEYS = new Map([
   ['calendar.new.date_offset', { min: -365, max: 365, allowNone: false }],
   ['meeting.new.date_offset', { min: -365, max: 365, allowNone: false }],
   ['work.periodic.start_offset', { min: -1095, max: 1095, allowNone: true }],
-  ['work.periodic.due_offset', { min: -1095, max: 1095, allowNone: false }]
+  ['work.periodic.due_offset', { min: -1095, max: 1095, allowNone: false }],
+  ['plan.item.start_offset', { min: -1095, max: 1095, allowNone: true }],
+  ['plan.item.end_offset', { min: -1095, max: 1095, allowNone: true }],
+  ['plan.item.due_offset', { min: -1095, max: 1095, allowNone: true }]
 ]);
 
 const TEXT_KEYS = new Set([
