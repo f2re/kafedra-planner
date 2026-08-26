@@ -106,7 +106,9 @@ test('исправление периода требует причины и с�
     }, actor.id);
     assert.equal(updated.valid_to, '2025-12-31');
     const audit = database.get(`
-      SELECT details_json FROM audit_log WHERE subject_kind = 'person_appointment' AND subject_id = ?
+      SELECT details_json FROM audit_log
+      WHERE subject_kind = 'person_appointment' AND subject_id = ?
+        AND action = 'organization.appointment_updated'
       ORDER BY created_at DESC LIMIT 1
     `, appointment.id);
     assert.match(audit.details_json, /Уточнено по приказу/u);
