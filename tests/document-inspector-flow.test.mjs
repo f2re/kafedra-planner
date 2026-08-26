@@ -15,7 +15,9 @@ test('инспектор документа получает значения ш
     const now = '2026-08-05T06:00:00.000Z';
     database.run("INSERT INTO file_blobs VALUES ('sha-inspector', 42, 'text/plain', '/tmp/inspector.txt', ?)", now);
     database.run(`
-      INSERT INTO documents VALUES ('doc_inspector', ?, 'Приказ', 'order', 'processed', 'docv_inspector', ?, ?)
+      INSERT INTO documents(
+        id, workspace_id, title, document_type, status, current_version_id, created_at, updated_at
+      ) VALUES ('doc_inspector', ?, 'Приказ', 'order', 'processed', 'docv_inspector', ?, ?)
     `, workspace.id, now, now);
     database.run(`
       INSERT INTO document_versions(
