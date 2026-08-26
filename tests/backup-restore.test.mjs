@@ -14,6 +14,7 @@ import {
   restoreDatabaseFile,
   verifyBackup
 } from '../packages/backup/src/service.mjs';
+import { CURRENT_SCHEMA_VERSION } from './helpers/current-schema.mjs';
 
 const run = promisify(execFile);
 
@@ -58,7 +59,7 @@ test('резервная копия проверяется и восстанав
     assert.equal(verified.status, 'ok');
     assert.equal((await stat(created.archivePath)).mode & 0o077, 0);
     assert.equal(verified.manifest.appVersion, '0.1.0-rc.3');
-    assert.equal(verified.manifest.schemaVersion, 27);
+    assert.equal(verified.manifest.schemaVersion, CURRENT_SCHEMA_VERSION);
     assert.ok(verified.fileCount >= 4);
 
     const latest = await readLatestBackupStatus(backupDir);

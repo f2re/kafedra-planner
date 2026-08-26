@@ -13,6 +13,7 @@ import {
   writeCalendarStartMode
 } from '../packages/preferences/src/calendar-start.mjs';
 import { createUiPreferencesRouter } from '../apps/api/src/ui-preferences-router.mjs';
+import { CURRENT_SCHEMA_VERSION } from './helpers/current-schema.mjs';
 
 function insertPersonAndAccount(database, workspaceId, suffix) {
   const now = '2026-08-21T04:00:00.000Z';
@@ -96,7 +97,7 @@ test('явная настройка календаря отделена от lea
     assert.equal(response.status, 200);
     assert.equal(JSON.parse(response.body).calendarStartMode, 'tasks');
 
-    assert.equal(database.get('SELECT MAX(version) AS v FROM schema_migrations').v, 27);
+    assert.equal(database.get('SELECT MAX(version) AS v FROM schema_migrations').v, CURRENT_SCHEMA_VERSION);
   } finally {
     database.close();
     await rm(root, { recursive: true, force: true });

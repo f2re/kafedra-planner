@@ -8,6 +8,7 @@ import { ensureDefaultWorkspace } from '../packages/storage/src/bootstrap.mjs';
 import {
   archiveDocument, archivePlan, documentImpact, planImpact, restoreDocument, restorePlan
 } from '../packages/lifecycle/src/service.mjs';
+import { CURRENT_SCHEMA_VERSION } from './helpers/current-schema.mjs';
 
 const migrationsDir = resolve('migrations');
 const now = '2026-08-25T12:00:00.000Z';
@@ -78,7 +79,7 @@ function addPlanWork(database, workspaceId, planId, itemId, assignmentId) {
   `, itemId, assignmentId, now, now);
 }
 
-test('миграция 26 → 27 добавляет lifecycle без изменения источников и доказательств', async () => {
+test('миграция 26 → текущая схема добавляет lifecycle без изменения источников и доказательств', async () => {
   const root = await mkdtemp(join(tmpdir(), 'kafedra-lifecycle-upgrade-'));
   const legacyDir = join(root, 'migrations-026');
   const databasePath = join(root, 'existing.sqlite3');
@@ -98,7 +99,7 @@ test('миграция 26 → 27 добавляет lifecycle без измен�
 
     database = new Database(databasePath, { migrationsDir });
     try {
-      assert.equal(database.getSchemaVersion(), 27);
+      assert.equal(database.getSchemaVersion(), CURRENT_SCHEMA_VERSION);
       assert.equal(database.get("SELECT lifecycle_status FROM documents WHERE id='doc-source'").lifecycle_status, 'active');
       assert.equal(database.get("SELECT status FROM plans WHERE id='plan-source'").status, 'active');
       assert.equal(database.get("SELECT source_document_version_id FROM plans WHERE id='plan-source'").source_document_version_id, 'ver-source');

@@ -10,6 +10,7 @@ import {
   collectAcceptanceEvidence,
   compareAcceptanceEvidence
 } from '../packages/system/src/acceptance.mjs';
+import { CURRENT_SCHEMA_VERSION } from './helpers/current-schema.mjs';
 
 const migrationsDir = resolve('migrations');
 
@@ -60,7 +61,7 @@ async function fixture() {
   await writeFile(join(backupDir, 'latest-success.json'), JSON.stringify({
     archivePath: backupPath,
     archiveName: 'kafedra-test.kpb', createdAt: '2026-08-07T12:00:00.000Z',
-    verifiedAt: '2026-08-07T12:01:00.000Z', schemaVersion: 27,
+    verifiedAt: '2026-08-07T12:01:00.000Z', schemaVersion: CURRENT_SCHEMA_VERSION,
     appVersion: '0.1.0-rc.3', encrypted: true
   }));
 
@@ -129,7 +130,7 @@ test('акт подтверждает SQLite, logical digest, immutable blobs, b
     assert.equal(evidence.formatVersion, 2);
     assert.equal(evidence.acceptance.status, 'pass');
     assert.equal(evidence.database.quickCheck, 'ok');
-    assert.equal(evidence.database.schemaVersion, 27);
+    assert.equal(evidence.database.schemaVersion, CURRENT_SCHEMA_VERSION);
     assert.equal(evidence.database.missingStableTables.length, 0);
     assert.equal(evidence.database.stableTableCounts.documents, 1);
     assert.equal(evidence.database.stableTableCounts.periodic_task_evidence, 1);

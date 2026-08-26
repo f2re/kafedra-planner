@@ -17,6 +17,7 @@ import { resolvePlanAccess } from '../packages/plans/src/access.mjs';
 import {
   createSupportingDocument, deleteSupportingDocument, listSupportingDocuments
 } from '../packages/supporting-documents/src/service.mjs';
+import { CURRENT_SCHEMA_VERSION } from './helpers/current-schema.mjs';
 
 const migrationsDir = resolve('migrations');
 
@@ -74,7 +75,7 @@ test('обновление с schema 18 применяет ручные план
 
     database = new Database(dbPath, { migrationsDir });
     try {
-      assert.equal(database.get('SELECT MAX(version) AS version FROM schema_migrations').version, 27);
+      assert.equal(database.get('SELECT MAX(version) AS version FROM schema_migrations').version, CURRENT_SCHEMA_VERSION);
       const plan = database.get("SELECT * FROM plans WHERE id='plan_old'");
       const item = database.get("SELECT * FROM plan_items WHERE id='item_old'");
       assert.equal(plan.source_document_version_id, 'ver_old_plan');

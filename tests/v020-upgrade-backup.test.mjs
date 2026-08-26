@@ -13,6 +13,7 @@ import { createOrganizationPosition, createPersonAppointment, organizationSnapsh
 import { updateScienceEditorial, transitionScienceLifecycle } from '../packages/science-lifecycle/src/service.mjs';
 import { linkSciencePlan } from '../packages/science-lifecycle/src/plan-link.mjs';
 import { collectV020DatabaseEvidence, compareAcceptanceEvidence020 } from '../packages/system/src/acceptance-020.mjs';
+import { CURRENT_SCHEMA_VERSION } from './helpers/current-schema.mjs';
 
 const migrationsDir = resolve('migrations');
 
@@ -29,7 +30,7 @@ function sqlLiteral(path) {
   return `'${String(path).replaceAll("'", "''")}'`;
 }
 
-test('схема 19 обновляется до 27 и восстанавливается без изменения устойчивых таблиц 0.2.0', async () => {
+test('схема 19 обновляется до текущей и восстанавливается без изменения устойчивых таблиц 0.2.0', async () => {
   const root = await mkdtemp(join(tmpdir(), 'kafedra-v020-upgrade-'));
   const path = join(root, 'database.sqlite3');
   const restoredPath = join(root, 'restored.sqlite3');
@@ -58,7 +59,7 @@ test('схема 19 обновляется до 27 и восстанавлива
 
   database = new Database(path, { migrationsDir });
   try {
-    assert.equal(database.getSchemaVersion(), 27);
+    assert.equal(database.getSchemaVersion(), CURRENT_SCHEMA_VERSION);
     const rootUnit = organizationSnapshot(database, workspace.id, { includeInactive: true }).tree[0];
     const position = createOrganizationPosition(database, workspace.id, { name: 'Старший научный сотрудник' }, actor.id);
     createPersonAppointment(database, workspace.id, employee.id, {

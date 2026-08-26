@@ -6,6 +6,7 @@ import { basename, join, resolve } from 'node:path';
 import { Database } from '../packages/storage/src/database.mjs';
 import { ensureDefaultWorkspace } from '../packages/storage/src/bootstrap.mjs';
 import { createScientificItem } from '../packages/science/src/service.mjs';
+import { CURRENT_SCHEMA_VERSION } from './helpers/current-schema.mjs';
 
 const migrationsDir = resolve('migrations');
 
@@ -18,7 +19,7 @@ async function migrationsThrough(root, maxVersion) {
   return target;
 }
 
-test('обновление 23 → 27 сохраняет научный реестр', async () => {
+test('обновление 23 → текущая схема сохраняет научный реестр', async () => {
   const root = await mkdtemp(join(tmpdir(), 'kafedra-science-report-migration-'));
   const path = join(root, 'database.sqlite3');
   const old = await migrationsThrough(root, 23);
@@ -35,7 +36,7 @@ test('обновление 23 → 27 сохраняет научный реес�
   }
   database = new Database(path, { migrationsDir });
   try {
-    assert.equal(database.getSchemaVersion(), 27);
+    assert.equal(database.getSchemaVersion(), CURRENT_SCHEMA_VERSION);
     assert.equal(database.get('SELECT title FROM scientific_items WHERE id = ?', science.id).title, 'Материал до отчётной схемы');
     assert.equal(database.get('SELECT COUNT(*) AS n FROM science_report_runs').n, 0);
     assert.deepEqual(database.foreignKeyCheck(), []);

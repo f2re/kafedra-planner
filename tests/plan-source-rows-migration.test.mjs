@@ -5,11 +5,12 @@ import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 import { Database } from '../packages/storage/src/database.mjs';
 import { ensureDefaultWorkspace } from '../packages/storage/src/bootstrap.mjs';
+import { CURRENT_SCHEMA_VERSION } from './helpers/current-schema.mjs';
 
 const migrationsDir = resolve('migrations');
 
-test('schema 25 обновляется через 26 до 27 без потери существующих планов', async () => {
-  const dir = await mkdtemp(join(tmpdir(), 'kafedra-schema27-'));
+test('schema 25 обновляется через 26 до текущей схемы без потери существующих планов', async () => {
+  const dir = await mkdtemp(join(tmpdir(), 'kafedra-schema-current-'));
   const oldMigrations = join(dir, 'migrations25');
   const dbPath = join(dir, 'upgrade.sqlite3');
   await mkdir(oldMigrations);
@@ -31,7 +32,7 @@ test('schema 25 обновляется через 26 до 27 без потери
 
     database = new Database(dbPath, { migrationsDir });
     try {
-      assert.equal(database.get('SELECT MAX(version) AS version FROM schema_migrations').version, 27);
+      assert.equal(database.get('SELECT MAX(version) AS version FROM schema_migrations').version, CURRENT_SCHEMA_VERSION);
       assert.equal(database.get("SELECT title FROM plans WHERE id='plan_before_26'").title, 'План до обновления');
       assert.ok(database.get("SELECT name FROM sqlite_master WHERE type='table' AND name='plan_source_rows'"));
       assert.ok(database.get("SELECT name FROM sqlite_master WHERE type='table' AND name='plan_source_row_items'"));
