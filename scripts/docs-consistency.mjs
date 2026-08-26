@@ -49,25 +49,118 @@ function stripFragmentAndQuery(target) {
 function record(errors, file, text, index, kind, target, message) {
   errors.push({
     file,
-    line: lineNumber(text, index),
+    line: lineNumber(text, Math.max(0, index || 0)),
     kind,
     target,
     message
   });
 }
 
+async function checkReleaseVersion({ absoluteRoot, pkg, packageText, errors }) {
+  const versionPath = join(absoluteRoot, 'VERSION');
+  if (!(await exists(versionPath))) return;
+
+  const versionText = await readFile(versionPath, 'utf8');
+  const version = versionText.trim();
+  if (!/^\d+\.\d+\.\d+$/u.test(version)) {
+    record(errors, 'VERSION', versionText, 0, 'release-version', version, 'VERSION должен содержать обычную semver-версию.');
+    return;
+  }
+
+  if (pkg.version !== version) {
+    record(errors, 'package.json', packageText, packageText.indexOf('"version"'), 'release-version', pkg.version || '',
+      `package.json должен использовать текущую версию ${version}.`);
+  }
+
+  const releaseNoteRelative = `docs/releases/${version}.md`;
+  const releaseNotePath = join(absoluteRoot, releaseNoteRelative);
+  if (!(await exists(releaseNotePath))) {
+    record(errors, 'VERSION', versionText, 0, 'release-version', releaseNoteRelative,
+      'Для текущей версии отсутствует release note.');
+  } else {
+    const releaseText = await readFile(releaseNotePath, 'utf8');
+    const title = releaseText.match(/^# Kafedra Planner (\d+\.\d+\.\d+)\s*$/mu);
+    if (!title || title[1] !== version) {
+      record(errors, releaseNoteRelative, releaseText, title?.index || 0, 'release-version', title?.[1] || '',
+        `Заголовок release note должен указывать ${version}.`);
+    }
+  }
+
+  const markers = [
+    {
+      file: 'README.md',
+      pattern: /Текущий рубеж:\s+\*\*`([^`]+)`\*\*/u,
+      description: 'русский README'
+    },
+    {
+      file: 'README.en.md',
+      pattern: /Current milestone:\s+\*\*`([^`]+)`\*\*/u,
+      description: 'английский README'
+    },
+    {
+      file: 'docs/ROADMAP.md',
+      pattern: /^## Текущий рубеж — `([^`]+)`\s*$/mu,
+      description: 'ROADMAP'
+    },
+    {
+      file: 'docs/RELEASE_CANDIDATE.md',
+      pattern: /^# Release candidate (\d+\.\d+\.\d+)\s*$/mu,
+      description: 'release candidate'
+    },
+    {
+      file: 'docs/VALIDATION.md',
+      pattern: /Актуальный рубеж:\s*`([^`]+)`/u,
+      description: 'validation contract'
+    },
+    {
+      file: 'docs/UX_FLOWS.md',
+      pattern: /Статус: рабочие контуры версии `([^`]+)`/u,
+      description: 'UX contract'
+    },
+    {
+      file: '.github/workflows/release-gate.yml',
+      pattern: /^name:\s*Release gate (\d+\.\d+\.\d+)\s*$/mu,
+      description: 'release gate workflow'
+    },
+    {
+      file: '.github/workflows/release.yml',
+      pattern: /workflows:\s*\["Release gate (\d+\.\d+\.\d+)"\]/u,
+      description: 'release publication workflow'
+    }
+  ];
+
+  for (const marker of markers) {
+    const absoluteFile = join(absoluteRoot, marker.file);
+    if (!(await exists(absoluteFile))) continue;
+    const text = await readFile(absoluteFile, 'utf8');
+    const match = text.match(marker.pattern);
+    if (!match) {
+      record(errors, marker.file, text, 0, 'release-version', version,
+        `${marker.description}: не найден маркер текущей версии.`);
+    } else if (match[1] !== version) {
+      record(errors, marker.file, text, match.index || 0, 'release-version', match[1],
+        `${marker.description}: указан рубеж ${match[1]}, ожидается ${version}.`);
+    }
+  }
+}
+
 export async function checkDocumentation({ root = process.cwd() } = {}) {
   const absoluteRoot = resolve(root);
   const packagePath = join(absoluteRoot, 'package.json');
-  const pkg = JSON.parse(await readFile(packagePath, 'utf8'));
+  const packageText = await readFile(packagePath, 'utf8');
+  const pkg = JSON.parse(packageText);
   const scripts = new Set(Object.keys(pkg.scripts || {}));
   const files = [];
-  const readme = join(absoluteRoot, 'README.md');
-  if (await exists(readme)) files.push(readme);
+  for (const name of ['README.md', 'README.en.md']) {
+    const readme = join(absoluteRoot, name);
+    if (await exists(readme)) files.push(readme);
+  }
   files.push(...await walkMarkdown(join(absoluteRoot, 'docs')));
   files.sort();
 
   const errors = [];
+  await checkReleaseVersion({ absoluteRoot, pkg, packageText, errors });
+
   for (const absoluteFile of files) {
     const file = relative(absoluteRoot, absoluteFile).split(sep).join('/');
     const text = await readFile(absoluteFile, 'utf8');

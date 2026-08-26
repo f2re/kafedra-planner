@@ -11,7 +11,7 @@ Kafedra Planner is an offline-first daily work system for an academic
 department: calendar, annual plans, assignments, documents, meetings,
 reporting, research activity, and auditable evidence.
 
-> Current milestone: **`0.3.0`**, SQLite schema **27**. Core workflows do not
+> Current milestone: **`0.3.2`**, SQLite schema **27**. Core workflows do not
 > require Internet access, an LLM, Docker, or cloud services. The project
 > remains a release candidate until the real Astra Linux/Debian installation,
 > upgrade, restoration, and rollback acceptance in [TARGET_ACCEPTANCE.md](docs/TARGET_ACCEPTANCE.md) and issue #27 is complete.
@@ -42,6 +42,7 @@ other documents or the core daily workflow.
 - Calendar, recurring tasks, deadlines, reminders, and provenance;
 - immutable documents, version history, deduplication, local OCR/preview, and full-text search;
 - imported and manual annual plans linked to assignments, evidence, and plan/fact reporting;
+- deterministic automatic assignment when an imported responsible person matches exactly one active employee; ambiguous names stay unresolved for operator review;
 - assignment execution, reports, manager confirmation or return for revision;
 - meetings, agenda, minutes, extracts, research registry, and science reports;
 - local four-digit PIN onboarding, sessions, roles, object ACL, and audit trail;

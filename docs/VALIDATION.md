@@ -1,12 +1,12 @@
 # Автоматическая проверка release candidate
 
-Актуальный рубеж: `0.3.1`, схема SQLite **27**. Автоматический gate проверяет код, данные, browser UX и поставочный контракт, но не подменяет фактическую приёмку #27 на Astra Linux/Debian.
+Актуальный рубеж: `0.3.2`, схема SQLite **27**. Автоматический gate проверяет код, данные, browser UX и поставочный контракт, но не подменяет фактическую приёмку #27 на Astra Linux/Debian.
 
 ## Статические и Node-проверки
 
 На PR и push в `main` выполняются:
 
-- `npm run check`: синтаксис JavaScript и согласованность README/docs с реальными scripts/paths;
+- `npm run check`: синтаксис JavaScript, согласованность README/docs с реальными scripts/paths и единая текущая версия в `VERSION`, `package.json`, RU/EN README, ROADMAP, release/validation/UX-документах и workflow;
 - `npm test`: полный unit/integration suite;
 - `npm run smoke`;
 - backup create/verify/restore self-test;
@@ -22,6 +22,7 @@ Unit/integration отдельно проверяют:
 - immutable blob и SHA-256;
 - сохранение `source_document_version_id`, `plan_item`, calendar origin, assignment и evidence;
 - исходные строки плана и идемпотентное разложение одной строки на несколько задач;
+- точное автоматическое сопоставление ответственного, контролирующего из оргструктуры, отсутствие назначения при неоднозначности и сохранение terminal assignment;
 - impact summary, archive/restore, self/cross-workspace/cycle guards;
 - backup/restore и logical digest lifecycle/replacement-состояния.
 
@@ -48,15 +49,17 @@ npm run test:browser:acl
 - документ → русские состояния → переименование → impact → архив с заменой → восстановление;
 - план → impact → архив с преемником → проверка неизменных календарных/предметных ссылок → восстановление.
 
+Дополнительный сценарий `tests/browser/auto-assignment.spec.mjs` на desktop/mobile захватывает точный `documentId` текущей загрузки, находит созданный из него `planId`, проверяет назначение конкретного сотрудника и затем единый реестр поручений. Наличие старых планов или одинаковых типовых мероприятий не должно менять объект проверки.
+
 Lifecycle-действия не считаются обучаемым выбором. Desktop и mobile проходят один предметный сценарий с разной компоновкой.
 
-## Release gate 0.3.1
+## Release gate 0.3.2
 
 Обязательный агрегирующий workflow требует успешного завершения:
 
 - quality: check, unit/integration и smoke;
 - migrations/backup: организация, наука, source rows, lifecycle, acceptance evidence и restore;
-- browser: организация, научные сценарии, source rows и lifecycle.
+- browser: организация, научные сценарии, source rows, lifecycle и автоматические назначения.
 
 Failure, cancelled, pending или неожиданно skipped не считаются зелёным результатом.
 
@@ -79,13 +82,13 @@ Fake LLM fixture не публикуется как production artifact и не 
 На PR release artifact не публикуется. После squash merge workflow публикации привязывается к точному SHA нового `main` и ждёт успешного завершения всех обязательных post-merge workflows:
 
 - `Проверка`;
-- `Release gate 0.3.1`;
+- `Release gate 0.3.2`;
 - `Оргструктура`;
 - `Научные отчёты`;
 - `Научный жизненный цикл`;
 - `Массовый импорт науки`.
 
-Только после этого повторно запускаются check/test/smoke/backup и browser plans, собираются full offline bundle и F2RE Project Control package, проверяются SHA-256, создаётся GitHub Release `v0.3.1` и подтверждается, что тег указывает на тот же SHA `main`.
+Только после этого повторно запускаются check/test/smoke/backup, browser plans и точное automatic-assignment E2E, собираются full offline bundle и F2RE Project Control package, проверяются SHA-256, создаётся GitHub Release `v0.3.2` и подтверждается, что тег указывает на тот же SHA `main`.
 
 Существующий тег с другим SHA считается ошибкой и не перезаписывается молча.
 
@@ -96,7 +99,7 @@ Fake LLM fixture не публикуется как production artifact и не 
 - embedded Node/glibc совместимость;
 - реальный OCR/LibreOffice на ведомственных файлах;
 - install/update существующей базы до схемы 27;
-- сохранение plan source rows, lifecycle, replacement, evidence и blob;
+- сохранение plan source rows, lifecycle, replacement, automatic assignment evidence и blob;
 - зашифрованный backup/restore и equality acceptance evidence;
 - forced rollback;
 - права каталогов и systemd hardening;
