@@ -201,10 +201,9 @@ function syncExecution(form) {
 
 function syncCoexecutors(form) {
   const primaryId = $mp('[name="primaryExecutorPersonId"]', form)?.value || '';
-  for (const input of $$mp('[name="coexecutorPersonIds"]', form)) {
-    const same = Boolean(primaryId && input.value === primaryId);
-    if (same) input.checked = false;
-    input.disabled = same;
+  for (const input of $$mp('[name="executorPersonIds"][data-manual-coexecutor]', form)) {
+    input.dataset.manualSameAsPrimary = primaryId && input.value === primaryId ? '1' : '0';
+    input.disabled = false;
   }
 }
 
@@ -240,10 +239,11 @@ function personOptions(people, selectedId) {
 
 function setupFormData(form) {
   form.addEventListener('formdata', (event) => {
+    const selected = event.formData.getAll('executorPersonIds').map(String).filter(Boolean);
     event.formData.delete('executorPersonIds');
     const primary = String(event.formData.get('primaryExecutorPersonId') || '').trim();
     if (primary) event.formData.append('executorPersonIds', primary);
-    for (const coexecutor of event.formData.getAll('coexecutorPersonIds').map(String).filter(Boolean)) {
+    for (const coexecutor of selected) {
       if (coexecutor !== primary) event.formData.append('executorPersonIds', coexecutor);
     }
   });
@@ -306,7 +306,7 @@ async function patchForm(form) {
       for (const id of legacySelected) if (id !== primaryId) existingCoexecutors.add(id);
     }
     for (const input of legacyInputs) {
-      input.name = 'coexecutorPersonIds';
+      input.dataset.manualCoexecutor = '1';
       input.checked = existingCoexecutors.has(input.value);
     }
 
@@ -316,7 +316,7 @@ async function patchForm(form) {
         <label class="field manual-primary-executor">
           <span>Основной исполнитель</span>
           <select name="primaryExecutorPersonId">${personOptions(people, primaryId)}</select>
-          <small>Соисполнители выбираются отдельно; поручение не создаёт дубли.</small>
+          <small>Ниже можно отметить дополнительных исполнителей; совпадение с основным не создаёт дубль.</small>
         </label>`);
     }
 
@@ -385,7 +385,7 @@ document.addEventListener('change', (event) => {
       if (controller.value) controller.dataset.manualSuggestedController = '1';
     }
   }
-  if (event.target.matches('[name="coexecutorPersonIds"]') && event.target.checked) {
+  if (event.target.matches('[name="executorPersonIds"][data-manual-coexecutor]') && event.target.checked) {
     const primary = $mp('[name="primaryExecutorPersonId"]', form);
     if (primary && !primary.value) {
       primary.value = event.target.value;
