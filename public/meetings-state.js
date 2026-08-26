@@ -45,8 +45,18 @@ function ensureMeetingStyles() {
   document.head.append(link);
 }
 
+let templateEditorLoading = null;
+function ensureMeetingTemplateEditor() {
+  if (templateEditorLoading) return templateEditorLoading;
+  templateEditorLoading = import('/meeting-template-editor.js')
+    .then((module) => module.installMeetingTemplateEditorEnhancer())
+    .catch(() => null);
+  return templateEditorLoading;
+}
+
 export function ensureMeetingsUi() {
   ensureMeetingStyles();
+  ensureMeetingTemplateEditor();
   const nav = $m('#navigation');
   if (nav && !$m('[data-view="meetings"]', nav)) {
     const button = document.createElement('button');
@@ -103,16 +113,21 @@ export function showMeetingNotice(message) {
 export function openMeetingModal(html) {
   const modal = $m('#meeting-modal');
   modal.innerHTML = html;
+  modal.className = 'meeting-modal';
   modal.classList.remove('hidden');
   $m('#meeting-modal-backdrop')?.classList.remove('hidden');
   document.body.classList.add('meeting-modal-open');
   requestAnimationFrame(() => modal.querySelector('input,select,textarea,button')?.focus());
+  modal.dispatchEvent(new CustomEvent('meeting-modal-opened', { bubbles: true }));
 }
 
 export function closeMeetingModal() {
-  $m('#meeting-modal')?.classList.add('hidden');
+  const modal = $m('#meeting-modal');
+  modal?.classList.add('hidden');
+  modal?.classList.remove('meeting-template-editor-modal');
   $m('#meeting-modal-backdrop')?.classList.add('hidden');
   document.body.classList.remove('meeting-modal-open');
+  modal?.dispatchEvent(new CustomEvent('meeting-modal-closed', { bubbles: true }));
 }
 
 export function settingsReady() {
