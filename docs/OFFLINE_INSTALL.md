@@ -206,7 +206,7 @@ sudo /opt/kafedra-planner/current/scripts/offline/doctor.sh --diagnose-apt
 3. сохраняет config/data;
 4. перед изменяющим update создаёт проверенную резервную копию;
 5. переключает `current`, выполняет миграции;
-6. на чистой системе создаёт администратора и root-only first-login file;
+6. на чистой системе подготавливает локальный контур, после чего пользователь задаёт PIN при первом открытии;
 7. запускает API/worker и optional managed LLM;
 8. выполняет HTTP health и strict/degraded doctor в соответствии с фактическим package result;
 9. при ошибке приложения возвращает предыдущий release/data через штатный rollback.
