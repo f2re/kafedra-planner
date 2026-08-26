@@ -9,7 +9,7 @@ async function openOrganization(page) {
   await expect(page.locator('#docomator-fields-panel')).toBeVisible({ timeout: 15_000 });
 }
 
-test('Оформлятор: выбор e-mail, должности и дополнительных полей сохраняется перед импортом', async ({ page }) => {
+test('Оформлятор: предложенные и дополнительные поля сохраняются до каждого импорта', async ({ page }) => {
   let settings = {
     scheme: 'http', host: '', port: 8080, spaceId: null, groupId: null,
     includeInactive: false, lastStatus: 'unknown', lastCheckedAt: null,
@@ -18,6 +18,7 @@ test('Оформлятор: выбор e-mail, должности и допол�
   };
   let savedMapping = null;
   let importBody = null;
+  let imports = 0;
 
   await page.route('**/api/integrations/docomator**', async (route) => {
     const request = route.request();
@@ -59,10 +60,11 @@ test('Оформлятор: выбор e-mail, должности и допол�
       }) });
     }
     if (url.pathname === '/api/integrations/docomator/import') {
+      imports += 1;
       importBody = body;
       return route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({
-        stats: { total: 1, created: 1, updated: 0, matched: 0, skipped: 0 },
-        fieldStats: { mapped: 2, extras: 1 }, imported: [],
+        stats: { total: 1, created: imports === 1 ? 1 : 0, updated: imports === 1 ? 0 : 1, matched: 0, skipped: 0 },
+        fieldStats: { mapped: 2, extras: savedMapping?.extraPropertyKeys?.length || 0 }, imported: [],
         settings: { ...settings, lastImportedAt: '2026-08-26T18:00:00Z' }
       }) });
     }
@@ -79,16 +81,26 @@ test('Оформлятор: выбор e-mail, должности и допол�
   await expect(section.locator('#docomator-email-field')).toHaveValue('email', { timeout: 15_000 });
   await expect(section.locator('#docomator-position-field')).toHaveValue('position');
   await expect(section.locator('#docomator-extra-fields')).toContainText('Телефон');
-  await section.locator('#docomator-extra-fields input[value="phone"]').check();
-  await expect(section.locator('#docomator-extra-count')).toHaveText('1 выбрано');
 
+  // Оператор принимает автопредложение и сразу запускает импорт: mapping всё равно должен сохраниться первым.
   await expect(section.locator('[data-docomator-import]')).toBeEnabled({ timeout: 15_000 });
   await section.locator('[data-docomator-import]').click();
   await expect(section.locator('#docomator-status')).toContainText('Импорт завершён', { timeout: 15_000 });
+  expect(savedMapping).toEqual({
+    emailPropertyKey: 'email', positionPropertyKey: 'position', extraPropertyKeys: []
+  });
+  expect(importBody.spaceId).toBe('space-1');
+  expect(importBody.accessCode).toBe('1234');
 
+  // Затем оператор добавляет произвольное поле; повторный импорт должен использовать уже новый mapping.
+  await section.locator('#docomator-extra-fields input[value="phone"]').check();
+  await expect(section.locator('#docomator-extra-count')).toHaveText('1 выбрано');
+  await expect.poll(() => savedMapping?.extraPropertyKeys || [], { timeout: 10_000 }).toEqual(['phone']);
+  importBody = null;
+  await section.locator('[data-docomator-import]').click();
+  await expect.poll(() => imports, { timeout: 10_000 }).toBe(2);
   expect(savedMapping).toEqual({
     emailPropertyKey: 'email', positionPropertyKey: 'position', extraPropertyKeys: ['phone']
   });
-  expect(importBody.spaceId).toBe('space-1');
   expect(importBody.accessCode).toBe('1234');
 });
