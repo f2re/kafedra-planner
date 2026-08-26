@@ -12,30 +12,30 @@ async function fixture() {
   await mkdir(join(root, 'deploy', 'systemd'), { recursive: true });
   await mkdir(join(root, 'config', 'offline'), { recursive: true });
   await mkdir(join(root, '.github', 'workflows'), { recursive: true });
-  await writeFile(join(root, 'VERSION'), '0.3.3\n');
+  await writeFile(join(root, 'VERSION'), '0.3.4\n');
   await writeFile(join(root, 'package.json'), JSON.stringify({
-    version: '0.3.3', scripts: { check: 'node check.mjs', good: 'node good.mjs' }
+    version: '0.3.4', scripts: { check: 'node check.mjs', good: 'node good.mjs' }
   }));
   await writeFile(join(root, 'scripts', 'offline', 'doctor.sh'), '#!/bin/sh\n');
   await writeFile(join(root, 'scripts', 'doctor.mjs'), '');
   await writeFile(join(root, 'deploy', 'systemd', 'kafedra-planner-api.service'), '[Service]\n');
   await writeFile(join(root, 'config', 'offline', 'os-packages.txt'), 'unzip\n');
   await writeFile(join(root, 'docs', 'other.md'), '# Other\n');
-  await writeFile(join(root, 'docs', 'releases', '0.3.3.md'), '# Kafedra Planner 0.3.3\n');
-  await writeFile(join(root, 'README.en.md'), '> Current milestone: **`0.3.3`**\n');
-  await writeFile(join(root, 'docs', 'ROADMAP.md'), '## Текущий рубеж — `0.3.3`\n');
-  await writeFile(join(root, 'docs', 'RELEASE_CANDIDATE.md'), '# Release candidate 0.3.3\n');
-  await writeFile(join(root, 'docs', 'VALIDATION.md'), 'Актуальный рубеж: `0.3.3`\n');
-  await writeFile(join(root, 'docs', 'UX_FLOWS.md'), 'Статус: рабочие контуры версии `0.3.3`\n');
-  await writeFile(join(root, '.github', 'workflows', 'release-gate.yml'), 'name: Release gate 0.3.3\n');
-  await writeFile(join(root, '.github', 'workflows', 'release.yml'), 'workflows: ["Release gate 0.3.3"]\n');
+  await writeFile(join(root, 'docs', 'releases', '0.3.4.md'), '# Kafedra Planner 0.3.4\n');
+  await writeFile(join(root, 'README.en.md'), '> Current milestone: **`0.3.4`**\n');
+  await writeFile(join(root, 'docs', 'ROADMAP.md'), '## Текущий рубеж — `0.3.4`\n');
+  await writeFile(join(root, 'docs', 'RELEASE_CANDIDATE.md'), '# Release candidate 0.3.4\n');
+  await writeFile(join(root, 'docs', 'VALIDATION.md'), 'Актуальный рубеж: `0.3.4`\n');
+  await writeFile(join(root, 'docs', 'UX_FLOWS.md'), 'Статус: рабочие контуры версии `0.3.4`\n');
+  await writeFile(join(root, '.github', 'workflows', 'release-gate.yml'), 'name: Release gate 0.3.4\n');
+  await writeFile(join(root, '.github', 'workflows', 'release.yml'), 'workflows: ["Release gate 0.3.4"]\n');
   return root;
 }
 
 test('documentation checker accepts existing commands, paths and release markers', async () => {
   const root = await fixture();
   await writeFile(join(root, 'README.md'), [
-    '> Текущий рубеж: **`0.3.3`**',
+    '> Текущий рубеж: **`0.3.4`**',
     '[Документ](docs/other.md)',
     'npm run good',
     '`scripts/offline/doctor.sh`',
@@ -49,7 +49,7 @@ test('documentation checker accepts existing commands, paths and release markers
 test('documentation checker reports stale npm, file and Markdown references', async () => {
   const root = await fixture();
   await writeFile(join(root, 'README.md'), [
-    '> Текущий рубеж: **`0.3.3`**',
+    '> Текущий рубеж: **`0.3.4`**',
     '[Нет файла](docs/missing.md)',
     'npm run missing-command',
     '`scripts/offline/missing.sh`',
