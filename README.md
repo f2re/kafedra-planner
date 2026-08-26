@@ -1,8 +1,17 @@
 # Кафедра Planner
 
+[Русский](README.md) · [English](README.en.md)
+
+[![Проверка](https://github.com/f2re/kafedra-planner/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/f2re/kafedra-planner/actions/workflows/ci.yml)
+[![Release gate](https://github.com/f2re/kafedra-planner/actions/workflows/release-gate.yml/badge.svg?branch=main)](https://github.com/f2re/kafedra-planner/actions/workflows/release-gate.yml)
+[![GitHub Release](https://img.shields.io/github/v/release/f2re/kafedra-planner?display_name=tag&sort=semver)](https://github.com/f2re/kafedra-planner/releases)
+[![Лицензия MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
+
 Автономная система повседневной работы кафедры: календарь, годовые планы, поручения, документы, заседания, отчётность, научная деятельность и проверяемые доказательства.
 
-> Текущий рубеж: **`0.3.0`**, схема SQLite **27**. Основные пользовательские контуры работают без обязательного Интернета, LLM, Docker и внешних облачных сервисов. До stable остаётся реальная эксплуатационная приёмка установки, обновления, восстановления и rollback на Astra Linux/Debian по [`docs/TARGET_ACCEPTANCE.md`](docs/TARGET_ACCEPTANCE.md) и issue #27.
+> Текущий рубеж: **`0.3.1`**, схема SQLite **27**. Основные пользовательские контуры работают без обязательного Интернета, LLM, Docker и внешних облачных сервисов. До stable остаётся реальная эксплуатационная приёмка установки, обновления, восстановления и rollback на Astra Linux/Debian по [`docs/TARGET_ACCEPTANCE.md`](docs/TARGET_ACCEPTANCE.md) и issue #27.
+
+**[Скачать проверенный offline bundle](https://github.com/f2re/kafedra-planner/releases)** · **[Установить на Debian/Astra](docs/GITHUB_RELEASES.md)** · **[Открыть документацию](#архитектура-и-эксплуатационные-документы)** · **[Сообщить об уязвимости](SECURITY.md)**
 
 ## Основной принцип
 
@@ -116,7 +125,9 @@ npm run bundle:offline:llm -- \
 
 ## Установка на Astra Linux / Debian
 
-Эксплуатационная установка не требует `npm install` или `pip install` на целевой машине. Full bundle собирается на совместимой reference-системе:
+Эксплуатационная установка не требует `npm install` или `pip install` на целевой машине. Скачайте четыре обязательных файла из [GitHub Releases](https://github.com/f2re/kafedra-planner/releases), проверьте `.sha256` и запустите штатный wrapper по [короткой инструкции](docs/GITHUB_RELEASES.md).
+
+Full bundle для другой архитектуры или иной серии ОС собирается на совместимой reference-системе:
 
 ```bash
 npm run bundle:offline
@@ -204,3 +215,12 @@ npm run test:browser:acl
 - [`docs/CODEX_AGENTS.md`](docs/CODEX_AGENTS.md) — роли Codex, handoff и критерии готовности;
 - [`docs/RELEASE_CANDIDATE.md`](docs/RELEASE_CANDIDATE.md) — текущий RC и release-gates;
 - [`docs/TARGET_ACCEPTANCE.md`](docs/TARGET_ACCEPTANCE.md) — реальная Astra/Debian приёмка перед stable.
+
+## Сообщество и политика
+
+- [Releases](https://github.com/f2re/kafedra-planner/releases) — готовые проверенные offline bundles;
+- [CONTRIBUTING.md](CONTRIBUTING.md) — как предложить изменение и проверить его;
+- [SECURITY.md](SECURITY.md) — безопасное сообщение об уязвимости;
+- [LICENSE](LICENSE) — условия использования исходного кода (MIT).
+
+Интерфейс и основная эксплуатационная документация ведутся на русском языке. Английская страница проекта доступна в [README.en.md](README.en.md); предложения по переводу документации и интерфейса приветствуются через issue или pull request.

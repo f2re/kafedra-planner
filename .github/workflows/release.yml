@@ -2,7 +2,7 @@ name: Публикация GitHub Release
 
 on:
   workflow_run:
-    workflows: ["Release gate 0.3.0"]
+    workflows: ["Release gate 0.3.1"]
     types: [completed]
   workflow_dispatch:
 
@@ -60,7 +60,7 @@ jobs:
           set -Eeuo pipefail
           required=(
             "Проверка"
-            "Release gate 0.3.0"
+            "Release gate 0.3.1"
             "Оргструктура"
             "Научные отчёты"
             "Научный жизненный цикл"

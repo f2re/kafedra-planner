@@ -1,6 +1,6 @@
 # Автоматическая проверка release candidate
 
-Актуальный рубеж: `0.3.0`, схема SQLite **27**. Автоматический gate проверяет код, данные, browser UX и поставочный контракт, но не подменяет фактическую приёмку #27 на Astra Linux/Debian.
+Актуальный рубеж: `0.3.1`, схема SQLite **27**. Автоматический gate проверяет код, данные, browser UX и поставочный контракт, но не подменяет фактическую приёмку #27 на Astra Linux/Debian.
 
 ## Статические и Node-проверки
 
@@ -50,7 +50,7 @@ npm run test:browser:acl
 
 Lifecycle-действия не считаются обучаемым выбором. Desktop и mobile проходят один предметный сценарий с разной компоновкой.
 
-## Release gate 0.3.0
+## Release gate 0.3.1
 
 Обязательный агрегирующий workflow требует успешного завершения:
 
@@ -79,13 +79,13 @@ Fake LLM fixture не публикуется как production artifact и не 
 На PR release artifact не публикуется. После squash merge workflow публикации привязывается к точному SHA нового `main` и ждёт успешного завершения всех обязательных post-merge workflows:
 
 - `Проверка`;
-- `Release gate 0.3.0`;
+- `Release gate 0.3.1`;
 - `Оргструктура`;
 - `Научные отчёты`;
 - `Научный жизненный цикл`;
 - `Массовый импорт науки`.
 
-Только после этого повторно запускаются check/test/smoke/backup и browser plans, собираются full offline bundle и F2RE Project Control package, проверяются SHA-256, создаётся GitHub Release `v0.3.0` и подтверждается, что тег указывает на тот же SHA `main`.
+Только после этого повторно запускаются check/test/smoke/backup и browser plans, собираются full offline bundle и F2RE Project Control package, проверяются SHA-256, создаётся GitHub Release `v0.3.1` и подтверждается, что тег указывает на тот же SHA `main`.
 
 Существующий тег с другим SHA считается ошибкой и не перезаписывается молча.
 

@@ -1,15 +1,15 @@
-# Release candidate 0.3.0
+# Release candidate 0.3.1
 
 ## Статус
 
-`0.3.0` — текущий эксплуатационный release candidate, схема SQLite **27**. Основные функциональные контуры работают автономно и проходят unit/integration/Chromium/full-offline gates. Stable не объявляется до фактической приёмки на целевых Astra Linux/Debian по [`TARGET_ACCEPTANCE.md`](TARGET_ACCEPTANCE.md) и issue #27.
+`0.3.1` — текущий эксплуатационный release candidate, схема SQLite **27**. Основные функциональные контуры работают автономно и проходят unit/integration/Chromium/full-offline gates. Stable не объявляется до фактической приёмки на целевых Astra Linux/Debian по [`TARGET_ACCEPTANCE.md`](TARGET_ACCEPTANCE.md) и issue #27.
 
 Версия завершает два связанных пользовательских сценария:
 
 1. реальный табличный план разбирается по исходным строкам и ячейкам, а одна строка может стать несколькими задачами с несколькими исполнителями;
 2. ошибочно добавленный или устаревший документ/план можно переименовать, архивировать, связать с логическим преемником и восстановить без удаления либо подмены исторических источников.
 
-## Что входит в 0.3.0
+## Что входит в 0.3.1
 
 - первый вход по четырёхзначному PIN без регистрации, логина и временного пароля;
 - `scrypt`-хэш PIN, блокировка после пяти неверных попыток, HttpOnly-сессии и CSRF;
@@ -27,6 +27,7 @@
 - SMTP/Telegram и `llama.cpp` только как необязательные адаптеры;
 - target-specific full offline bundle с Node 24.19, managed Python и `.deb` air-gap closure;
 - package contract `full-airgap-v2 + additive-only-v2`.
+- публичная GitHub-витрина: badges, MIT license, RU/EN entrypoints, download/install guide и проверяемый GitHub Release.
 
 ## Инварианты lifecycle
 
@@ -138,7 +139,7 @@ GitHub Release публикуется только после успешного
 
 На реальной Astra Linux и контрольной Debian необходимо подтвердить:
 
-- чистую установку `0.3.0` и первый PIN-flow;
+- чистую установку `0.3.1` и первый PIN-flow;
 - обновление существующей базы до схемы 27;
 - сохранность lifecycle/replacement, исходных строк плана, evidence и blob после backup/restore;
 - forced rollback после искусственно сорванного update;
