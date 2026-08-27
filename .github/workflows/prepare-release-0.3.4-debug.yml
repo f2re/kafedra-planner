@@ -1,0 +1,82 @@
+name: Диагностика подготовки 0.3.4
+
+on:
+  push:
+    branches: ["release/0.3.4-docomator-fields"]
+    paths: [".github/workflows/prepare-release-0.3.4-debug.yml"]
+
+permissions:
+  contents: write
+
+jobs:
+  prepare-debug:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 35
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: release/0.3.4-docomator-fields
+          fetch-depth: 0
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+
+      - name: Выполнить подготовку и сохранить точный журнал при ошибке
+        shell: bash
+        run: |
+          set -uo pipefail
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          LOG="$GITHUB_WORKSPACE/prepare-release-0.3.4.log"
+          : > "$LOG"
+          set +e
+          (
+            set -Eeuo pipefail
+            exec > >(tee -a "$LOG") 2>&1
+            git fetch --no-tags origin \
+              refs/heads/main:refs/remotes/origin/main \
+              refs/heads/feature/docomator-fields-0.3.4:refs/remotes/origin/feature/docomator-fields-0.3.4
+            FEATURE=refs/remotes/origin/feature/docomator-fields-0.3.4
+            git rev-parse --verify "$FEATURE"
+
+            git checkout "$FEATURE" -- \
+              .github/workflows/organization.yml \
+              .github/workflows/release-gate.yml \
+              .github/workflows/release.yml \
+              VERSION \
+              apps/api/src/docomator-integration-router.mjs \
+              docs/DOCOMATOR_PEOPLE_IMPORT.md \
+              docs/RELEASE_CANDIDATE.md \
+              docs/VALIDATION.md \
+              package.json \
+              package-lock.json \
+              packages/integrations/src/docomator-fields.mjs \
+              public/docomator-fields.css \
+              public/docomator-fields.js \
+              tests/browser/docomator-fields.spec.mjs \
+              tests/docomator-fields-migration.test.mjs \
+              tests/docomator-fields.test.mjs \
+              tests/docs-consistency.test.mjs
+
+            git show "$FEATURE:migrations/029_docomator_field_mapping.sql" > migrations/030_docomator_field_mapping.sql
+            python3 .github/scripts/run-prepare-release-0.3.4.py
+            npm ci --ignore-scripts --no-audit --no-fund
+            npm run check
+            npm test
+            npm run smoke
+          )
+          STATUS=$?
+          set -e
+          if (( STATUS != 0 )); then
+            printf '\nEXIT_STATUS=%s\n' "$STATUS" >> "$LOG"
+            git reset --hard HEAD
+            git clean -fd
+            cp "$LOG" prepare-release-0.3.4.log
+            git add prepare-release-0.3.4.log
+            git commit -m "diagnostics: журнал подготовки релиза 0.3.4"
+            git push origin HEAD:release/0.3.4-docomator-fields
+            exit "$STATUS"
+          fi
+          echo "Подготовка и тесты прошли успешно." >> "$LOG"
