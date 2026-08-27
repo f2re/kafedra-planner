@@ -18,6 +18,7 @@
 
       <nav id="navigation" class="sidebar-nav">
         <button class="nav-item active" data-view="calendar"><span class="nav-icon" aria-hidden="true">▦</span><span>Календарь</span></button>
+        <button class="nav-item" data-view="work"><span class="nav-icon" aria-hidden="true">✓</span><span>Поручения</span></button>
         <button class="nav-item" data-view="documents"><span class="nav-icon" aria-hidden="true">▤</span><span>Документы</span></button>
         <button class="nav-item" data-view="templates"><span class="nav-icon" aria-hidden="true">◇</span><span>Шаблоны</span></button>
         <button class="nav-item" data-view="review"><span class="nav-icon" aria-hidden="true">✓</span><span>Проверка</span><span id="review-badge" class="badge hidden">0</span></button>
@@ -98,6 +99,8 @@
         </div>
       </section>
 
+      <section class="view" data-view-panel="work"></section>
+
       <section class="view" data-view-panel="documents">
         <div class="section-heading">
           <div><h2>Документы</h2><p>Оригинал сохраняется неизменяемо. Обработка продолжается после закрытия страницы.</p></div>
@@ -140,6 +143,7 @@
 
     <nav class="mobile-tabs" aria-label="Разделы">
       <button class="mobile-tab active" data-view="calendar"><span>▦</span>Календарь</button>
+      <button class="mobile-tab" data-view="work"><span>✓</span>Поручения</button>
       <button class="mobile-tab" data-view="documents"><span>▤</span>Документы</button>
       <button class="mobile-tab" data-view="templates"><span>◇</span>Шаблоны</button>
       <button class="mobile-tab" data-view="review"><span>✓</span>Проверка</button>

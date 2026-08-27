@@ -21,6 +21,7 @@ const state = {
 
 const viewMeta = {
   calendar: ['Календарь', 'Все события, задачи и контрольные сроки'],
+  work: ['Поручения', 'Задачи из планов, распоряжений и регулярной работы'],
   plans: ['Планы', 'Рабочие планы, пункты, сроки и источники'],
   documents: ['Документы', 'Оригиналы, результаты обработки и создание шаблонов'],
   templates: ['Шаблоны', 'Один раз покажите поля — дальше система извлекает их сама'],
@@ -118,6 +119,7 @@ function setView(view) {
   $('#calendar-mode-switch').classList.toggle('hidden', view !== 'calendar');
   document.body.classList.remove('mobile-sidebar-open');
   if (view === 'calendar') runCalendarLoad();
+  if (view === 'work' && typeof window.loadWork === 'function') window.loadWork();
   if (view === 'documents') loadDocuments();
   if (view === 'templates') loadTemplates();
   if (view === 'review') loadReview();
