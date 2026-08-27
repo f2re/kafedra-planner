@@ -288,7 +288,7 @@ function renderPlanDetail(plan) {
               <td>${esc(itemDateText(item))}</td>
               <td>${esc(item.responsible_name || item.responsible_raw || 'Не указан')}</td>
               <td>${esc(directionLabel(item.direction))}</td>
-              <td><button class="row-button" type="button" data-plan-edit-item="${esc(item.id)}">Исправить</button></td>
+              <td><button class="row-button" type="button" data-plan-edit-item="${esc(item.id)}">Исправить</button>${item.assignment?.id ? `<button class="row-button" type="button" data-plan-open-assignment="${esc(item.assignment.id)}">Открыть задачу</button>` : ''}</td>
             </tr>
           `).join('')}
         </tbody>
@@ -688,6 +688,8 @@ document.addEventListener('click', (event) => {
   }
   const edit = event.target.closest('[data-plan-edit-item]');
   if (edit) return openItemEditor(edit.dataset.planEditItem);
+  const assignment = event.target.closest('[data-plan-open-assignment]');
+  if (assignment) return window.kafedraOpenStandaloneAssignment?.(assignment.dataset.planOpenAssignment).catch((error) => showPlanNotice(error.message));
   if (event.target.closest('[data-plans-close]') || event.target === $p('#plans-modal-backdrop')) return closePlanModals();
 
   if (event.target.closest('#plans-upload-button')) return $p('#plans-upload-input')?.click();
