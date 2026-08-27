@@ -126,12 +126,9 @@ test('Планы: ручной план → календарь → задача 
     await page.locator('#manual-plan-modal > header [data-manual-close]').click();
     await expect(page.locator('#plan-detail')).toContainText('Документы · 1', { timeout: 15_000 });
 
-    await navigationButton(page, 'work').click();
-    await expect(page.locator('[data-view-panel="work"]')).toBeVisible();
-    const assignmentCard = page.locator('.work-card[data-work-kind="assignment"]')
-      .filter({ hasText: itemTitle }).first();
-    await expect(assignmentCard).toBeVisible({ timeout: 15_000 });
-    await assignmentCard.click();
+    const openAssignment = itemRow.locator('[data-manual-open-assignment]');
+    await expect(openAssignment).toBeVisible({ timeout: 15_000 });
+    await openAssignment.click();
     const inspector = page.locator('#standalone-assignment-inspector');
     await expect(inspector).toBeVisible({ timeout: 15_000 });
     await expect(inspector).toContainText('Задача из плана');

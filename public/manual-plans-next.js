@@ -461,6 +461,9 @@ async function patchManualDetail() {
       const count = (item.supporting_documents || []).length;
       actionCell.insertAdjacentHTML('beforeend', `<button class="row-button" type="button" data-manual-support="${escapeManual(item.id)}">Документы${count ? ` · ${count}` : ''}</button>`);
     }
+    if (actionCell && item.assignment && !$m('[data-manual-open-assignment]', actionCell)) {
+      actionCell.insertAdjacentHTML('beforeend', `<button class="row-button" type="button" data-manual-open-assignment="${escapeManual(item.assignment.id)}">Открыть задачу</button>`);
+    }
     if (actionCell && item.execution_mode === 'open' && item.assignment && !item.assignment.claimed_by_person_id && !$m('[data-manual-claim]', actionCell)) {
       actionCell.insertAdjacentHTML('beforeend', `<button class="row-button manual-claim-button" type="button" data-manual-claim="${escapeManual(item.id)}">Взять задачу</button>`);
     }
@@ -495,6 +498,8 @@ document.addEventListener('click', (event) => {
   }
   const claim = event.target.closest('[data-manual-claim]');
   if (claim) return claimItem(manualState.selectedPlanId, claim.dataset.manualClaim).catch((error) => notice(error.message));
+  const assignment = event.target.closest('[data-manual-open-assignment]');
+  if (assignment) return window.kafedraOpenStandaloneAssignment?.(assignment.dataset.manualOpenAssignment).catch((error) => notice(error.message));
   if (event.target.closest('[data-manual-plan-generate]')) {
     if (manualState.selectedPlan?.origin_kind === 'manual') return openGenerateManualPlan(manualState.selectedPlan).catch((error) => notice(error.message));
   }
