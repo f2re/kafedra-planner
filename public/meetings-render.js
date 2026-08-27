@@ -59,8 +59,11 @@ function agendaItemHtml(item, index, total) {
 function documentHtml(document) {
   const label = document.document_kind === 'extract' ? 'Выписка' : 'Протокол';
   const questions = document.document_kind === 'extract' ? ` · вопросы ${escMeeting(document.question_numbers)}` : '';
+  const template = document.template_display_name
+    ? `<small>Шаблон: ${escMeeting(document.template_display_name)} · версия ${Number(document.template_version_no || 1)}</small>`
+    : '';
   return `<a class="meeting-document" href="/api/documents/${encodeURIComponent(document.document_id)}/content?variant=original" target="_blank" rel="noopener">
-    <span><strong>${label}${questions}</strong><small>${escMeeting(document.original_name)}</small></span><span aria-hidden="true">↓</span>
+    <span><strong>${label}${questions}</strong><small>${escMeeting(document.original_name)}</small>${template}</span><span aria-hidden="true">↓</span>
   </a>`;
 }
 

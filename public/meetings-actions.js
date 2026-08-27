@@ -26,11 +26,8 @@ export async function uploadMeetingTemplateInput(input) {
     const name = kind === 'protocol' ? 'protocolTemplateVersionId' : 'extractTemplateVersionId';
     const select = form.elements.namedItem(name);
     if (select) {
-      select.innerHTML = templateOptions(data.version_id);
+      select.innerHTML = templateOptions(data.version_id, kind);
       select.value = data.version_id;
-      // Программный выбор должен пройти тот же локальный UI-путь, что ручной.
-      // Событие не загружает файл повторно: обработчик upload привязан только к
-      // input[data-meeting-template-upload], а редактор профиля слушает select.
       select.dispatchEvent(new Event('change', { bubbles: true }));
     }
   }
