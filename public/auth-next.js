@@ -291,7 +291,7 @@ window.fetch = async function authenticatedFetch(input, init = {}) {
     response.status === 401
     && url.origin === window.location.origin
     && !url.pathname.startsWith('/api/auth/')
-    && authState.payload
+    && authState.payload?.authenticated
   ) {
     const current = authState.payload;
     const mode = normalizeAuthMode(current);

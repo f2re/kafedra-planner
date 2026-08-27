@@ -1,4 +1,4 @@
-const workState = { filters: {}, data: null, documents: [], people: [], periodic: [] };
+const workState = { filters: {}, data: null, documents: [], people: [], periodic: [], currentPersonId: null };
 const q = (selector, root = document) => root.querySelector(selector);
 const qa = (selector, root = document) => [...root.querySelectorAll(selector)];
 const esc = (value) => String(value ?? '').replaceAll('&','&amp;').replaceAll('<','&lt;').replaceAll('>','&gt;').replaceAll('"','&quot;').replaceAll("'",'&#039;');
@@ -10,7 +10,21 @@ async function workApi(path, options = {}) {
   return data;
 }
 
+function ensureDirectCompletionStyles() {
+  if (q('#work-direct-completion-styles')) return;
+  const style = document.createElement('style');
+  style.id = 'work-direct-completion-styles';
+  style.textContent = `
+    .assignment-progress-panel,.assignment-evidence-panel{display:grid;gap:10px;margin-top:14px;padding:14px;border:1px solid var(--border,#dce3ea);border-radius:14px;background:var(--surface-soft,#f8fafc)}
+    .assignment-progress-panel h4,.assignment-evidence-panel h4{margin:0;font-size:15px}.assignment-progress-panel p,.assignment-evidence-panel p{margin:0;color:var(--muted,#64748b)}
+    .assignment-progress-form,.work-report-form{display:grid;gap:9px}.assignment-progress-form input,.assignment-progress-form textarea,.work-report-form select{width:100%;box-sizing:border-box}
+    .assignment-actions{display:flex;align-items:center;gap:10px;flex-wrap:wrap}.assignment-evidence-history{display:grid;gap:6px;margin:0;padding-left:20px}.assignment-evidence-history small{display:block;color:var(--muted,#64748b)}
+  `;
+  document.head.append(style);
+}
+
 function ensureWorkUi() {
+  ensureDirectCompletionStyles();
   if (!q('[data-view="work"]')) {
     q('#navigation')?.insertAdjacentHTML('beforeend', '<button class="nav-item" data-view="work"><span class="nav-icon" aria-hidden="true">→</span><span>Поручения</span></button>');
     q('.mobile-tabs')?.insertAdjacentHTML('beforeend', '<button class="mobile-tab" data-view="work"><span>→</span>Поручения</button>');
@@ -105,6 +119,9 @@ async function loadWork() {
   workState.people = people.items;
   workState.documents = documents.items;
   workState.periodic = periodic.items || [];
+  workState.currentPersonId = window.kafedraAuthContext?.user?.person?.id
+    || window.kafedraAuthContext?.user?.account?.person_id
+    || null;
   const periodicItems = workState.periodic.filter((task) => periodicMatches(task, values)).map((task) => ({
     sourceKind: 'periodic_task', id: task.id, title: task.title, subtype: task.period_kind,
     eventDate: task.due_date, direction: task.direction, status: task.status,
@@ -179,7 +196,7 @@ function responsibilityEditor(a, responsibility) {
     </form>${historyHtml(responsibility.history, 'Изменений ответственности ещё не было.')}</details>`;
 }
 
-async function showDirective(id) {
+async function showDirective(id, options = {}) {
   const item = await workApi(`/api/directives/${encodeURIComponent(id)}`);
   const responsibilityPairs = await Promise.all((item.assignments || []).map(async (assignment) => {
     try {
@@ -192,11 +209,40 @@ async function showDirective(id) {
   const inspector = q('#ux-inspector'); const body = q('#ux-inspector-body');
   if (!inspector || !body) return;
   body.innerHTML = `<div class="work-inspector-grid"><section class="inspector-section"><div class="eyebrow">${esc(item.directive_kind)}</div><h2>${esc(item.title)}</h2><p>№ ${esc(item.document_number || 'не указан')} · ${esc(item.issued_at || 'дата не указана')}</p><p>${esc(item.issuer_raw || '')}</p><button class="secondary-button" type="button" data-inspector-document="${esc(item.source_document_id)}">Открыть оригинал</button></section>
-  <section class="inspector-section"><h3>Поручения</h3>${item.assignments.map((a)=>assignmentHtml(a, responsibilities[a.id])).join('') || '<div class="empty-state">Поручений не найдено.</div>'}</section></div>`;
+  <section class="inspector-section"><h3>Поручения</h3>${item.assignments.map((a)=>assignmentHtml(a, responsibilities[a.id], options)).join('') || '<div class="empty-state">Поручений не найдено.</div>'}</section></div>`;
   inspector.classList.remove('hidden'); q('#sheet-backdrop')?.classList.remove('hidden');
 }
 
-function assignmentHtml(a, responsibility) {
+function assignmentStatusLabel(status) {
+  if (status === 'completed') return 'Выполнено';
+  if (status === 'cancelled') return 'Отменено';
+  return 'В работе';
+}
+
+function assignmentProgressPanel(assignment) {
+  if (assignment.status === 'cancelled') {
+    return '<section class="assignment-progress-panel"><h4>Задача отменена</h4><p>Отменённую задачу нельзя завершить.</p></section>';
+  }
+  const completed = assignment.status === 'completed';
+  const latest = (assignment.progress || assignment.updates || [])[0] || null;
+  return `<section class="assignment-progress-panel">
+    <h4>${completed ? 'Задача выполнена' : 'Завершение задачи'}</h4>
+    <p>${completed ? 'Дополнительное подтверждение не требуется. При ошибке верните задачу в работу.' : 'Нажмите один раз. Отчёт и подтверждение руководителя не требуются.'}</p>
+    <form class="assignment-progress-form" data-assignment-progress-form>
+      <input name="progress" type="number" min="0" max="100" value="${completed ? 100 : esc(latest?.progress ?? 0)}" aria-label="Прогресс">
+      <textarea name="note" rows="2" placeholder="Комментарий, необязательно">${esc(latest?.note || '')}</textarea>
+      <div class="assignment-actions"><button class="${completed ? 'secondary-button' : 'primary-button'}" type="submit" data-next-status="${completed ? 'open' : 'completed'}">${completed ? 'Вернуть в работу' : 'Выполнено'}</button><span data-assignment-progress-error role="alert"></span></div>
+    </form>
+  </section>`;
+}
+
+function assignmentEvidenceHistory(assignment) {
+  const reports = assignment.reports || [];
+  if (!reports.length) return '<p>Материалы не приложены. Для выполнения они не нужны.</p>';
+  return `<ul class="assignment-evidence-history">${reports.map((report) => `<li>${esc(report.document_title || 'Материал')}<small>${esc(report.note || 'Подтверждающий материал')}</small></li>`).join('')}</ul>`;
+}
+
+function assignmentHtml(a, responsibility, options = {}) {
   const names = roleNames(responsibility || {
     executor: a.executors.find((item) => item.role === 'executor'),
     coexecutors: a.executors.filter((item) => item.role === 'coexecutor'),
@@ -204,7 +250,7 @@ function assignmentHtml(a, responsibility) {
     observers: a.executors.filter((item) => item.role === 'observer')
   });
   const docs = ['<option value="">Выберите отчётный документ</option>', ...workState.documents.map((d)=>`<option value="${esc(d.id)}">${esc(d.title)}</option>`)].join('');
-  return `<article class="work-assignment" data-assignment-id="${esc(a.id)}" data-directive-id="${esc(a.directive_id || '')}"><header><strong>${esc(a.title)}</strong><span>${esc(a.due_date || 'без срока')}</span></header><div class="work-executors">Ответственный: ${esc(names.primary)}${names.co ? ` · соисполнители: ${esc(names.co)}` : ''} · состояние: ${esc(a.status)}</div><p>${esc(a.instruction_text)}</p>${responsibilityEditor(a, responsibility)}<form class="work-report-form" data-report-form><select name="documentId">${docs}</select><button class="secondary-button" type="submit">Приложить отчёт</button></form></article>`;
+  return `<article class="work-assignment" data-assignment-id="${esc(a.id)}" data-directive-id="${esc(a.directive_id || '')}"><header><strong>${esc(a.title)}</strong><span>${esc(a.due_date || 'без срока')}</span></header><div class="work-executors">Ответственный: ${esc(names.primary)}${names.co ? ` · соисполнители: ${esc(names.co)}` : ''} · состояние: ${esc(assignmentStatusLabel(a.status))}</div><p>${esc(a.instruction_text)}</p>${options.assignmentId === a.id && options.message ? `<p class="assignment-notice" role="status">${esc(options.message)}</p>` : ''}${responsibilityEditor(a, responsibility)}${assignmentProgressPanel(a)}<section class="assignment-evidence-panel"><h4>Подтверждающие материалы — необязательно</h4><p>Материал не меняет состояние задачи.</p><form class="work-report-form" data-report-form><select name="documentId">${docs}</select><button class="secondary-button" type="submit">Приложить отчёт</button><span data-assignment-material-error role="alert"></span></form>${assignmentEvidenceHistory(a)}</section></article>`;
 }
 
 async function showAssignment(id) {
@@ -261,6 +307,33 @@ document.addEventListener('change', (event) => {
 
 document.addEventListener('submit', async (event) => {
   if (event.target.id === 'work-search-form') { event.preventDefault(); await loadWork(); }
+  const progressForm = event.target.closest('[data-assignment-progress-form]');
+  if (progressForm) {
+    event.preventDefault();
+    const article = progressForm.closest('[data-assignment-id]');
+    const button = q('button[type="submit"]', progressForm);
+    const error = q('[data-assignment-progress-error]', progressForm);
+    if (error) error.textContent = '';
+    if (button) button.disabled = true;
+    try {
+      const form = new FormData(progressForm);
+      const status = button.dataset.nextStatus;
+      const progress = status === 'completed' ? 100 : Math.max(0, Math.min(99, Number(form.get('progress') || 0)));
+      await workApi(`/api/assignments/${encodeURIComponent(article.dataset.assignmentId)}/progress`, {
+        method:'POST', headers:{'content-type':'application/json'},
+        body:JSON.stringify({ actorPersonId:workState.currentPersonId, status, progress, note:String(form.get('note') || '').trim() || null })
+      });
+      await showDirective(article.dataset.directiveId, {
+        assignmentId:article.dataset.assignmentId,
+        message:status === 'completed' ? 'Задача выполнена. Подтверждение не требуется.' : 'Задача вернута в работу.'
+      });
+      await loadWork();
+    } catch (exception) {
+      if (error) error.textContent = exception.message;
+      if (button) button.disabled = false;
+    }
+    return;
+  }
   if (event.target.id === 'periodic-task-form') {
     event.preventDefault();
     const error = q('#periodic-task-error');
@@ -325,8 +398,14 @@ document.addEventListener('submit', async (event) => {
     const assignmentId = reportForm.closest('[data-assignment-id]').dataset.assignmentId;
     const body = Object.fromEntries(new FormData(reportForm));
     if (!body.documentId) return;
-    const updated = await workApi(`/api/assignments/${encodeURIComponent(assignmentId)}/report`, { method:'POST', headers:{'content-type':'application/json'}, body:JSON.stringify(body) });
-    await showDirective(updated.directive_id);
+    try {
+      await workApi(`/api/assignments/${encodeURIComponent(assignmentId)}/report`, { method:'POST', headers:{'content-type':'application/json'}, body:JSON.stringify(body) });
+      await showDirective(reportForm.closest('[data-directive-id]').dataset.directiveId, { assignmentId, message:'Материал приложен. Состояние задачи не изменилось.' });
+      await loadWork();
+    } catch (exception) {
+      const error = q('[data-assignment-material-error]', reportForm);
+      if (error) error.textContent = exception.message;
+    }
   }
 });
 

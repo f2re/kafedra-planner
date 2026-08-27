@@ -10,7 +10,7 @@ async function upload(page, name, text) {
   }, { timeout: 30_000 }).toMatch(/processed|needs_review/);
 }
 
-test('отчёт сопоставляется, руководитель подтверждает, статья попадает в реестр', async ({ page }, testInfo) => {
+test('отчёт прилагается без смены статуса, задача завершается напрямую, статья попадает в реестр', async ({ page }, testInfo) => {
   test.skip(testInfo.project.name !== 'reports-science-desktop', 'Проверка изолированного потока отчётов и науки');
   await page.goto('/');
   await page.request.post('/api/people', { data: { displayName: 'Сидоров Сергей Сергеевич', position: 'доцент' } });
@@ -24,23 +24,28 @@ test('отчёт сопоставляется, руководитель подт
   await page.locator('button[data-view="work"]:visible').first().click();
   const matchCard = page.locator('.report-match-card', { hasText: 'otchet-71' });
   await expect(matchCard).toBeVisible();
-  await matchCard.getByRole('button', { name: 'Связать' }).click();
+  await matchCard.getByRole('button', { name: 'Приложить' }).click();
   await expect.poll(async () => {
     const body = await (await page.request.get('/api/assignments?q=аналитический')).json();
     return body.items?.find((item) => item.document_number === '71-р')?.status;
-  }).toBe('submitted');
+  }).toBe('open');
+  const assignmentsAfterAttachment = await (await page.request.get('/api/assignments?q=аналитический')).json();
+  const assignment = assignmentsAfterAttachment.items.find((item) => item.document_number === '71-р');
+  expect(assignment.reports).toHaveLength(1);
+  expect(assignment.reports[0].review_status).toBe('not_required');
 
   const directiveCard = page.locator('.work-card', { hasText: '71-р' }).first();
   await directiveCard.click();
-  const reviewForm = page.locator('.manager-review-form');
-  await expect(reviewForm).toBeVisible();
-  await reviewForm.getByRole('button', { name: 'Подтвердить выполнение' }).click();
+  const inspector = page.locator('#ux-inspector');
+  await expect(inspector.locator('.assignment-progress-panel')).toBeVisible();
+  await expect(inspector).not.toContainText('Подтвердить выполнение');
+  await inspector.locator('.assignment-progress-panel').getByRole('button', { name: 'Выполнено' }).click();
   await expect.poll(async () => {
     const body = await (await page.request.get('/api/assignments?q=аналитический')).json();
     return body.items?.find((item) => item.document_number === '71-р')?.status;
   }).toBe('completed');
   await page.locator('#ux-inspector-close').click();
-  await expect(page.locator('#ux-inspector')).toHaveClass(/hidden/);
+  await expect(inspector).toHaveClass(/hidden/);
 
   await upload(page, 'science-article.txt', `УДК 551.509\nСидоров С.С., Иванов И.И.\nЛокальные методы прогноза осадков\nАннотация. Рассмотрены методы радарного наукастинга.\nКлючевые слова: радар, прогноз.\nDOI: 10.1234/kafedra.2026.71\nЖурнал Метеорология, 2026\nПубликация входит в РИНЦ и перечень ВАК.`);
   await expect.poll(async () => (await (await page.request.get('/api/science?q=Локальные')).json()).items?.length || 0, { timeout: 30_000 }).toBeGreaterThan(0);
