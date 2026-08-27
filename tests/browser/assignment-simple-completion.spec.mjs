@@ -55,7 +55,7 @@ test('задача завершается без согласования, ма�
   await expect(inspector).toBeVisible();
   await expect(inspector).toContainText('Для завершения достаточно одного действия');
   await expect(inspector.getByRole('button', { name: 'Выполнено' })).toBeVisible();
-  await expect(inspector.getByText('Подтверждающие материалы')).toBeVisible();
+  await expect(inspector.getByText('Подтверждающие материалы', { exact: true })).toBeVisible();
   await expect(inspector).not.toContainText('Подтвердить выполнение');
   await expect(inspector).not.toContainText('Вернуть на доработку');
 
