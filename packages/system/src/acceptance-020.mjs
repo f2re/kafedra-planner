@@ -18,7 +18,9 @@ export const V020_STABLE_TABLES = [
   'science_import_rows',
   'science_report_runs',
   'meeting_template_catalog',
-  'meeting_template_test_runs'
+  'meeting_template_test_runs',
+  'docomator_field_mappings',
+  'docomator_person_fields'
 ];
 
 function quoted(value) {

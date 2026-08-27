@@ -87,6 +87,7 @@ async function showScience(id) {
     <p>${safe([item.venue, item.publication_year, item.doi].filter(Boolean).join(' · '))}</p>
     ${item.abstract_text ? `<p>${safe(item.abstract_text)}</p>` : ''}
     <div class="science-classifications">${item.classifications.map((entry) => `<span>${safe(entry.classification_value)}</span>`).join('')}</div>
+    <button class="secondary-button supporting-context-button" type="button" data-supporting-open data-target-kind="scientific_item" data-target-id="${safe(item.id)}" data-target-label="${safe(item.title)}">Подтверждение публикации</button>
     ${item.source_document_id ? `<button class="secondary-button" type="button" data-inspector-document="${safe(item.source_document_id)}">Открыть исходный документ</button>` : ''}
   </section>`;
   inspector.classList.remove('hidden'); one('#sheet-backdrop')?.classList.remove('hidden');

@@ -38,6 +38,7 @@ test('обновление 28 → 29 сохраняет настройки и п
   const root = await mkdtemp(join(tmpdir(), 'kafedra-meeting-template-library-migration-'));
   const path = join(root, 'database.sqlite3');
   const oldMigrations = await migrationsThrough(root, 28);
+  const libraryMigrations = await migrationsThrough(root, 29);
   const protocolPath = join(root, 'protocol.docx');
   const extractPath = join(root, 'extract.docx');
   const config = { blobDir: join(root, 'blobs'), tempDir: join(root, 'tmp'), maxUploadBytes: 20 * 1024 * 1024 };
@@ -65,7 +66,7 @@ test('обновление 28 → 29 сохраняет настройки и п
     database.close();
   }
 
-  database = new Database(path, { migrationsDir });
+  database = new Database(path, { migrationsDir: libraryMigrations });
   try {
     assert.equal(database.getSchemaVersion(), 29);
     const items = listMeetingTemplateCatalog(database, workspace.id, { includeArchived: true });

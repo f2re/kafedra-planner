@@ -72,6 +72,7 @@ function renderPreview(document) {
     <div class="preview-actions">
       <a class="secondary-button" href="${escapePreview(document.originalUrl)}" target="_blank" rel="noopener">Открыть оригинал</a>
       ${previewUrl ? `<a class="text-button" href="${escapePreview(previewUrl)}" target="_blank" rel="noopener">Открыть отдельно</a>` : ''}
+      <button class="secondary-button supporting-context-button" type="button" data-supporting-open data-target-kind="document" data-target-id="${escapePreview(document.id)}" data-target-label="${escapePreview(document.title || document.original_name || 'Документ')}">Сопроводительные</button>
     </div>
     ${document.ocr_error ? `<div class="source-note">OCR: ${escapePreview(document.ocr_error)}</div>` : ''}
     ${canvas}

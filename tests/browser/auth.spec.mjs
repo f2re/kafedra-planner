@@ -41,7 +41,16 @@ async function selectNativeWithKeyboard(locator, value) {
 }
 
 test('сотрудник получает личный контур и настраивает доставку, руководитель — подчинённых', async ({ page }) => {
+  let docomatorSettingsRequests = 0;
+  page.on('request', (request) => {
+    if (
+      new URL(request.url()).pathname === '/api/integrations/docomator'
+      && request.method() === 'GET'
+    ) docomatorSettingsRequests += 1;
+  });
+
   await login(page, 'staff', 'StaffPassword2026');
+  docomatorSettingsRequests = 0;
   const me = await (await page.request.get('/api/auth/me')).json();
   expect(me.authenticated).toBe(true);
   expect(me.role).toBe('staff');
@@ -98,6 +107,7 @@ test('сотрудник получает личный контур и наст�
   expect(foreignAttempt.body.profile.personId).toBe('person-staff');
   const adminDiagnosticsDenied = await page.request.get('/api/admin/notification-delivery');
   expect(adminDiagnosticsDenied.status()).toBe(403);
+  await expect.poll(() => docomatorSettingsRequests).toBeLessThanOrEqual(2);
   await page.locator('[data-delivery-close]').first().click();
 
   await logout(page);

@@ -9,12 +9,15 @@ import {
 
 test('извлекает единый ключ показателя из плана и отчёта', () => {
   const plan = extractPlanMetrics('Подготовить не менее 5 статей ВАК и представить отчёт до 20 августа 2026 года.');
+  const planWithTextualDeadline = extractPlanMetrics('Подготовить не менее 5 статей ВАК до 20 августа 2026 года.');
   const report = extractReportFacts(`ОТЧЁТ\nПоказатель: статьи ВАК; план: 5; факт: 4\nПоручение выполнено частично.`);
 
   assert.equal(plan.length, 1);
   assert.equal(plan[0].key, 'статья_вак');
   assert.doesNotMatch(plan[0].key, /представ|отчет|август|2026/u);
   assert.equal(plan[0].targetNumeric, 5);
+  assert.equal(planWithTextualDeadline[0].key, plan[0].key);
+  assert.equal(planWithTextualDeadline[0].name, 'статей ВАК');
   assert.equal(report.metrics.length, 1);
   assert.equal(report.metrics[0].key, plan[0].key);
   assert.equal(report.metrics[0].actualNumeric, 4);

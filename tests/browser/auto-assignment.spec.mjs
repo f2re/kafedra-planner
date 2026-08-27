@@ -100,19 +100,11 @@ test('Автоматическое назначение: сотрудник из
     const planRow = page.locator(`[data-plan-item-row="${item.id}"]`);
     await expect(planRow.locator('[data-auto-assignment-status]')).toHaveText('Назначен', { timeout: 12_000 });
 
-    await navigationButton(page, 'work').click();
-    await expect(page.locator('[data-view-panel="work"]')).toBeVisible();
-    const workCard = page.locator('.work-card[data-work-kind="assignment"]').filter({ hasText: taskTitle }).first();
-    await expect(workCard).toBeVisible({ timeout: 15_000 });
-    await expect(workCard.locator('.work-pill')).toHaveText('поручение из плана', { timeout: 12_000 });
-
-    const periodicForm = page.locator('#periodic-task-form');
-    await expect(periodicForm).not.toBeVisible();
-    const createPeriodic = page.locator('#work-create-periodic');
-    await expect(createPeriodic).toBeVisible();
-    await createPeriodic.click();
-    await expect(periodicForm).toBeVisible();
-    await expect(periodicForm.locator('select[name="managerPersonId"] option[value=""]')).toHaveText('Определить по структуре');
+    const openAssignment = planRow.locator('[data-plan-open-assignment]');
+    await expect(openAssignment).toBeVisible({ timeout: 15_000 });
+    await openAssignment.click();
+    await expect(page.locator('#standalone-assignment-inspector')).toContainText(taskTitle, { timeout: 15_000 });
+    await expect(page.locator('#standalone-assignment-inspector')).toContainText('Задача из плана');
   } finally {
     await rm(dir, { recursive: true, force: true });
   }

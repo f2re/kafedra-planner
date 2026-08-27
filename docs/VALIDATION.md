@@ -1,36 +1,39 @@
 # Автоматическая проверка release candidate
 
-Актуальный рубеж: `0.3.3`, схема SQLite **28**. Автоматический gate проверяет код, данные, browser UX и поставочный контракт, но не подменяет фактическую приёмку #27 на Astra Linux/Debian.
+Актуальный рубеж: `0.3.4`, схема SQLite **30**. Автоматический gate проверяет код, данные, desktop/mobile UX и поставочный контракт, но не подменяет фактическую приёмку #27 на Astra Linux/Debian.
 
 ## Статические и Node-проверки
 
 На PR и push в `main` выполняются:
 
-- `npm run check`: синтаксис JavaScript, согласованность README/docs с реальными scripts/paths и единая текущая версия в `VERSION`, `package.json`, RU/EN README, ROADMAP, release/validation/UX-документах и workflow;
+- `npm run check`: синтаксис, документация, реальные scripts/paths и единая версия выпуска;
 - `npm test`: полный unit/integration suite;
 - `npm run smoke`;
 - backup create/verify/restore self-test;
-- shell/Python syntax поставочных скриптов;
+- shell/Python syntax поставочных сценариев;
 - system preflight;
-- тот же набор на минимальном Node 24.15;
+- тот же код на минимальном Node 24.15;
 - runtime-only builder под host Node 25, чтобы host/runtime оставались разделены.
 
-Unit/integration отдельно проверяют:
+Unit/integration подтверждают:
 
-- миграции старых поддерживаемых схем до 28;
+- последовательные миграции до schema 30 и отсутствие конфликтующих номеров;
 - `PRAGMA quick_check` и `foreign_key_check`;
-- immutable blob и SHA-256;
-- сохранение `source_document_version_id`, `plan_item`, calendar origin, assignment и evidence;
-- исходные строки плана и идемпотентное разложение одной строки на несколько задач;
-- точное автоматическое сопоставление ответственного, контролирующего из оргструктуры, отсутствие назначения при неоднозначности и сохранение terminal assignment;
-- impact summary, archive/restore, self/cross-workspace/cycle guards;
-- настройки Оформлятора без PIN, внешние связи сотрудников и upgrade `27 → 28`;
-- mock health/readiness/auth/data, первый и повторный импорт, rename/inactive без дублей;
-- backup/restore и logical digest lifecycle/replacement/integration-состояния.
+- immutable blob, SHA-256 и сохранение evidence/locator;
+- планы, исходные строки/ячейки, разложение в несколько задач и идемпотентные назначения;
+- lifecycle документов/планов и отсутствие перепривязки исторических источников;
+- визуальные профили DOCX-шаблонов заседаний;
+- версии, default, точную старую версию, тестовую генерацию, impact, archive/restore шаблонов;
+- сохранение тестового DOCX при ошибке необязательного LibreOffice preview;
+- health/readiness/auth/data Оформлятора;
+- discovery property definitions, выбор e-mail/должности/дополнительных полей;
+- отказ до локальных изменений при исчезновении выбранного remote property;
+- первый и повторный импорт сотрудников без дублей;
+- включение `meeting_template_catalog`, `meeting_template_test_runs`, `docomator_field_mappings` и `docomator_person_fields` в acceptance digest и backup/restore.
 
-## Browser release gate
+## Browser suites
 
-Реальный Chromium проверяет:
+Полный CI запускает:
 
 ```bash
 npm run test:browser:plans
@@ -42,84 +45,76 @@ npm run test:browser:release
 npm run test:browser:acl
 ```
 
-`test:browser:plans` включает desktop/mobile сценарии:
+Desktop/mobile сценарии включают:
 
-- DOCX с русским именем → исходные строки/ячейки → автоматические поля;
-- одна строка → две задачи → несколько исполнителей;
-- импорт плана → следующий период → календарь → источник;
+- импорт плана и безопасное исправление неоднозначной строки;
 - ручной план → поручение → отчёт → подтверждение → DOCX;
-- документ → русские состояния → переименование → impact → архив с заменой → восстановление;
-- план → impact → архив с преемником → проверка неизменных календарных/предметных ссылок → восстановление.
+- одна исходная строка → несколько задач → несколько исполнителей;
+- точное автоматическое назначение и отсутствие угадывания неоднозначного ФИО;
+- переименование, impact, архив, логический преемник и восстановление документов/планов;
+- обычный DOCX → визуальные поля/повторяемый блок → протокол;
+- библиотека шаблонов → тест двумя вопросами → новая версия → основной → точная старая версия → impact → архив → восстановление;
+- Оформлятор → host/port → space/group → выбор remote fields → preview → идемпотентный импорт;
+- оргструктуру, науку, отчёты, `План / факт`, PIN/accounts, release readiness и ACL;
+- геометрически стабильный режим задач на desktop/mobile.
 
-Дополнительные desktop/mobile сценарии проверяют:
+## Release gate 0.3.4
 
-- точную цепочку `upload documentId → source planId → конкретный сотрудник → поручение` при уже существующих данных;
-- Оформлятор: адрес → порт → health/readiness/data → пространство → группа → preview → идемпотентный импорт.
+Обязательный агрегирующий workflow требует успеха трёх независимых контуров:
 
-Lifecycle-действия и код внешней системы не считаются обучаемым выбором. Desktop и mobile проходят один предметный сценарий с разной компоновкой.
-
-## Release gate 0.3.3
-
-Обязательный агрегирующий workflow требует успешного завершения:
-
-- quality: check, unit/integration и smoke;
-- migrations/backup: организация, Оформлятор, наука, source rows, lifecycle, acceptance evidence и restore;
-- browser: организация, импорт сотрудников, научные сценарии, source rows, lifecycle и автоматические назначения.
+1. `release-quality`: check, полный unit/integration suite и smoke;
+2. `release-migrations-backup`: миграции старых схем, meeting-template library, Docomator field mapping, acceptance evidence и restore;
+3. `release-browser-desktop-mobile`: ключевые пользовательские сценарии обеих компоновок.
 
 Failure, cancelled, pending или неожиданно skipped не считаются зелёным результатом.
 
-Все обязательные post-merge workflow поддерживают `workflow_dispatch`. Publisher классифицирует результат по фактическим jobs:
+## Full offline и systemd
+
+CI дополнительно проверяет:
+
+- сборку полного Debian 12 bundle и manifest/checksums;
+- additive APT policy без `package=version`, remove, upgrade и `apt --fix-broken`;
+- реальную air-gap systemd-установку API/worker;
+- повторное обновление и forced rollback;
+- отдельную offline `llama.cpp/GGUF` установку;
+- работу ядра после отключения LLM;
+- сборку и проверку F2RE Project Control update.
+
+Публикационные шаги bundle/update в PR ожидаемо skipped; на `main` они выполняются только в предусмотренном workflow-контексте.
+
+## Post-merge и публикация
+
+Publisher проверяет фактические jobs, а не только top-level conclusion:
 
 - queued/in-progress jobs ожидаются;
-- все completed jobs должны иметь `success`;
-- top-level `startup_failure`/`failure` с фактически успешными jobs не подменяет результат jobs;
-- реальная job failure/cancelled/skipped немедленно останавливает выпуск и не повторяется автоматически;
-- run без выполняемых jobs допускает только один explicit dispatch;
+- все completed обязательные jobs должны иметь `success`;
+- реальная failure/cancelled/unexpected skipped немедленно останавливает выпуск;
+- run без выполняемых jobs допускает один explicit retry;
 - второй инфраструктурный отказ не скрывается;
-- перед retry и публикацией `main` должен точно совпадать с `SOURCE_SHA`.
+- перед retry, сборкой, тегированием и публикацией `main` должен точно совпадать с `SOURCE_SHA`.
 
-## Full offline gate
+Для уже опубликованной версии workflow выполняет штатный no-op, если существующий тег является предком нового `main`; тег не переносится. Новая версия публикуется только когда `VERSION` отличается от родительского commit и тег/release ещё отсутствуют.
 
-После базовых jobs CI:
+## Проверка GitHub Release
 
-1. собирает target-specific Debian 12 full bundle;
-2. проверяет ordinary APT plan и настоящий bundled `file:` fallback;
-3. проверяет managed Python, Tesseract `rus+eng`, Poppler, LibreOffice, migrations и HTTP health;
-4. разворачивает ordinary bundle в чистой systemd-среде без сети;
-5. проверяет повторную idempotent установку/update;
-6. отдельно собирает LLM-вариант с fake `llama-server` и двумя fake GGUF;
-7. разворачивает LLM bundle без сети и проверяет systemd, health/models, повторный install, forced rollback с сохранением model cache и отключение LLM при работающих API/worker.
+Для `v0.3.4` после post-merge CI должны быть подтверждены:
 
-Fake LLM fixture и mock Оформлятора не публикуются как production assets и не заменяют реальную целевую приёмку.
+- public non-prerelease release;
+- тег указывает на точный squash-commit `main`;
+- полный автономный `.tar.gz` и его `.sha256`;
+- `install-kafedra-planner.sh`;
+- `README-INSTALL.txt`;
+- F2RE Project Control package и его `.sha256`;
+- общий `SHA256SUMS`;
+- успешная повторная проверка checksums и bundle contract.
 
-## Публикация
+## Что остаётся ручным
 
-На PR release artifact не публикуется. После squash merge workflow публикации привязывается к точному SHA нового `main` и ждёт успешного завершения всех обязательных post-merge workflows:
+Только целевая эксплуатационная приёмка #27:
 
-- `Проверка`;
-- `Release gate 0.3.3`;
-- `Оргструктура`;
-- `Научные отчёты`;
-- `Научный жизненный цикл`;
-- `Массовый импорт науки`.
-
-Только после этого повторно запускаются check/test/smoke/backup, browser plans, automatic-assignment и Docomator E2E, собираются full offline bundle и F2RE Project Control package, проверяются SHA-256, создаётся GitHub Release `v0.3.3` и подтверждается, что тег указывает на тот же SHA `main`.
-
-Существующий тег с другим SHA считается ошибкой и не перезаписывается молча.
-
-## Граница автоматической проверки
-
-До stable на реальной целевой машине нужно подтвердить:
-
-- embedded Node/glibc совместимость;
-- реальный OCR/LibreOffice на ведомственных файлах;
-- install/update существующей базы до схемы 28;
-- сохранение plan source rows, lifecycle, replacement, automatic assignment evidence, Docomator links и blob;
-- зашифрованный backup/restore и equality acceptance evidence;
-- forced rollback;
+- настоящая Astra Linux и контрольная Debian;
+- vendor package revisions;
+- реальные ведомственные документы;
 - права каталогов и systemd hardening;
-- desktop/mobile UX оператором;
-- при доступной интеграции — реальный Оформлятор в локальной сети;
-- при использовании LLM — настоящий `llama-server` и GGUF.
-
-Процедура: [`TARGET_ACCEPTANCE.md`](TARGET_ACCEPTANCE.md).
+- обновление существующей установки и rollback;
+- при наличии — реальный Оформлятор и настоящий llama-server/GGUF.
