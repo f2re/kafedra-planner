@@ -1,10 +1,9 @@
 import { newId } from '../../core/src/ids.mjs';
 import {
-  applyReportFactsToAssignment,
   ensureAssignmentPlanMetrics,
-  ensureReportFactExtraction,
-  getAssignmentPlanFact
+  ensureReportFactExtraction
 } from '../../plan-fact/src/service.mjs';
+import { acceptOptionalEvidenceMatch } from '../../work-management/src/optional-evidence.mjs';
 import { scoreReportCandidate } from './matcher.mjs';
 
 function parseJson(value, fallback) {
@@ -132,53 +131,18 @@ function candidate(database, workspaceId, matchId) {
 }
 
 export function acceptReportMatch(database, workspaceId, matchId, body = {}, now = new Date().toISOString()) {
-  const match = candidate(database, workspaceId, matchId);
-  if (!match || match.status === 'rejected') return null;
-  return database.transaction(() => {
-    let evidence = database.get(`
-      SELECT id FROM assignment_evidence
-      WHERE assignment_id = ? AND document_version_id = ? AND evidence_kind = 'report'
-    `, match.assignment_id, match.document_version_id);
-    if (!evidence) {
-      const evidenceId = newId('evidence');
-      database.run(`
-        INSERT INTO assignment_evidence(
-          id, assignment_id, document_version_id, evidence_kind, note,
-          locator_json, created_at, match_status, match_score,
-          match_reasons_json, review_status
-        ) VALUES (?, ?, ?, 'report', ?, '{}', ?, 'accepted', ?, ?, 'pending')
-      `, evidenceId, match.assignment_id, match.document_version_id,
-      body.note || `Автоматически сопоставлен отчёт «${match.document_title}»`, now,
-      match.score, match.reasons_json);
-      evidence = { id: evidenceId };
-    }
-    const extraction = ensureReportFactExtraction(database, workspaceId, match.document_version_id, now);
-    if (extraction) {
-      applyReportFactsToAssignment(database, workspaceId, match.assignment_id, evidence.id, extraction, now);
-    }
-    const planFact = getAssignmentPlanFact(database, workspaceId, match.assignment_id, { ensure: false, now });
-    database.run(`
-      UPDATE report_match_candidates SET status = 'accepted', decided_at = ?, decided_by_person_id = ?
-      WHERE id = ?
-    `, now, body.personId || null, matchId);
-    database.run(`
-      UPDATE assignments SET status = 'submitted', updated_at = ? WHERE id = ?
-    `, now, match.assignment_id);
-    database.run(`
-      INSERT INTO assignment_updates(id, assignment_id, actor_person_id, status, progress_percent, note, created_at)
-      VALUES (?, ?, ?, 'submitted', ?, ?, ?)
-    `, newId('assignupd'), match.assignment_id, body.personId || null,
-    planFact?.progressPercent ?? extraction?.progress_percent ?? null,
-    body.note || `Отчёт «${match.document_title}» предложен системой и принят исполнителем.`, now);
-    database.run(`
-      UPDATE calendar_items SET status = 'submitted', revision = revision + 1, updated_at = ?
-      WHERE workspace_id = ? AND source_kind = 'assignment' AND source_id = ?
-    `, now, workspaceId, match.assignment_id);
-    return {
-      ...(listReportMatches(database, workspaceId, { assignmentId: match.assignment_id, status: 'accepted' })[0] || match),
-      planFact: getAssignmentPlanFact(database, workspaceId, match.assignment_id, { ensure: false, now })
-    };
-  });
+  const accepted = acceptOptionalEvidenceMatch(database, workspaceId, matchId, body, now);
+  if (!accepted) return null;
+  return {
+    ...(listReportMatches(database, workspaceId, {
+      assignmentId: accepted.assignment.id,
+      status: 'accepted'
+    })[0] || accepted.match),
+    assignmentStatus: accepted.assignment.status,
+    evidenceId: accepted.evidenceId,
+    evidenceCreated: accepted.evidenceCreated,
+    planFact: accepted.planFact
+  };
 }
 
 export function rejectReportMatch(database, workspaceId, matchId, body = {}, now = new Date().toISOString()) {
@@ -191,47 +155,14 @@ export function rejectReportMatch(database, workspaceId, matchId, body = {}, now
   return { ...match, status: 'rejected', decided_at: now };
 }
 
-export function reviewAssignmentReport(database, workspaceId, assignmentId, body = {}, now = new Date().toISOString()) {
-  const action = body.action;
-  if (!['approve', 'return'].includes(action)) throw new Error('report_review_action_invalid');
-  const assignment = database.get('SELECT * FROM assignments WHERE workspace_id = ? AND id = ?', workspaceId, assignmentId);
+export function reviewAssignmentReport(database, workspaceId, assignmentId) {
+  const assignment = database.get(
+    'SELECT id FROM assignments WHERE workspace_id = ? AND id = ?',
+    workspaceId,
+    assignmentId
+  );
   if (!assignment) return null;
-  const evidence = database.get(`
-    SELECT * FROM assignment_evidence
-    WHERE assignment_id = ? AND evidence_kind = 'report' AND review_status = 'pending'
-    ORDER BY created_at DESC LIMIT 1
-  `, assignmentId);
-  if (!evidence) throw new Error('report_evidence_missing');
-
-  return database.transaction(() => {
-    const approved = action === 'approve';
-    const status = approved ? 'completed' : 'rework';
-    database.run(`
-      UPDATE assignment_evidence SET review_status = ?, reviewed_by_person_id = ?,
-        reviewed_at = ?, review_note = ? WHERE id = ?
-    `, approved ? 'approved' : 'returned', body.personId || null, now, body.note || null, evidence.id);
-    database.run(`
-      UPDATE assignments SET status = ?, completed_at = ?, updated_at = ?
-      WHERE workspace_id = ? AND id = ?
-    `, status, approved ? now : null, now, workspaceId, assignmentId);
-    const planFact = getAssignmentPlanFact(database, workspaceId, assignmentId, { ensure: true, now });
-    database.run(`
-      INSERT INTO assignment_updates(id, assignment_id, actor_person_id, status, progress_percent, note, created_at)
-      VALUES (?, ?, ?, ?, ?, ?, ?)
-    `, newId('assignupd'), assignmentId, body.personId || null, status,
-    planFact?.progressPercent ?? (approved ? 100 : null),
-    body.note || (approved ? 'Результат подтверждён руководителем.' : 'Отчёт возвращён на доработку.'), now);
-    database.run(`
-      UPDATE calendar_items SET status = ?, completed_at = ?, revision = revision + 1, updated_at = ?
-      WHERE workspace_id = ? AND source_kind = 'assignment' AND source_id = ?
-    `, approved ? 'completed' : 'open', approved ? now : null, now, workspaceId, assignmentId);
-    return {
-      assignmentId,
-      status,
-      evidenceId: evidence.id,
-      reviewStatus: approved ? 'approved' : 'returned',
-      reviewedAt: now,
-      planFact: getAssignmentPlanFact(database, workspaceId, assignmentId, { ensure: false, now })
-    };
-  });
+  const error = new Error('report_review_removed');
+  error.code = 'report_review_removed';
+  throw error;
 }
