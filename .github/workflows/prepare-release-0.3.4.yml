@@ -80,6 +80,19 @@ jobs:
           path.write_text(text, encoding='utf-8')
           PY
           python3 .github/scripts/prepare-release-0.3.4.py
+          python3 - <<'PY'
+          from pathlib import Path
+          path = Path('tests/docomator-fields-migration.test.mjs')
+          text = path.read_text(encoding='utf-8')
+          old_schema = "assert.equal(database.getSchemaVersion(), 30);"
+          target_schema = "assert.equal(database.getSchemaVersion(), 29);"
+          if old_schema not in text or target_schema not in text:
+              raise SystemExit('migration test: не найдены assertions для перестановки')
+          text = text.replace(old_schema, '__OLD_SCHEMA_ASSERT__', 1)
+          text = text.replace(target_schema, old_schema, 1)
+          text = text.replace('__OLD_SCHEMA_ASSERT__', target_schema, 1)
+          path.write_text(text, encoding='utf-8')
+          PY
           git rm .github/workflows/prepare-release-0.3.4.yml .github/scripts/prepare-release-0.3.4.py
 
       - name: Проверить исходный код, миграции и release contract
