@@ -73,7 +73,6 @@ test('release из другой истории не скрывается как 
   })), (error) => error?.code === 'release_tag_not_ancestor');
 });
 
-
 test('workflow публикует только при явном решении publish=true', async () => {
   const workflow = await readFile(resolve('.github/workflows/release.yml'), 'utf8');
   assert.match(workflow, /scripts\/release\/release-decision\.mjs/u);
