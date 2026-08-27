@@ -57,6 +57,20 @@ jobs:
             tests/release-recovery-workflow.test.mjs
 
           git show "$FEATURE:migrations/029_docomator_field_mapping.sql" > migrations/030_docomator_field_mapping.sql
+          python3 - <<'PY'
+          from pathlib import Path
+          path = Path('.github/scripts/prepare-release-0.3.4.py')
+          text = path.read_text(encoding='utf-8')
+          text = text.replace(
+              'CI проверяет миграции до schema 029, foreign keys, quick check, logical digest и полный backup/restore.',
+              'CI проверяет миграции до schema 029, backup/restore, Node 24.15 и host Node 25, desktop/mobile Chromium, интеграцию Оформлятора, full-offline Debian 12, additive APT policy и systemd-сценарии с LLM и без него.'
+          )
+          text = text.replace(
+              'CI проверяет миграции до schema 030, foreign keys, quick check, logical digest и полный backup/restore.',
+              'CI проверяет миграции до schema 030, backup/restore, Node 24.15 и host Node 25, desktop/mobile Chromium, интеграцию Оформлятора, full-offline Debian 12, additive APT policy и systemd-сценарии с LLM и без него.'
+          )
+          path.write_text(text, encoding='utf-8')
+          PY
           python3 .github/scripts/prepare-release-0.3.4.py
           git rm .github/workflows/prepare-release-0.3.4.yml .github/scripts/prepare-release-0.3.4.py
 
