@@ -1,143 +1,238 @@
 import { createServer } from 'node:http';
-import { randomUUID } from 'node:crypto';
-import { createRouter } from './router.mjs';
-import { createLifecycleRouter } from './lifecycle-router.mjs';
-import { createPlanFactRouter } from './plan-fact-router.mjs';
-import { createPlansRouter } from './plans-router.mjs';
-import { createPlanItemsRouter } from './plan-items-router.mjs';
-import { createPlanSourceRowsRouter } from './plan-source-rows-router.mjs';
-import { createManualPlansRouter } from './manual-plans-router.mjs';
-import { createMeetingsRouter } from './meetings-router.mjs';
-import { createUiPreferencesRouter } from './ui-preferences-router.mjs';
-import { createNotificationDeliveryRouter } from './notification-delivery-router.mjs';
-import { createAssignmentResponsibilityRouter } from './assignment-responsibility-router.mjs';
-import { createPeriodicTasksRouter } from './periodic-tasks-router.mjs';
-import { createSearchRouter } from './search-router.mjs';
-import { createAuthRouter } from './auth-router.mjs';
-import { createAccessRouter } from './access-router.mjs';
-import { createOrganizationRouter } from './organization-router.mjs';
-import { createDocomatorIntegrationRouter } from './docomator-integration-router.mjs';
-import { createScienceLifecycleRouter } from './science-lifecycle-router.mjs';
-import { createScienceImportRouter020 } from './science-import-router-020.mjs';
-import { createScienceReportsRouter } from './science-reports-router.mjs';
-import { createDirectiveArchiveRouter } from './directive-archive-router.mjs';
-import { resolveAuthContext } from '../../../packages/auth/src/service.mjs';
-import { authorizeApiRequest } from '../../../packages/auth/src/policy.mjs';
-import { authorizeCsrfRequest } from '../../../packages/auth/src/csrf.mjs';
-import { sendError, serveStatic } from './http-utils.mjs';
+import { readFile } from 'node:fs/promises';
+import { extname, join, normalize } from 'node:path';
+import { fileURLToPath } from 'node:url';
+import { getConfig } from '../../packages/config/src/index.mjs';
+import { openDatabase } from '../../packages/storage/src/database.mjs';
+import { createDocumentService } from '../../packages/document-intake/src/service.mjs';
+import { getAppVersion } from '../../packages/core/src/version.mjs';
+import { scheduleWorkspaceNotifications } from '../../packages/notifications/src/service.mjs';
+import { authorizeApiRequest } from '../../packages/auth/src/policy.mjs';
+import { badRequest, forbidden, notFound, readBodyJson, sendError, sendJson } from './http-utils.mjs';
+import { routeApi } from './router.mjs';
+import { routeAccess } from './access-router.mjs';
+import { routeAuth } from './auth-router.mjs';
+import { routeOrganization } from './organization-router.mjs';
+import { routeScienceLifecycle } from './science-lifecycle-router.mjs';
+import { routeScienceImport } from './science-import-router-020.mjs';
+import { routeScienceReports } from './science-reports-router-020.mjs';
+import { routeMeetings } from './meetings-router.mjs';
+import { routeMeetingTemplateLibrary } from './meeting-template-library-router.mjs';
+import { routeMeetingTemplateProfiles } from './meeting-template-profile-router.mjs';
+import { routePlanFact } from './plan-fact-router.mjs';
+import { routeSupportingDocuments } from './supporting-documents-router.mjs';
+import { routeWork } from './work-router.mjs';
+import { routePlans } from './plans-router.mjs';
+import { routePlanItems } from './plan-items-router.mjs';
+import { routePlanSourceRows } from './plan-source-rows-router.mjs';
+import { routeManualPlans } from './manual-plans-router.mjs';
+import { routeAssignmentResponsibility } from './assignment-responsibility-router.mjs';
+import { routeStandaloneAssignments } from './standalone-assignment-router.mjs';
+import { routePeriodicTasks } from './periodic-tasks-router.mjs';
+import { routeUiPreferences } from './ui-preferences-router.mjs';
+import { routeUserCalendarSettings } from './user-calendar-settings-router.mjs';
+import { routeReportMatches } from './report-matches-router.mjs';
+import { routeLifecycle } from './lifecycle-router.mjs';
+import { routePreview } from './preview-router.mjs';
+import { routeSearch } from './search-router.mjs';
+import { routeNotificationDelivery } from './notification-delivery-router.mjs';
+import { routeDirectiveArchive } from './directive-archive-router.mjs';
+import { routeDocomatorIntegration } from './docomator-integration-router.mjs';
+import { routeAcademicPerformance } from './academic-performance-router.mjs';
 
-export function createApp({ database, config, logger }) {
-  const authRouter = createAuthRouter({ database, config, logger });
-  const lifecycleRouter = createLifecycleRouter({ database, config, logger });
-  const accessRouter = createAccessRouter({ database, config, logger });
-  const directiveArchiveRouter = createDirectiveArchiveRouter({ database, config, logger });
-  const uiPreferencesRouter = createUiPreferencesRouter({ database, config, logger });
-  const notificationDeliveryRouter = createNotificationDeliveryRouter({ database, config, logger });
-  const assignmentResponsibilityRouter = createAssignmentResponsibilityRouter({ database, config, logger });
-  const periodicTasksRouter = createPeriodicTasksRouter({ database, config, logger });
-  const searchRouter = createSearchRouter({ database, config, logger });
-  const manualPlansRouter = createManualPlansRouter({ database, config, logger });
-  const planItemsRouter = createPlanItemsRouter({ database, config, logger });
-  const planSourceRowsRouter = createPlanSourceRowsRouter({ database, config, logger });
-  const plansRouter = createPlansRouter({ database, config, logger });
-  const meetingsRouter = createMeetingsRouter({ database, config, logger });
-  const organizationRouter = createOrganizationRouter({ database, logger });
-  const docomatorIntegrationRouter = createDocomatorIntegrationRouter({ database, config, logger });
-  const scienceLifecycleRouter = createScienceLifecycleRouter({ database, logger });
-  const scienceImportRouter020 = createScienceImportRouter020({ database });
-  const scienceReportsRouter = createScienceReportsRouter({ database, config, logger });
-  const planFactRouter = createPlanFactRouter({ database, config, logger });
-  const router = createRouter({ database, config, logger });
-  return createServer(async (request, response) => {
-    const requestId = randomUUID();
-    const started = Date.now();
-    response.setHeader('x-request-id', requestId);
-    response.setHeader('x-frame-options', 'SAMEORIGIN');
-    response.setHeader('referrer-policy', 'no-referrer');
-    response.setHeader(
-      'content-security-policy',
-      "default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data: blob:; connect-src 'self'; object-src 'self'; frame-src 'self'; base-uri 'none'; frame-ancestors 'self'"
-    );
+const publicDir = fileURLToPath(new URL('../../../public', import.meta.url));
+
+const contentTypes = {
+  '.css': 'text/css; charset=utf-8',
+  '.html': 'text/html; charset=utf-8',
+  '.js': 'text/javascript; charset=utf-8',
+  '.json': 'application/json; charset=utf-8',
+  '.svg': 'image/svg+xml',
+  '.png': 'image/png',
+  '.ico': 'image/x-icon'
+};
+
+function serveStatic(pathname, response) {
+  const requested = pathname === '/' ? '/index.html' : pathname;
+  const relative = normalize(requested).replace(/^([.][.][/\\])+/, '').replace(/^[/\\]+/, '');
+  const filename = join(publicDir, relative);
+  if (!filename.startsWith(publicDir)) {
+    notFound();
+  }
+  return readFile(filename)
+    .then((body) => {
+      response.writeHead(200, {
+        'content-type': contentTypes[extname(filename)] || 'application/octet-stream',
+        'cache-control': 'no-cache'
+      });
+      response.end(body);
+    })
+    .catch((error) => {
+      if (error?.code === 'ENOENT') notFound();
+      throw error;
+    });
+}
+
+export function createApp(options = {}) {
+  const config = getConfig(options.env || process.env);
+  const database = options.database || openDatabase(config.databasePath);
+  const documentService = createDocumentService({ database, config });
+  const version = getAppVersion();
+
+  const server = createServer(async (request, response) => {
+    const url = new URL(request.url, `http://${request.headers.host || 'localhost'}`);
+    const pathname = url.pathname;
+    let workspace = null;
+
     try {
-      const url = new URL(request.url || '/', `http://${request.headers.host || 'localhost'}`);
-      request.auth = resolveAuthContext(database, request, config);
-      if (request.auth?.enabled && request.auth.authenticated && request.auth.workspaceId) {
-        request.headers['x-workspace-id'] = request.auth.workspaceId;
+      if (pathname === '/health') {
+        const health = database.healthCheck();
+        sendJson(response, health.ok ? 200 : 503, {
+          status: health.ok ? 'ok' : 'degraded',
+          version,
+          database: health,
+          documents: documentService.capabilities()
+        });
+        return;
       }
-      if (url.pathname.startsWith('/api/')) {
-        authorizeCsrfRequest(request, request.auth, url.pathname, config);
-        const authHandled = await authRouter(request, response, url, requestId);
-        if (!authHandled && !response.headersSent) {
-          authorizeApiRequest(request.auth, url.pathname);
-          const lifecycleHandled = await lifecycleRouter(request, response, url, requestId);
-          if (lifecycleHandled || response.headersSent) return;
-          const preferencesHandled = await uiPreferencesRouter(request, response, url, requestId);
-          const notificationHandled = !preferencesHandled && !response.headersSent
-            ? await notificationDeliveryRouter(request, response, url, requestId)
-            : false;
-          const responsibilityHandled = !preferencesHandled && !notificationHandled && !response.headersSent
-            ? await assignmentResponsibilityRouter(request, response, url, requestId)
-            : false;
-          const periodicHandled = !preferencesHandled && !notificationHandled && !responsibilityHandled && !response.headersSent
-            ? await periodicTasksRouter(request, response, url, requestId)
-            : false;
-          const searchHandled = !preferencesHandled && !notificationHandled && !responsibilityHandled && !periodicHandled && !response.headersSent
-            ? await searchRouter(request, response, url, requestId)
-            : false;
-          const manualPlansHandled = !preferencesHandled && !notificationHandled && !responsibilityHandled && !periodicHandled && !searchHandled && !response.headersSent
-            ? await manualPlansRouter(request, response, url, requestId)
-            : false;
-          const planItemHandled = !preferencesHandled && !notificationHandled && !responsibilityHandled && !periodicHandled && !searchHandled && !manualPlansHandled && !response.headersSent
-            ? await planItemsRouter(request, response, url, requestId)
-            : false;
-          const planSourceRowsHandled = !preferencesHandled && !notificationHandled && !responsibilityHandled && !periodicHandled && !searchHandled && !manualPlansHandled && !planItemHandled && !response.headersSent
-            ? await planSourceRowsRouter(request, response, url, requestId)
-            : false;
-          const plansHandled = !preferencesHandled && !notificationHandled && !responsibilityHandled && !periodicHandled && !searchHandled && !manualPlansHandled && !planItemHandled && !planSourceRowsHandled && !response.headersSent
-            ? await plansRouter(request, response, url, requestId)
-            : false;
-          const meetingsHandled = !preferencesHandled && !notificationHandled && !responsibilityHandled && !periodicHandled && !searchHandled && !manualPlansHandled && !planItemHandled && !planSourceRowsHandled && !plansHandled && !response.headersSent
-            ? await meetingsRouter(request, response, url, requestId)
-            : false;
-          const accessHandled = !preferencesHandled && !notificationHandled && !responsibilityHandled && !periodicHandled && !searchHandled && !manualPlansHandled && !planItemHandled && !planSourceRowsHandled && !plansHandled && !meetingsHandled && !response.headersSent && request.auth?.enabled
-            ? await accessRouter(request, response, url, requestId)
-            : false;
-          let extensionHandled = false;
-          if (!preferencesHandled && !notificationHandled && !responsibilityHandled && !periodicHandled && !searchHandled && !manualPlansHandled && !planItemHandled && !planSourceRowsHandled && !plansHandled && !meetingsHandled && !accessHandled && !response.headersSent) {
-            extensionHandled = await docomatorIntegrationRouter(request, response, url, requestId);
-            if (!extensionHandled && !response.headersSent) extensionHandled = await organizationRouter(request, response, url, requestId);
-            if (!extensionHandled && !response.headersSent) extensionHandled = await scienceLifecycleRouter(request, response, url, requestId);
-            if (!extensionHandled && !response.headersSent) extensionHandled = await scienceImportRouter020(request, response, url, requestId);
-            if (!extensionHandled && !response.headersSent) extensionHandled = await scienceReportsRouter(request, response, url, requestId);
-            if (!extensionHandled && !response.headersSent) extensionHandled = await directiveArchiveRouter(request, response, url, requestId);
-          }
-          if (!preferencesHandled && !notificationHandled && !responsibilityHandled && !periodicHandled && !searchHandled && !manualPlansHandled && !planItemHandled && !planSourceRowsHandled && !plansHandled && !meetingsHandled && !accessHandled && !extensionHandled && !response.headersSent) {
-            const handled = await planFactRouter(request, response, url, requestId);
-            if (!handled && !response.headersSent) await router(request, response, url, requestId);
-          }
-        }
-      } else if (!(await serveStatic(response, config.publicDir, url.pathname))) {
-        if (!(await serveStatic(response, config.publicDir, '/index.html'))) response.end();
+
+      if (pathname === '/ready') {
+        const health = database.healthCheck();
+        sendJson(response, health.ok ? 200 : 503, {
+          ready: health.ok,
+          schemaVersion: health.schemaVersion,
+          documents: documentService.capabilities()
+        });
+        return;
       }
+
+      if (pathname.startsWith('/api/')) {
+        workspace = database.getWorkspace();
+        const authResult = await routeAuth(database, config, request, response, pathname, {
+          workspace,
+          readBodyJson
+        });
+        if (authResult) return;
+
+        const authContext = authorizeApiRequest(database, config, request, pathname);
+        request.auth = authContext.auth;
+        request.session = authContext.session;
+        request.authEnabled = authContext.authEnabled;
+        request.authMode = authContext.mode;
+        if (!request.auth && authContext.authEnabled) forbidden();
+
+        const context = {
+          workspace,
+          readBodyJson,
+          config,
+          documentService
+        };
+
+        const accessResult = await routeAccess(database, request, response, pathname, context);
+        if (accessResult) return;
+        const organizationResult = await routeOrganization(database, request, response, pathname, context);
+        if (organizationResult) return;
+        const scienceLifecycleResult = await routeScienceLifecycle(database, request, response, pathname, context);
+        if (scienceLifecycleResult) return;
+        const scienceImportResult = await routeScienceImport(database, request, response, pathname, context);
+        if (scienceImportResult) return;
+        const scienceReportsResult = await routeScienceReports(database, request, response, pathname, context);
+        if (scienceReportsResult) return;
+        const meetingsResult = await routeMeetings(database, request, response, pathname, context);
+        if (meetingsResult) return;
+        const meetingTemplateLibraryResult = await routeMeetingTemplateLibrary(database, request, response, pathname, context);
+        if (meetingTemplateLibraryResult) return;
+        const meetingTemplateProfilesResult = await routeMeetingTemplateProfiles(database, request, response, pathname, context);
+        if (meetingTemplateProfilesResult) return;
+        const planFactResult = await routePlanFact(database, request, response, pathname, context);
+        if (planFactResult) return;
+        const supportingDocumentsResult = await routeSupportingDocuments(database, request, response, pathname, context);
+        if (supportingDocumentsResult) return;
+        const workResult = await routeWork(database, request, response, pathname, context);
+        if (workResult) return;
+        const plansResult = await routePlans(database, request, response, pathname, context);
+        if (plansResult) return;
+        const planItemsResult = await routePlanItems(database, request, response, pathname, context);
+        if (planItemsResult) return;
+        const planSourceRowsResult = await routePlanSourceRows(database, request, response, pathname, context);
+        if (planSourceRowsResult) return;
+        const manualPlansResult = await routeManualPlans(database, request, response, pathname, context);
+        if (manualPlansResult) return;
+        const assignmentResponsibilityResult = await routeAssignmentResponsibility(database, request, response, pathname, context);
+        if (assignmentResponsibilityResult) return;
+        const standaloneAssignmentResult = await routeStandaloneAssignments(database, request, response, pathname, context);
+        if (standaloneAssignmentResult) return;
+        const periodicTasksResult = await routePeriodicTasks(database, request, response, pathname, context);
+        if (periodicTasksResult) return;
+        const uiPreferencesResult = await routeUiPreferences(database, request, response, pathname, context);
+        if (uiPreferencesResult) return;
+        const userCalendarSettingsResult = await routeUserCalendarSettings(database, request, response, pathname, context);
+        if (userCalendarSettingsResult) return;
+        const reportMatchesResult = await routeReportMatches(database, request, response, pathname, context);
+        if (reportMatchesResult) return;
+        const lifecycleResult = await routeLifecycle(database, request, response, pathname, context);
+        if (lifecycleResult) return;
+        const previewResult = await routePreview(database, request, response, pathname, context);
+        if (previewResult) return;
+        const searchResult = await routeSearch(database, request, response, pathname, context);
+        if (searchResult) return;
+        const notificationDeliveryResult = await routeNotificationDelivery(database, request, response, pathname, context);
+        if (notificationDeliveryResult) return;
+        const directiveArchiveResult = await routeDirectiveArchive(database, request, response, pathname, context);
+        if (directiveArchiveResult) return;
+        const docomatorIntegrationResult = await routeDocomatorIntegration(database, request, response, pathname, context);
+        if (docomatorIntegrationResult) return;
+        const academicPerformanceResult = await routeAcademicPerformance(database, request, response, pathname, context);
+        if (academicPerformanceResult) return;
+        await routeApi(database, request, response, pathname, context);
+        return;
+      }
+
+      await serveStatic(pathname, response);
     } catch (error) {
-      if (!response.headersSent) sendError(response, error, requestId);
-      else response.destroy(error);
-      logger.error('request failed', {
-        requestId,
-        method: request.method,
-        url: request.url,
-        error: String(error?.stack || error)
-      });
-    } finally {
-      logger.info('request completed', {
-        requestId,
-        method: request.method,
-        url: request.url,
-        status: response.statusCode,
-        durationMs: Date.now() - started,
-        accountId: request.auth?.accountId || null,
-        personId: request.auth?.personId || null
-      });
+      if (!response.headersSent) {
+        if (error?.code === 'bad_request') {
+          sendJson(response, 400, { error: { code: error.details?.code || 'bad_request', details: error.details || null } });
+          return;
+        }
+        if (error?.code === 'forbidden') {
+          sendJson(response, 403, { error: { code: 'forbidden' } });
+          return;
+        }
+        if (error?.code === 'not_found') {
+          sendJson(response, 404, { error: { code: 'not_found' } });
+          return;
+        }
+        if (error?.code === 'conflict') {
+          sendJson(response, 409, { error: { code: 'conflict', details: error.details || null } });
+          return;
+        }
+        sendError(response, error, config.environment === 'production' ? null : error.stack);
+      } else {
+        response.end();
+      }
     }
   });
+
+  server.on('close', () => database.close());
+  return { server, database, config, documentService };
+}
+
+export function startNotificationScheduler(database, env = process.env) {
+  const intervalMs = Number(env.KAFEDRA_NOTIFICATION_INTERVAL_MS || 60_000);
+  if (!Number.isFinite(intervalMs) || intervalMs <= 0) {
+    throw new Error('KAFEDRA_NOTIFICATION_INTERVAL_MS must be a positive number');
+  }
+  const tick = () => {
+    try {
+      const workspace = database.getWorkspace();
+      scheduleWorkspaceNotifications(database, workspace.id);
+    } catch (error) {
+      console.error('[notifications]', error);
+    }
+  };
+  tick();
+  const timer = setInterval(tick, intervalMs);
+  timer.unref?.();
+  return timer;
 }
