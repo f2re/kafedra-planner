@@ -53,6 +53,7 @@ await import('./docomator-integration.js');
 await import('./docomator-fields.js');
 await import('./science-lifecycle-next.js');
 await import('./science-import-next.js');
+await import('./academic-performance-next.js');
 await import('./science-reports-next.js');
 await import('./directive-archive-next.js');
 await import('./calendar-start-settings.js');
