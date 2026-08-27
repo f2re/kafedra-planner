@@ -17,8 +17,16 @@ test('publisher 0.3.4 публикует полный проверяемый н�
   assert.match(source, /--draft/u);
   assert.match(source, /gh release upload "\$TAG" "\$file"/u);
   assert.match(source, /for attempt in 1 2 3/u);
-  assert.match(source, /gh release delete "\$TAG".*--cleanup-tag/u);
-  assert.match(source, /gh release edit "\$TAG".*--draft=false --latest/u);
+  assert.match(source, /--json databaseId,isDraft/u);
+  assert.match(source, /releases\/\\$RELEASE_ID\/assets\\?per_page=100/u);
+  assert.match(source, /--method DELETE "repos\/\\$GITHUB_REPOSITORY\/releases\/\\$RELEASE_ID"/u);
+  assert.match(source, /\\.target_commitish/u);
+  assert.match(source, /"\\$ACTUAL_NAMES" == "\\$EXPECTED_NAMES"/u);
+  assert.match(source, /stat -c%s "\\$asset"/u);
+  assert.match(source, /"\\$actual_size" == "\\$expected_size"/u);
+  assert.match(source, /--method PATCH "repos\/\\$GITHUB_REPOSITORY\/releases\/\\$RELEASE_ID"/u);
+  assert.match(source, /-F draft=false -f make_latest=true/u);
+  assert.doesNotMatch(source, /--cleanup-tag/u);
   assert.match(source, /select\(\.state == "uploaded"\)/u);
   assert.match(source, /"\$ACTUAL_ASSETS" == "\$EXPECTED_ASSETS"/u);
   assert.match(source, /\[\[ "\$OBJECT_SHA" == "\$SOURCE_SHA" \]\]/u);
