@@ -355,10 +355,11 @@ jobs:
             "$OUT/kafedra-planner-${VERSION}-project-control.f2re.zip"
           )
 
+          RELEASE_ID=""
           cleanup_draft() {
-            if gh release view "$TAG" --repo "$GITHUB_REPOSITORY" --json isDraft --jq '.isDraft' 2>/dev/null | grep -qx true; then
-              echo "Удаляем неполный draft release $TAG перед безопасным повтором."
-              gh release delete "$TAG" --repo "$GITHUB_REPOSITORY" --yes --cleanup-tag || true
+            if [[ "$RELEASE_ID" =~ ^[0-9]+$ ]] && [[ "$(gh api "repos/$GITHUB_REPOSITORY/releases/$RELEASE_ID" --jq '.draft' 2>/dev/null || true)" == true ]]; then
+              echo "Удаляем неполный draft release $TAG ($RELEASE_ID) перед безопасным повтором."
+              gh api --method DELETE "repos/$GITHUB_REPOSITORY/releases/$RELEASE_ID" || true
             fi
           }
           trap cleanup_draft ERR
@@ -370,15 +371,15 @@ jobs:
             --notes-file "docs/releases/${VERSION}.md" \
             --draft
 
-          ready=false
           for attempt in {1..30}; do
-            if gh release view "$TAG" --repo "$GITHUB_REPOSITORY" --json isDraft --jq '.isDraft' 2>/dev/null | grep -qx true; then
-              ready=true
+            RELEASE_ID="$(gh release view "$TAG" --repo "$GITHUB_REPOSITORY" \
+              --json databaseId,isDraft --jq 'select(.isDraft == true) | .databaseId' 2>/dev/null || true)"
+            if [[ "$RELEASE_ID" =~ ^[0-9]+$ ]]; then
               break
             fi
             sleep 2
           done
-          [[ "$ready" == true ]]
+          [[ "$RELEASE_ID" =~ ^[0-9]+$ ]]
 
           upload_asset() {
             local file="$1"
@@ -389,8 +390,8 @@ jobs:
               if gh release upload "$TAG" "$file" --repo "$GITHUB_REPOSITORY" --clobber; then
                 return 0
               fi
-              asset_id="$(gh api "repos/$GITHUB_REPOSITORY/releases/tags/$TAG" \
-                --jq ".assets[] | select(.name == \"$name\") | .id" 2>/dev/null | head -n 1 || true)"
+              asset_id="$(gh api "repos/$GITHUB_REPOSITORY/releases/$RELEASE_ID/assets?per_page=100" \
+                --jq ".[] | select(.name == \"$name\") | .id" 2>/dev/null | head -n 1 || true)"
               if [[ -n "$asset_id" ]]; then
                 gh api --method DELETE "repos/$GITHUB_REPOSITORY/releases/assets/$asset_id" || true
               fi
@@ -404,10 +405,23 @@ jobs:
             upload_asset "$asset"
           done
 
-          RELEASE="$(gh api "repos/$GITHUB_REPOSITORY/releases/tags/$TAG")"
+          RELEASE="$(gh api "repos/$GITHUB_REPOSITORY/releases/$RELEASE_ID")"
+          RELEASE_ASSETS="$(gh api "repos/$GITHUB_REPOSITORY/releases/$RELEASE_ID/assets?per_page=100")"
           [[ "$(jq -r '.draft' <<<"$RELEASE")" == true ]]
-          [[ "$(jq -r '[.assets[] | select(.state == "uploaded")] | length' <<<"$RELEASE")" -eq 7 ]]
-          gh release edit "$TAG" --repo "$GITHUB_REPOSITORY" --draft=false --latest
+          [[ "$(jq -r '.tag_name' <<<"$RELEASE")" == "$TAG" ]]
+          [[ "$(jq -r '.target_commitish' <<<"$RELEASE")" == "$SOURCE_SHA" ]]
+          [[ "$(jq '[.[] | select(.state == "uploaded")] | length' <<<"$RELEASE_ASSETS")" -eq 7 ]]
+          EXPECTED_NAMES="$(printf '%s\n' "${assets[@]##*/}" | sort)"
+          ACTUAL_NAMES="$(jq -r '.[] | select(.state == "uploaded") | .name' <<<"$RELEASE_ASSETS" | sort)"
+          [[ "$ACTUAL_NAMES" == "$EXPECTED_NAMES" ]]
+          for asset in "${assets[@]}"; do
+            name="$(basename "$asset")"
+            expected_size="$(stat -c%s "$asset")"
+            actual_size="$(jq -r --arg name "$name" '.[] | select(.name == $name and .state == "uploaded") | .size' <<<"$RELEASE_ASSETS")"
+            [[ "$actual_size" == "$expected_size" ]]
+          done
+          gh api --method PATCH "repos/$GITHUB_REPOSITORY/releases/$RELEASE_ID" \
+            -F draft=false -f make_latest=true >/dev/null
           trap - ERR
 
       - name: Проверить опубликованный тег и артефакты
