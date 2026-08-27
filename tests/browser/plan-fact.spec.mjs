@@ -37,7 +37,7 @@ test('показывает план-факт без подтверждения �
     return body.items?.length || 0;
   }, { timeout: 30_000 }).toBeGreaterThan(0);
 
-  await upload(page, 'material-plan-fact-82.txt', `МАТЕРИАЛЫ ПО РАСПОРЯЖЕНИЮ № 82-р\nОрлова Ольга Олеговна\nПоказатель: статьи ВАК; план: 5; факт: 4\nРабота выполнена частично.`);
+  await upload(page, 'otchet-plan-fact-82.txt', `ОТЧЁТ ПО РАСПОРЯЖЕНИЮ № 82-р\nОрлова Ольга Олеговна\nПоказатель: статьи ВАК; план: 5; факт: 4\nРабота выполнена частично.`);
   await expect.poll(async () => {
     const body = await (await page.request.get('/api/report-matches?status=suggested&limit=100')).json();
     return body.items?.find((item) => item.document_number === '82-р') || null;
