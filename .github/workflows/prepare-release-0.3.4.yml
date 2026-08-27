@@ -69,6 +69,14 @@ jobs:
               'CI проверяет миграции до schema 030, foreign keys, quick check, logical digest и полный backup/restore.',
               'CI проверяет миграции до schema 030, backup/restore, Node 24.15 и host Node 25, desktop/mobile Chromium, интеграцию Оформлятора, full-offline Debian 12, additive APT policy и systemd-сценарии с LLM и без него.'
           )
+          text = text.replace(
+              "test('обновление 28 → 29 добавляет mapping полей без изменения существующей интеграции'",
+              "test('обновление 28 → 29 добавляет выбор полей и сохраняет существующие связи Оформлятора'"
+          )
+          text = text.replace(
+              "test('обновление 29 → 30 добавляет mapping полей без изменения существующей интеграции'",
+              "test('обновление 29 → 30 добавляет выбор полей и сохраняет существующие связи Оформлятора'"
+          )
           path.write_text(text, encoding='utf-8')
           PY
           python3 .github/scripts/prepare-release-0.3.4.py
