@@ -30,6 +30,11 @@ jobs:
         with:
           ref: ${{ env.SOURCE_SHA }}
 
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+
       - name: Определить выпуск
         id: release
         shell: bash
@@ -37,24 +42,57 @@ jobs:
           set -Eeuo pipefail
           VERSION="$(tr -d '[:space:]' < VERSION)"
           TAG="v${VERSION}"
-          [[ "$VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]
-          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
-          echo "tag=$TAG" >> "$GITHUB_OUTPUT"
+          RELEASE_EXISTS=false
+          TAG_EXISTS=false
+          OBJECT_SHA=""
+          TAG_IS_ANCESTOR=false
+
           if gh release view "$TAG" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
-            OBJECT_TYPE="$(gh api "repos/$GITHUB_REPOSITORY/git/ref/tags/$TAG" --jq '.object.type')"
-            OBJECT_SHA="$(gh api "repos/$GITHUB_REPOSITORY/git/ref/tags/$TAG" --jq '.object.sha')"
+            RELEASE_EXISTS=true
+          fi
+          if TAG_REF="$(gh api "repos/$GITHUB_REPOSITORY/git/ref/tags/$TAG" 2>/dev/null)"; then
+            TAG_EXISTS=true
+            OBJECT_TYPE="$(jq -r '.object.type' <<<"$TAG_REF")"
+            OBJECT_SHA="$(jq -r '.object.sha' <<<"$TAG_REF")"
             if [[ "$OBJECT_TYPE" == tag ]]; then
               OBJECT_SHA="$(gh api "repos/$GITHUB_REPOSITORY/git/tags/$OBJECT_SHA" --jq '.object.sha')"
             fi
-            [[ "$OBJECT_SHA" == "$SOURCE_SHA" ]]
-            echo "exists=true" >> "$GITHUB_OUTPUT"
-            echo "Release $TAG уже опубликован из проверяемого commit $SOURCE_SHA."
-          else
-            echo "exists=false" >> "$GITHUB_OUTPUT"
           fi
 
+          PARENT_SHA="$(gh api "repos/$GITHUB_REPOSITORY/commits/$SOURCE_SHA" --jq '.parents[0].sha // ""')"
+          PARENT_VERSION=""
+          if [[ -n "$PARENT_SHA" ]]; then
+            PARENT_VERSION="$(
+              gh api "repos/$GITHUB_REPOSITORY/contents/VERSION?ref=$PARENT_SHA" --jq '.content' \
+                | tr -d '\n' \
+                | base64 --decode \
+                | tr -d '[:space:]'
+            )"
+          fi
+
+          if [[ "$TAG_EXISTS" == true ]]; then
+            if [[ "$OBJECT_SHA" == "$SOURCE_SHA" ]]; then
+              TAG_IS_ANCESTOR=true
+            else
+              COMPARE_STATUS="$(gh api "repos/$GITHUB_REPOSITORY/compare/${OBJECT_SHA}...${SOURCE_SHA}" --jq '.status')"
+              if [[ "$COMPARE_STATUS" == ahead || "$COMPARE_STATUS" == identical ]]; then
+                TAG_IS_ANCESTOR=true
+              fi
+            fi
+          fi
+
+          node scripts/release/release-decision.mjs \
+            --version "$VERSION" \
+            --source-sha "$SOURCE_SHA" \
+            --parent-version "$PARENT_VERSION" \
+            --release-exists "$RELEASE_EXISTS" \
+            --tag-exists "$TAG_EXISTS" \
+            --tag-sha "$OBJECT_SHA" \
+            --tag-is-ancestor "$TAG_IS_ANCESTOR" \
+            >> "$GITHUB_OUTPUT"
+
       - name: Дождаться и при необходимости восстановить post-merge workflow
-        if: steps.release.outputs.exists != 'true'
+        if: steps.release.outputs.publish == 'true'
         shell: bash
         run: |
           set -Eeuo pipefail
@@ -181,18 +219,12 @@ jobs:
           done
           (( SECONDS < deadline )) || { echo "Истекло время ожидания обязательного CI." >&2; exit 1; }
 
-      - uses: actions/setup-node@v4
-        if: steps.release.outputs.exists != 'true'
-        with:
-          node-version-file: .nvmrc
-          cache: npm
-
       - name: Установить зависимости проверки
-        if: steps.release.outputs.exists != 'true'
+        if: steps.release.outputs.publish == 'true'
         run: npm ci --ignore-scripts --no-audit --no-fund
 
       - name: Повторно проверить исходный код и данные
-        if: steps.release.outputs.exists != 'true'
+        if: steps.release.outputs.publish == 'true'
         run: |
           npm run check
           npm test
@@ -200,7 +232,7 @@ jobs:
           npm run backup:selftest
 
       - name: Проверить планы, назначения и интеграцию Оформлятора в браузере
-        if: steps.release.outputs.exists != 'true'
+        if: steps.release.outputs.publish == 'true'
         run: |
           npx playwright install --with-deps chromium
           npm run test:browser:plans
@@ -208,7 +240,7 @@ jobs:
           npx playwright test tests/browser/docomator-integration.spec.mjs
 
       - name: Собрать полный автономный bundle
-        if: steps.release.outputs.exists != 'true'
+        if: steps.release.outputs.publish == 'true'
         shell: bash
         run: |
           set -Eeuo pipefail
@@ -237,7 +269,7 @@ jobs:
           echo "ARCHIVE=$ARCHIVE" >> "$GITHUB_ENV"
 
       - name: Собрать пакет F2RE Project Control
-        if: steps.release.outputs.exists != 'true'
+        if: steps.release.outputs.publish == 'true'
         shell: bash
         run: |
           set -Eeuo pipefail
@@ -256,7 +288,7 @@ jobs:
           (cd "$OUT" && sha256sum -c --strict "$(basename "$PACKAGE.sha256")")
 
       - name: Сформировать общие контрольные суммы
-        if: steps.release.outputs.exists != 'true'
+        if: steps.release.outputs.publish == 'true'
         shell: bash
         run: |
           set -Eeuo pipefail
@@ -271,7 +303,7 @@ jobs:
           sha256sum -c --strict SHA256SUMS
 
       - name: Опубликовать GitHub Release с bundle
-        if: steps.release.outputs.exists != 'true'
+        if: steps.release.outputs.publish == 'true'
         shell: bash
         run: |
           set -Eeuo pipefail
@@ -292,7 +324,7 @@ jobs:
             --latest
 
       - name: Проверить опубликованный тег и артефакты
-        if: steps.release.outputs.exists != 'true'
+        if: steps.release.outputs.publish == 'true'
         shell: bash
         run: |
           set -Eeuo pipefail

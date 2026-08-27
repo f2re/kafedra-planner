@@ -59,8 +59,14 @@ async function uploadConfigure(page, kind, name, buffer) {
   await expect(page.locator('#meeting-settings-form')).toBeVisible();
 }
 
+function cardByOriginalName(page, originalName) {
+  return page.locator('.meeting-template-library-card').filter({
+    has: page.getByText(originalName, { exact: true })
+  });
+}
+
 function protocolSeriesCards(page, variant) {
-  return page.locator('.meeting-template-library-card').filter({ hasText: `Протокол ${variant} v1.docx` });
+  return cardByOriginalName(page, `Протокол ${variant} v1.docx`);
 }
 
 function libraryCard(page, variant, version) {
@@ -108,7 +114,7 @@ test('Шаблоны заседаний: версии, тест двумя во�
     await page.locator('[data-open-template-library]').click();
     await expect(page.locator('#meeting-template-library-list')).toBeVisible();
     await expect(protocolSeriesCards(page, variant)).toHaveCount(1);
-    await expect(page.locator('.meeting-template-library-card').filter({ hasText: `Выписка ${variant}.docx` })).toHaveCount(1);
+    await expect(cardByOriginalName(page, `Выписка ${variant}.docx`)).toHaveCount(1);
     const first = libraryCard(page, variant, 1);
     await expect(first).toContainText('Основной');
     await expect(first).toContainText('Готов');
