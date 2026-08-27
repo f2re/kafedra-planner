@@ -29,8 +29,11 @@ jobs:
           set -Eeuo pipefail
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git fetch --no-tags origin main feature/docomator-fields-0.3.4
-          FEATURE=origin/feature/docomator-fields-0.3.4
+          git fetch --no-tags origin \
+            refs/heads/main:refs/remotes/origin/main \
+            refs/heads/feature/docomator-fields-0.3.4:refs/remotes/origin/feature/docomator-fields-0.3.4
+          FEATURE=refs/remotes/origin/feature/docomator-fields-0.3.4
+          git rev-parse --verify "$FEATURE"
 
           git checkout "$FEATURE" -- \
             .github/workflows/organization.yml \
