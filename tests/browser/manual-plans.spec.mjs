@@ -69,7 +69,7 @@ test.beforeEach(async ({ page }, testInfo) => {
   });
 });
 
-test('Планы: ручной план → календарь → поручение → документ → DOCX', async ({ page }, testInfo) => {
+test('Планы: ручной план → календарь → задача → материал → DOCX', async ({ page }, testInfo) => {
   const dir = await mkdtemp(join(tmpdir(), `kafedra-manual-plan-ui-${testInfo.project.name}-`));
   const sourcePath = join(dir, `План кафедры образец ${testInfo.project.name}.docx`);
   const itemTitle = `Подготовить годовой отчёт ${testInfo.project.name}`;
@@ -132,19 +132,21 @@ test('Планы: ручной план → календарь → поруче�
       .filter({ hasText: itemTitle }).first();
     await expect(assignmentCard).toBeVisible({ timeout: 15_000 });
     await assignmentCard.click();
-    await expect(page.locator('#standalone-assignment-inspector')).toBeVisible({ timeout: 15_000 });
-    await expect(page.locator('#standalone-assignment-inspector')).toContainText('Поручение из плана');
+    const inspector = page.locator('#standalone-assignment-inspector');
+    await expect(inspector).toBeVisible({ timeout: 15_000 });
+    await expect(inspector).toContainText('Задача из плана');
+    await expect(inspector).toContainText('Согласование не требуется');
 
-    const progressForm = page.locator('[data-standalone-progress-form]');
+    let progressForm = page.locator('[data-standalone-progress-form]');
     await progressForm.locator('[name="progressPercent"]').fill('70');
     await progressForm.locator('[name="note"]').fill('Черновик отчёта подготовлен');
     const progressResponse = page.waitForResponse(
       (response) => /\/api\/assignments\/[^/]+\/progress$/.test(new URL(response.url()).pathname)
         && response.request().method() === 'POST'
     );
-    await progressForm.locator('button[type="submit"]').click();
+    await progressForm.getByRole('button', { name: 'Сохранить заметку' }).click();
     expect((await progressResponse).ok()).toBeTruthy();
-    await expect(page.locator('#standalone-assignment-inspector')).toContainText('Прогресс сохранён', { timeout: 15_000 });
+    await expect(page.locator('#standalone-assignment-inspector')).toContainText('Заметка сохранена', { timeout: 15_000 });
     await expect(page.locator('#standalone-assignment-inspector')).toContainText('70%');
 
     const assignmentSupport = page.locator('#standalone-assignment-inspector [data-supporting-open][data-target-kind="assignment"]');
@@ -163,23 +165,37 @@ test('Планы: ручной план → календарь → поруче�
     await expect(page.locator('#manual-plan-modal')).toContainText('ИСП-2026-19', { timeout: 15_000 });
     await page.locator('#manual-plan-modal > header [data-manual-close]').click();
 
-    const reportForm = page.locator('[data-standalone-report-form]');
-    await reportForm.locator('[name="file"]').setInputFiles({
+    const evidenceForm = page.locator('[data-standalone-report-form]');
+    await evidenceForm.locator('[name="file"]').setInputFiles({
       name: `Годовой отчёт ${testInfo.project.name}.txt`,
       mimeType: 'text/plain',
-      buffer: Buffer.from('Годовой отчёт подготовлен и представлен на проверку.', 'utf8')
+      buffer: Buffer.from('Годовой отчёт подготовлен. Файл приложен как необязательный материал.', 'utf8')
     });
-    await reportForm.locator('[name="note"]').fill('Итоговый отчёт');
-    const reportResponse = page.waitForResponse(
+    await evidenceForm.locator('[name="note"]').fill('Итоговый материал');
+    const evidenceResponse = page.waitForResponse(
       (response) => /\/api\/assignments\/[^/]+\/report$/.test(new URL(response.url()).pathname)
         && response.request().method() === 'POST',
       { timeout: 30_000 }
     );
-    await reportForm.locator('button[type="submit"]').click();
-    expect((await reportResponse).ok()).toBeTruthy();
-    await expect(page.locator('#standalone-assignment-inspector')).toContainText('Отчёт представлен руководителю', { timeout: 20_000 });
-    await expect(page.locator('.manager-review-form')).toBeVisible({ timeout: 15_000 });
-    await page.locator('.manager-review-form').getByRole('button', { name: 'Подтвердить выполнение' }).click();
+    await evidenceForm.getByRole('button', { name: 'Приложить материал' }).click();
+    expect((await evidenceResponse).ok()).toBeTruthy();
+    await expect(page.locator('#standalone-assignment-inspector')).toContainText('Состояние задачи не изменилось', { timeout: 20_000 });
+    await expect(page.locator('.manager-review-form')).toHaveCount(0);
+
+    await expect.poll(async () => {
+      const response = await page.request.get('/api/assignments?limit=2000');
+      const payload = await response.json();
+      return payload.items?.find((item) => item.title === itemTitle)?.status;
+    }, { timeout: 15_000 }).toBe('open');
+
+    progressForm = page.locator('[data-standalone-progress-form]');
+    const completeResponse = page.waitForResponse(
+      (response) => /\/api\/assignments\/[^/]+\/progress$/.test(new URL(response.url()).pathname)
+        && response.request().method() === 'POST'
+    );
+    await progressForm.getByRole('button', { name: 'Выполнено' }).click();
+    expect((await completeResponse).ok()).toBeTruthy();
+    await expect(page.locator('#standalone-assignment-inspector')).toContainText('Задача выполнена', { timeout: 15_000 });
 
     await expect.poll(async () => {
       const response = await page.request.get('/api/assignments?limit=2000');

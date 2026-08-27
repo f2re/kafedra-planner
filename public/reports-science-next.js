@@ -34,8 +34,8 @@ function ensureReportsScienceUi() {
   if (workPanel && !one('#report-match-panel')) {
     const heading = workPanel.querySelector('.section-heading');
     heading?.insertAdjacentHTML('afterend', `<section id="report-match-panel" class="report-match-panel hidden">
-      <div class="rail-head"><strong>Найдены возможные отчёты</strong><span id="report-match-count" class="count-pill">0</span></div>
-      <p>Система сопоставила загруженные документы с открытыми поручениями. Подтвердите только верную связь.</p>
+      <div class="rail-head"><strong>Возможные подтверждающие материалы</strong><span id="report-match-count" class="count-pill">0</span></div>
+      <p>Система предложила связь загруженного документа с задачей. Связь необязательна и не меняет состояние задачи.</p>
       <div id="report-match-list"></div>
     </section>`);
   }
@@ -98,8 +98,8 @@ function renderReportMatches(items) {
   panel.classList.toggle('hidden', !items.length);
   one('#report-match-count').textContent = items.length;
   one('#report-match-list').innerHTML = items.map((match) => `<article class="report-match-card" data-report-match="${safe(match.id)}">
-    <div><strong>${safe(match.document_title)}</strong><p>Возможное поручение: ${safe(match.assignment_title)}</p><small>Совпадение ${Math.round(Number(match.score) * 100)}%${match.document_number ? ` · основание № ${safe(match.document_number)}` : ''}</small></div>
-    <div class="report-match-actions"><button class="primary-button" type="button" data-match-action="accept">Связать</button><button class="quiet-button" type="button" data-match-action="reject">Не относится</button></div>
+    <div><strong>${safe(match.document_title)}</strong><p>Возможная задача: ${safe(match.assignment_title)}</p><small>Совпадение ${Math.round(Number(match.score) * 100)}%${match.document_number ? ` · основание № ${safe(match.document_number)}` : ''}</small></div>
+    <div class="report-match-actions"><button class="primary-button" type="button" data-match-action="accept">Приложить</button><button class="quiet-button" type="button" data-match-action="reject">Не относится</button></div>
   </article>`).join('');
 }
 
@@ -108,21 +108,6 @@ async function loadReportMatches() {
   rs.matches = data.items || [];
   renderReportMatches(rs.matches);
 }
-
-function decorateAssignmentReview() {
-  many('.work-assignment[data-assignment-id]').forEach((card) => {
-    if (card.querySelector('[data-manager-review]')) return;
-    const statusText = card.querySelector('.work-executors')?.textContent || '';
-    if (!statusText.includes('submitted')) return;
-    card.insertAdjacentHTML('beforeend', `<form class="manager-review-form" data-manager-review>
-      <textarea name="note" rows="2" placeholder="Комментарий руководителя"></textarea>
-      <div><button class="primary-button" name="action" value="approve" type="submit">Подтвердить выполнение</button><button class="secondary-button" name="action" value="return" type="submit">Вернуть на доработку</button></div>
-    </form>`);
-  });
-}
-
-const observer = new MutationObserver(() => decorateAssignmentReview());
-observer.observe(document.body, { childList: true, subtree: true });
 
 document.addEventListener('click', async (event) => {
   const scienceButton = event.target.closest('[data-view="science"]');
@@ -142,19 +127,9 @@ document.addEventListener('click', async (event) => {
 }, true);
 
 document.addEventListener('submit', async (event) => {
-  if (event.target.id === 'science-search-form') { event.preventDefault(); await loadScience(); }
-  const review = event.target.closest('[data-manager-review]');
-  if (review) {
+  if (event.target.id === 'science-search-form') {
     event.preventDefault();
-    const assignmentId = review.closest('[data-assignment-id]').dataset.assignmentId;
-    const submitter = event.submitter;
-    const body = { action: submitter?.value, note: new FormData(review).get('note') || null };
-    await rsApi(`/api/assignments/${encodeURIComponent(assignmentId)}/review`, {
-      method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(body)
-    });
-    const directiveButton = review.closest('#ux-inspector-body')?.querySelector('[data-inspector-document]');
-    if (directiveButton) directiveButton.focus();
-    review.replaceWith(document.createTextNode(body.action === 'approve' ? 'Выполнение подтверждено.' : 'Отчёт возвращён на доработку.'));
+    await loadScience();
   }
 });
 

@@ -14,7 +14,7 @@ async function upload(page, name, text) {
   }, { timeout: 30_000 }).toMatch(/processed|needs_review/);
 }
 
-test('показывает персональный план-факт из подтверждённого отчёта', async ({ page }, testInfo) => {
+test('показывает план-факт без подтверждения руководителем', async ({ page }, testInfo) => {
   test.skip(testInfo.project.name !== 'plan-fact-desktop', 'Изолированный контур план/факт');
   await page.goto('/');
 
@@ -31,13 +31,13 @@ test('показывает персональный план-факт из по�
   });
   const owner = await ownerResponse.json();
 
-  await upload(page, 'rasporyazhenie-82.txt', `РАСПОРЯЖЕНИЕ\nот 5 августа 2026 года № 82-р\nО публикационной активности\nРАСПОРЯЖАЮСЬ:\n1. Подготовить не менее 5 статей ВАК и представить отчёт до 20 августа 2026 года. Ответственный: Орлова Ольга Олеговна.`);
+  await upload(page, 'rasporyazhenie-82.txt', `РАСПОРЯЖЕНИЕ\nот 5 августа 2026 года № 82-р\nО публикационной активности\nРАСПОРЯЖАЮСЬ:\n1. Подготовить не менее 5 статей ВАК до 20 августа 2026 года. Ответственный: Орлова Ольга Олеговна.`);
   await expect.poll(async () => {
     const body = await (await page.request.get('/api/assignments?q=статей ВАК')).json();
     return body.items?.length || 0;
   }, { timeout: 30_000 }).toBeGreaterThan(0);
 
-  await upload(page, 'otchet-plan-fact-82.txt', `ОТЧЁТ ПО РАСПОРЯЖЕНИЮ № 82-р\nОрлова Ольга Олеговна\nПоказатель: статьи ВАК; план: 5; факт: 4\nПоручение выполнено частично.`);
+  await upload(page, 'material-plan-fact-82.txt', `МАТЕРИАЛЫ ПО РАСПОРЯЖЕНИЮ № 82-р\nОрлова Ольга Олеговна\nПоказатель: статьи ВАК; план: 5; факт: 4\nРабота выполнена частично.`);
   await expect.poll(async () => {
     const body = await (await page.request.get('/api/report-matches?status=suggested&limit=100')).json();
     return body.items?.find((item) => item.document_number === '82-р') || null;
@@ -45,18 +45,31 @@ test('показывает персональный план-факт из по�
 
   const matches = await (await page.request.get('/api/report-matches?status=suggested&limit=100')).json();
   const reportMatch = matches.items.find((item) => item.document_number === '82-р');
-  await page.request.post(`/api/report-matches/${encodeURIComponent(reportMatch.id)}/accept`, {
+  const acceptedResponse = await page.request.post(`/api/report-matches/${encodeURIComponent(reportMatch.id)}/accept`, {
     data: { personId: owner.id }
   });
+  expect(acceptedResponse.ok()).toBeTruthy();
+
+  let assignments = await (await page.request.get('/api/assignments?q=статей ВАК')).json();
+  let assignment = assignments.items.find((item) => item.document_number === '82-р');
+  expect(assignment.status).toBe('open');
 
   const managerNotifications = await (await page.request.get(`/api/personal-notifications?personId=${encodeURIComponent(manager.id)}&limit=100`)).json();
-  expect(managerNotifications.items.some((item) => item.kind === 'manager_review')).toBeTruthy();
+  expect(managerNotifications.items.some((item) => item.kind === 'manager_review')).toBeFalsy();
 
-  const assignments = await (await page.request.get('/api/assignments?q=статей ВАК')).json();
-  const assignment = assignments.items.find((item) => item.document_number === '82-р');
-  await page.request.post(`/api/assignments/${encodeURIComponent(assignment.id)}/review`, {
-    data: { action: 'approve', personId: manager.id, note: 'Фактический результат подтверждён.' }
+  const completeResponse = await page.request.post(`/api/assignments/${encodeURIComponent(assignment.id)}/progress`, {
+    data: {
+      status: 'completed',
+      progressPercent: 100,
+      actorPersonId: owner.id,
+      note: 'Выполнено без отдельного согласования.'
+    }
   });
+  expect(completeResponse.ok()).toBeTruthy();
+
+  assignments = await (await page.request.get('/api/assignments?q=статей ВАК')).json();
+  assignment = assignments.items.find((item) => item.document_number === '82-р');
+  expect(assignment.status).toBe('completed');
 
   const planFact = await (await page.request.get(`/api/assignments/${encodeURIComponent(assignment.id)}/plan-fact`)).json();
   expect(planFact.status).toBe('completed');
@@ -64,6 +77,11 @@ test('показывает персональный план-факт из по�
   expect(planFact.metrics[0].targetNumeric).toBe(5);
   expect(planFact.metrics[0].actualNumeric).toBe(4);
   expect(planFact.metrics[0].attainmentPercent).toBe(80);
+
+  const reviewResponse = await page.request.post(`/api/assignments/${encodeURIComponent(assignment.id)}/review`, {
+    data: { action: 'approve', personId: manager.id }
+  });
+  expect(reviewResponse.status()).toBe(410);
 
   await page.locator('button[data-view="plan-fact"]:visible').first().click();
   await expect(page.locator('#plan-fact-summary')).toBeVisible();
