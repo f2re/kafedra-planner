@@ -2,6 +2,7 @@ const docomatorState = {
   settings: null,
   check: null,
   initialized: false,
+  settingsLoadAttempted: false,
   loadingSettings: false,
   busy: false,
   autoChecked: false
@@ -204,7 +205,13 @@ function renderCheck(result, requested = {}) {
 }
 
 async function loadSettings() {
-  if (docomatorState.loadingSettings || authGateVisible() || !ensureDocomatorUi()) return;
+  if (
+    docomatorState.settingsLoadAttempted
+    || docomatorState.loadingSettings
+    || authGateVisible()
+    || !ensureDocomatorUi()
+  ) return;
+  docomatorState.settingsLoadAttempted = true;
   docomatorState.loadingSettings = true;
   try {
     const settings = await docomatorApi('/api/integrations/docomator');

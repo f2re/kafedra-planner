@@ -9,7 +9,7 @@
 
 Kafedra Planner is an offline-first daily work system for an academic department: calendar, annual plans, assignments, documents, meetings, reporting, research activity, and auditable evidence.
 
-> Current milestone: **`0.3.3`**, SQLite schema **28**. Core workflows do not require Internet access, an LLM, Docker, Docomator, or cloud services. The project remains a release candidate until the real Astra Linux/Debian installation, upgrade, restoration, and rollback acceptance in [TARGET_ACCEPTANCE.md](docs/TARGET_ACCEPTANCE.md) and issue #27 is complete.
+> Current milestone: **`0.3.4`**, SQLite schema **30**. Core workflows do not require Internet access, an LLM, Docker, Docomator, or cloud services. The project remains a release candidate until the real Astra Linux/Debian installation, upgrade, restoration, and rollback acceptance in [TARGET_ACCEPTANCE.md](docs/TARGET_ACCEPTANCE.md) and issue #27 is complete.
 
 **[Download an offline bundle](https://github.com/f2re/kafedra-planner/releases)** · **[Install guide](docs/GITHUB_RELEASES.md)** · **[Security policy](SECURITY.md)** · **[Contributing](CONTRIBUTING.md)**
 
@@ -36,8 +36,9 @@ A failing file, adapter, OCR component, optional converter, or integration must 
 - imported and manual annual plans linked to assignments, evidence, and plan/fact reporting;
 - deterministic automatic assignment when an imported responsible person matches exactly one active employee; ambiguous names stay unresolved for operator review;
 - assignment execution, reports, manager confirmation or return for revision;
-- meetings, agenda, minutes, extracts, research registry, and science reports;
-- optional local-network employee import from Docomator with health/readiness/data checks, space/group selection, and idempotent remote employee mapping;
+- meetings, agenda, minutes and extracts generated from ordinary DOCX files through a visual field/repeat-block editor;
+- a versioned meeting-template library with default selection, exact historical versions, test filling, impact preview, reversible archive and restoration;
+- optional local-network employee import from Docomator with health/readiness/data checks, space/group selection, selectable remote fields, and idempotent remote employee mapping;
 - local four-digit PIN onboarding, sessions, roles, object ACL, and audit trail;
 - encrypted backup/restore plus atomic update and rollback;
 - optional local `llama.cpp` enhancement; core deterministic workflows work with LLM disabled.
@@ -50,7 +51,7 @@ A failing file, adapter, OCR component, optional converter, or integration must 
 
 An administrator can open **Settings → Department structure → Import from Docomator**, enter an HTTP/HTTPS host and port, and verify `/healthz`, `/readyz`, and application data access before importing. A four-digit Docomator access code, when required, is used only for the current request and is not stored.
 
-The user selects a space, a group or all employees, previews names, and starts the import. Remote employee IDs provide idempotency; the first sync may match an existing local record by normalized name. Repeated synchronization updates the linked person without deleting local plans, tasks, reports, appointments, or history. See [DOCOMATOR_PEOPLE_IMPORT.md](docs/DOCOMATOR_PEOPLE_IMPORT.md).
+The user selects a space, a group or all employees, previews names, and chooses which remote properties should populate local e-mail, position and additional employee fields. Remote employee IDs provide idempotency; the first sync may match an existing local record by normalized name. Repeated synchronization updates the linked person and selected extra values without deleting local plans, tasks, reports, appointments, or history. See [DOCOMATOR_PEOPLE_IMPORT.md](docs/DOCOMATOR_PEOPLE_IMPORT.md).
 
 ## Install
 
@@ -86,6 +87,7 @@ The full list of browser, release, and deployment checks is in the Russian [READ
 - [Roadmap](docs/ROADMAP.md)
 - [User workflows](docs/UX_FLOWS.md)
 - [Docomator employee import](docs/DOCOMATOR_PEOPLE_IMPORT.md)
+- [Meeting template library](docs/MEETING_TEMPLATE_LIBRARY.md)
 - [Authorization and object access](docs/AUTHORIZATION.md)
 - [Release candidate and release gates](docs/RELEASE_CANDIDATE.md)
 - [Target acceptance](docs/TARGET_ACCEPTANCE.md)

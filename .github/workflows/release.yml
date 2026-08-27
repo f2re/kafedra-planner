@@ -2,7 +2,7 @@ name: Публикация GitHub Release
 
 on:
   workflow_run:
-    workflows: ["Release gate 0.3.3"]
+    workflows: ["Release gate 0.3.4"]
     types: [completed]
   workflow_dispatch:
 
@@ -17,26 +17,55 @@ permissions:
 jobs:
   release:
     name: Проверить, собрать и опубликовать
-    if: >-
-      github.event_name == 'workflow_dispatch' ||
-      github.event.workflow_run.head_branch == 'main'
     runs-on: ubuntu-24.04
     timeout-minutes: 180
     env:
       GH_TOKEN: ${{ github.token }}
-      SOURCE_SHA: ${{ github.event.workflow_run.head_sha || github.sha }}
     steps:
+      - name: Определить контекст запуска
+        id: context
+        shell: bash
+        env:
+          SOURCE_EVENT: ${{ github.event.workflow_run.event || github.event_name }}
+          SOURCE_BRANCH: ${{ github.event.workflow_run.head_branch || github.ref_name }}
+          SOURCE_CONCLUSION: ${{ github.event.workflow_run.conclusion || 'success' }}
+          SOURCE_COMMIT: ${{ github.event.workflow_run.head_sha || github.sha }}
+        run: |
+          set -Eeuo pipefail
+          should_run=false
+          reason="Не-main или неуспешный release gate: публикация не требуется."
+          if [[ "$GITHUB_EVENT_NAME" == workflow_dispatch ]]; then
+            should_run=true
+            reason="Ручной запуск для текущего main."
+          elif [[ "$SOURCE_EVENT" == push && "$SOURCE_BRANCH" == main && "$SOURCE_CONCLUSION" == success ]]; then
+            should_run=true
+            reason="Успешный post-merge release gate main."
+          fi
+          echo "should_run=$should_run" >> "$GITHUB_OUTPUT"
+          echo "reason=$reason" >> "$GITHUB_OUTPUT"
+          echo "source_sha=$SOURCE_COMMIT" >> "$GITHUB_OUTPUT"
+          echo "SOURCE_SHA=$SOURCE_COMMIT" >> "$GITHUB_ENV"
+          printf 'event=%s branch=%s conclusion=%s sha=%s should_run=%s\n' \
+            "$SOURCE_EVENT" "$SOURCE_BRANCH" "$SOURCE_CONCLUSION" "$SOURCE_COMMIT" "$should_run"
+
+      - name: Завершить штатный no-op для не-main контекста
+        if: steps.context.outputs.should_run != 'true'
+        run: echo "${{ steps.context.outputs.reason }}"
+
       - uses: actions/checkout@v4
+        if: steps.context.outputs.should_run == 'true'
         with:
-          ref: ${{ env.SOURCE_SHA }}
+          ref: ${{ steps.context.outputs.source_sha }}
 
       - uses: actions/setup-node@v4
+        if: steps.context.outputs.should_run == 'true'
         with:
           node-version-file: .nvmrc
           cache: npm
 
       - name: Определить выпуск
         id: release
+        if: steps.context.outputs.should_run == 'true'
         shell: bash
         run: |
           set -Eeuo pipefail
@@ -91,14 +120,20 @@ jobs:
             --tag-is-ancestor "$TAG_IS_ANCESTOR" \
             >> "$GITHUB_OUTPUT"
 
+      - name: Подтвердить штатный no-op уже опубликованной версии
+        if: steps.context.outputs.should_run == 'true' && steps.release.outputs.publish != 'true'
+        run: |
+          echo "Новый release не требуется: ${{ steps.release.outputs.reason }}"
+          echo "Существующий тег и assets не изменяются."
+
       - name: Дождаться и при необходимости восстановить post-merge workflow
-        if: steps.release.outputs.publish == 'true'
+        if: steps.context.outputs.should_run == 'true' && steps.release.outputs.publish == 'true'
         shell: bash
         run: |
           set -Eeuo pipefail
           required=(
             "Проверка"
-            "Release gate 0.3.3"
+            "Release gate 0.3.4"
             "Оргструктура"
             "Научные отчёты"
             "Научный жизненный цикл"
@@ -106,7 +141,7 @@ jobs:
           )
           declare -A workflow_files=(
             ["Проверка"]="ci.yml"
-            ["Release gate 0.3.3"]="release-gate.yml"
+            ["Release gate 0.3.4"]="release-gate.yml"
             ["Оргструктура"]="organization.yml"
             ["Научные отчёты"]="science-reports.yml"
             ["Научный жизненный цикл"]="science-lifecycle.yml"
@@ -220,27 +255,28 @@ jobs:
           (( SECONDS < deadline )) || { echo "Истекло время ожидания обязательного CI." >&2; exit 1; }
 
       - name: Установить зависимости проверки
-        if: steps.release.outputs.publish == 'true'
+        if: steps.context.outputs.should_run == 'true' && steps.release.outputs.publish == 'true'
         run: npm ci --ignore-scripts --no-audit --no-fund
 
       - name: Повторно проверить исходный код и данные
-        if: steps.release.outputs.publish == 'true'
+        if: steps.context.outputs.should_run == 'true' && steps.release.outputs.publish == 'true'
         run: |
           npm run check
           npm test
           npm run smoke
           npm run backup:selftest
 
-      - name: Проверить планы, назначения и интеграцию Оформлятора в браузере
-        if: steps.release.outputs.publish == 'true'
+      - name: Проверить планы, заседания, назначения и интеграцию Оформлятора в браузере
+        if: steps.context.outputs.should_run == 'true' && steps.release.outputs.publish == 'true'
         run: |
           npx playwright install --with-deps chromium
           npm run test:browser:plans
           npx playwright test tests/browser/auto-assignment.spec.mjs
-          npx playwright test tests/browser/docomator-integration.spec.mjs
+          npx playwright test tests/browser/docomator-integration.spec.mjs tests/browser/docomator-fields.spec.mjs
+          npx playwright test tests/browser/meeting-template-editor.spec.mjs tests/browser/meeting-template-library.spec.mjs tests/browser/manual-plan-preferences.spec.mjs tests/browser/task-layout.spec.mjs
 
       - name: Собрать полный автономный bundle
-        if: steps.release.outputs.publish == 'true'
+        if: steps.context.outputs.should_run == 'true' && steps.release.outputs.publish == 'true'
         shell: bash
         run: |
           set -Eeuo pipefail
@@ -269,7 +305,7 @@ jobs:
           echo "ARCHIVE=$ARCHIVE" >> "$GITHUB_ENV"
 
       - name: Собрать пакет F2RE Project Control
-        if: steps.release.outputs.publish == 'true'
+        if: steps.context.outputs.should_run == 'true' && steps.release.outputs.publish == 'true'
         shell: bash
         run: |
           set -Eeuo pipefail
@@ -288,7 +324,7 @@ jobs:
           (cd "$OUT" && sha256sum -c --strict "$(basename "$PACKAGE.sha256")")
 
       - name: Сформировать общие контрольные суммы
-        if: steps.release.outputs.publish == 'true'
+        if: steps.context.outputs.should_run == 'true' && steps.release.outputs.publish == 'true'
         shell: bash
         run: |
           set -Eeuo pipefail
@@ -303,7 +339,7 @@ jobs:
           sha256sum -c --strict SHA256SUMS
 
       - name: Опубликовать GitHub Release с bundle
-        if: steps.release.outputs.publish == 'true'
+        if: steps.context.outputs.should_run == 'true' && steps.release.outputs.publish == 'true'
         shell: bash
         run: |
           set -Eeuo pipefail
@@ -324,7 +360,7 @@ jobs:
             --latest
 
       - name: Проверить опубликованный тег и артефакты
-        if: steps.release.outputs.publish == 'true'
+        if: steps.context.outputs.should_run == 'true' && steps.release.outputs.publish == 'true'
         shell: bash
         run: |
           set -Eeuo pipefail
