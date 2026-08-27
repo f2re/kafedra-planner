@@ -13,7 +13,14 @@ test('publisher 0.3.4 публикует полный проверяемый н�
   assert.match(source, /kafedra-planner-\$\{VERSION\}-project-control\.f2re\.zip\.sha256/u);
   assert.match(source, /SHA256SUMS/u);
   assert.match(source, /sha256sum -c --strict SHA256SUMS/u);
-  assert.match(source, /\.assets \| length' <<<"\$RELEASE"\)" -ge 7/u);
+  assert.match(source, /gh release create "\$TAG"/u);
+  assert.match(source, /--draft/u);
+  assert.match(source, /gh release upload "\$TAG" "\$file"/u);
+  assert.match(source, /for attempt in 1 2 3/u);
+  assert.match(source, /gh release delete "\$TAG".*--cleanup-tag/u);
+  assert.match(source, /gh release edit "\$TAG".*--draft=false --latest/u);
+  assert.match(source, /select\(\.state == "uploaded"\)/u);
+  assert.match(source, /"\$ACTUAL_ASSETS" == "\$EXPECTED_ASSETS"/u);
   assert.match(source, /\[\[ "\$OBJECT_SHA" == "\$SOURCE_SHA" \]\]/u);
   assert.match(source, /--latest/u);
   assert.doesNotMatch(source, /--prerelease/u);
