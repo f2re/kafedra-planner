@@ -54,9 +54,19 @@ function ensureMeetingTemplateEditor() {
   return templateEditorLoading;
 }
 
+let templateLibraryLoading = null;
+function ensureMeetingTemplateLibrary() {
+  if (templateLibraryLoading) return templateLibraryLoading;
+  templateLibraryLoading = import('/meeting-template-library.js')
+    .then((module) => module.installMeetingTemplateLibraryEnhancer())
+    .catch(() => null);
+  return templateLibraryLoading;
+}
+
 export function ensureMeetingsUi() {
   ensureMeetingStyles();
   ensureMeetingTemplateEditor();
+  ensureMeetingTemplateLibrary();
   const nav = $m('#navigation');
   if (nav && !$m('[data-view="meetings"]', nav)) {
     const button = document.createElement('button');
@@ -113,9 +123,6 @@ export function showMeetingNotice(message) {
 export function openMeetingModal(html) {
   const previous = $m('#meeting-modal');
   if (!previous) return;
-  // Модальная область используется повторно всеми сценариями заседаний. Замена
-  // пустого контейнера снимает локальные обработчики предыдущего редактора,
-  // поэтому открытие протокола, а затем выписки не удваивает сохранение профиля.
   const modal = previous.cloneNode(false);
   previous.replaceWith(modal);
   modal.innerHTML = html;

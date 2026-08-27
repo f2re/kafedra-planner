@@ -16,7 +16,9 @@ export const V020_STABLE_TABLES = [
   'scientific_item_manual_overrides',
   'science_import_runs',
   'science_import_rows',
-  'science_report_runs'
+  'science_report_runs',
+  'meeting_template_catalog',
+  'meeting_template_test_runs'
 ];
 
 function quoted(value) {

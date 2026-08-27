@@ -82,6 +82,7 @@ export function listDocuments(database, workspaceId, limit = 100) {
     JOIN document_versions dv ON dv.id = d.current_version_id
     JOIN file_blobs fb ON fb.sha256 = dv.blob_sha256
     WHERE d.workspace_id = ?
+      AND d.document_type NOT IN ('meeting_template_profile', 'meeting_template_test')
     ORDER BY d.updated_at DESC
     LIMIT ?
   `, workspaceId, limit);

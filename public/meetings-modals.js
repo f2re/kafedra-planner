@@ -6,9 +6,22 @@ function userOptions(selected) {
   ).join('');
 }
 
-export function templateOptions(selected) {
-  return '<option value="">Выберите DOCX</option>' + (meetingsState.resources.templates || []).map((template) => {
-    const label = [template.title, template.original_name].filter(Boolean).join(' · ');
+function templateState(template) {
+  return {
+    ready: 'готов', legacy_compatible: 'совместимый', draft: 'черновик', needs_setup: 'требует настройки', error: 'ошибка'
+  }[template.readiness] || null;
+}
+
+export function templateOptions(selected, kind = null) {
+  const templates = (meetingsState.resources.templates || []).filter((template) =>
+    !kind || !template.document_kind || template.document_kind === kind
+  );
+  return '<option value="">Выберите DOCX</option>' + templates.map((template) => {
+    const label = [
+      template.display_name || template.title,
+      template.version_no ? `версия ${Number(template.version_no)}` : template.original_name,
+      templateState(template)
+    ].filter(Boolean).join(' · ');
     return `<option value="${escMeeting(template.version_id)}" ${template.version_id === selected ? 'selected' : ''}>${escMeeting(label || 'DOCX-шаблон')}</option>`;
   }).join('');
 }
@@ -16,7 +29,7 @@ export function templateOptions(selected) {
 function templateUploadField(kind, title, selected) {
   const name = kind === 'protocol' ? 'protocolTemplateVersionId' : 'extractTemplateVersionId';
   return `<div class="meeting-template-field">
-    <label class="field"><span>${escMeeting(title)}</span><select name="${name}" required>${templateOptions(selected)}</select></label>
+    <label class="field"><span>${escMeeting(title)}</span><select name="${name}" required>${templateOptions(selected, kind)}</select></label>
     <label class="meeting-template-upload secondary-button">Загрузить DOCX<input type="file" accept=".docx,application/vnd.openxmlformats-officedocument.wordprocessingml.document" data-meeting-template-upload="${kind}" hidden></label>
   </div>`;
 }
@@ -30,13 +43,13 @@ export function openSettingsModal() {
         ${templateUploadField('protocol', 'Шаблон протокола', s.protocol_template_version_id)}
         ${templateUploadField('extract', 'Шаблон выписки', s.extract_template_version_id)}
       </div>
-      <p class="meeting-helper">В обоих DOCX нужен отдельный абзац <code>{{AGENDA}}</code>. Дополнительно можно использовать <code>{{PROTOCOL_NUMBER}}</code>, <code>{{MEETING_DATE}}</code>, <code>{{CHAIRPERSON}}</code>, <code>{{SECRETARY}}</code>, <code>{{QUORUM}}</code> и <code>{{DOCUMENT_KIND}}</code>.</p>
+      <p class="meeting-helper">Загрузите обычный DOCX и назначьте поля непосредственно в предпросмотре. Старые шаблоны с {{AGENDA}} продолжают работать.</p>
       <div class="meeting-form-three">
         <label class="field"><span>Кворум</span><input name="quorum" type="number" min="1" step="1" value="${escMeeting(s.quorum || '')}" required></label>
         <label class="field"><span>Председатель</span><select name="chairpersonPersonId" required>${userOptions(s.chairperson_person_id)}</select></label>
         <label class="field"><span>Секретарь</span><select name="secretaryPersonId" required>${userOptions(s.secretary_person_id)}</select></label>
       </div>
-      ${!(meetingsState.resources.templates || []).length ? '<div class="meeting-callout">Загрузите два DOCX-шаблона прямо здесь. В каждом должен быть отдельный абзац {{AGENDA}}.</div>' : ''}
+      ${!(meetingsState.resources.templates || []).length ? '<div class="meeting-callout">Загрузите шаблон протокола и шаблон выписки. Для обычного DOCX после загрузки откройте «Настроить поля».</div>' : ''}
       ${!(meetingsState.resources.users || []).length ? '<div class="meeting-callout">Список сотрудников пуст. Добавьте пользователей/сотрудников кафедры.</div>' : ''}
       <div class="meeting-modal-actions"><span class="spacer"></span><button type="button" class="secondary-button" data-close-meeting-modal>Отмена</button><button type="submit" class="primary-button">Сохранить</button></div>
     </form>
@@ -55,7 +68,7 @@ export function openCreateMeetingModal() {
     <form id="meeting-create-form" class="meeting-modal-body">
       <div class="meeting-form-two"><label class="field"><span>Дата</span><input name="meetingDate" type="date" value="${date}" required></label><label class="field"><span>Номер протокола</span><input name="protocolNumber" autocomplete="off" required placeholder="Например, 7"></label></div>
       <label class="field"><span>Название</span><input name="title" value="Заседание кафедры" required></label>
-      <p class="meeting-helper">Председатель, секретарь, кворум и шаблоны копируются из настроек и сохраняются вместе с заседанием.</p>
+      <p class="meeting-helper">Председатель, секретарь, кворум и точные версии шаблонов копируются из настроек и сохраняются вместе с заседанием.</p>
       <div class="meeting-modal-actions"><button type="button" class="secondary-button" data-close-meeting-modal>Отмена</button><button type="submit" class="primary-button">Создать</button></div>
     </form>
   `);
@@ -111,4 +124,3 @@ export function renderSources(query) {
       <span><strong>${escMeeting(source.questionTitle)}</strong><small>${escMeeting(source.label)}${source.meta ? ` · ${escMeeting(source.meta)}` : ''}</small></span><span aria-hidden="true">＋</span>
     </button>`).join('') : '<div class="empty-state">Подходящих открытых задач и пунктов планов нет.</div>';
 }
-

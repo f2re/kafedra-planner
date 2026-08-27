@@ -1,0 +1,43 @@
+.meeting-template-library-body { display:grid; gap:14px; padding:14px; max-height:min(780px,calc(100vh - 110px)); overflow:auto; }
+.meeting-template-library-toolbar { display:flex; align-items:center; justify-content:space-between; gap:12px; padding:10px 12px; border:1px solid var(--border); border-radius:14px; background:var(--surface); }
+.meeting-template-library-toolbar > span { color:var(--muted); font-size:11px; line-height:1.4; }
+.meeting-template-library-filters { display:flex; gap:4px; padding:3px; border-radius:10px; background:var(--surface-muted); }
+.meeting-template-library-filters button { min-height:32px; padding:6px 12px; border:0; border-radius:8px; background:transparent; color:var(--muted); font:inherit; font-size:11px; font-weight:700; }
+.meeting-template-library-filters button.active { background:var(--surface-solid); color:var(--text); box-shadow:0 1px 4px rgba(0,0,0,.08); }
+.meeting-template-library-list { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:12px; }
+.meeting-template-library-card { display:grid; gap:9px; min-width:0; padding:14px; border:1px solid var(--border); border-radius:16px; background:var(--surface); box-shadow:0 4px 16px rgba(0,0,0,.035); }
+.meeting-template-library-card.is-default { border-color:rgba(0,122,255,.38); box-shadow:0 0 0 2px rgba(0,122,255,.08); }
+.meeting-template-library-card-head { display:flex; justify-content:space-between; align-items:flex-start; gap:10px; }
+.meeting-template-library-card-head h4 { margin:3px 0 0; font-size:14px; line-height:1.25; }
+.meeting-template-library-kind { color:var(--muted); font-size:9px; font-weight:800; letter-spacing:.06em; text-transform:uppercase; }
+.meeting-template-library-default { padding:4px 7px; border-radius:999px; background:var(--accent-soft); color:var(--accent-strong); font-size:9px; font-weight:800; white-space:nowrap; }
+.meeting-template-library-meta { display:flex; flex-wrap:wrap; gap:5px; }
+.meeting-template-library-meta span { padding:4px 7px; border-radius:999px; background:var(--surface-muted); color:var(--muted); font-size:9px; font-weight:700; }
+.meeting-template-library-card p { margin:0; overflow:hidden; color:var(--text); font-size:11px; text-overflow:ellipsis; white-space:nowrap; }
+.meeting-template-library-card > small { color:var(--muted); font-size:10px; }
+.meeting-template-library-reason { padding:8px 10px; border-radius:10px; background:var(--surface-muted); color:var(--muted); font-size:10px; line-height:1.45; }
+.meeting-template-library-actions { display:flex; flex-wrap:wrap; gap:6px; padding-top:3px; }
+.meeting-template-library-actions .secondary-button,.meeting-template-library-actions .danger-text-button { min-height:34px; padding:6px 9px; font-size:10px; text-decoration:none; }
+.meeting-template-test-body { display:grid; grid-template-columns:minmax(0,1fr) 280px; gap:14px; padding:14px; min-height:min(700px,calc(100vh - 110px)); }
+.meeting-template-test-actions { display:flex; flex-direction:column; gap:10px; padding:14px; border:1px solid var(--border); border-radius:14px; background:var(--surface); }
+.meeting-template-test-actions strong { font-size:13px; }
+.meeting-template-test-actions p { margin:0; color:var(--muted); font-size:11px; line-height:1.5; }
+.meeting-template-test-actions a { display:flex; justify-content:center; align-items:center; text-decoration:none; }
+.meeting-template-impact { display:grid; grid-template-columns:repeat(4,minmax(0,1fr)); gap:8px; }
+.meeting-template-impact span { display:grid; gap:2px; padding:10px; border-radius:12px; background:var(--surface-muted); color:var(--muted); font-size:9px; text-align:center; }
+.meeting-template-impact b { color:var(--text); font-size:18px; }
+@media (max-width:900px) {
+  .meeting-template-library-list { grid-template-columns:1fr; }
+  .meeting-template-library-toolbar { align-items:flex-start; flex-direction:column; }
+  .meeting-template-test-body { display:block; }
+  .meeting-template-test-body .meeting-template-workspace { max-height:55vh; }
+  .meeting-template-test-actions { margin-top:10px; }
+  .meeting-template-impact { grid-template-columns:repeat(2,minmax(0,1fr)); }
+}
+@media (max-width:560px) {
+  .meeting-template-library-body { padding:10px; }
+  .meeting-template-library-card { padding:12px; }
+  .meeting-template-library-actions { display:grid; grid-template-columns:1fr 1fr; }
+  .meeting-template-library-actions .danger-text-button { grid-column:1 / -1; }
+  .meeting-template-impact { grid-template-columns:1fr 1fr; }
+}

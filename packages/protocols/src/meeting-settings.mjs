@@ -19,9 +19,6 @@ function resolvedTemplate(database, workspaceId, versionId, kind) {
   const structureStatus = templateStructure(database, versionId);
   const profile = latestMeetingTemplateProfile(database, workspaceId, template.version_id, kind, true);
   const visual = structureStatus === 'meeting_template_visual';
-  // Только новые загрузки, явно зарегистрированные как visual-profile, обязаны
-  // иметь готовый профиль. Все ранее существовавшие template/generated записи
-  // остаются в совместимом marker-based режиме и проверяются генератором.
   if (visual && !profile) fail('meeting_template_profile_incomplete');
   return { ...template, structure_status: structureStatus, profile, legacy: !visual };
 }
@@ -105,6 +102,10 @@ export async function uploadMeetingTemplate(database, config, workspaceId, strea
   };
 }
 
+function hasCatalog(database) {
+  return Boolean(database.get("SELECT 1 AS present FROM sqlite_master WHERE type = 'table' AND name = 'meeting_template_catalog'"));
+}
+
 export function meetingSettingsResources(database, workspaceId) {
   const users = database.all(`
     SELECT id, display_name, email, position
@@ -112,18 +113,36 @@ export function meetingSettingsResources(database, workspaceId) {
     WHERE workspace_id = ? AND status = 'active'
     ORDER BY display_name COLLATE NOCASE, id
   `, workspaceId);
-  const templates = database.all(`
+  const templates = hasCatalog(database) ? database.all(`
+    SELECT catalog.document_kind, catalog.display_name, catalog.version_no,
+      catalog.readiness, catalog.is_default, catalog.series_id,
+      dv.id AS version_id, d.id AS document_id, d.title, dv.original_name,
+      dv.detected_format, dv.structure_status, d.document_type, d.updated_at
+    FROM meeting_template_catalog catalog
+    JOIN documents d ON d.id = catalog.document_id
+    JOIN document_versions dv ON dv.id = catalog.document_version_id
+    WHERE catalog.workspace_id = ? AND catalog.lifecycle_status = 'active'
+    ORDER BY catalog.document_kind, catalog.is_default DESC,
+      catalog.display_name COLLATE NOCASE, catalog.version_no DESC
+    LIMIT 500
+  `, workspaceId).map((template) => {
+    const profile = latestMeetingTemplateProfile(database, workspaceId, template.version_id, template.document_kind, false);
+    return {
+      ...template,
+      legacy_ready: template.readiness === 'legacy_compatible',
+      protocol_profile: template.document_kind === 'protocol' ? profile : null,
+      extract_profile: template.document_kind === 'extract' ? profile : null
+    };
+  }) : database.all(`
     SELECT dv.id AS version_id, d.id AS document_id, d.title, dv.original_name, dv.detected_format,
       dv.structure_status, d.document_type, d.updated_at
     FROM documents d
     JOIN document_versions dv ON dv.id = d.current_version_id
-    WHERE d.workspace_id = ?
-      AND d.document_type = 'meeting_template'
-      AND (dv.detected_format = 'docx' OR lower(dv.original_name) LIKE '%.docx')
-    ORDER BY d.updated_at DESC, d.title COLLATE NOCASE
-    LIMIT 500
+    WHERE d.workspace_id = ? AND d.document_type = 'meeting_template'
+    ORDER BY d.updated_at DESC, d.title COLLATE NOCASE LIMIT 500
   `, workspaceId).map((template) => ({
     ...template,
+    document_kind: null,
     legacy_ready: template.structure_status !== 'meeting_template_visual',
     protocol_profile: latestMeetingTemplateProfile(database, workspaceId, template.version_id, 'protocol', false),
     extract_profile: latestMeetingTemplateProfile(database, workspaceId, template.version_id, 'extract', false)
