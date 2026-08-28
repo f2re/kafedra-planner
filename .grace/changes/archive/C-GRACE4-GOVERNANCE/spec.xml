@@ -1,4 +1,4 @@
-<GraceChangeSpec graceVersion="4.0" status="approved">
+<GraceChangeSpec graceVersion="4.0" status="applied">
   <C-GRACE4-GOVERNANCE>
     <Summary>Make GRACE 4 the mandatory contract-first branch, database and merge governance layer for kafedra-planner.</Summary>
     <Problem>Development already has project-specific Codex roles and broad CI, but main is unprotected and there is no machine-enforced link between an approved change contract, its observed write scope, append-only database migrations, final verification, and merge eligibility.</Problem>
