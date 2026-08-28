@@ -11,6 +11,9 @@ import {
   parseNameStatus,
   validateObservedWriteScope
 } from '../scripts/grace-governance.mjs';
+import { evaluateDurableModelDiff } from '../scripts/github/grace-durable-gate.mjs';
+import { evaluateRequiredChecks, latestChecksByName } from '../scripts/github/grace-merge-gate.mjs';
+import { GRACE_MERGE_CHECK, REQUIRED_MAIN_CHECKS, mainProtectionPayload } from '../scripts/github/grace-required-checks.mjs';
 
 test('ObservedWriteScope supports exact files and GRACE-style ** globs', () => {
   const xml = `
@@ -103,4 +106,58 @@ test('new migrations must be contiguous, tested and declared as database work', 
   assert.ok(invalid.errors.some((message) => /migration.*test/i.test(message)));
   assert.ok(invalid.errors.some((message) => /M-DATABASE/.test(message)));
   assert.ok(invalid.errors.some((message) => /V-M-DATABASE/.test(message)));
+});
+
+test('durable GRACE context/graph/verification cannot change without one active C-*', () => {
+  const entries = parseNameStatus('M\t.grace/context/principles.xml');
+  const result = evaluateDurableModelDiff({ entries, activeIds: [] });
+  assert.ok(result.errors.some((message) => /exactly one approved active C-\*/.test(message)));
+  assert.deepEqual(evaluateDurableModelDiff({ entries, activeIds: ['C-CONTEXT'] }).errors, []);
+});
+
+test('terminal archive transition must be a complete active-to-archive move with applied artifacts', () => {
+  const entries = parseNameStatus([
+    'R098\t.grace/changes/active/C-DONE/spec.xml\t.grace/changes/archive/C-DONE/spec.xml',
+    'R098\t.grace/changes/active/C-DONE/plan.xml\t.grace/changes/archive/C-DONE/plan.xml'
+  ].join('\n'));
+  const archiveArtifacts = new Map([['C-DONE', {
+    specXml: '<GraceChangeSpec graceVersion="4.0" status="applied"><C-DONE /></GraceChangeSpec>',
+    planXml: '<GraceChangePlan graceVersion="4.0" status="applied"><C-DONE /></GraceChangePlan>'
+  }]]);
+  assert.deepEqual(evaluateDurableModelDiff({ entries, activeIds: [], archiveArtifacts }).errors, []);
+
+  const forged = parseNameStatus('A\t.grace/changes/archive/C-FORGED/spec.xml');
+  assert.ok(evaluateDurableModelDiff({ entries: forged, activeIds: [], archiveArtifacts: new Map() }).errors.length > 0);
+});
+
+test('required main checks have one shared unique desired-state list', () => {
+  assert.equal(new Set(REQUIRED_MAIN_CHECKS).size, REQUIRED_MAIN_CHECKS.length);
+  assert.ok(REQUIRED_MAIN_CHECKS.includes(GRACE_MERGE_CHECK));
+  assert.ok(REQUIRED_MAIN_CHECKS.includes('Full offline Debian 12 + Project Control'));
+  assert.deepEqual(mainProtectionPayload().required_status_checks.contexts, [...REQUIRED_MAIN_CHECKS]);
+  assert.equal(mainProtectionPayload().required_status_checks.strict, true);
+});
+
+test('exact-SHA merge gate uses the newest run of every required name', () => {
+  const latest = latestChecksByName([
+    { id: 1, name: 'test', status: 'completed', conclusion: 'failure' },
+    { id: 3, name: 'test', status: 'completed', conclusion: 'success' },
+    { id: 2, name: 'browser', status: 'in_progress', conclusion: null }
+  ]);
+  assert.equal(latest.get('test').id, 3);
+  const state = evaluateRequiredChecks([...latest.values()], ['test', 'browser', 'offline']);
+  assert.deepEqual(state.successful, ['test']);
+  assert.deepEqual(state.pending, [{ name: 'browser', status: 'in_progress' }]);
+  assert.deepEqual(state.missing, ['offline']);
+  assert.deepEqual(state.failed, []);
+});
+
+test('skipped, cancelled and failed checks are never merge evidence', () => {
+  const state = evaluateRequiredChecks([
+    { id: 1, name: 'test', status: 'completed', conclusion: 'success' },
+    { id: 2, name: 'browser', status: 'completed', conclusion: 'skipped' },
+    { id: 3, name: 'offline', status: 'completed', conclusion: 'cancelled' }
+  ], ['test', 'browser', 'offline']);
+  assert.equal(state.complete, false);
+  assert.deepEqual(state.failed.map((item) => item.conclusion), ['skipped', 'cancelled']);
 });

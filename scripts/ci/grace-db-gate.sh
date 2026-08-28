@@ -52,6 +52,12 @@ node "$ROOT/scripts/grace-governance.mjs" db-integrity \
   --database "$UPGRADE_DATA/kafedra-planner.sqlite3" \
   --migrations-dir "$ROOT/migrations"
 
+# 3. Re-run HEAD migration on the already upgraded database. No new rows, backup or drift are allowed.
+run_migrate "$ROOT" "$UPGRADE_DATA" true > "$TMP/repeated-migrate.json"
+node "$ROOT/scripts/grace-governance.mjs" db-integrity \
+  --database "$UPGRADE_DATA/kafedra-planner.sqlite3" \
+  --migrations-dir "$ROOT/migrations"
+
 ADDED_MIGRATIONS="$(git diff --name-status "$BASE_REF"...HEAD -- migrations | awk '$1 == "A" {print $2}')"
 if [[ -n "$ADDED_MIGRATIONS" ]]; then
   BACKUP="$(node -e 'const fs=require("node:fs"); const v=JSON.parse(fs.readFileSync(process.argv[1],"utf8")); process.stdout.write(v.backup || "");' "$TMP/upgrade-migrate.json")"
@@ -80,4 +86,4 @@ NODE
     --migrations-dir "$BASE_APP/migrations"
 fi
 
-printf 'GRACE database gate passed: base=%s head=%s\n' "$BASE_REF" "$(git rev-parse HEAD)"
+printf 'GRACE database gate passed: base=%s head=%s (repeated migrate verified)\n' "$BASE_REF" "$(git rev-parse HEAD)"

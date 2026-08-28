@@ -13,6 +13,8 @@ concurrency:
 
 permissions:
   contents: read
+  checks: read
+  actions: read
 
 jobs:
   contract:
@@ -35,11 +37,12 @@ jobs:
       - name: Resolve immutable comparison base
         id: base
         shell: bash
+        env:
+          PR_BASE_SHA: ${{ github.event.pull_request.base.sha }}
         run: |
           set -Eeuo pipefail
           if [[ "${GITHUB_EVENT_NAME}" == "pull_request" ]]; then
-            git fetch --no-tags origin "${GITHUB_BASE_REF}:refs/remotes/origin/${GITHUB_BASE_REF}"
-            BASE_REF="origin/${GITHUB_BASE_REF}"
+            BASE_REF="$PR_BASE_SHA"
           elif [[ "${GITHUB_REF}" == "refs/heads/main" ]]; then
             BASE_REF="${GITHUB_SHA}^"
           else
@@ -49,6 +52,10 @@ jobs:
           git cat-file -e "${BASE_REF}^{commit}"
           printf 'base_ref=%s\n' "$BASE_REF" >> "$GITHUB_OUTPUT"
           printf 'base=%s head=%s\n' "$(git rev-parse "$BASE_REF")" "$(git rev-parse HEAD)"
+      - name: Protect durable GRACE model and terminal archive transition
+        env:
+          GRACE_BASE_REF: ${{ steps.base.outputs.base_ref }}
+        run: node scripts/github/grace-durable-gate.mjs --base "$GRACE_BASE_REF"
       - name: Enforce approved C-* and ObservedWriteScope
         id: policy
         env:
@@ -80,11 +87,12 @@ jobs:
       - name: Resolve immutable comparison base
         id: base
         shell: bash
+        env:
+          PR_BASE_SHA: ${{ github.event.pull_request.base.sha }}
         run: |
           set -Eeuo pipefail
           if [[ "${GITHUB_EVENT_NAME}" == "pull_request" ]]; then
-            git fetch --no-tags origin "${GITHUB_BASE_REF}:refs/remotes/origin/${GITHUB_BASE_REF}"
-            BASE_REF="origin/${GITHUB_BASE_REF}"
+            BASE_REF="$PR_BASE_SHA"
           elif [[ "${GITHUB_REF}" == "refs/heads/main" ]]; then
             BASE_REF="${GITHUB_SHA}^"
           else
@@ -97,18 +105,18 @@ jobs:
         env:
           GRACE_BASE_REF: ${{ steps.base.outputs.base_ref }}
         run: node scripts/grace-governance.mjs migrations --base "$GRACE_BASE_REF"
-      - name: Prove clean install, exact-base upgrade and recovery
+      - name: Prove clean install, exact-base upgrade, repeated migration and recovery
         env:
           GRACE_BASE_REF: ${{ steps.base.outputs.base_ref }}
         run: bash scripts/ci/grace-db-gate.sh "$GRACE_BASE_REF"
 
-  merge_gate:
-    name: GRACE / merge-gate
-    if: always()
+  branch_gate:
+    name: GRACE / branch-gate
+    if: ${{ always() && github.event_name != 'pull_request' && github.ref != 'refs/heads/main' }}
     needs: [contract, database]
     runs-on: ubuntu-24.04
     steps:
-      - name: Require every GRACE job
+      - name: Require branch-local GRACE jobs
         env:
           CONTRACT: ${{ needs.contract.result }}
           DATABASE: ${{ needs.database.result }}
@@ -116,3 +124,24 @@ jobs:
           printf 'contract=%s\ndatabase=%s\n' "$CONTRACT" "$DATABASE"
           test "$CONTRACT" = success
           test "$DATABASE" = success
+
+  merge_gate:
+    name: GRACE / merge-gate
+    if: ${{ always() && (github.event_name == 'pull_request' || github.ref == 'refs/heads/main') }}
+    needs: [contract, database]
+    runs-on: ubuntu-24.04
+    timeout-minutes: 360
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+      - name: Require GRACE jobs and every exact-SHA project check
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GRACE_CONTRACT_RESULT: ${{ needs.contract.result }}
+          GRACE_DATABASE_RESULT: ${{ needs.database.result }}
+          GRACE_HEAD_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+        run: node scripts/github/grace-merge-gate.mjs
