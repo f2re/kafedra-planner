@@ -110,13 +110,14 @@ jobs:
           GRACE_BASE_REF: ${{ steps.base.outputs.base_ref }}
         run: bash scripts/ci/grace-db-gate.sh "$GRACE_BASE_REF"
 
-  branch_gate:
-    name: GRACE / branch-gate
-    if: ${{ always() && github.event_name != 'pull_request' && github.ref != 'refs/heads/main' }}
+  gate:
+    name: GRACE / ${{ (github.event_name == 'pull_request' || github.ref == 'refs/heads/main') && 'merge-gate' || 'branch-gate' }}
+    if: ${{ always() }}
     needs: [contract, database]
     runs-on: ubuntu-24.04
+    timeout-minutes: 360
     steps:
-      - name: Require branch-local GRACE jobs
+      - name: Require GRACE prerequisite jobs
         env:
           CONTRACT: ${{ needs.contract.result }}
           DATABASE: ${{ needs.database.result }}
@@ -124,21 +125,16 @@ jobs:
           printf 'contract=%s\ndatabase=%s\n' "$CONTRACT" "$DATABASE"
           test "$CONTRACT" = success
           test "$DATABASE" = success
-
-  merge_gate:
-    name: GRACE / merge-gate
-    if: ${{ always() && (github.event_name == 'pull_request' || github.ref == 'refs/heads/main') }}
-    needs: [contract, database]
-    runs-on: ubuntu-24.04
-    timeout-minutes: 360
-    steps:
       - uses: actions/checkout@v4
+        if: ${{ github.event_name == 'pull_request' || github.ref == 'refs/heads/main' }}
         with:
           ref: ${{ github.event.pull_request.head.sha || github.sha }}
       - uses: actions/setup-node@v4
+        if: ${{ github.event_name == 'pull_request' || github.ref == 'refs/heads/main' }}
         with:
           node-version-file: .nvmrc
-      - name: Require GRACE jobs and every exact-SHA project check
+      - name: Require every exact-SHA project check
+        if: ${{ github.event_name == 'pull_request' || github.ref == 'refs/heads/main' }}
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           GRACE_CONTRACT_RESULT: ${{ needs.contract.result }}
