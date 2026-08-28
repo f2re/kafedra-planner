@@ -1,0 +1,123 @@
+name: GRACE governance bootstrap
+
+on:
+  push:
+    branches: [infra/grace4-governance]
+    paths:
+      - .github/workflows/grace-bootstrap.yml
+
+permissions:
+  contents: write
+
+concurrency:
+  group: grace-governance-bootstrap
+  cancel-in-progress: false
+
+jobs:
+  apply:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 90
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: infra/grace4-governance
+          fetch-depth: 0
+          persist-credentials: true
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: 1.3.14
+
+      - name: Materialize reviewed blobs
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          git fetch --no-tags origin main:refs/remotes/origin/main
+
+          write_blob() {
+            local sha="$1"
+            local path="$2"
+            mkdir -p "$(dirname "$path")"
+            gh api "repos/${GITHUB_REPOSITORY}/git/blobs/${sha}" --jq .content \
+              | tr -d '\n' \
+              | base64 --decode > "$path"
+          }
+
+          write_blob d72a67b34fe92bb7f49fab166f70d933d14066f1 .grace/graph/main.xml
+          write_blob ac4a42a2eb4207007d5240dc80058d4066719bc6 .grace/verification/main.xml
+          write_blob a3da5098afab187c7969d002f9001f009a23770d .grace/changes/active/C-GRACE4-GOVERNANCE/spec.xml
+          write_blob 1c7cdbcccd7b5451df8a8a70efbca42dba0df546 .grace/changes/active/C-GRACE4-GOVERNANCE/plan.xml
+          write_blob 4eee71dbbe8f962cfc2875706fcf47781783d9c0 .github/workflows/grace.yml
+          write_blob d32022c494ca4ce5bd882191452e47c15db71ec4 packages/storage/src/database.mjs
+          write_blob f7fb044ea1279e9290bc93b9b8e7497b70db5024 scripts/ci/grace-db-gate.sh
+          write_blob 36c92d132d266a5f6de2f4eb96fb180b8bd9400b scripts/github/verify-pr-checks.mjs
+          write_blob e442c7f4737acc22e4449874ee044931bc66ae42 tests/migration-inventory.test.mjs
+          write_blob e8f4794bc37aa9891fe739cf31febf3a5ef56a7c tests/grace-governance.test.mjs
+          write_blob 3b9b7ec7dbb0ad7897db73b4367c94f60bf4f650 docs/GRACE_GOVERNANCE.md
+          write_blob e48f239856e1e00f0feac069fc6c14b9920954e3 scripts/grace-governance.mjs
+          write_blob cf11650c38f6bed718b660a107730452d7159728 scripts/ci/grace-scope-core.mjs
+
+          chmod +x \
+            scripts/grace-governance.mjs \
+            scripts/ci/grace-db-gate.sh \
+            scripts/github/verify-pr-checks.mjs
+
+          rm -- .github/workflows/grace-bootstrap.yml
+
+      - name: Commit candidate locally
+        id: candidate
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          git config user.name github-actions[bot]
+          git config user.email 41898282+github-actions[bot]@users.noreply.github.com
+          git add -A
+          git diff --cached --check
+          git commit -m "fix(governance): close GRACE and migration enforcement gaps"
+          printf 'sha=%s\n' "$(git rev-parse HEAD)" >> "$GITHUB_OUTPUT"
+
+      - name: Validate executable policy and runtime migration ledger
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          node --check scripts/grace-governance.mjs
+          node --check scripts/ci/grace-scope-core.mjs
+          node --check scripts/ci/grace-change-core.mjs
+          node --check scripts/ci/grace-migration-policy.mjs
+          node --check scripts/ci/grace-db-integrity.mjs
+          node --check scripts/ci/grace-governance-runner.mjs
+          node --check scripts/github/verify-pr-checks.mjs
+          bash -n scripts/ci/grace-db-gate.sh
+          node --test tests/grace-governance.test.mjs tests/migration-inventory.test.mjs
+          node scripts/grace-governance.mjs policy --base origin/main --head HEAD
+          node scripts/grace-governance.mjs migrations --base origin/main --head HEAD
+
+      - name: Validate XML and pinned GRACE final assertions
+        shell: bash
+        env:
+          GRACE_BASE_REF: origin/main
+        run: |
+          set -Eeuo pipefail
+          python3 - <<'PY'
+          from pathlib import Path
+          import xml.etree.ElementTree as ET
+          for path in Path('.grace').rglob('*.xml'):
+              ET.parse(path)
+          PY
+          bun add --global @osovv/grace-cli@4.0.5
+          grace lint --path . --change C-GRACE4-GOVERNANCE --assertions final --run-commands
+          grace status --path . --json
+          test -z "$(git status --porcelain)"
+
+      - name: Publish validated candidate to the PR branch
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          test "$(git rev-parse HEAD)" = "${{ steps.candidate.outputs.sha }}"
+          git push origin HEAD:refs/heads/infra/grace4-governance
