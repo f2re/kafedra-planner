@@ -1,0 +1,62 @@
+name: Temporary apply verified release patch
+
+on:
+  push:
+    branches:
+      - feature/academic-performance-040
+
+permissions:
+  contents: write
+
+concurrency:
+  group: temporary-apply-release-040
+  cancel-in-progress: false
+
+jobs:
+  apply:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: feature/academic-performance-040
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+      - name: Apply exact locally verified patch
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          cat .github/release-patch/chunk-* > /tmp/release-040.patch.gz.b64
+          base64 --decode /tmp/release-040.patch.gz.b64 | gzip --decompress > /tmp/release-040.patch
+          git apply --check /tmp/release-040.patch
+          git apply /tmp/release-040.patch
+          rm -rf .github/release-patch
+          rm -f .github/workflows/_temporary-apply-release.yml
+          rm -f .github/workflows/_temporary-source-snapshot.yml
+          git diff --check
+      - name: Verify release source
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          npm ci --ignore-scripts --no-audit --no-fund
+          npm run check
+          npm test
+          npm run smoke
+          npm run backup:selftest
+      - name: Commit verified release preparation
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          test "$(tr -d '[:space:]' < VERSION)" = 0.4.0
+          test ! -e .github/workflows/_temporary-source-snapshot.yml
+          test ! -e .github/workflows/_temporary-apply-release.yml
+          test ! -e .github/release-patch
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add -A
+          git commit -m 'Release 0.4.0: учебные ведомости и сводка успеваемости' -m 'Refs #179.'
+          git push origin HEAD:feature/academic-performance-040
