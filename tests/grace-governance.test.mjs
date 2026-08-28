@@ -2,10 +2,12 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 
 import {
+  changedActiveChangeIds,
   evaluateGovernance,
   evaluateMigrationPolicy,
   extractObservedWriteScope,
   globToRegExp,
+  isGovernedPath,
   parseNameStatus,
   validateObservedWriteScope
 } from '../scripts/grace-governance.mjs';
@@ -28,6 +30,33 @@ test('ObservedWriteScope supports exact files and GRACE-style ** globs', () => {
     '.grace/graph/main.xml'
   ], scope), []);
   assert.deepEqual(validateObservedWriteScope(['apps/api/src/main.mjs'], scope), ['apps/api/src/main.mjs']);
+});
+
+test('governance covers product, tests, docs, agent skills and delivery surfaces', () => {
+  for (const path of [
+    'apps/api/src/main.mjs',
+    'packages/storage/src/database.mjs',
+    'tests/example.test.mjs',
+    'docs/ARCHITECTURE.md',
+    'codex/skills/kafedra-data/SKILL.md',
+    '.github/workflows/ci.yml',
+    'README.md',
+    'VERSION'
+  ]) {
+    assert.equal(isGovernedPath(path), true, `${path} must be governed`);
+  }
+  assert.equal(isGovernedPath('.grace/changes/archive/C-OLD/spec.xml'), false);
+});
+
+test('archive-only lifecycle move does not select a deleted active change', () => {
+  const entries = parseNameStatus([
+    'D\t.grace/changes/active/C-DONE/spec.xml',
+    'D\t.grace/changes/active/C-DONE/plan.xml',
+    'A\t.grace/changes/archive/C-DONE/spec.xml',
+    'A\t.grace/changes/archive/C-DONE/plan.xml'
+  ].join('\n'));
+  assert.deepEqual(changedActiveChangeIds(entries, () => false), []);
+  assert.deepEqual(changedActiveChangeIds(entries, (id) => id === 'C-DONE'), ['C-DONE']);
 });
 
 test('governed diff fails closed when a write escapes the approved plan', () => {

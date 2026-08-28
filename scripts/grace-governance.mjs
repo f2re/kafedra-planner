@@ -6,11 +6,12 @@ import { pathToFileURL } from 'node:url';
 import { DatabaseSync } from 'node:sqlite';
 
 const GOVERNED_PREFIXES = [
-  'apps/', 'packages/', 'public/', 'migrations/', 'scripts/', 'deploy/', 'config/',
-  '.github/workflows/'
+  'apps/', 'packages/', 'public/', 'migrations/', 'scripts/', 'tests/', 'deploy/', 'config/',
+  'codex/', 'docs/', '.github/workflows/'
 ];
 const GOVERNED_FILES = new Set([
-  'package.json', 'package-lock.json', 'AGENTS.md', 'docs/CODEX_AGENTS.md', 'docs/ARCHITECTURE.md'
+  'package.json', 'package-lock.json', 'AGENTS.md', 'README.md', 'README.en.md', 'VERSION',
+  '.nvmrc', '.env.example'
 ]);
 
 function git(args, { root = process.cwd(), trim = true } = {}) {
@@ -92,7 +93,7 @@ export function validateObservedWriteScope(paths, scope) {
   return missing;
 }
 
-function isGovernedPath(path) {
+export function isGovernedPath(path) {
   const normalized = normalizePath(path);
   return GOVERNED_FILES.has(normalized) || GOVERNED_PREFIXES.some((prefix) => normalized.startsWith(prefix));
 }
@@ -106,13 +107,13 @@ function changedPaths(entries) {
   return [...new Set(paths)];
 }
 
-function changedActiveChangeIds(entries) {
+export function changedActiveChangeIds(entries, isActiveAtHead = () => true) {
   const ids = new Set();
   for (const path of changedPaths(entries)) {
     const match = path.match(/^\.grace\/changes\/active\/(C-[A-Z0-9-]+)\//);
     if (match) ids.add(match[1]);
   }
-  return [...ids].sort();
+  return [...ids].filter((id) => isActiveAtHead(id)).sort();
 }
 
 function assertApprovedArtifact(xml, rootTag, changeId, file) {
@@ -157,9 +158,14 @@ function resolveChangeBundle(root, changeId) {
   };
 }
 
+function changeIsActiveAtHead(root, changeId) {
+  const bundle = resolveChangeBundle(root, changeId);
+  return existsSync(bundle.spec) && existsSync(bundle.plan);
+}
+
 export function runPolicy({ root = process.cwd(), base = 'origin/main', head = 'HEAD' } = {}) {
   const diff = parseNameStatus(git(['diff', '--name-status', '-M', `${base}...${head}`], { root, trim: false }));
-  const ids = changedActiveChangeIds(diff);
+  const ids = changedActiveChangeIds(diff, (id) => changeIsActiveAtHead(root, id));
   const governed = changedPaths(diff).filter(isGovernedPath);
   if (governed.length > 0 && ids.length !== 1) {
     throw new Error(`Governed diff must introduce/update exactly one active C-* bundle; found ${ids.length}: ${ids.join(', ') || 'none'}.`);
@@ -168,9 +174,6 @@ export function runPolicy({ root = process.cwd(), base = 'origin/main', head = '
   const changeId = ids[0] || null;
   if (!changeId) return { ok: true, changeId: null, paths: changedPaths(diff), governed };
   const bundle = resolveChangeBundle(root, changeId);
-  if (!existsSync(bundle.spec) || !existsSync(bundle.plan)) {
-    throw new Error(`${changeId} must contain spec.xml and plan.xml.`);
-  }
   const result = evaluateGovernance({
     entries: diff,
     changeId,
@@ -236,14 +239,14 @@ export function evaluateMigrationPolicy({ baseMigrationFiles, entries, changedTe
 export function runMigrationPolicy({ root = process.cwd(), base = 'origin/main', head = 'HEAD' } = {}) {
   const entries = parseNameStatus(git(['diff', '--name-status', '-M', `${base}...${head}`], { root, trim: false }));
   const baseFiles = migrationFilesAtRef(root, base);
-  const ids = changedActiveChangeIds(entries);
+  const ids = changedActiveChangeIds(entries, (id) => changeIsActiveAtHead(root, id));
   const changeId = ids.length === 1 ? ids[0] : null;
   let specXml = '';
   let planXml = '';
   if (changeId) {
     const bundle = resolveChangeBundle(root, changeId);
-    if (existsSync(bundle.spec)) specXml = readFileSync(bundle.spec, 'utf8');
-    if (existsSync(bundle.plan)) planXml = readFileSync(bundle.plan, 'utf8');
+    specXml = readFileSync(bundle.spec, 'utf8');
+    planXml = readFileSync(bundle.plan, 'utf8');
   }
   const result = evaluateMigrationPolicy({
     baseMigrationFiles: baseFiles,

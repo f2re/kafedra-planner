@@ -23,7 +23,9 @@ No step converts a projection into a second source of truth. Application data in
 
 ## Branch lifecycle
 
-Significant changes to application, packages, migrations, scripts, deployment, CI or architecture require exactly one active `.grace/changes/active/C-*` bundle in the branch diff. `spec.xml` and `plan.xml` must both be `status="approved"` before implementation writes start.
+Significant changes require exactly one active `.grace/changes/active/C-*` bundle in the branch diff. Governed surfaces include application/packages/public code, migrations, scripts, tests, deployment/configuration, repository-local Codex skills, project documentation, GitHub workflows and root product/toolchain contracts such as `package*.json`, `README*`, `VERSION`, `.nvmrc`, `.env.example` and `AGENTS.md`. `spec.xml` and `plan.xml` must both be `status="approved"` before implementation writes start.
+
+`.grace/**` itself is intentionally not treated as a governed product path. This permits a terminal, archive-only lifecycle commit after post-merge evidence is green. It does **not** permit product changes to hide in an archive commit: as soon as any governed path changes, the diff again requires exactly one approved active C-* bundle and its `ObservedWriteScope`.
 
 Before observed writes:
 
@@ -127,7 +129,7 @@ scripts/github/merge-grace-pr.sh <PR_NUMBER> f2re/kafedra-planner
 
 Agents using GitHub APIs must enforce the same invariant: refetch PR metadata immediately before merge, reject unresolved review threads or non-success checks, and pass the expected head SHA to the squash merge operation.
 
-After merge, fetch the new `main` SHA and confirm post-merge CI. Only then is the change considered applied. Move the bundle to `.grace/changes/archive/C-*` with terminal `status="applied"`; archive-only lifecycle movement must not be used to smuggle product writes.
+After merge, fetch the new `main` SHA and confirm post-merge CI. Only then is the change considered applied. Move the bundle to `.grace/changes/archive/C-*` with terminal `status="applied"`; the policy deliberately ignores a deleted active bundle during an archive-only diff, while generic `grace lint` still validates the terminal archive state.
 
 ## Failure behavior
 
