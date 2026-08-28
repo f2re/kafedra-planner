@@ -1,0 +1,22 @@
+<GraceRequirements graceVersion="4.0">
+  <ProjectName>kafedra-planner</ProjectName>
+  <Annotation>Autonomous department-planning platform for documents, plans, calendar, assignments, meetings, reporting, evidence and controlled offline operation.</Annotation>
+  <Keywords>offline-first, department planning, documents, SQLite, evidence, audit, ACL, migrations, GitHub CI, GRACE</Keywords>
+  <Goals>
+    <Goal>Keep one authoritative domain record for each fact while derived calendar, search, report and notification projections remain rebuildable.</Goal>
+    <Goal>Deliver changes through a traceable branch, approved GRACE change contract, deterministic verification and reviewed merge into main.</Goal>
+    <Goal>Preserve documents, provenance, audit history and operational recoverability across upgrades and failures.</Goal>
+  </Goals>
+  <Users>
+    <User>Department staff, managers and administrators operating primarily on Debian/Astra Linux.</User>
+    <User>Maintainers and Codex agents implementing and releasing the application.</User>
+  </Users>
+  <Constraints>
+    <Constraint>The primary product must work without Internet access, Docker, cloud services or an LLM.</Constraint>
+    <Constraint>LLM integration is optional and local; deterministic domain behavior remains authoritative.</Constraint>
+    <Constraint>Source documents and document versions are immutable; corrections create revisions and audit evidence instead of rewriting history.</Constraint>
+    <Constraint>Derived projections must not silently become a second source of truth.</Constraint>
+    <Constraint>Persisted changes must preserve ACL, provenance, transactionality and idempotency.</Constraint>
+    <Constraint>Significant repository changes require an approved active GRACE spec and plan before implementation.</Constraint>
+  </Constraints>
+</GraceRequirements>

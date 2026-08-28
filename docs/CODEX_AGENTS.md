@@ -26,3 +26,27 @@ Small internal fixes may skip design intake only when they do not alter user flo
 - Offline-first, ACL, provenance, immutable document, audit, transaction, and idempotency invariants hold.
 - Relevant unit/integration tests and browser coverage (for UI) pass; `npm run check` and `npm run docs:check` pass when contracts or docs change.
 - Migration and release consequences are explicit. A release-impacting change has backup/restore and rollback evidence before promotion.
+
+## GRACE orchestration
+
+GRACE 4 owns the outer lifecycle. A significant request is represented by one approved active `C-*`; the specialist roles above are routed to `T-*` tasks in its approved `GraceChangePlan`.
+
+```text
+GraceChangeSpec
+      ↓
+GraceChangePlan
+      ↓
+T-* flow-intake
+      ↓
+T-* design + data
+      ↓
+T-* feature
+      ↓
+T-* tests
+      ↓
+T-* release
+      ↓
+GRACE target/final → GitHub required checks → exact-head squash merge
+```
+
+Specialist handoffs never widen `ObservedWriteScope`, rewrite approved assertions, push directly to `main`, or replace the selected GRACE final gate with focused tests. Schema work owned by `kafedra-data` must also satisfy the repository migration gate described in `docs/GRACE_GOVERNANCE.md`. Release work owned by `kafedra-release` consumes the successful GRACE/project/release checks; it cannot declare a go decision while any mandatory check is pending, failed, cancelled, missing or unexpectedly skipped.

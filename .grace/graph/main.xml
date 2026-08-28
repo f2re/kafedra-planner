@@ -1,0 +1,57 @@
+<GraceGraphDocument graceVersion="4.0">
+  <GD-MAIN>
+    <M-API>
+      <Summary>HTTP entry point for the department-planning application.</Summary>
+      <Path>apps/api/src/main.mjs</Path>
+      <M-DATABASE />
+    </M-API>
+    <M-WORKER>
+      <Summary>Background processing entry point for durable document and projection jobs.</Summary>
+      <Path>apps/worker/src/main.mjs</Path>
+      <M-DATABASE />
+    </M-WORKER>
+    <M-DATABASE>
+      <Summary>SQLite connection, WAL configuration, transactional helpers and sequential schema migration execution.</Summary>
+      <Path>packages/storage/src/database.mjs</Path>
+    </M-DATABASE>
+    <M-BACKUP>
+      <Summary>Backup verification, restore and pre-migration recovery services.</Summary>
+      <Path>packages/backup/src/service.mjs</Path>
+      <M-DATABASE />
+    </M-BACKUP>
+    <M-MIGRATION-RUNNER>
+      <Summary>Operational migration runner with automatic pre-migration backup and failure restoration.</Summary>
+      <Path>scripts/migrate.mjs</Path>
+      <M-DATABASE />
+      <M-BACKUP />
+    </M-MIGRATION-RUNNER>
+    <M-GRACE-GOVERNANCE>
+      <Summary>Fail-closed branch policy, observed write scope enforcement, migration immutability and SQLite integrity checks.</Summary>
+      <Path>scripts/grace-governance.mjs</Path>
+      <M-DATABASE />
+      <M-MIGRATION-RUNNER />
+    </M-GRACE-GOVERNANCE>
+    <M-CI-GATE>
+      <Summary>GitHub Actions gate that validates GRACE contracts and database upgrades for branches, pull requests and main.</Summary>
+      <Path>.github/workflows/grace.yml</Path>
+      <M-GRACE-GOVERNANCE />
+      <M-MIGRATION-RUNNER />
+    </M-CI-GATE>
+    <M-OFFLINE-BUNDLE>
+      <Summary>Full offline distribution build used by the existing release and CI contract.</Summary>
+      <Path>scripts/offline/build-full-bundle.sh</Path>
+    </M-OFFLINE-BUNDLE>
+    <DF-GRACE-BRANCH>
+      <Summary>Issue to exact-main branch, approved C-* spec/plan, scoped implementation, GRACE final gate, project CI and squash merge.</Summary>
+      <M-GRACE-GOVERNANCE />
+      <M-CI-GATE />
+    </DF-GRACE-BRANCH>
+    <DF-DATABASE-UPGRADE>
+      <Summary>Base revision database to pre-migration backup, HEAD migration, integrity verification and restorable baseline evidence.</Summary>
+      <M-MIGRATION-RUNNER />
+      <M-BACKUP />
+      <M-DATABASE />
+      <M-GRACE-GOVERNANCE />
+    </DF-DATABASE-UPGRADE>
+  </GD-MAIN>
+</GraceGraphDocument>

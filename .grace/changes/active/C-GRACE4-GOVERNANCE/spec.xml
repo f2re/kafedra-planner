@@ -1,0 +1,53 @@
+<GraceChangeSpec graceVersion="4.0" status="approved">
+  <C-GRACE4-GOVERNANCE>
+    <Summary>Make GRACE 4 the mandatory contract-first branch, database and merge governance layer for kafedra-planner.</Summary>
+    <Problem>Development already has project-specific Codex roles and broad CI, but main is unprotected and there is no machine-enforced link between an approved change contract, its observed write scope, append-only database migrations, final verification, and merge eligibility.</Problem>
+    <Goals>
+      <Goal>Require significant implementation work to use one approved active C-* spec and plan on a short branch created from an exact main revision.</Goal>
+      <Goal>Fail closed when observed repository writes escape the approved GraceChangePlan scope.</Goal>
+      <Goal>Protect SQLite consistency with immutable applied migrations, contiguous append-only migration numbering, clean-install and base-to-head upgrade checks, integrity checks, pre-migration backup verification and restore evidence.</Goal>
+      <Goal>Expose deterministic GitHub checks for GRACE contract, database upgrade and final merge eligibility while preserving the existing project and release CI.</Goal>
+      <Goal>Integrate kafedra-* specialist roles inside GRACE tasks rather than replacing them.</Goal>
+    </Goals>
+    <Constraints>
+      <Constraint>GRACE CLI 4.0.5 and Bun 1.3.14 are engineering/CI tools only and must not become application runtime or offline-bundle dependencies.</Constraint>
+      <Constraint>No application feature or application schema migration is introduced by this governance change.</Constraint>
+      <Constraint>Existing AGENTS.md, architecture, release gates and repository-local Codex skills remain authoritative and are extended rather than replaced.</Constraint>
+      <Constraint>A merge is eligible only for an unchanged PR head with all configured mandatory checks successful; pending, failed, cancelled or unexpected skipped evidence is not acceptable.</Constraint>
+      <Constraint>GitHub server-side main protection is a repository administrative control; because the connected GitHub action surface cannot mutate branch protection, the repository must contain an idempotent desired-state script and documentation for applying it with an administrative token.</Constraint>
+    </Constraints>
+    <NonGoals>
+      <NonGoal>Introduce gRPC transport, a network service, Docker, cloud infrastructure or a production GRACE dependency.</NonGoal>
+      <NonGoal>Change current department-planning behavior, user data, database schema version or release version.</NonGoal>
+      <NonGoal>Merge unrelated open feature or release branches.</NonGoal>
+    </NonGoals>
+    <AcceptanceCriteria>
+      <Criterion>GRACE 4 context, graph, verification and change artifacts validate with the pinned GRACE CLI.</Criterion>
+      <Criterion>A governed diff without exactly one approved active C-* bundle fails, and any write outside ObservedWriteScope fails.</Criterion>
+      <Criterion>An existing migration cannot be changed, renamed or deleted relative to the PR base.</Criterion>
+      <Criterion>A new migration is accepted only as the next contiguous NNN migration with migration regression coverage and M-DATABASE/V-M-DATABASE scope.</Criterion>
+      <Criterion>The database gate proves clean HEAD migration and exact-base-to-HEAD upgrade with quick_check and foreign_key_check; schema upgrades additionally prove a verifiable restorable pre-migration backup.</Criterion>
+      <Criterion>GitHub Actions runs GRACE checks on development branches, pull requests and main; GRACE / merge-gate succeeds only when contract and database jobs succeed.</Criterion>
+      <Criterion>The documented main protection contract requires pull requests, strict up-to-date status checks, squash-only merges, no force-push/delete, conversation resolution and all mandatory existing CI/release plus GRACE merge gates.</Criterion>
+    </AcceptanceCriteria>
+    <AffectedAreas>
+      <M-GRACE-GOVERNANCE />
+      <M-CI-GATE />
+      <M-DATABASE />
+      <M-MIGRATION-RUNNER />
+      <M-BACKUP />
+      <M-OFFLINE-BUNDLE />
+    </AffectedAreas>
+    <VerificationIntent>
+      <ExpectedCommand>grace lint --path . --change C-GRACE4-GOVERNANCE --assertions final --run-commands</ExpectedCommand>
+      <ExpectedCommand>node --test tests/grace-governance.test.mjs</ExpectedCommand>
+      <ExpectedCommand>bash scripts/ci/grace-db-gate.sh origin/main</ExpectedCommand>
+      <ExpectedEvidence>GRACE final lint, governance regression tests, database upgrade/restore evidence and GitHub required checks are successful for one unchanged head SHA.</ExpectedEvidence>
+    </VerificationIntent>
+    <Assumptions>
+      <Assumption>main remains the canonical integration branch.</Assumption>
+      <Assumption>SQLite schema_migrations remains the authoritative ordered migration ledger.</Assumption>
+      <Assumption>GitHub administrators can apply the committed protection script once using gh with an administrative token.</Assumption>
+    </Assumptions>
+  </C-GRACE4-GOVERNANCE>
+</GraceChangeSpec>

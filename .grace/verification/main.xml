@@ -1,0 +1,45 @@
+<GraceVerificationDocument graceVersion="4.0">
+  <VD-MAIN>
+    <V-M-API>
+      <TestFiles><File>tests/storage.test.mjs</File></TestFiles>
+      <Command>npm run smoke</Command>
+      <Scenario>API starts on a migrated database and exposes a healthy deterministic application surface.</Scenario>
+    </V-M-API>
+    <V-M-WORKER>
+      <TestFiles><File>tests/storage.test.mjs</File></TestFiles>
+      <Command>npm test</Command>
+      <Scenario>Worker-visible storage and domain invariants remain covered by repository regression tests.</Scenario>
+    </V-M-WORKER>
+    <V-M-DATABASE>
+      <TestFiles><File>tests/storage.test.mjs</File></TestFiles>
+      <Command>npm test</Command>
+      <Scenario>Transactions, migrations and foreign-key invariants remain valid.</Scenario>
+    </V-M-DATABASE>
+    <V-M-BACKUP>
+      <TestFiles><File>tests/deployment-flow.test.mjs</File></TestFiles>
+      <Command>npm run backup:selftest</Command>
+      <Scenario>A backup can be created, verified and restored without losing the supported database state.</Scenario>
+    </V-M-BACKUP>
+    <V-M-MIGRATION-RUNNER>
+      <TestFiles><File>tests/grace-governance.test.mjs</File></TestFiles>
+      <Command>bash scripts/ci/grace-db-gate.sh origin/main</Command>
+      <Scenario>HEAD supports clean installation and upgrade from the exact base revision with integrity checks.</Scenario>
+      <Scenario>A schema change produces a verifiable pre-migration backup that restores the base schema.</Scenario>
+    </V-M-MIGRATION-RUNNER>
+    <V-M-GRACE-GOVERNANCE>
+      <TestFiles><File>tests/grace-governance.test.mjs</File></TestFiles>
+      <Command>node --test tests/grace-governance.test.mjs</Command>
+      <Scenario>Governed writes outside an approved ObservedWriteScope fail closed.</Scenario>
+      <Scenario>Applied migrations cannot be modified, renamed or deleted.</Scenario>
+    </V-M-GRACE-GOVERNANCE>
+    <V-M-CI-GATE>
+      <TestFiles><File>tests/grace-governance.test.mjs</File></TestFiles>
+      <Command>node --test tests/grace-governance.test.mjs</Command>
+      <Scenario>GRACE merge-gate succeeds only when its contract and database jobs both succeed.</Scenario>
+    </V-M-CI-GATE>
+    <V-M-OFFLINE-BUNDLE>
+      <Command>bash -n scripts/offline/*.sh deploy/install.sh</Command>
+      <Scenario>Governance changes do not introduce a runtime dependency on Bun or GRACE into the offline bundle.</Scenario>
+    </V-M-OFFLINE-BUNDLE>
+  </VD-MAIN>
+</GraceVerificationDocument>
