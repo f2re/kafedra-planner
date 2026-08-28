@@ -87,7 +87,7 @@ This extends the existing recovery behavior in `scripts/migrate.mjs`; it does no
 
 `.github/workflows/grace.yml` runs on every development-branch push, pull request to `main`, and `main` push. It pins Bun `1.3.14` and `@osovv/grace-cli@4.0.5`. GRACE is not installed into the product runtime or offline bundle.
 
-`GRACE / merge-gate` is successful only if both `GRACE / contract` and `GRACE / database` complete successfully. Existing project CI and release CI remain independent mandatory evidence.
+`GRACE / merge-gate` is successful only if both `GRACE / contract` and `GRACE / database` complete successfully. Existing project CI, release CI, organization and science workflows remain independent mandatory evidence.
 
 The desired required checks for `main` are:
 
@@ -98,6 +98,10 @@ The desired required checks for `main` are:
 - `Сборщик под host Node 25.6`
 - `Full offline Debian 12 + Project Control`
 - `release-gate`
+- `organization-browser`
+- `science-lifecycle-browser`
+- `science-import-browser`
+- `science-reports-browser`
 
 A required check that is pending, failed, cancelled, missing or unexpectedly skipped is not merge evidence.
 

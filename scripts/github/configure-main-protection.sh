@@ -18,8 +18,8 @@ gh api --method PATCH "repos/${REPO}" --input - <<'JSON'
 }
 JSON
 
-# Require a PR (zero mandatory human approvals), a fresh branch, every aggregate/project gate,
-# linear history, resolved conversations, and forbid force-push/deletion even for admins.
+# Require a PR (zero mandatory human approvals), a fresh branch, every project-specific
+# and aggregate gate, linear history, resolved conversations, and forbid force-push/deletion.
 gh api --method PUT "repos/${REPO}/branches/${BRANCH}/protection" --input - <<'JSON'
 {
   "required_status_checks": {
@@ -31,7 +31,11 @@ gh api --method PUT "repos/${REPO}/branches/${BRANCH}/protection" --input - <<'J
       "browser",
       "Сборщик под host Node 25.6",
       "Full offline Debian 12 + Project Control",
-      "release-gate"
+      "release-gate",
+      "organization-browser",
+      "science-lifecycle-browser",
+      "science-import-browser",
+      "science-reports-browser"
     ]
   },
   "enforce_admins": true,
