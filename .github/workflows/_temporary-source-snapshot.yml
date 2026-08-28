@@ -1,0 +1,23 @@
+name: Temporary source snapshot
+
+on:
+  push:
+    branches:
+      - feature/academic-performance-040
+
+permissions:
+  contents: read
+
+jobs:
+  snapshot:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - name: Pack source tree
+        run: tar --exclude=.git -czf /tmp/kafedra-source.tgz .
+      - uses: actions/upload-artifact@v4
+        with:
+          name: kafedra-source-snapshot
+          path: /tmp/kafedra-source.tgz
+          retention-days: 1
+          if-no-files-found: error
