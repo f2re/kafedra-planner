@@ -8,14 +8,15 @@
 Issue
   → exact main SHA
   → short branch
-  → approved GraceChangeSpec
+  → draft/approved GraceChangeSpec
   → approved GraceChangePlan
-  → baseline gate before writes
+  → baseline gate before governed writes
   → scoped implementation
-  → selected target/final gate
-  → exact-SHA project, release and database gates
+  → selected final gate
+  → project CI + release gate + database gate
   → unchanged-head squash merge
   → post-merge CI
+  → immutable archive-only PR
   → C-* applied/archive
 ```
 
@@ -23,11 +24,21 @@ No step converts a projection into a second source of truth. Application data in
 
 ## Branch lifecycle
 
-Significant changes require exactly one active `.grace/changes/active/C-*` bundle in the branch diff. Governed surfaces include application/packages/public code, migrations, scripts, tests, deployment/configuration, repository-local Codex skills, project documentation, GitHub workflows and root product/toolchain contracts such as `package*.json`, `README*`, `VERSION`, `.nvmrc`, `.env.example` and `AGENTS.md`. `spec.xml` and `plan.xml` must both be `status="approved"` before implementation writes start.
+A development branch is compared with the exact current `main` base. Branch pushes may advance through three machine-visible stages:
 
-The durable GRACE model under `.grace/context`, `.grace/graph` and `.grace/verification` is protected by `scripts/github/grace-durable-gate.mjs`: it cannot change without exactly one approved active C-* in the same base-to-head diff. `.grace/changes` has a narrower lifecycle rule. A change without an active bundle may only move one complete `spec.xml`/`plan.xml` pair from `active/C-*` to `archive/C-*`, and both archived roots must be `status="applied"`. Adding or editing an archive bundle directly is rejected.
+| Stage | Allowed branch state | GRACE assertion gate |
+| --- | --- | --- |
+| `draft` | one active `C-*`; draft or approved spec; plan optional/draft | `current` |
+| `planned` | approved spec and approved plan; no governed implementation writes yet | `baseline --run-commands` |
+| `implementation` | approved spec/plan plus governed writes contained by `ObservedWriteScope` | `final --run-commands` |
 
-Before observed writes:
+A pull request to `main` cannot contain only an active proposal. It must contain a completed governed change with approved `spec.xml` and `plan.xml`, or be the dedicated terminal archive-only transition described below.
+
+Until terminal archiving, the sole complete active `C-*` remains the governing contract for corrective follow-up branches based on that `main`; it may be continued without rewriting the approved bundle, but a different active change cannot coexist with it or borrow its scope.
+
+Every repository file is governed except direct XML artifacts inside `.grace/changes/active/C-*` and `.grace/changes/archive/C-*`, which are validated by dedicated lifecycle rules. Consequently, application code, tests, scripts, workflow files, root build/test configuration, documentation, and durable GRACE context/graph/verification artifacts all require exactly one matching active `C-*`. This closes the possibility of changing architectural contracts or weakening a test configuration outside a change plan.
+
+Before governed writes:
 
 ```bash
 grace lint --path . --assertions current
@@ -45,7 +56,24 @@ grace status --path . --json
 
 An approved plan is immutable. If scope, assertions or acceptance criteria materially change, supersede the change bundle instead of silently widening an approved plan.
 
-`scripts/grace-governance.mjs policy` compares the branch with its exact base and rejects writes outside `ObservedWriteScope`. The durable companion gate protects GRACE's own context, graph, verification and terminal archive transition. Both are deliberately independent of XML syntax validation, so an agent cannot authorize a broad diff merely by producing well-formed artifacts.
+`scripts/github/grace-policy-gate.mjs` independently compares the branch with its exact base and rejects writes outside `ObservedWriteScope`. It is deliberately separate from GRACE CLI so an agent cannot make a broad diff merely by keeping XML syntactically valid.
+
+## Terminal archive transition
+
+GRACE 4 keeps an executable change under `.grace/changes/active/` while selected final assertions are being evaluated. Therefore the completed bundle is archived only after the implementation PR is merged and the new `main` SHA has green post-merge CI.
+
+Archiving is a second, dedicated archive-only branch and PR. The policy accepts it only when all of the following are true:
+
+- the exact base contains one approved active bundle;
+- HEAD removes that active bundle and creates the same `C-*` under `archive`;
+- no application, documentation, workflow, context, graph, verification or other repository file changes;
+- the exact bundle file set is preserved;
+- every companion artifact is byte-identical;
+- `spec.xml` and `plan.xml` differ only in their root `status`;
+- both roots use the same terminal status: `applied`, `rejected`, `cancelled` or `superseded`;
+- no active copy remains at HEAD.
+
+A direct edit of an existing archive, a content rewrite disguised as archiving, deletion without an archive, or archive plus product changes fails closed. The archive PR runs normal PR CI and is squash-merged with the same exact-head rule.
 
 ## Role routing
 
@@ -70,8 +98,7 @@ Applied SQL files are immutable. A branch may only add the next contiguous `migr
 - `<V-M-DATABASE />` in the plan durable verification scope;
 - clean database creation from HEAD;
 - creation of a real database using the exact base revision, followed by upgrade with HEAD;
-- a second HEAD migration run against the already upgraded database to prove idempotency;
-- `PRAGMA quick_check` and `PRAGMA foreign_key_check` after every supported state;
+- `PRAGMA quick_check` and `PRAGMA foreign_key_check` after each supported state;
 - exact `schema_migrations` parity with the migration directory;
 - automatic pre-migration backup, backup verification and restoration to the exact base schema whenever a schema migration is added.
 
@@ -82,20 +109,23 @@ node scripts/grace-governance.mjs migrations --base origin/main
 bash scripts/ci/grace-db-gate.sh origin/main
 ```
 
-This extends the existing recovery behavior in `scripts/migrate.mjs`; it does not add a second migration engine. Rollback uses the verified pre-migration backup and previous application bundle rather than mutable down-migrations.
+This extends the existing recovery behavior in `scripts/migrate.mjs`; it does not add a second migration engine. Database rollback is restoration of the verified pre-migration backup; destructive down-migrations are not introduced.
 
 ## GitHub checks
 
 `.github/workflows/grace.yml` runs on every development-branch push, pull request to `main`, and `main` push. It pins Bun `1.3.14` and `@osovv/grace-cli@4.0.5`. GRACE is not installed into the product runtime or offline bundle.
 
-The workflow deliberately exposes two different aggregate names:
+Check names are event-specific so a branch push and its pull-request run cannot publish ambiguous duplicate contexts:
 
-- `GRACE / branch-gate` exists only for a development-branch push and proves branch-local contract/database checks;
-- `GRACE / merge-gate` exists only for a pull request or a `main` push. It first requires `GRACE / contract` and `GRACE / database`, then polls the GitHub Checks API for every required check on the exact immutable head SHA.
+| Event | Contract/database/aggregate names |
+| --- | --- |
+| pull request | `GRACE / contract`, `GRACE / database`, `GRACE / merge-gate` |
+| development branch push | `GRACE branch / contract`, `GRACE branch / database`, `GRACE branch / merge-gate` |
+| `main` push | `GRACE post-merge / contract`, `GRACE post-merge / database`, `GRACE post-merge / merge-gate` |
 
-This separation prevents a successful branch-push check with the same name from satisfying a pull-request protection rule. `scripts/github/grace-merge-gate.mjs` fails closed on a missing, queued, in-progress, failed, cancelled, timed-out, neutral, stale or skipped required check. A successful result from another SHA is ignored.
+`GRACE / merge-gate` is successful only if both PR-scoped GRACE jobs complete successfully. Existing project CI, release CI, organization and science workflows remain independent mandatory evidence.
 
-The single desired-state list lives in `scripts/github/grace-required-checks.mjs` and is shared by the CI aggregator and branch-protection installer:
+The desired required checks for `main` are:
 
 - `GRACE / merge-gate`
 - `Минимальный Node 24.15`
@@ -109,6 +139,8 @@ The single desired-state list lives in `scripts/github/grace-required-checks.mjs
 - `science-import-browser`
 - `science-reports-browser`
 
+A required check that is pending, failed, cancelled, missing or unexpectedly skipped is not merge evidence. Conditional assertion modes are executed inside one check step, so lifecycle selection does not create misleading skipped check jobs.
+
 ## Server-side protection of main
 
 GitHub branch protection is a server setting and cannot be enforced by repository files alone. Apply the committed desired state once with an administrator token:
@@ -117,7 +149,7 @@ GitHub branch protection is a server setting and cannot be enforced by repositor
 scripts/github/configure-main-protection.sh f2re/kafedra-planner main
 ```
 
-The script reads the same check list as the exact-SHA merge gate and configures strict up-to-date checks, pull-request-only integration with zero mandatory human approvals, resolved conversations, linear history, squash-only merging, auto-merge support, administrator enforcement, and disables force-push and branch deletion.
+The script configures strict up-to-date checks, pull-request-only integration with zero mandatory human approvals, resolved conversations, linear history, squash-only merging, auto-merge support, administrator enforcement, and disables force-push and branch deletion.
 
 Verify afterwards:
 
@@ -125,7 +157,7 @@ Verify afterwards:
 gh api repos/f2re/kafedra-planner/branches/main/protection
 ```
 
-If a required check is renamed, change the shared list and affected workflow in the same GRACE change. A committed desired-state script is not evidence that the server setting has actually been applied; the API readback is mandatory.
+If a required check is renamed, change the workflow and protection desired state in the same GRACE change.
 
 ## Merge
 
@@ -137,8 +169,8 @@ scripts/github/merge-grace-pr.sh <PR_NUMBER> f2re/kafedra-planner
 
 Agents using GitHub APIs must enforce the same invariant: refetch PR metadata immediately before merge, reject unresolved review threads or non-success checks, and pass the expected head SHA to the squash merge operation.
 
-After merge, fetch the new `main` SHA and confirm post-merge GRACE, project, release, organization and science workflows. Only then is the change considered applied. Move the bundle to `.grace/changes/archive/C-*` with terminal `status="applied"` through a separate archive-only branch and PR; the durable gate accepts only that complete transition, while generic `grace lint` validates the terminal archive state.
+After implementation merge, fetch the new `main` SHA and confirm post-merge CI. Then create the archive-only PR described above, let all PR checks complete, and squash-merge it with exact-head verification. Only the second merge leaves the durable GRACE state with zero active changes and one terminal archived bundle.
 
 ## Failure behavior
 
-The governance layer fails closed. It never rewrites an existing migration, force-pushes around a race, widens scope automatically, treats local focused tests as replacement for GitHub CI, accepts a branch-push gate as a PR merge gate, or reports a merge/green gate before GitHub confirms the exact SHA.
+The governance layer fails closed. It never rewrites an existing migration, force-pushes around a race, widens scope automatically, treats local focused tests as replacement for GitHub CI, modifies durable GRACE contracts without an active plan, rewrites an archive, or reports a merge/green gate before GitHub confirms it.
