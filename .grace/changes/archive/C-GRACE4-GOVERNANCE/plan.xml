@@ -1,4 +1,4 @@
-<GraceChangePlan graceVersion="4.0" status="approved">
+<GraceChangePlan graceVersion="4.0" status="applied">
   <C-GRACE4-GOVERNANCE>
     <IntentSummary>Install GRACE 4 as a fail-closed outer lifecycle around existing kafedra-planner specialist roles and GitHub CI without changing product runtime or application schema.</IntentSummary>
     <BaselineAssertions>
