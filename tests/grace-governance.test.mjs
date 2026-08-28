@@ -23,9 +23,9 @@ import {
   globToRegExp,
   isGovernedPath,
   parseNameStatus,
-  runPolicy,
   validateObservedWriteScope
 } from '../scripts/grace-governance.mjs';
+import { runPolicy } from '../scripts/github/grace-policy-gate.mjs';
 
 const approvedSpec = (id = 'C-TEST') =>
   `<GraceChangeSpec graceVersion="4.0" status="approved"><${id}><Summary>x</Summary></${id}></GraceChangeSpec>`;
@@ -162,6 +162,32 @@ test('governed diff fails closed when a write escapes the approved plan', () => 
   assert.match(result.errors[0], /apps\/api\/src\/main\.mjs/);
 });
 
+test('policy continues the sole approved active change inherited from the exact base', () => {
+  const root = createRepository();
+  try {
+    write(root, '.grace/changes/archive/.gitkeep', '');
+    write(root, '.grace/changes/active/C-CONTINUE/spec.xml', approvedSpec('C-CONTINUE'));
+    write(
+      root,
+      '.grace/changes/active/C-CONTINUE/plan.xml',
+      approvedPlan('C-CONTINUE', '<File>docs/GRACE_GOVERNANCE.md</File><Glob>.grace/**</Glob>')
+    );
+    write(root, 'docs/GRACE_GOVERNANCE.md', 'baseline\n');
+    const base = commitAll(root, 'approved active base');
+
+    write(root, 'docs/GRACE_GOVERNANCE.md', 'hardened\n');
+    commitAll(root, 'continue active implementation');
+
+    const result = runPolicy({ root, base, head: 'HEAD', mode: 'pr' });
+    assert.equal(result.lifecycle, 'active');
+    assert.equal(result.stage, 'implementation');
+    assert.equal(result.assertionMode, 'final');
+    assert.equal(result.changeId, 'C-CONTINUE');
+  } finally {
+    rmSync(root, { recursive: true, force: true });
+  }
+});
+
 test('archive-only transition preserves bundle content and changes only terminal status', () => {
   const entries = parseNameStatus([
     'D\t.grace/changes/active/C-DONE/spec.xml',
@@ -231,7 +257,7 @@ test('policy accepts staged branch work, rejects active-only PR, and governs dur
     commitAll(root, 'uncontracted context drift');
     assert.throws(
       () => runPolicy({ root, base, head: 'HEAD', mode: 'branch' }),
-      /exactly one active C-\* bundle/
+      /exactly one complete active C-\* bundle/
     );
   } finally {
     rmSync(root, { recursive: true, force: true });
