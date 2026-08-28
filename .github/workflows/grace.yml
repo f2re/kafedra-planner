@@ -62,14 +62,14 @@ jobs:
       - name: Protect durable GRACE model and terminal archive transition
         env:
           GRACE_BASE_REF: ${{ steps.base.outputs.base_ref }}
-        run: node scripts/github/grace-durable-gate.mjs --base "$GRACE_BASE_REF" --head HEAD
+        run: node scripts/github/grace-durable-gate.mjs --base "$GRACE_BASE_REF" --head "$GITHUB_SHA"
       - name: Enforce C-* lifecycle and ObservedWriteScope
         id: policy
         env:
           GRACE_BASE_REF: ${{ steps.base.outputs.base_ref }}
           GRACE_POLICY_MODE: ${{ steps.base.outputs.policy_mode }}
         run: >-
-          node scripts/github/grace-policy-gate.mjs
+          node scripts/grace-governance.mjs policy
           --base "$GRACE_BASE_REF"
           --mode "$GRACE_POLICY_MODE"
           --github-output

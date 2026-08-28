@@ -34,8 +34,6 @@ A development branch is compared with the exact current `main` base. Branch push
 
 A pull request to `main` cannot contain only an active proposal. It must contain a completed governed change with approved `spec.xml` and `plan.xml`, or be the dedicated terminal archive-only transition described below.
 
-Until terminal archiving, the sole complete active `C-*` remains the governing contract for corrective follow-up branches based on that `main`; it may be continued without rewriting the approved bundle, but a different active change cannot coexist with it or borrow its scope.
-
 Every repository file is governed except direct XML artifacts inside `.grace/changes/active/C-*` and `.grace/changes/archive/C-*`, which are validated by dedicated lifecycle rules. Consequently, application code, tests, scripts, workflow files, root build/test configuration, documentation, and durable GRACE context/graph/verification artifacts all require exactly one matching active `C-*`. This closes the possibility of changing architectural contracts or weakening a test configuration outside a change plan.
 
 Before governed writes:
@@ -56,7 +54,7 @@ grace status --path . --json
 
 An approved plan is immutable. If scope, assertions or acceptance criteria materially change, supersede the change bundle instead of silently widening an approved plan.
 
-`scripts/github/grace-policy-gate.mjs` independently compares the branch with its exact base and rejects writes outside `ObservedWriteScope`. It is deliberately separate from GRACE CLI so an agent cannot make a broad diff merely by keeping XML syntactically valid.
+`scripts/grace-governance.mjs policy` independently compares the branch with its exact base and rejects writes outside `ObservedWriteScope`. It is deliberately separate from GRACE CLI so an agent cannot make a broad diff merely by keeping XML syntactically valid.
 
 ## Terminal archive transition
 
