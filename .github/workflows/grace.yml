@@ -18,7 +18,7 @@ permissions:
 
 jobs:
   contract:
-    name: GRACE / contract
+    name: ${{ github.event_name == 'pull_request' && 'GRACE / contract' || github.ref_name == 'main' && 'GRACE post-merge / contract' || 'GRACE branch / contract' }}
     runs-on: ubuntu-24.04
     timeout-minutes: 25
     steps:
@@ -34,6 +34,87 @@ jobs:
           bun-version: 1.3.14
       - name: Install pinned GRACE CLI
         run: bun add --global @osovv/grace-cli@4.0.5
+      - name: Resolve immutable comparison base and lifecycle mode
+        id: base
+        shell: bash
+        env:
+          PR_BASE_SHA: ${{ github.event.pull_request.base.sha }}
+        run: |
+          set -Eeuo pipefail
+          if [[ "${GITHUB_EVENT_NAME}" == "pull_request" ]]; then
+            BASE_REF="$PR_BASE_SHA"
+            POLICY_MODE=pr
+          elif [[ "${GITHUB_REF}" == "refs/heads/main" ]]; then
+            BASE_REF="${GITHUB_SHA}^"
+            POLICY_MODE=main
+          else
+            git fetch --no-tags origin main:refs/remotes/origin/main
+            BASE_REF="origin/main"
+            POLICY_MODE=branch
+          fi
+          git cat-file -e "${BASE_REF}^{commit}"
+          printf 'base_ref=%s\n' "$BASE_REF" >> "$GITHUB_OUTPUT"
+          printf 'policy_mode=%s\n' "$POLICY_MODE" >> "$GITHUB_OUTPUT"
+          printf 'base=%s head=%s mode=%s\n' \
+            "$(git rev-parse "$BASE_REF")" \
+            "$(git rev-parse HEAD)" \
+            "$POLICY_MODE"
+      - name: Protect durable GRACE model and terminal archive transition
+        env:
+          GRACE_BASE_REF: ${{ steps.base.outputs.base_ref }}
+        run: node scripts/github/grace-durable-gate.mjs --base "$GRACE_BASE_REF" --head "$GITHUB_SHA"
+      - name: Enforce C-* lifecycle and ObservedWriteScope
+        id: policy
+        env:
+          GRACE_BASE_REF: ${{ steps.base.outputs.base_ref }}
+          GRACE_POLICY_MODE: ${{ steps.base.outputs.policy_mode }}
+        run: >-
+          node scripts/github/grace-policy-gate.mjs
+          --base "$GRACE_BASE_REF"
+          --mode "$GRACE_POLICY_MODE"
+          --github-output
+      - name: Run selected GRACE assertion gate
+        env:
+          CHANGE_ID: ${{ steps.policy.outputs.change_id }}
+          ASSERTION_MODE: ${{ steps.policy.outputs.assertion_mode }}
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          case "$ASSERTION_MODE" in
+            final|baseline)
+              [[ -n "$CHANGE_ID" ]] || {
+                echo "assertion_mode=$ASSERTION_MODE requires change_id" >&2
+                exit 1
+              }
+              grace lint \
+                --path . \
+                --change "$CHANGE_ID" \
+                --assertions "$ASSERTION_MODE" \
+                --run-commands
+              ;;
+            current)
+              grace lint --path . --assertions current
+              ;;
+            *)
+              echo "Unsupported assertion mode: $ASSERTION_MODE" >&2
+              exit 1
+              ;;
+          esac
+      - name: Record GRACE status
+        run: grace status --path . --json
+
+  database:
+    name: ${{ github.event_name == 'pull_request' && 'GRACE / database' || github.ref_name == 'main' && 'GRACE post-merge / database' || 'GRACE branch / database' }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
       - name: Resolve immutable comparison base
         id: base
         shell: bash
@@ -52,55 +133,6 @@ jobs:
           git cat-file -e "${BASE_REF}^{commit}"
           printf 'base_ref=%s\n' "$BASE_REF" >> "$GITHUB_OUTPUT"
           printf 'base=%s head=%s\n' "$(git rev-parse "$BASE_REF")" "$(git rev-parse HEAD)"
-      - name: Protect durable GRACE model and terminal archive transition
-        env:
-          GRACE_BASE_REF: ${{ steps.base.outputs.base_ref }}
-        run: node scripts/github/grace-durable-gate.mjs --base "$GRACE_BASE_REF"
-      - name: Enforce approved C-* and ObservedWriteScope
-        id: policy
-        env:
-          GRACE_BASE_REF: ${{ steps.base.outputs.base_ref }}
-        run: node scripts/grace-governance.mjs policy --base "$GRACE_BASE_REF" --github-output
-      - name: Run selected GRACE final gate
-        if: steps.policy.outputs.change_id != ''
-        env:
-          GRACE_BASE_REF: ${{ steps.base.outputs.base_ref }}
-        run: grace lint --path . --change "${{ steps.policy.outputs.change_id }}" --assertions final --run-commands
-      - name: Validate durable GRACE state without a selected change
-        if: steps.policy.outputs.change_id == ''
-        run: grace lint --path .
-      - name: Record GRACE status
-        run: grace status --path . --json
-
-  database:
-    name: GRACE / database
-    runs-on: ubuntu-24.04
-    timeout-minutes: 25
-    steps:
-      - uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
-          ref: ${{ github.event.pull_request.head.sha || github.sha }}
-      - uses: actions/setup-node@v4
-        with:
-          node-version-file: .nvmrc
-      - name: Resolve immutable comparison base
-        id: base
-        shell: bash
-        env:
-          PR_BASE_SHA: ${{ github.event.pull_request.base.sha }}
-        run: |
-          set -Eeuo pipefail
-          if [[ "${GITHUB_EVENT_NAME}" == "pull_request" ]]; then
-            BASE_REF="$PR_BASE_SHA"
-          elif [[ "${GITHUB_REF}" == "refs/heads/main" ]]; then
-            BASE_REF="${GITHUB_SHA}^"
-          else
-            git fetch --no-tags origin main:refs/remotes/origin/main
-            BASE_REF="origin/main"
-          fi
-          git cat-file -e "${BASE_REF}^{commit}"
-          printf 'base_ref=%s\n' "$BASE_REF" >> "$GITHUB_OUTPUT"
       - name: Enforce append-only migration policy
         env:
           GRACE_BASE_REF: ${{ steps.base.outputs.base_ref }}
@@ -111,7 +143,7 @@ jobs:
         run: bash scripts/ci/grace-db-gate.sh "$GRACE_BASE_REF"
 
   gate:
-    name: GRACE / ${{ (github.event_name == 'pull_request' || github.ref == 'refs/heads/main') && 'merge-gate' || 'branch-gate' }}
+    name: ${{ github.event_name == 'pull_request' && 'GRACE / merge-gate' || github.ref_name == 'main' && 'GRACE post-merge / merge-gate' || 'GRACE branch / merge-gate' }}
     if: ${{ always() }}
     needs: [contract, database]
     runs-on: ubuntu-24.04

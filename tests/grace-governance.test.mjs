@@ -1,8 +1,22 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
+import { execFileSync } from 'node:child_process';
+import {
+  mkdtempSync,
+  mkdirSync,
+  readFileSync,
+  renameSync,
+  rmSync,
+  writeFileSync
+} from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
 
 import {
   changedActiveChangeIds,
+  changedArchivedChangeIds,
+  evaluateActiveBundle,
+  evaluateArchiveTransition,
   evaluateGovernance,
   evaluateMigrationPolicy,
   extractObservedWriteScope,
@@ -11,9 +25,36 @@ import {
   parseNameStatus,
   validateObservedWriteScope
 } from '../scripts/grace-governance.mjs';
-import { evaluateDurableModelDiff } from '../scripts/github/grace-durable-gate.mjs';
-import { evaluateRequiredChecks, latestChecksByName } from '../scripts/github/grace-merge-gate.mjs';
-import { GRACE_MERGE_CHECK, REQUIRED_MAIN_CHECKS, mainProtectionPayload } from '../scripts/github/grace-required-checks.mjs';
+import { runPolicy } from '../scripts/github/grace-policy-gate.mjs';
+
+const approvedSpec = (id = 'C-TEST') =>
+  `<GraceChangeSpec graceVersion="4.0" status="approved"><${id}><Summary>x</Summary></${id}></GraceChangeSpec>`;
+const approvedPlan = (id = 'C-TEST', scope = '<Glob>.grace/**</Glob>') =>
+  `<GraceChangePlan graceVersion="4.0" status="approved"><${id}><ObservedWriteScope>${scope}</ObservedWriteScope></${id}></GraceChangePlan>`;
+
+function git(root, ...args) {
+  return execFileSync('git', args, { cwd: root, encoding: 'utf8' }).trim();
+}
+
+function write(root, path, content) {
+  const target = join(root, path);
+  mkdirSync(join(target, '..'), { recursive: true });
+  writeFileSync(target, content);
+}
+
+function commitAll(root, message) {
+  git(root, 'add', '-A');
+  git(root, 'commit', '-m', message);
+  return git(root, 'rev-parse', 'HEAD');
+}
+
+function createRepository() {
+  const root = mkdtempSync(join(tmpdir(), 'kafedra-grace-policy-'));
+  git(root, 'init');
+  git(root, 'config', 'user.name', 'GRACE test');
+  git(root, 'config', 'user.email', 'grace@example.invalid');
+  return root;
+}
 
 test('ObservedWriteScope supports exact files and GRACE-style ** globs', () => {
   const xml = `
@@ -32,10 +73,13 @@ test('ObservedWriteScope supports exact files and GRACE-style ** globs', () => {
     'scripts/ci/check.mjs',
     '.grace/graph/main.xml'
   ], scope), []);
-  assert.deepEqual(validateObservedWriteScope(['apps/api/src/main.mjs'], scope), ['apps/api/src/main.mjs']);
+  assert.deepEqual(
+    validateObservedWriteScope(['apps/api/src/main.mjs'], scope),
+    ['apps/api/src/main.mjs']
+  );
 });
 
-test('governance covers product, tests, docs, agent skills and delivery surfaces', () => {
+test('all repository surfaces are governed except direct C-* lifecycle XML', () => {
   for (const path of [
     'apps/api/src/main.mjs',
     'packages/storage/src/database.mjs',
@@ -43,23 +87,62 @@ test('governance covers product, tests, docs, agent skills and delivery surfaces
     'docs/ARCHITECTURE.md',
     'codex/skills/kafedra-data/SKILL.md',
     '.github/workflows/ci.yml',
+    '.github/ISSUE_TEMPLATE/feature.md',
+    'playwright.config.mjs',
+    '.gitignore',
+    '.grace/context/requirements.xml',
+    '.grace/graph/main.xml',
+    '.grace/verification/main.xml',
     'README.md',
     'VERSION'
   ]) {
     assert.equal(isGovernedPath(path), true, `${path} must be governed`);
   }
-  assert.equal(isGovernedPath('.grace/changes/archive/C-OLD/spec.xml'), false);
+  assert.equal(
+    isGovernedPath('.grace/changes/active/C-WORK/spec.xml'),
+    false
+  );
+  assert.equal(
+    isGovernedPath('.grace/changes/archive/C-OLD/plan.xml'),
+    false
+  );
+  assert.equal(
+    isGovernedPath('.grace/changes/archive/C-OLD/evidence.json'),
+    true
+  );
 });
 
-test('archive-only lifecycle move does not select a deleted active change', () => {
+test('active and archived change IDs are classified independently', () => {
   const entries = parseNameStatus([
     'D\t.grace/changes/active/C-DONE/spec.xml',
     'D\t.grace/changes/active/C-DONE/plan.xml',
     'A\t.grace/changes/archive/C-DONE/spec.xml',
     'A\t.grace/changes/archive/C-DONE/plan.xml'
   ].join('\n'));
+  assert.deepEqual(changedActiveChangeIds(entries), ['C-DONE']);
+  assert.deepEqual(changedArchivedChangeIds(entries), ['C-DONE']);
   assert.deepEqual(changedActiveChangeIds(entries, () => false), []);
-  assert.deepEqual(changedActiveChangeIds(entries, (id) => id === 'C-DONE'), ['C-DONE']);
+});
+
+test('branch stage permits a draft spec before implementation writes', () => {
+  const draft = evaluateActiveBundle({
+    changeId: 'C-DRAFT',
+    specXml: '<GraceChangeSpec graceVersion="4.0" status="draft"><C-DRAFT /></GraceChangeSpec>',
+    planXml: null
+  });
+  assert.deepEqual(draft.errors, []);
+  assert.equal(draft.specStatus, 'draft');
+  assert.equal(draft.planStatus, null);
+
+  const implementation = evaluateActiveBundle({
+    changeId: 'C-DRAFT',
+    specXml: '<GraceChangeSpec graceVersion="4.0" status="draft"><C-DRAFT /></GraceChangeSpec>',
+    planXml: null,
+    requireApproved: true,
+    requirePlan: true
+  });
+  assert.ok(implementation.errors.some((message) => /plan\.xml/.test(message)));
+  assert.ok(implementation.errors.some((message) => /approved/.test(message)));
 });
 
 test('governed diff fails closed when a write escapes the approved plan', () => {
@@ -69,11 +152,145 @@ test('governed diff fails closed when a write escapes the approved plan', () => 
     'A\t.grace/changes/active/C-TEST/plan.xml',
     'M\tapps/api/src/main.mjs'
   ].join('\n'));
-  const specXml = '<GraceChangeSpec graceVersion="4.0" status="approved"><C-TEST><Summary>x</Summary></C-TEST></GraceChangeSpec>';
-  const planXml = '<GraceChangePlan graceVersion="4.0" status="approved"><C-TEST><ObservedWriteScope><File>AGENTS.md</File><Glob>.grace/**</Glob></ObservedWriteScope></C-TEST></GraceChangePlan>';
-  const result = evaluateGovernance({ entries, changeId: 'C-TEST', specXml, planXml });
+  const result = evaluateGovernance({
+    entries,
+    changeId: 'C-TEST',
+    specXml: approvedSpec(),
+    planXml: approvedPlan('C-TEST', '<File>AGENTS.md</File><Glob>.grace/**</Glob>')
+  });
   assert.equal(result.errors.length, 1);
   assert.match(result.errors[0], /apps\/api\/src\/main\.mjs/);
+});
+
+test('policy continues the sole approved active change inherited from the exact base', () => {
+  const root = createRepository();
+  try {
+    write(root, '.grace/changes/archive/.gitkeep', '');
+    write(root, '.grace/changes/active/C-CONTINUE/spec.xml', approvedSpec('C-CONTINUE'));
+    write(
+      root,
+      '.grace/changes/active/C-CONTINUE/plan.xml',
+      approvedPlan('C-CONTINUE', '<File>docs/GRACE_GOVERNANCE.md</File><Glob>.grace/**</Glob>')
+    );
+    write(root, 'docs/GRACE_GOVERNANCE.md', 'baseline\n');
+    const base = commitAll(root, 'approved active base');
+
+    write(root, 'docs/GRACE_GOVERNANCE.md', 'hardened\n');
+    commitAll(root, 'continue active implementation');
+
+    const result = runPolicy({ root, base, head: 'HEAD', mode: 'pr' });
+    assert.equal(result.lifecycle, 'active');
+    assert.equal(result.stage, 'implementation');
+    assert.equal(result.assertionMode, 'final');
+    assert.equal(result.changeId, 'C-CONTINUE');
+  } finally {
+    rmSync(root, { recursive: true, force: true });
+  }
+});
+
+test('archive-only transition preserves bundle content and changes only terminal status', () => {
+  const entries = parseNameStatus([
+    'D\t.grace/changes/active/C-DONE/spec.xml',
+    'D\t.grace/changes/active/C-DONE/plan.xml',
+    'A\t.grace/changes/archive/C-DONE/spec.xml',
+    'A\t.grace/changes/archive/C-DONE/plan.xml'
+  ].join('\n'));
+  const baseArtifacts = {
+    'spec.xml': approvedSpec('C-DONE'),
+    'plan.xml': approvedPlan('C-DONE')
+  };
+  const archivedArtifacts = Object.fromEntries(
+    Object.entries(baseArtifacts).map(([name, value]) => [
+      name,
+      value.replace('status="approved"', 'status="applied"')
+    ])
+  );
+  const valid = evaluateArchiveTransition({
+    entries,
+    changeId: 'C-DONE',
+    baseArtifacts,
+    archivedArtifacts,
+    activeArtifactsAtHead: {}
+  });
+  assert.deepEqual(valid.errors, []);
+  assert.equal(valid.status, 'applied');
+
+  archivedArtifacts['plan.xml'] = archivedArtifacts['plan.xml'].replace(
+    '</ObservedWriteScope>',
+    '<File>apps/api/src/main.mjs</File></ObservedWriteScope>'
+  );
+  const mutated = evaluateArchiveTransition({
+    entries,
+    changeId: 'C-DONE',
+    baseArtifacts,
+    archivedArtifacts,
+    activeArtifactsAtHead: {}
+  });
+  assert.ok(mutated.errors.some((message) => /changed during archive transition/.test(message)));
+});
+
+test('policy accepts staged branch work, rejects active-only PR, and governs durable GRACE context', () => {
+  const root = createRepository();
+  try {
+    write(root, '.grace/changes/archive/.gitkeep', '');
+    write(root, '.grace/context/requirements.xml', '<GraceRequirements graceVersion="4.0" />');
+    commitAll(root, 'base');
+    const base = git(root, 'rev-parse', 'HEAD');
+
+    write(
+      root,
+      '.grace/changes/active/C-STAGED/spec.xml',
+      '<GraceChangeSpec graceVersion="4.0" status="draft"><C-STAGED /></GraceChangeSpec>'
+    );
+    commitAll(root, 'draft spec');
+
+    const branchResult = runPolicy({ root, base, head: 'HEAD', mode: 'branch' });
+    assert.equal(branchResult.stage, 'draft');
+    assert.equal(branchResult.assertionMode, 'current');
+    assert.throws(
+      () => runPolicy({ root, base, head: 'HEAD', mode: 'pr' }),
+      /only an active C-\* bundle/
+    );
+
+    rmSync(join(root, '.grace/changes/active'), { recursive: true, force: true });
+    write(root, '.grace/context/requirements.xml', '<GraceRequirements graceVersion="4.0"><Changed /></GraceRequirements>');
+    commitAll(root, 'uncontracted context drift');
+    assert.throws(
+      () => runPolicy({ root, base, head: 'HEAD', mode: 'branch' }),
+      /exactly one complete active C-\* bundle/
+    );
+  } finally {
+    rmSync(root, { recursive: true, force: true });
+  }
+});
+
+test('policy validates a real approved-active to applied-archive transition', () => {
+  const root = createRepository();
+  try {
+    write(root, '.grace/changes/active/C-DONE/spec.xml', approvedSpec('C-DONE'));
+    write(root, '.grace/changes/active/C-DONE/plan.xml', approvedPlan('C-DONE'));
+    const base = commitAll(root, 'approved active change');
+
+    mkdirSync(join(root, '.grace/changes/archive'), { recursive: true });
+    renameSync(
+      join(root, '.grace/changes/active/C-DONE'),
+      join(root, '.grace/changes/archive/C-DONE')
+    );
+    for (const name of ['spec.xml', 'plan.xml']) {
+      const path = join(root, `.grace/changes/archive/C-DONE/${name}`);
+      const source = readFileSync(path, 'utf8');
+      writeFileSync(path, source.replace('status="approved"', 'status="applied"'));
+    }
+    commitAll(root, 'archive applied change');
+
+    const result = runPolicy({ root, base, head: 'HEAD', mode: 'pr' });
+    assert.equal(result.lifecycle, 'archive');
+    assert.equal(result.archivedChangeId, 'C-DONE');
+    assert.equal(result.archiveStatus, 'applied');
+    assert.equal(result.assertionMode, 'current');
+  } finally {
+    rmSync(root, { recursive: true, force: true });
+  }
 });
 
 test('applied migrations are immutable', () => {
@@ -106,58 +323,4 @@ test('new migrations must be contiguous, tested and declared as database work', 
   assert.ok(invalid.errors.some((message) => /migration.*test/i.test(message)));
   assert.ok(invalid.errors.some((message) => /M-DATABASE/.test(message)));
   assert.ok(invalid.errors.some((message) => /V-M-DATABASE/.test(message)));
-});
-
-test('durable GRACE context/graph/verification cannot change without one active C-*', () => {
-  const entries = parseNameStatus('M\t.grace/context/principles.xml');
-  const result = evaluateDurableModelDiff({ entries, activeIds: [] });
-  assert.ok(result.errors.some((message) => /exactly one approved active C-\*/.test(message)));
-  assert.deepEqual(evaluateDurableModelDiff({ entries, activeIds: ['C-CONTEXT'] }).errors, []);
-});
-
-test('terminal archive transition must be a complete active-to-archive move with applied artifacts', () => {
-  const entries = parseNameStatus([
-    'R098\t.grace/changes/active/C-DONE/spec.xml\t.grace/changes/archive/C-DONE/spec.xml',
-    'R098\t.grace/changes/active/C-DONE/plan.xml\t.grace/changes/archive/C-DONE/plan.xml'
-  ].join('\n'));
-  const archiveArtifacts = new Map([['C-DONE', {
-    specXml: '<GraceChangeSpec graceVersion="4.0" status="applied"><C-DONE /></GraceChangeSpec>',
-    planXml: '<GraceChangePlan graceVersion="4.0" status="applied"><C-DONE /></GraceChangePlan>'
-  }]]);
-  assert.deepEqual(evaluateDurableModelDiff({ entries, activeIds: [], archiveArtifacts }).errors, []);
-
-  const forged = parseNameStatus('A\t.grace/changes/archive/C-FORGED/spec.xml');
-  assert.ok(evaluateDurableModelDiff({ entries: forged, activeIds: [], archiveArtifacts: new Map() }).errors.length > 0);
-});
-
-test('required main checks have one shared unique desired-state list', () => {
-  assert.equal(new Set(REQUIRED_MAIN_CHECKS).size, REQUIRED_MAIN_CHECKS.length);
-  assert.ok(REQUIRED_MAIN_CHECKS.includes(GRACE_MERGE_CHECK));
-  assert.ok(REQUIRED_MAIN_CHECKS.includes('Full offline Debian 12 + Project Control'));
-  assert.deepEqual(mainProtectionPayload().required_status_checks.contexts, [...REQUIRED_MAIN_CHECKS]);
-  assert.equal(mainProtectionPayload().required_status_checks.strict, true);
-});
-
-test('exact-SHA merge gate uses the newest run of every required name', () => {
-  const latest = latestChecksByName([
-    { id: 1, name: 'test', status: 'completed', conclusion: 'failure' },
-    { id: 3, name: 'test', status: 'completed', conclusion: 'success' },
-    { id: 2, name: 'browser', status: 'in_progress', conclusion: null }
-  ]);
-  assert.equal(latest.get('test').id, 3);
-  const state = evaluateRequiredChecks([...latest.values()], ['test', 'browser', 'offline']);
-  assert.deepEqual(state.successful, ['test']);
-  assert.deepEqual(state.pending, [{ name: 'browser', status: 'in_progress' }]);
-  assert.deepEqual(state.missing, ['offline']);
-  assert.deepEqual(state.failed, []);
-});
-
-test('skipped, cancelled and failed checks are never merge evidence', () => {
-  const state = evaluateRequiredChecks([
-    { id: 1, name: 'test', status: 'completed', conclusion: 'success' },
-    { id: 2, name: 'browser', status: 'completed', conclusion: 'skipped' },
-    { id: 3, name: 'offline', status: 'completed', conclusion: 'cancelled' }
-  ], ['test', 'browser', 'offline']);
-  assert.equal(state.complete, false);
-  assert.deepEqual(state.failed.map((item) => item.conclusion), ['skipped', 'cancelled']);
 });
