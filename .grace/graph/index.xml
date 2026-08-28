@@ -1,0 +1,19 @@
+<GraceGraphIndex graceVersion="4.0">
+  <GraphDocuments>
+    <GD-MAIN>
+      <Path>graph/main.xml</Path>
+      <Owns>
+        <M-API />
+        <M-WORKER />
+        <M-DATABASE />
+        <M-BACKUP />
+        <M-MIGRATION-RUNNER />
+        <M-GRACE-GOVERNANCE />
+        <M-CI-GATE />
+        <M-OFFLINE-BUNDLE />
+        <DF-GRACE-BRANCH />
+        <DF-DATABASE-UPGRADE />
+      </Owns>
+    </GD-MAIN>
+  </GraphDocuments>
+</GraceGraphIndex>

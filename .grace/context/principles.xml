@@ -1,0 +1,10 @@
+<GracePrinciples graceVersion="4.0">
+  <Principle>Contract first: define the change, affected modules, immutable baseline, target assertions and write scope before observed writes.</Principle>
+  <Principle>Branch first: significant work starts from the exact verified main SHA and reaches main only through a pull request.</Principle>
+  <Principle>Fail closed: missing spec, stale scope, failed migration, failed verification, pending check or changed PR head blocks merge.</Principle>
+  <Principle>One source of truth: calendar, search, reporting and notification surfaces are projections of authoritative domain records.</Principle>
+  <Principle>Evidence over inference: extracted facts, automated matches and migrations retain deterministic evidence and provenance.</Principle>
+  <Principle>Append-only schema evolution: a migration that reached main is immutable; later changes use a new sequential migration.</Principle>
+  <Principle>Recoverability is part of correctness: schema changes prove clean install, upgrade, integrity, pre-migration backup and restoration.</Principle>
+  <Principle>Specialist Codex roles refine GRACE tasks but never bypass the GRACE lifecycle or CI gates.</Principle>
+</GracePrinciples>

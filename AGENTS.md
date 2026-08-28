@@ -105,3 +105,34 @@ Repository-local role skills live in `codex/skills/`; their shared routing is in
 - `kafedra-release` for versioning, migration rollout, offline deployment, backup/restore, or rollback.
 
 Follow the documented handoff whenever the task crosses roles. These skills refine project-specific decisions; they do not replace authorization boundaries or the mandatory CI/release gates above.
+
+## GRACE 4 development lifecycle
+
+GRACE 4 является обязательным внешним lifecycle для существенных изменений. Repository-local `kafedra-*` skills остаются специалистами внутри задач GRACE и не заменяют `GraceChangeSpec`, `GraceChangePlan`, scopes или verification gates.
+
+Перед первой записью в governed-код:
+
+1. Получить точный `main` SHA, создать короткую ветку и связанный Issue.
+2. Проверить `grace status --path .` и соответствующие `M-*`, `DF-*`, `V-M-*`.
+3. Создать один `.grace/changes/active/C-*` с `spec.xml` через `grace-spec`; существенная реализация начинается только после `status="approved"`.
+4. Создать `plan.xml` через `grace-plan`; план должен иметь machine-checkable baseline/target assertions, `DurableScope`, `ObservedWriteScope` и `T-*` задачи. Реализация начинается только после явного `status="approved"`.
+5. До observed writes выполнить `grace lint --path . --assertions current` и `grace lint --path . --change C-ID --assertions baseline --run-commands`.
+
+Во время реализации:
+
+- `kafedra-flow-intake`, `kafedra-design`, `kafedra-data`, `kafedra-feature`, `kafedra-tests`, `kafedra-release` используются как specialist workers для соответствующих `T-*`;
+- каждый worker пишет только в утверждённый `ObservedWriteScope`;
+- approved plan не расширяется задним числом. Изменение scope/assertions/acceptance criteria требует нового superseding `C-*`;
+- параллельное исполнение допускается только после `grace lint --path . --parallel-preflight` и при отсутствии пересекающихся durable/observed scopes;
+- миграции SQLite append-only: уже присутствующий в base SQL-файл нельзя изменять, переименовывать или удалять; новый schema change требует следующего последовательного номера, migration regression test, `M-DATABASE`/`V-M-DATABASE`, clean-install, base→HEAD upgrade, `quick_check`, `foreign_key_check`, backup и restore evidence;
+- GRACE/Bun являются только dev/CI tooling и не добавляются в runtime/offline bundle.
+
+Перед PR/merge:
+
+1. Выполнить selected target/final gates: `grace lint --path . --change C-ID --assertions target --run-commands` и затем `--assertions final --run-commands`.
+2. GitHub обязан подтвердить `GRACE / merge-gate`, весь существующий project CI и `release-gate` на одном неизменившемся PR head SHA.
+3. Нельзя считать `pending`, `failure`, `cancelled`, отсутствующий или неожиданный `skipped` достаточным доказательством.
+4. Слияние — только squash merge через PR с повторной проверкой exact head SHA, mergeability, review threads и required checks.
+5. После merge получить новый `main` SHA и подтвердить post-merge CI. Только после этого C-* получает terminal `applied` и переносится в `.grace/changes/archive/`.
+
+Машинные правила, required checks и административная защита `main` описаны в `docs/GRACE_GOVERNANCE.md`. `scripts/grace-governance.mjs` и `.github/workflows/grace.yml` являются fail-closed enforcement layer поверх инструкций агенту.

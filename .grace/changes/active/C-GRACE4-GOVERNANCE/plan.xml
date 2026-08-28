@@ -1,0 +1,94 @@
+<GraceChangePlan graceVersion="4.0" status="approved">
+  <C-GRACE4-GOVERNANCE>
+    <IntentSummary>Install GRACE 4 as a fail-closed outer lifecycle around existing kafedra-planner specialist roles and GitHub CI without changing product runtime or application schema.</IntentSummary>
+    <BaselineAssertions>
+      <MustExist><Value>AGENTS.md</Value></MustExist>
+      <MustExist><Value>M-DATABASE</Value></MustExist>
+      <MustExist><Value>scripts/migrate.mjs</Value></MustExist>
+      <MustVerify><Module>M-DATABASE</Module></MustVerify>
+    </BaselineAssertions>
+    <TargetAssertions>
+      <MustExist><Value>scripts/grace-governance.mjs</Value></MustExist>
+      <MustExist><Value>scripts/ci/grace-db-gate.sh</Value></MustExist>
+      <MustExist><Value>.github/workflows/grace.yml</Value></MustExist>
+      <MustExist><Value>docs/GRACE_GOVERNANCE.md</Value></MustExist>
+      <MustVerify><Module>M-GRACE-GOVERNANCE</Module></MustVerify>
+      <MustVerify><Module>M-CI-GATE</Module></MustVerify>
+      <MustVerify><Module>M-DATABASE</Module></MustVerify>
+      <MustContain><File>AGENTS.md</File><Text>GRACE 4 development lifecycle</Text></MustContain>
+      <MustPassCommand><Command>node --test tests/grace-governance.test.mjs</Command></MustPassCommand>
+      <MustPassCommand><Command>bash scripts/ci/grace-db-gate.sh "${GRACE_BASE_REF:-origin/main}"</Command></MustPassCommand>
+      <MustPassCommand><Command>npm run check</Command></MustPassCommand>
+      <MustPassCommand><Command>npm run docs:check</Command></MustPassCommand>
+    </TargetAssertions>
+    <DurableScope>
+      <GraphAnchors>
+        <M-GRACE-GOVERNANCE />
+        <M-CI-GATE />
+        <M-DATABASE />
+        <M-MIGRATION-RUNNER />
+        <M-BACKUP />
+        <M-OFFLINE-BUNDLE />
+        <DF-GRACE-BRANCH />
+        <DF-DATABASE-UPGRADE />
+      </GraphAnchors>
+      <VerificationAnchors>
+        <V-M-GRACE-GOVERNANCE />
+        <V-M-CI-GATE />
+        <V-M-DATABASE />
+        <V-M-MIGRATION-RUNNER />
+        <V-M-BACKUP />
+      </VerificationAnchors>
+      <ContextArtifacts>
+        <ContextArtifact>requirements.xml</ContextArtifact>
+        <ContextArtifact>technology.xml</ContextArtifact>
+        <ContextArtifact>principles.xml</ContextArtifact>
+        <ContextArtifact>deployment.xml</ContextArtifact>
+        <ContextArtifact>ux-guidelines.xml</ContextArtifact>
+      </ContextArtifacts>
+    </DurableScope>
+    <ObservedWriteScope>
+      <Glob>.grace/**</Glob>
+      <File>AGENTS.md</File>
+      <File>docs/CODEX_AGENTS.md</File>
+      <File>docs/GRACE_GOVERNANCE.md</File>
+      <File>.github/workflows/grace.yml</File>
+      <File>scripts/grace-governance.mjs</File>
+      <Glob>scripts/ci/**</Glob>
+      <Glob>scripts/github/**</Glob>
+      <File>tests/grace-governance.test.mjs</File>
+    </ObservedWriteScope>
+    <ImplementationPlan>
+      <T-001>
+        <Title>Model current architecture in canonical GRACE 4 artifacts</Title>
+        <DependsOn></DependsOn>
+        <AcceptanceCriteria><Criterion>Context, graph and verification projections describe the existing runtime, database, backup, migration, CI and offline boundaries without inventing a second source of truth.</Criterion></AcceptanceCriteria>
+        <Verification><Command>grace lint --path .</Command></Verification>
+      </T-001>
+      <T-002>
+        <Title>Implement fail-closed branch and observed-scope governance</Title>
+        <DependsOn><T-001 /></DependsOn>
+        <AcceptanceCriteria><Criterion>Governed diffs require exactly one approved active change and every observed write is covered by its plan scope.</Criterion></AcceptanceCriteria>
+        <Verification><Command>node --test tests/grace-governance.test.mjs</Command></Verification>
+      </T-002>
+      <T-003>
+        <Title>Implement append-only migration and database recovery gate</Title>
+        <DependsOn><T-002 /></DependsOn>
+        <AcceptanceCriteria><Criterion>Applied migrations are immutable and upgrade verification covers clean install, base-to-head migration, SQLite integrity, backup verification and restoration.</Criterion></AcceptanceCriteria>
+        <Verification><Command>bash scripts/ci/grace-db-gate.sh "${GRACE_BASE_REF:-origin/main}"</Command></Verification>
+      </T-003>
+      <T-004>
+        <Title>Wire pinned GRACE and database gates into GitHub branch and PR CI</Title>
+        <DependsOn><T-002 /><T-003 /></DependsOn>
+        <AcceptanceCriteria><Criterion>GRACE / merge-gate is a deterministic aggregate check and server protection desired state is reproducibly configurable.</Criterion></AcceptanceCriteria>
+        <Verification><Command>bash -n scripts/github/configure-main-protection.sh scripts/github/merge-grace-pr.sh</Command></Verification>
+      </T-004>
+      <T-005>
+        <Title>Integrate existing kafedra roles and document the operational lifecycle</Title>
+        <DependsOn><T-004 /></DependsOn>
+        <AcceptanceCriteria><Criterion>AGENTS and Codex role documentation make GRACE the outer lifecycle and preserve project-specific specialist ownership, exact-head merge and post-merge verification.</Criterion></AcceptanceCriteria>
+        <Verification><Command>npm run docs:check</Command></Verification>
+      </T-005>
+    </ImplementationPlan>
+  </C-GRACE4-GOVERNANCE>
+</GraceChangePlan>

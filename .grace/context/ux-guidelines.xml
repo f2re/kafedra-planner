@@ -1,0 +1,9 @@
+<GraceUXGuidelines graceVersion="4.0">
+  <Applicability>applicable</Applicability>
+  <Audience>Department staff and managers on desktop and mobile interfaces.</Audience>
+  <Guideline>Keep navigation and action hierarchy geometrically stable; usage statistics may rank safe options but never move primary controls.</Guideline>
+  <Guideline>Classify adaptive controls as safe-default, rank-only, domain-derived or never-learn and preserve the stronger domain-derived or saved value.</Guideline>
+  <Guideline>Do not learn secrets, ACL decisions, destructive actions, arbitrary business text or stale absolute dates.</Guideline>
+  <Guideline>Automation must expose provenance and allow correction without destroying the original evidence.</Guideline>
+  <Guideline>New user flows require desktop and mobile verification when the UI is affected.</Guideline>
+</GraceUXGuidelines>

@@ -1,0 +1,17 @@
+<GraceVerificationIndex graceVersion="4.0">
+  <VerificationDocuments>
+    <VD-MAIN>
+      <Path>verification/main.xml</Path>
+      <Owns>
+        <V-M-API />
+        <V-M-WORKER />
+        <V-M-DATABASE />
+        <V-M-BACKUP />
+        <V-M-MIGRATION-RUNNER />
+        <V-M-GRACE-GOVERNANCE />
+        <V-M-CI-GATE />
+        <V-M-OFFLINE-BUNDLE />
+      </Owns>
+    </VD-MAIN>
+  </VerificationDocuments>
+</GraceVerificationIndex>

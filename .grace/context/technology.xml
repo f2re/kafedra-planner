@@ -1,0 +1,13 @@
+<GraceTechnology graceVersion="4.0">
+  <Language>JavaScript ES modules, SQL, Bash and small Python delivery helpers</Language>
+  <Runtime>Node.js 24 LTS for the product; Bun 1.3.14 only for the GRACE engineering gate</Runtime>
+  <Framework>Node.js HTTP API and worker, SQLite with FTS5/WAL, systemd deployment</Framework>
+  <TestingStack>node:test, Playwright, smoke tests, backup/restore selftests, offline deployment tests, GRACE CLI 4.0.5</TestingStack>
+  <Observability>Structured application logs, audit trail, health endpoints, deterministic CI artifacts and GRACE verification evidence</Observability>
+  <OperationalConstraints>
+    <Constraint>Production and offline bundles must not depend on Bun or GRACE.</Constraint>
+    <Constraint>Use the repository Node version contract and existing project libraries instead of adding runtime dependencies for governance.</Constraint>
+    <Constraint>SQLite migrations are sequential, transactional and append-only after they are present in main.</Constraint>
+    <Constraint>API and worker share one SQLite database in WAL mode and must remain safe under restart and concurrent queue processing.</Constraint>
+  </OperationalConstraints>
+</GraceTechnology>
