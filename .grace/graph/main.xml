@@ -1,0 +1,37 @@
+<GraceGraphDocument graceVersion="4.0">
+  <GD-ENGINEERING>
+    <M-ENGINEERING-GOVERNANCE>
+      <Summary>Diff classification, C-* lifecycle, ObservedWriteScope enforcement and final readiness policy.</Summary>
+      <Path>scripts/grace-policy.mjs</Path>
+      <M-GITHUB-CI />
+      <M-DATABASE-MIGRATIONS />
+      <M-CODEX-ROLES />
+    </M-ENGINEERING-GOVERNANCE>
+    <M-GITHUB-CI>
+      <Summary>GitHub Actions orchestration and exact-SHA aggregation of all required project checks.</Summary>
+      <Path>.github/workflows/grace-governance.yml</Path>
+      <M-ENGINEERING-GOVERNANCE />
+    </M-GITHUB-CI>
+    <M-DATABASE-MIGRATIONS>
+      <Summary>Append-only migration numbering, base-to-head upgrade, idempotency, SQLite integrity and rollback evidence.</Summary>
+      <Path>scripts/grace-migration-gate.mjs</Path>
+      <M-DATA-STORAGE />
+    </M-DATABASE-MIGRATIONS>
+    <M-CODEX-ROLES>
+      <Summary>Project-specific role routing executed inside the outer GRACE change lifecycle.</Summary>
+      <Path>docs/CODEX_AGENTS.md</Path>
+      <M-ENGINEERING-GOVERNANCE />
+    </M-CODEX-ROLES>
+    <M-DATA-STORAGE>
+      <Summary>SQLite connection, transactional migration runner and integrity query surface.</Summary>
+      <Path>packages/storage/src/database.mjs</Path>
+    </M-DATA-STORAGE>
+    <DF-GRACE-CHANGE>
+      <Summary>Issue and exact main SHA lead to an approved C-* plan, scoped branch writes, migration safety, final assertions, exact-SHA checks, squash merge and post-merge verification.</Summary>
+      <M-CODEX-ROLES />
+      <M-ENGINEERING-GOVERNANCE />
+      <M-DATABASE-MIGRATIONS />
+      <M-GITHUB-CI />
+    </DF-GRACE-CHANGE>
+  </GD-ENGINEERING>
+</GraceGraphDocument>

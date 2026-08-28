@@ -1,0 +1,5 @@
+<GraceDeployment graceVersion="4.0">
+  <Applicability>applicable</Applicability>
+  <Target>Offline Debian 12 and Astra Linux installations managed by systemd, with verified full bundles and Project Control updates.</Target>
+  <Notes>Changes are developed in short branches, merged by squash only after GRACE contract, project CI, browser, offline bundle and exact-SHA merge gate evidence. Schema rollout requires a pre-migration backup; rollback restores that verified backup and the previous application bundle.</Notes>
+</GraceDeployment>

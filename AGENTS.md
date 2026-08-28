@@ -10,6 +10,34 @@
 4. Существенную работу зафиксировать в GitHub Issue с критериями приёмки.
 5. Создать короткую рабочую ветку от точного проверенного SHA `main`.
 
+## Обязательный GRACE 4 lifecycle
+
+GRACE является внешним управляющим контуром существенных изменений. Он не заменяет `kafedra-*` skills и не входит в runtime приложения. Подробный контракт находится в `docs/GRACE_WORKFLOW.md`.
+
+До observed writes:
+
+1. Выполнить `grace status --path .` и прочитать относящиеся M-*/DF-* и V-M-* anchors.
+2. Создать `.grace/changes/active/C-*/spec.xml` через `grace-spec`; существенный change требует `status="approved"` после явного решения пользователя.
+3. Создать approved `plan.xml` через `grace-plan`. После approval assertions, durable/observed scope и T-* задачи неизменяемы; новый scope требует superseding C-*.
+4. Выполнить `grace lint --path . --assertions current`, затем selected baseline. Код, schema, workflow или пользовательский flow нельзя менять до успешного baseline.
+
+Во время реализации:
+
+- `kafedra-flow-intake`, `kafedra-design`, `kafedra-data`, `kafedra-feature`, `kafedra-tests` и `kafedra-release` работают как specialist workers внутри T-* задач.
+- Worker меняет только declared `ObservedWriteScope`, немедленно проверяет acceptance criteria и не редактирует approved plan.
+- Параллельная работа разрешена только после `grace lint --path . --parallel-preflight`; любое пересечение scope переводит выполнение в последовательный режим или требует replanning.
+- Обнаруженный скрытый dependency, изменение цели или неизвестный drift останавливает выполнение. Нельзя расширять scope задним числом.
+
+Перед merge:
+
+1. Выполнить selected target и final assertions с `--run-commands`, когда план содержит `MustPassCommand`.
+2. После свежего final evidence перевести spec и plan в `applied` и переместить полный bundle в `.grace/changes/archive/C-*`.
+3. `npm run grace:policy` обязан подтвердить lifecycle и покрытие diff; `npm run grace:migrations` — безопасность schema-change; `npm run grace:ci` — current/final GRACE evidence.
+4. PR не готов к слиянию, пока check `GRACE merge gate` не имеет `success` для точного текущего SHA.
+5. Нельзя считать `skipped`, `neutral`, `pending`, `cancelled`, `timed_out`, старый успешный SHA или локальную проверку эквивалентом merge evidence.
+
+Мелкая documentation-only правка может не создавать C-*, только если `scripts/grace-policy.mjs` классифицирует diff как несущественный. Изменения `apps`, `packages`, `public`, `scripts`, `tests`, `migrations`, deployment, workflow, package/version, `AGENTS.md` и текущих GRACE context/graph/verification являются существенными.
+
 ## Запись в GitHub из ChatGPT
 
 При команде пользователя «сделай коммит», «слей в main» или аналогичной сначала нужно обнаружить полный набор GitHub actions. Нельзя делать вывод о read-only доступе только потому, что отсутствуют `gh`, локальный `.git`, shell credentials или OAuth-токен в окружении.
@@ -93,6 +121,14 @@ squash merge с проверкой head SHA
 - Локальная или фокусная проверка не заменяет полный GitHub CI.
 - После изменения синхронизировать затронутые README/VERSION/ROADMAP/архитектурные документы только тогда, когда меняется соответствующий контракт или рубеж продукта.
 
+## Консистентность БД и миграций
+
+- SQL-миграции являются append-only: существующий файл нельзя менять, удалять, переименовывать или повторно использовать его номер.
+- Новый номер продолжает максимальный номер точного base SHA без разрывов. При конфликте параллельных веток проигравшая ветка перестраивается и перенумеровывает только свою новую миграцию до merge.
+- Schema-change обязательно вовлекает `kafedra-data`, содержит regression-test и проходит base-to-head upgrade, повторный migrate, `PRAGMA quick_check`, `PRAGMA foreign_key_check`, `npm run backup:selftest` и явный rollback через восстановление backup и предыдущего bundle.
+- Fresh-install тест не заменяет upgrade тест. Ошибка миграции не исправляется редактированием уже опубликованного SQL: создаётся следующая корректирующая migration.
+- Изменения источника истины и его проекций выполняются одной предметной транзакцией или через transactional outbox; частично обновлённая проекция не считается допустимым завершением.
+
 ## Codex project roles
 
 Repository-local role skills live in `codex/skills/`; their shared routing is in `docs/CODEX_AGENTS.md` and their design contract is `docs/design.md`. For a matching task, read the role skill before acting:
@@ -104,4 +140,4 @@ Repository-local role skills live in `codex/skills/`; their shared routing is in
 - `kafedra-feature` for implementation of a vertical slice;
 - `kafedra-release` for versioning, migration rollout, offline deployment, backup/restore, or rollback.
 
-Follow the documented handoff whenever the task crosses roles. These skills refine project-specific decisions; they do not replace authorization boundaries or the mandatory CI/release gates above.
+Follow the documented handoff whenever the task crosses roles. These skills refine project-specific decisions; they do not replace authorization boundaries or the mandatory GRACE/CI/release gates above.

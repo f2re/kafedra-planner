@@ -1,0 +1,15 @@
+<GraceGraphIndex graceVersion="4.0">
+  <GraphDocuments>
+    <GD-ENGINEERING>
+      <Path>graph/main.xml</Path>
+      <Owns>
+        <M-ENGINEERING-GOVERNANCE />
+        <M-GITHUB-CI />
+        <M-DATABASE-MIGRATIONS />
+        <M-CODEX-ROLES />
+        <M-DATA-STORAGE />
+        <DF-GRACE-CHANGE />
+      </Owns>
+    </GD-ENGINEERING>
+  </GraphDocuments>
+</GraceGraphIndex>

@@ -1,0 +1,106 @@
+name: GRACE governance
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+concurrency:
+  group: grace-${{ github.event.pull_request.number || github.ref_name }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+  checks: read
+  actions: read
+  pull-requests: read
+
+jobs:
+  grace_contract:
+    name: GRACE contract
+    runs-on: ubuntu-latest
+    outputs:
+      ready: ${{ steps.policy.outputs.ready }}
+      base_sha: ${{ steps.refs.outputs.base_sha }}
+      head_sha: ${{ steps.refs.outputs.head_sha }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+      - uses: oven-sh/setup-bun@v2
+      - name: Определить проверяемый diff
+        id: refs
+        shell: bash
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+          PR_BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          PR_HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+          PUSH_BASE_SHA: ${{ github.event.before }}
+          EVENT_SHA: ${{ github.sha }}
+        run: |
+          set -Eeuo pipefail
+          if [[ "$EVENT_NAME" == pull_request ]]; then
+            BASE_SHA="$PR_BASE_SHA"
+            HEAD_SHA="$PR_HEAD_SHA"
+          else
+            BASE_SHA="$PUSH_BASE_SHA"
+            HEAD_SHA="$EVENT_SHA"
+            if [[ -z "$BASE_SHA" || "$BASE_SHA" =~ ^0+$ ]]; then
+              BASE_SHA="$(git rev-parse HEAD^)"
+            fi
+          fi
+          git cat-file -e "$BASE_SHA^{commit}"
+          git cat-file -e "$HEAD_SHA^{commit}"
+          echo "base_sha=$BASE_SHA" >> "$GITHUB_OUTPUT"
+          echo "head_sha=$HEAD_SHA" >> "$GITHUB_OUTPUT"
+      - name: Установить зависимости инженерного контура
+        run: |
+          npm ci --ignore-scripts --no-audit --no-fund
+          bun add -g @osovv/grace-cli@4.0.5
+          grace --version
+      - name: Проверить GRACE change, scope и append-only миграции
+        id: policy
+        env:
+          GRACE_BASE_SHA: ${{ steps.refs.outputs.base_sha }}
+          GRACE_HEAD_SHA: ${{ steps.refs.outputs.head_sha }}
+        run: npm run grace:policy -- --github-output
+      - name: Проверить upgrade, integrity и rollback миграций
+        env:
+          GRACE_BASE_SHA: ${{ steps.refs.outputs.base_sha }}
+          GRACE_HEAD_SHA: ${{ steps.refs.outputs.head_sha }}
+        run: npm run grace:migrations
+      - name: Выполнить current/final GRACE assertions
+        env:
+          GRACE_BASE_SHA: ${{ steps.refs.outputs.base_sha }}
+          GRACE_HEAD_SHA: ${{ steps.refs.outputs.head_sha }}
+        run: npm run grace:ci
+
+  grace_merge_gate:
+    name: GRACE merge gate
+    if: ${{ always() }}
+    needs: [grace_contract]
+    runs-on: ubuntu-latest
+    timeout-minutes: 360
+    permissions:
+      contents: read
+      checks: read
+      actions: read
+      pull-requests: read
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+      - name: Агрегировать обязательные checks точного SHA
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GRACE_CONTRACT_RESULT: ${{ needs.grace_contract.result }}
+          GRACE_READY: ${{ needs.grace_contract.outputs.ready }}
+          GRACE_REQUIRED_CHECKS: >-
+            ["Минимальный Node 24.15","test","browser","Сборщик под host Node 25.6","Full offline Debian 12 + Project Control"]
+        run: node scripts/grace-merge-gate.mjs

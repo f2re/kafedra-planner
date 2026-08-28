@@ -1,0 +1,46 @@
+<GraceChangeSpec graceVersion="4.0" status="approved">
+  <C-GRACE-CI-GOVERNANCE>
+    <Summary>Внедрить обязательный GRACE 4 lifecycle для веток, CI, миграций и слияния kafedra-planner.</Summary>
+    <Problem>Существующий проект имеет развитый CI и роли Codex, но GitHub не связывает существенный diff с неизменяемым C-* plan, ObservedWriteScope, безопасностью миграций и единым exact-SHA merge gate.</Problem>
+    <Goals>
+      <Goal>Каждое существенное изменение проходит issue → branch → approved spec/plan → scoped writes → final verification → applied archive → squash merge.</Goal>
+      <Goal>Объединить GRACE evidence и все существующие jobs в один fail-closed check для точного SHA.</Goal>
+      <Goal>Запретить изменение старых SQL-миграций и проверять upgrade базы с base SHA до head SHA, повторный migrate, quick_check, foreign_key_check, backup/restore и rollback readiness.</Goal>
+    </Goals>
+    <Constraints>
+      <Constraint>GRACE CLI 4.0.5 и Bun используются только при разработке и в CI, не входят в runtime/offline bundle.</Constraint>
+      <Constraint>Существующие AGENTS.md, kafedra-* skills, project CI и предметная архитектура дополняются, а не заменяются.</Constraint>
+      <Constraint>В этой change не меняются пользовательские функции и схема приложения.</Constraint>
+      <Constraint>Подключённый GitHub App не предоставляет mutation branch protection/rulesets; серверная защита документируется как обязательный административный шаг.</Constraint>
+    </Constraints>
+    <NonGoals>
+      <NonGoal>Внедрение сетевого gRPC-протокола или изменение API приложения.</NonGoal>
+      <NonGoal>Переписывание существующих тестов, release workflow или offline deployment.</NonGoal>
+      <NonGoal>Автоматическое изменение GitHub ruleset без доступного административного API.</NonGoal>
+    </NonGoals>
+    <AcceptanceCriteria>
+      <Criterion>В репозитории существует валидная заполненная .grace модель с graph, verification и change lifecycle.</Criterion>
+      <Criterion>Существенный diff без valid approved/applied C-* bundle или вне ObservedWriteScope блокируется.</Criterion>
+      <Criterion>Финальный merge gate принимает только applied archive bundle и успешные обязательные checks точного SHA.</Criterion>
+      <Criterion>Skipped, cancelled, missing, pending и failed checks не считаются доказательством готовности.</Criterion>
+      <Criterion>Миграции append-only, имеют последовательные номера и проверяются через upgrade, повторный migrate, PRAGMA quick_check, PRAGMA foreign_key_check, backup/restore и rollback.</Criterion>
+      <Criterion>Документированы branch flow, specialist handoffs, required check и ручная настройка защиты main.</Criterion>
+    </AcceptanceCriteria>
+    <AffectedAreas>
+      <M-ENGINEERING-GOVERNANCE />
+      <M-GITHUB-CI />
+      <M-DATABASE-MIGRATIONS />
+      <M-CODEX-ROLES />
+      <M-DATA-STORAGE />
+      <DF-GRACE-CHANGE />
+    </AffectedAreas>
+    <VerificationIntent>
+      <ExpectedCommand>npm run grace:ci</ExpectedCommand>
+      <ExpectedEvidence>GRACE 4.0.5 current/final lint, governance unit tests, docs consistency, existing project CI, exact-SHA check aggregation and post-merge rerun.</ExpectedEvidence>
+    </VerificationIntent>
+    <Assumptions>
+      <Assumption>GitHub Issue #184 является нормативным intake для этой change.</Assumption>
+      <Assumption>Слияние выполняется squash merge только после повторной проверки head SHA, mergeability, checks и review threads.</Assumption>
+    </Assumptions>
+  </C-GRACE-CI-GOVERNANCE>
+</GraceChangeSpec>

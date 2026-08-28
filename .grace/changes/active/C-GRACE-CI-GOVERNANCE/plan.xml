@@ -1,0 +1,129 @@
+<GraceChangePlan graceVersion="4.0" status="approved">
+  <C-GRACE-CI-GOVERNANCE>
+    <IntentSummary>Добавить GRACE как внешний контрактный контроллер существующих kafedra-* ролей и GitHub CI без runtime-зависимости.</IntentSummary>
+    <BaselineAssertions>
+      <MustExist>
+        <Value>AGENTS.md</Value>
+        <Value>docs/CODEX_AGENTS.md</Value>
+        <Value>scripts/migrate.mjs</Value>
+        <Value>packages/storage/src/database.mjs</Value>
+      </MustExist>
+    </BaselineAssertions>
+    <TargetAssertions>
+      <MustVerify>
+        <Module>M-ENGINEERING-GOVERNANCE</Module>
+        <Module>M-GITHUB-CI</Module>
+        <Module>M-DATABASE-MIGRATIONS</Module>
+        <Module>M-CODEX-ROLES</Module>
+        <Module>M-DATA-STORAGE</Module>
+      </MustVerify>
+      <MustContain>
+        <File>.github/workflows/grace-governance.yml</File>
+        <Text>name: GRACE merge gate</Text>
+      </MustContain>
+      <MustContain>
+        <File>docs/GRACE_WORKFLOW.md</File>
+        <Text>PRAGMA foreign_key_check</Text>
+      </MustContain>
+      <MustPassCommand>
+        <Command>node --test tests/grace-governance.test.mjs</Command>
+        <Command>npm run docs:check</Command>
+      </MustPassCommand>
+    </TargetAssertions>
+    <DurableScope>
+      <M-ENGINEERING-GOVERNANCE />
+      <M-GITHUB-CI />
+      <M-DATABASE-MIGRATIONS />
+      <M-CODEX-ROLES />
+      <M-DATA-STORAGE />
+      <DF-GRACE-CHANGE />
+      <V-M-ENGINEERING-GOVERNANCE />
+      <V-M-GITHUB-CI />
+      <V-M-DATABASE-MIGRATIONS />
+      <V-M-CODEX-ROLES />
+      <V-M-DATA-STORAGE />
+      <ContextArtifact>requirements.xml</ContextArtifact>
+      <ContextArtifact>technology.xml</ContextArtifact>
+      <ContextArtifact>principles.xml</ContextArtifact>
+      <ContextArtifact>deployment.xml</ContextArtifact>
+      <ContextArtifact>ux-guidelines.xml</ContextArtifact>
+    </DurableScope>
+    <ObservedWriteScope>
+      <Glob>.grace/**</Glob>
+      <File>.github/workflows/grace-governance.yml</File>
+      <File>AGENTS.md</File>
+      <File>package.json</File>
+      <File>docs/CODEX_AGENTS.md</File>
+      <File>docs/GRACE_WORKFLOW.md</File>
+      <Glob>scripts/lib/grace-*.mjs</Glob>
+      <File>scripts/grace-policy.mjs</File>
+      <File>scripts/grace-ci.mjs</File>
+      <File>scripts/grace-migration-gate.mjs</File>
+      <File>scripts/grace-merge-gate.mjs</File>
+      <File>tests/grace-governance.test.mjs</File>
+    </ObservedWriteScope>
+    <ImplementationPlan>
+      <T-001>
+        <Title>Сформировать GRACE context, graph, verification и approved change bundle</Title>
+        <DependsOn></DependsOn>
+        <AcceptanceCriteria>
+          <Criterion>Артефакты используют graceVersion 4.0 и канонические M-*, V-M-*, DF-* и C-* anchors.</Criterion>
+        </AcceptanceCriteria>
+        <Verification>
+          <Command>test -f .grace/graph/index.xml &amp;&amp; test -f .grace/verification/index.xml</Command>
+        </Verification>
+      </T-001>
+      <T-002>
+        <Title>Реализовать diff, lifecycle и ObservedWriteScope policy</Title>
+        <DependsOn></DependsOn>
+        <AcceptanceCriteria>
+          <Criterion>Существенные записи вне declared scope и изменения без C-* блокируются fail-closed.</Criterion>
+        </AcceptanceCriteria>
+        <Verification>
+          <Command>node --test tests/grace-governance.test.mjs</Command>
+        </Verification>
+      </T-002>
+      <T-003>
+        <Title>Реализовать безопасный контур SQL-миграций</Title>
+        <DependsOn></DependsOn>
+        <AcceptanceCriteria>
+          <Criterion>Используется append-only нумерация, base-to-head upgrade, повторный migrate, PRAGMA quick_check, PRAGMA foreign_key_check, backup/restore и rollback evidence.</Criterion>
+        </AcceptanceCriteria>
+        <Verification>
+          <Command>npm run grace:migrations</Command>
+          <Command>npm run backup:selftest</Command>
+        </Verification>
+      </T-003>
+      <T-004>
+        <Title>Добавить pinned GRACE CI и exact-SHA merge gate</Title>
+        <DependsOn></DependsOn>
+        <AcceptanceCriteria>
+          <Criterion>GRACE CLI зафиксирован на 4.0.5, а агрегатор принимает только success всех обязательных check runs.</Criterion>
+        </AcceptanceCriteria>
+        <Verification>
+          <Command>node --test tests/grace-governance.test.mjs</Command>
+        </Verification>
+      </T-004>
+      <T-005>
+        <Title>Связать GRACE controller с kafedra-* ролями и branch workflow</Title>
+        <DependsOn></DependsOn>
+        <AcceptanceCriteria>
+          <Criterion>AGENTS.md и CODEX_AGENTS.md задают handoff, immutable plan, archive и merge discipline.</Criterion>
+        </AcceptanceCriteria>
+        <Verification>
+          <Command>npm run docs:check</Command>
+        </Verification>
+      </T-005>
+      <T-006>
+        <Title>Провести финальную проверку, перевести bundle в applied archive и подготовить PR</Title>
+        <DependsOn></DependsOn>
+        <AcceptanceCriteria>
+          <Criterion>Финальный head содержит только applied archive bundle и проходит GRACE merge gate вместе со всем project CI.</Criterion>
+        </AcceptanceCriteria>
+        <Verification>
+          <Command>node --test tests/grace-governance.test.mjs</Command>
+        </Verification>
+      </T-006>
+    </ImplementationPlan>
+  </C-GRACE-CI-GOVERNANCE>
+</GraceChangePlan>

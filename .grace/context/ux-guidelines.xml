@@ -1,0 +1,8 @@
+<GraceUXGuidelines graceVersion="4.0">
+  <Applicability>applicable</Applicability>
+  <Audience>Сотрудники кафедры с различной цифровой подготовкой, работающие на desktop и mobile.</Audience>
+  <Guideline>Интерфейс должен быть понятен без инструкции, сохранять фиксированную информационную иерархию и не перестраивать основные действия по статистике.</Guideline>
+  <Guideline>Автоподстановка классифицируется как safe-default, rank-only, domain-derived или never-learn; ACL, секреты и предметные решения не обучаются.</Guideline>
+  <Guideline>Явное действие пользователя, сохранённое предметное значение и подтверждённые доменные данные имеют приоритет над learned defaults.</Guideline>
+  <Guideline>Новые пользовательские сценарии имеют desktop/mobile acceptance criteria и браузерную регрессию.</Guideline>
+</GraceUXGuidelines>

@@ -1,0 +1,12 @@
+<GraceTechnology graceVersion="4.0">
+  <Language>JavaScript ESM, SQL, HTML/CSS and shell</Language>
+  <Runtime>Node.js 24 LTS; Bun is allowed only for the engineering GRACE CLI</Runtime>
+  <Framework>Node.js HTTP API and worker, SQLite with FTS5, browser UI, systemd services</Framework>
+  <TestingStack>node:test, Playwright, smoke tests, backup/restore selftests, offline bundle and systemd deployment selftests</TestingStack>
+  <Observability>Structured application logs, audit records, worker job state, GitHub Actions checks and immutable GRACE verification artifacts</Observability>
+  <OperationalConstraints>
+    <Constraint>Production/runtime dependencies must remain offline-capable on Debian and Astra Linux.</Constraint>
+    <Constraint>GRACE and Bun are development/CI dependencies and must not enter the application runtime bundle.</Constraint>
+    <Constraint>Use existing project libraries and repository patterns before introducing a new dependency.</Constraint>
+  </OperationalConstraints>
+</GraceTechnology>

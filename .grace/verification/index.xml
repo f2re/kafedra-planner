@@ -1,0 +1,14 @@
+<GraceVerificationIndex graceVersion="4.0">
+  <VerificationDocuments>
+    <VD-ENGINEERING>
+      <Path>verification/main.xml</Path>
+      <Owns>
+        <V-M-ENGINEERING-GOVERNANCE />
+        <V-M-GITHUB-CI />
+        <V-M-DATABASE-MIGRATIONS />
+        <V-M-CODEX-ROLES />
+        <V-M-DATA-STORAGE />
+      </Owns>
+    </VD-ENGINEERING>
+  </VerificationDocuments>
+</GraceVerificationIndex>

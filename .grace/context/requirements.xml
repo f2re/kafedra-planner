@@ -1,0 +1,19 @@
+<GraceRequirements graceVersion="4.0">
+  <ProjectName>kafedra-planner</ProjectName>
+  <Annotation>Автономная платформа документов, планов, календаря, задач, заседаний, науки и отчётности кафедры.</Annotation>
+  <Keywords>offline-first, department planning, documents, calendar, tasks, evidence, SQLite, Astra Linux</Keywords>
+  <Goals>
+    <Goal>Поддерживать единый непротиворечивый источник истины по деятельности кафедры и его восстанавливаемые проекции.</Goal>
+    <Goal>Проводить каждое существенное инженерное изменение через трассируемый GRACE change и проверенный pull request.</Goal>
+  </Goals>
+  <Users>
+    <User>Сотрудники кафедры, руководитель, оператор документов и администратор автономной установки.</User>
+    <User>Разработчики и Codex-агенты, работающие через короткие ветки и GitHub CI.</User>
+  </Users>
+  <Constraints>
+    <Constraint>Основной пользовательский сценарий работает без Интернета, облака и обязательной LLM.</Constraint>
+    <Constraint>Исходные документы, provenance, audit и история миграций не переписываются задним числом.</Constraint>
+    <Constraint>Календарь, поиск, фасеты и отчёты являются проекциями и не становятся вторым источником истины.</Constraint>
+    <Constraint>Существенный diff не сливается без approved/applied C-* bundle, scope-проверки и GRACE merge gate.</Constraint>
+  </Constraints>
+</GraceRequirements>

@@ -1,0 +1,9 @@
+<GracePrinciples graceVersion="4.0">
+  <Principle>Contract first: issue, approved GraceChangeSpec, approved GraceChangePlan, scoped implementation and fresh verification precede merge.</Principle>
+  <Principle>One authoritative domain record remains identifiable; derived calendar, search and report records are rebuildable projections.</Principle>
+  <Principle>Documents and evidence remain immutable; corrections create revisions and audit rather than erasing provenance.</Principle>
+  <Principle>Database migrations are append-only, sequential, transactional and verified from the exact base SHA to the exact tested SHA.</Principle>
+  <Principle>Every schema change proves repeated migration, PRAGMA quick_check, PRAGMA foreign_key_check, backup/restore and rollback readiness.</Principle>
+  <Principle>Approved plans are immutable; changed intent or scope requires superseding and replanning.</Principle>
+  <Principle>Merge evidence is tied to an exact SHA and fails closed on missing, pending, skipped, cancelled or failed checks.</Principle>
+</GracePrinciples>

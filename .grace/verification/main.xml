@@ -1,0 +1,45 @@
+<GraceVerificationDocument graceVersion="4.0">
+  <VD-ENGINEERING>
+    <V-M-ENGINEERING-GOVERNANCE>
+      <TestFiles>
+        <File>tests/grace-governance.test.mjs</File>
+      </TestFiles>
+      <Command>node --test tests/grace-governance.test.mjs</Command>
+      <Scenario>A significant diff without a valid C-* bundle or outside ObservedWriteScope is rejected.</Scenario>
+      <Scenario>An applied archive bundle reaches merge readiness while an active bundle does not.</Scenario>
+    </V-M-ENGINEERING-GOVERNANCE>
+    <V-M-GITHUB-CI>
+      <TestFiles>
+        <File>tests/grace-governance.test.mjs</File>
+      </TestFiles>
+      <Command>node --test tests/grace-governance.test.mjs</Command>
+      <Scenario>The newest check run for every required name must complete with conclusion success.</Scenario>
+      <Scenario>Missing, pending, skipped, cancelled or failed checks block the merge gate.</Scenario>
+    </V-M-GITHUB-CI>
+    <V-M-DATABASE-MIGRATIONS>
+      <TestFiles>
+        <File>tests/grace-governance.test.mjs</File>
+      </TestFiles>
+      <Command>node --test tests/grace-governance.test.mjs</Command>
+      <Scenario>Existing migrations cannot be edited, renamed or removed.</Scenario>
+      <Scenario>New migrations are sequential and declare upgrade, integrity, backup/restore and rollback evidence.</Scenario>
+    </V-M-DATABASE-MIGRATIONS>
+    <V-M-CODEX-ROLES>
+      <TestFiles>
+        <File>docs/CODEX_AGENTS.md</File>
+        <File>docs/GRACE_WORKFLOW.md</File>
+      </TestFiles>
+      <Command>npm run docs:check</Command>
+      <Scenario>Specialist kafedra-* roles operate inside one immutable GRACE plan and explicit handoffs.</Scenario>
+    </V-M-CODEX-ROLES>
+    <V-M-DATA-STORAGE>
+      <TestFiles>
+        <File>tests/database-concurrency.test.mjs</File>
+        <File>tests/database-nested-transaction.test.mjs</File>
+      </TestFiles>
+      <Command>node --test tests/database-concurrency.test.mjs tests/database-nested-transaction.test.mjs</Command>
+      <Scenario>SQLite transactions, busy retry and nested savepoints remain correct.</Scenario>
+      <Scenario>Migration verification ends with quick_check and an empty foreign_key_check result.</Scenario>
+    </V-M-DATA-STORAGE>
+  </VD-ENGINEERING>
+</GraceVerificationDocument>
