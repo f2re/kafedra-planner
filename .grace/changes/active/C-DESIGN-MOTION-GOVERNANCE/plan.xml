@@ -1,0 +1,107 @@
+<GraceChangePlan graceVersion="4.0" status="approved">
+  <C-DESIGN-MOTION-GOVERNANCE>
+    <IntentSummary>Install a durable design → motion → implementation → independent design audit → tests specialist path inside GRACE 4, backed by an offline semantic motion catalog and a fail-closed plan checker for public UI changes.</IntentSummary>
+    <BaselineAssertions>
+      <MustExist><Value>docs/design.md</Value></MustExist>
+      <MustExist><Value>codex/skills/kafedra-design/SKILL.md</Value></MustExist>
+      <MustExist><Value>.grace/context/ux-guidelines.xml</Value></MustExist>
+      <MustExist><Value>public/index.html</Value></MustExist>
+      <MustVerify><Module>M-GRACE-GOVERNANCE</Module></MustVerify>
+    </BaselineAssertions>
+    <TargetAssertions>
+      <MustExist><Value>docs/MOTION_DESIGN.md</Value></MustExist>
+      <MustExist><Value>docs/design/reactiive-motion-catalog.md</Value></MustExist>
+      <MustExist><Value>codex/skills/kafedra-motion/SKILL.md</Value></MustExist>
+      <MustExist><Value>codex/skills/kafedra-design-audit/SKILL.md</Value></MustExist>
+      <MustExist><Value>scripts/design-governance.mjs</Value></MustExist>
+      <MustExist><Value>tests/design-governance.test.mjs</Value></MustExist>
+      <MustVerify><Module>M-DESIGN-GOVERNANCE</Module></MustVerify>
+      <MustVerify><Module>M-MOTION-KB</Module></MustVerify>
+      <MustContain><File>AGENTS.md</File><Text>kafedra-design-audit</Text></MustContain>
+      <MustContain><File>docs/CODEX_AGENTS.md</File><Text>kafedra-motion</Text></MustContain>
+      <MustContain><File>docs/design.md</File><Text>Apple-inspired</Text></MustContain>
+      <MustPassCommand><Command>node --test tests/design-governance.test.mjs</Command></MustPassCommand>
+      <MustPassCommand><Command>npm run design:check</Command></MustPassCommand>
+      <MustPassCommand><Command>npm run check</Command></MustPassCommand>
+      <MustPassCommand><Command>npm run docs:check</Command></MustPassCommand>
+    </TargetAssertions>
+    <DurableScope>
+      <GraphAnchors>
+        <M-GRACE-GOVERNANCE />
+        <M-CI-GATE />
+        <M-OFFLINE-BUNDLE />
+        <M-DESIGN-GOVERNANCE />
+        <M-MOTION-KB />
+        <DF-GRACE-BRANCH />
+        <DF-DESIGN-CHANGE />
+      </GraphAnchors>
+      <VerificationAnchors>
+        <V-M-GRACE-GOVERNANCE />
+        <V-M-CI-GATE />
+        <V-M-DESIGN-GOVERNANCE />
+        <V-M-MOTION-KB />
+      </VerificationAnchors>
+      <ContextArtifacts>
+        <ContextArtifact>principles.xml</ContextArtifact>
+        <ContextArtifact>ux-guidelines.xml</ContextArtifact>
+      </ContextArtifacts>
+    </DurableScope>
+    <ObservedWriteScope>
+      <Glob>.grace/changes/active/C-DESIGN-MOTION-GOVERNANCE/**</Glob>
+      <File>.grace/context/principles.xml</File>
+      <File>.grace/context/ux-guidelines.xml</File>
+      <File>.grace/graph/main.xml</File>
+      <File>.grace/verification/main.xml</File>
+      <File>AGENTS.md</File>
+      <File>docs/CODEX_AGENTS.md</File>
+      <File>docs/GRACE_GOVERNANCE.md</File>
+      <File>docs/design.md</File>
+      <File>docs/MOTION_DESIGN.md</File>
+      <Glob>docs/design/**</Glob>
+      <File>codex/skills/kafedra-design/SKILL.md</File>
+      <Glob>codex/skills/kafedra-motion/**</Glob>
+      <Glob>codex/skills/kafedra-design-audit/**</Glob>
+      <File>scripts/design-governance.mjs</File>
+      <File>tests/design-governance.test.mjs</File>
+      <File>package.json</File>
+    </ObservedWriteScope>
+    <ImplementationPlan>
+      <T-001>
+        <Title>kafedra-design: extend the stable product contract with Apple-inspired clarity and continuity</Title>
+        <DependsOn></DependsOn>
+        <AcceptanceCriteria><Criterion>Design guidance keeps hierarchy obvious, geometry stable, actions concrete, materials restrained, desktop/mobile equivalent and accessibility explicit without changing current product workflows.</Criterion></AcceptanceCriteria>
+        <Verification><Command>npm run docs:check</Command></Verification>
+      </T-001>
+      <T-002>
+        <Title>kafedra-motion: install the motion advisor and 123-demo semantic reference catalog</Title>
+        <DependsOn><T-001 /></DependsOn>
+        <AcceptanceCriteria><Criterion>The role retrieves references by interaction intent, distinguishes exact source evidence from recommendations, emits measurable motion briefs, may explicitly choose no motion, and always specifies prefers-reduced-motion behavior.</Criterion></AcceptanceCriteria>
+        <Verification><Command>npm run design:check</Command></Verification>
+      </T-002>
+      <T-003>
+        <Title>kafedra-feature: make UI-scoped GRACE plans fail closed without the design specialist path</Title>
+        <DependsOn><T-001 /><T-002 /></DependsOn>
+        <AcceptanceCriteria><Criterion>A dependency-free Node checker validates required design artifacts and enforces design → motion → implementation → independent design audit → tests for observed writes under public/, including desktop, mobile and prefers-reduced-motion acceptance language.</Criterion></AcceptanceCriteria>
+        <Verification><Command>node --test tests/design-governance.test.mjs</Command></Verification>
+      </T-003>
+      <T-004>
+        <Title>kafedra-design-audit: define an independent post-implementation UI review gate</Title>
+        <DependsOn><T-003 /></DependsOn>
+        <AcceptanceCriteria><Criterion>The audit role returns PASS, REVISE or BLOCK with severity, evidence and test consequences and checks hierarchy, continuity, motion, static state, reduced motion, keyboard/focus, desktop/mobile and consistency with adjacent screens.</Criterion></AcceptanceCriteria>
+        <Verification><Command>npm run design:check</Command></Verification>
+      </T-004>
+      <T-005>
+        <Title>kafedra-tests: verify design governance and GRACE projections</Title>
+        <DependsOn><T-004 /></DependsOn>
+        <AcceptanceCriteria><Criterion>Regression fixtures prove missing roles, invalid order and missing desktop/mobile/reduced-motion criteria fail while a complete UI plan passes; repository docs and GRACE graph/verification remain coherent.</Criterion></AcceptanceCriteria>
+        <Verification><Command>node --test tests/design-governance.test.mjs</Command><Command>npm run check</Command><Command>npm run docs:check</Command></Verification>
+      </T-005>
+      <T-006>
+        <Title>kafedra-release: prove governance-only delivery has no runtime, schema or offline dependency impact</Title>
+        <DependsOn><T-005 /></DependsOn>
+        <AcceptanceCriteria><Criterion>Existing project, release and GRACE gates remain mandatory, package version and SQLite schema are unchanged, and the offline runtime has no dependency on the reference catalog or design tooling.</Criterion></AcceptanceCriteria>
+        <Verification><Command>bash -n scripts/offline/*.sh deploy/install.sh</Command></Verification>
+      </T-006>
+    </ImplementationPlan>
+  </C-DESIGN-MOTION-GOVERNANCE>
+</GraceChangePlan>

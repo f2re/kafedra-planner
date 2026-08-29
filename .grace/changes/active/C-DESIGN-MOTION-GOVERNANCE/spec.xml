@@ -1,0 +1,55 @@
+<GraceChangeSpec graceVersion="4.0" status="approved">
+  <C-DESIGN-MOTION-GOVERNANCE>
+    <Summary>Make Apple-inspired product design, motion advising and independent design audit a mandatory specialist path for future Kafedra Planner UI changes inside the existing GRACE 4 lifecycle.</Summary>
+    <Problem>Kafedra Planner already has a stable product design guide and a kafedra-design role, but motion selection, reduced-motion decisions and post-implementation design audit are not separate durable responsibilities and are not fail-closed for UI-scoped GRACE plans.</Problem>
+    <Goals>
+      <Goal>Extend the product design contract with restrained Apple-inspired clarity, continuity, direct manipulation, stable geometry and predictable motion without copying Apple assets or introducing a decorative visual layer.</Goal>
+      <Goal>Add a kafedra-motion specialist that converts interaction intent into a measurable motion brief backed by a local semantic catalog of all 123 current Reactiive demos.</Goal>
+      <Goal>Add an independent kafedra-design-audit specialist that reviews implemented UI after feature delivery and before test/release handoff.</Goal>
+      <Goal>Add deterministic repository governance so a GRACE plan that writes public UI files must explicitly route design, motion, implementation, design audit and tests and cover desktop, mobile and reduced motion.</Goal>
+      <Goal>Represent the design governance and motion knowledge base in GRACE context, graph and verification artifacts so later orchestrators can discover the workflow.</Goal>
+    </Goals>
+    <Constraints>
+      <Constraint>The existing GRACE 4 lifecycle remains the outer governance mechanism; no parallel lifecycle or second source of truth is introduced.</Constraint>
+      <Constraint>The application runtime, SQLite schema, domain behavior and offline bundle dependency graph must not change.</Constraint>
+      <Constraint>Reactiive is an inspiration/reference source only. The repository stores original semantic descriptions, classification, measured parameters and source paths/links, not redistributed upstream component source.</Constraint>
+      <Constraint>The core UI must remain fully functional offline and must not depend on Reactiive, Reanimated, Skia, a remote design service or an LLM at runtime.</Constraint>
+      <Constraint>Motion must never be the sole carrier of state, must support prefers-reduced-motion and must not add decorative delay to frequent operational actions.</Constraint>
+      <Constraint>Stable geometry and the adaptive UX safe-default/rank-only/domain-derived/never-learn contract remain authoritative.</Constraint>
+    </Constraints>
+    <NonGoals>
+      <NonGoal>Restyle every existing Kafedra Planner screen in this governance change.</NonGoal>
+      <NonGoal>Add a frontend framework, animation runtime library, remote font, CDN asset or visual dependency.</NonGoal>
+      <NonGoal>Change application data, migrations, release version or product workflows.</NonGoal>
+      <NonGoal>Repackage or redistribute the Reactiive demos repository or create a competing animation library.</NonGoal>
+    </NonGoals>
+    <AcceptanceCriteria>
+      <Criterion>Repository-local skills exist for kafedra-design, kafedra-motion and kafedra-design-audit with explicit GRACE handoffs and distinct responsibilities.</Criterion>
+      <Criterion>The motion knowledge base indexes all 123 current Reactiive demos by retrieval family and keeps exact source-derived facts distinct from semantic interpretation and Kafedra recommendations.</Criterion>
+      <Criterion>The product design and motion documentation define a calm Apple-inspired visual language, direct manipulation, continuity, timing policy, material/opacity restraint, accessibility, reduced-motion and performance rules.</Criterion>
+      <Criterion>A deterministic design governance check passes on the repository and fails for a UI-scoped GRACE plan that omits design, motion, independent audit, tests, desktop/mobile acceptance or prefers-reduced-motion handling.</Criterion>
+      <Criterion>The design governance check rejects an invalid specialist order and accepts design then motion then implementation then independent design audit then tests.</Criterion>
+      <Criterion>AGENTS and Codex role routing require the design audit after implementation for UI changes and preserve existing data, testing, release and GRACE ownership.</Criterion>
+      <Criterion>GRACE context, graph and verification expose the design-governance and motion-reference boundaries and validate with the pinned GRACE toolchain.</Criterion>
+      <Criterion>npm run design:check, focused design-governance tests, npm run check and npm run docs:check pass without adding a runtime or offline dependency.</Criterion>
+    </AcceptanceCriteria>
+    <AffectedAreas>
+      <M-GRACE-GOVERNANCE />
+      <M-CI-GATE />
+      <M-OFFLINE-BUNDLE />
+    </AffectedAreas>
+    <VerificationIntent>
+      <ExpectedCommand>node --test tests/design-governance.test.mjs</ExpectedCommand>
+      <ExpectedCommand>npm run design:check</ExpectedCommand>
+      <ExpectedCommand>npm run check</ExpectedCommand>
+      <ExpectedCommand>npm run docs:check</ExpectedCommand>
+      <ExpectedCommand>grace lint --path . --change C-DESIGN-MOTION-GOVERNANCE --assertions final --run-commands</ExpectedCommand>
+      <ExpectedEvidence>Design governance regression evidence plus unchanged-head GRACE, project and release checks show that the new specialist path is durable without modifying runtime behavior or the database.</ExpectedEvidence>
+    </VerificationIntent>
+    <Assumptions>
+      <Assumption>The verified base revision is main commit 02d103f667bd5f77895b74ad5532e882c3903ffb and tree 880331c27287a0c0754e1207a15812ff722f164b.</Assumption>
+      <Assumption>The browser UI remains rooted in public/ for the current architecture; if that boundary moves, M-DESIGN-GOVERNANCE must be updated in a later approved change.</Assumption>
+      <Assumption>Issue 195 is the human-visible work item for this change.</Assumption>
+    </Assumptions>
+  </C-DESIGN-MOTION-GOVERNANCE>
+</GraceChangeSpec>
