@@ -5,7 +5,7 @@ export function renderSettingsSummary() {
   if (!target) return;
   const s = meetingsState.settings;
   if (!settingsReady()) {
-    target.innerHTML = '<div><strong>Перед первым заседанием</strong><span>Укажите два шаблона, кворум, председателя и секретаря.</span></div><button type="button" class="text-button" data-open-meeting-settings>Настроить</button>';
+    target.innerHTML = '<div><strong>Шаблоны нужны только для новых документов</strong><span>Загруженный протокол создаёт заседание без настройки шаблонов. Настройте их, когда понадобится формировать новые протоколы и выписки.</span></div><button type="button" class="text-button" data-open-meeting-settings>Настроить</button>';
     target.classList.add('needs-setup');
     return;
   }
@@ -13,12 +13,19 @@ export function renderSettingsSummary() {
   target.innerHTML = `<div><strong>Параметры кафедры</strong><span>Кворум ${Number(s.quorum)} · ${escMeeting(s.chairperson_name)} — председатель · ${escMeeting(s.secretary_name)} — секретарь</span></div><button type="button" class="text-button" data-open-meeting-settings>Изменить</button>`;
 }
 
+function meetingStateLabel(meeting) {
+  if (meeting.status === 'confirmed') return 'протокол сформирован';
+  if (meeting.status === 'confirmed_auto') return 'загружен из документа';
+  if (meeting.status === 'proposed') return 'нужно уточнить поля';
+  return 'создано вручную';
+}
+
 function meetingCard(meeting) {
   return `<button class="meeting-card ${meeting.id === meetingsState.selectedMeetingId ? 'active' : ''}" type="button" data-meeting-id="${escMeeting(meeting.id)}">
     <span class="meeting-card-date">${escMeeting(meetingDate(meeting.meeting_date))}</span>
     <strong>Протокол №${escMeeting(meeting.protocol_number || '—')}</strong>
     <span>${escMeeting(meeting.title)}</span>
-    <small>${Number(meeting.agenda_count || 0)} вопрос(а/ов) · ${meeting.status === 'confirmed' ? 'протокол сформирован' : 'черновик'}</small>
+    <small>${Number(meeting.agenda_count || 0)} вопрос(а/ов) · ${escMeeting(meetingStateLabel(meeting))}</small>
   </button>`;
 }
 
@@ -27,7 +34,7 @@ export function renderMeetingList() {
   if (!target) return;
   target.innerHTML = meetingsState.meetings.length
     ? meetingsState.meetings.map(meetingCard).join('')
-    : '<div class="empty-state">Заседаний пока нет. Создайте первое — затем соберите повестку из задач и планов.</div>';
+    : '<div class="empty-state">Заседаний пока нет. Загрузите готовый протокол или создайте заседание вручную.</div>';
 }
 
 function agendaPreview(item) {
@@ -72,16 +79,22 @@ export function renderMeetingDetail() {
   if (!target) return;
   const meeting = meetingsState.meeting;
   if (!meeting) {
-    target.innerHTML = '<div class="empty-state">Выберите заседание слева.</div>';
+    target.innerHTML = '<div class="empty-state">Выберите заседание слева или загрузите протокол.</div>';
     return;
   }
   const agenda = meeting.agenda || [];
   const selectedCount = [...meetingsState.selectedForExtract].filter((id) => agenda.some((item) => item.id === id)).length;
+  const hasSource = Boolean(meeting.source_document_id);
+  const canGenerate = settingsReady();
   target.innerHTML = `
     <div class="meeting-detail-head">
       <div><span class="meeting-kicker">${escMeeting(meetingDate(meeting.meeting_date))}</span><h3>Протокол №${escMeeting(meeting.protocol_number || '—')}</h3><p>${escMeeting(meeting.title)}</p></div>
-      <button type="button" class="secondary-button" data-edit-meeting>Изменить</button>
+      <div class="meetings-heading-actions">
+        ${hasSource ? `<a class="secondary-button" href="/api/documents/${encodeURIComponent(meeting.source_document_id)}/content?variant=original" target="_blank" rel="noopener">Исходный документ</a>` : ''}
+        <button type="button" class="secondary-button" data-edit-meeting>Изменить</button>
+      </div>
     </div>
+    ${hasSource ? `<div class="meeting-settings-summary"><div><strong>Создано из протокола</strong><span>${escMeeting(meeting.source_original_name || 'Исходный файл сохранён')}. Автоматически заполненные поля можно исправить на месте.</span></div></div>` : ''}
     <div class="meeting-meta-strip">
       <span><b>Кворум</b> ${meeting.quorum_required || '—'}</span>
       <span><b>Председатель</b> ${escMeeting(meeting.chairperson_raw || '—')}</span>
@@ -91,11 +104,11 @@ export function renderMeetingDetail() {
       <div><h3>Повестка</h3><p>Вопросы нумеруются автоматически. Отметьте нужные пункты слева, чтобы сформировать выписку.</p></div>
       <div><button type="button" class="secondary-button" data-add-manual-question>Добавить вопрос</button><button type="button" class="primary-button" data-add-source-question>Из задач и планов</button></div>
     </div>
-    <div class="agenda-list">${agenda.length ? agenda.map((item, index) => agendaItemHtml(item, index, agenda.length)).join('') : '<div class="empty-state">Повестка пуста. Добавьте вопрос вручную или выберите его из задач и планов.</div>'}</div>
+    <div class="agenda-list">${agenda.length ? agenda.map((item, index) => agendaItemHtml(item, index, agenda.length)).join('') : '<div class="empty-state">Повестка не распознана. Добавьте вопрос вручную — исходный протокол уже сохранён.</div>'}</div>
     <div class="meeting-document-actions">
-      <div><strong>Документы заседания</strong><span>Протокол содержит всю повестку. Выписка — только отмеченные вопросы с исходными номерами.</span></div>
-      <div><button type="button" class="secondary-button" data-generate-protocol ${agenda.length ? '' : 'disabled'}>Сформировать протокол</button><button type="button" class="primary-button" data-generate-extract ${selectedCount ? '' : 'disabled'}>Выписка · ${selectedCount}</button></div>
+      <div><strong>Документы заседания</strong><span>${hasSource ? 'Исходный протокол уже сохранён. Шаблоны нужны только для формирования нового файла.' : 'Протокол содержит всю повестку. Выписка — только отмеченные вопросы с исходными номерами.'}</span></div>
+      <div><button type="button" class="secondary-button" data-generate-protocol ${agenda.length && canGenerate ? '' : 'disabled'}>Сформировать протокол</button><button type="button" class="primary-button" data-generate-extract ${selectedCount && canGenerate ? '' : 'disabled'}>Выписка · ${selectedCount}</button></div>
     </div>
-    <div class="meeting-documents">${(meeting.documents || []).length ? meeting.documents.map(documentHtml).join('') : '<span class="meeting-documents-empty">Сформированных документов пока нет.</span>'}</div>
+    <div class="meeting-documents">${(meeting.documents || []).length ? meeting.documents.map(documentHtml).join('') : '<span class="meeting-documents-empty">Новых сформированных документов пока нет.</span>'}</div>
   `;
 }

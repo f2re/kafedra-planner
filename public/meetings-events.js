@@ -1,10 +1,79 @@
-import { meetingsState, $m, ensureMeetingsUi, closeMeetingModal, showMeetingNotice } from './meetings-state.js';
+import { meetingsState, $m, ensureMeetingsUi, closeMeetingModal, meetingApi, showMeetingNotice } from './meetings-state.js';
 import { activateMeetingsView } from './meetings-view.js';
 import { openAgendaModal, openCreateMeetingModal, openEditMeetingModal, openSettingsModal, openSourceModal, renderSources } from './meetings-modals.js';
 import { addSourceQuestion, createMeetingFromForm, deleteAgenda, editMeetingFromForm, generateDocument, moveAgenda, saveAgendaForm, saveSettings, uploadMeetingTemplateInput } from './meetings-actions.js';
 import { schedulePlanMeetingLinks } from './meetings-plan-links.js';
-import { loadMeeting } from './meetings-data.js';
+import { loadMeeting, loadMeetings } from './meetings-data.js';
 import { renderMeetingDetail } from './meetings-render.js';
+
+function setProtocolUploadBusy(busy) {
+  meetingsState.upload.inProgress = busy;
+  const button = $m('#meeting-source-upload-button');
+  if (!button) return;
+  button.disabled = busy;
+  button.textContent = busy ? 'Обрабатывается…' : 'Загрузить протокол';
+}
+
+function protocolIdempotencyKey(file) {
+  return encodeURIComponent(`meeting-protocol:${file.name}:${file.size}:${file.lastModified}`);
+}
+
+async function findMeetingByDocument(documentId) {
+  const data = await meetingApi('/api/meetings?limit=500');
+  return (data.items || []).find((item) => item.source_document_id === documentId) || null;
+}
+
+async function uploadProtocol(file) {
+  if (!file || meetingsState.upload.inProgress) return;
+  setProtocolUploadBusy(true);
+  showMeetingNotice(`Сохраняется «${file.name}»…`);
+  try {
+    const response = await meetingApi('/api/documents', {
+      method: 'POST',
+      headers: {
+        'content-type': file.type || 'application/octet-stream',
+        'x-file-name': encodeURIComponent(file.name),
+        'x-document-type': 'protocol',
+        'idempotency-key': protocolIdempotencyKey(file)
+      },
+      body: file
+    });
+    meetingsState.upload.documentId = response.documentId;
+    const deadline = Date.now() + 30_000;
+    while (Date.now() < deadline) {
+      const document = await meetingApi(`/api/documents/${encodeURIComponent(response.documentId)}`);
+      if (['processed', 'needs_review', 'failed'].includes(document.processing_status)) {
+        if (document.processing_status === 'failed') {
+          throw new Error('Протокол сохранён, но автоматический разбор завершился ошибкой. Исходный файл доступен в документах.');
+        }
+        const created = await findMeetingByDocument(response.documentId);
+        if (!created) {
+          await loadMeetings();
+          showMeetingNotice('Файл сохранён. Заседание не удалось распознать автоматически — исходник доступен в документах.');
+          return;
+        }
+        await loadMeetings(created.id);
+        showMeetingNotice(document.processing_status === 'needs_review'
+          ? 'Заседание создано. Исправьте только отмеченные неоднозначности.'
+          : 'Заседание и повестка созданы автоматически.');
+        return;
+      }
+      await new Promise((resolve) => setTimeout(resolve, 250));
+    }
+    const created = await findMeetingByDocument(response.documentId);
+    if (created) {
+      await loadMeetings(created.id);
+      showMeetingNotice('Заседание создано. Фоновая обработка документов продолжается.');
+    } else {
+      await loadMeetings();
+      showMeetingNotice('Протокол принят. Обработка продолжается на сервере.');
+    }
+  } finally {
+    setProtocolUploadBusy(false);
+    const input = $m('#meeting-source-upload-input');
+    if (input) input.value = '';
+  }
+}
 
 document.addEventListener('click', (event) => {
   const meetingNav = event.target.closest('[data-view="meetings"]');
@@ -12,6 +81,10 @@ document.addEventListener('click', (event) => {
     event.preventDefault();
     event.stopImmediatePropagation();
     activateMeetingsView();
+    return;
+  }
+  if (event.target.closest('#meeting-source-upload-button')) {
+    $m('#meeting-source-upload-input')?.click();
     return;
   }
   if (event.target.closest('[data-open-meeting-settings]') || event.target.closest('#meeting-settings-button')) return openSettingsModal();
@@ -44,6 +117,11 @@ document.addEventListener('click', (event) => {
 }, true);
 
 document.addEventListener('change', (event) => {
+  const sourceInput = event.target.closest('#meeting-source-upload-input');
+  if (sourceInput) {
+    uploadProtocol(sourceInput.files?.[0]).catch((error) => showMeetingNotice(error.message));
+    return;
+  }
   const templateInput = event.target.closest('[data-meeting-template-upload]');
   if (templateInput) {
     uploadMeetingTemplateInput(templateInput).catch((error) => showMeetingNotice(error.message));

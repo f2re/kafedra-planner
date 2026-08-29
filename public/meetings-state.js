@@ -6,7 +6,8 @@ export const meetingsState = {
   selectedMeetingId: null,
   meeting: null,
   sources: [],
-  selectedForExtract: new Set()
+  selectedForExtract: new Set(),
+  upload: { inProgress: false, documentId: null }
 };
 
 export const $m = (selector, root = document) => root.querySelector(selector);
@@ -24,6 +25,7 @@ export async function meetingApi(path, options = {}) {
   if (!response.ok) {
     const error = new Error(data?.error?.message || `Ошибка HTTP ${response.status}`);
     error.code = data?.error?.code || null;
+    error.status = response.status;
     throw error;
   }
   return data;
@@ -88,8 +90,10 @@ export function ensureMeetingsUi() {
     workspace.insertAdjacentHTML('beforeend', `
       <section class="view meetings-view" data-view-panel="meetings">
         <div class="meetings-heading">
-          <div><h2>Заседания кафедры</h2><p>Повестка собирается из задач и пунктов планов. Протокол и выписка формируются по вашим DOCX-шаблонам.</p></div>
+          <div><h2>Заседания кафедры</h2><p>Загрузите готовый протокол — заседание и повестка появятся сразу. Либо создайте новое заседание вручную.</p></div>
           <div class="meetings-heading-actions">
+            <input id="meeting-source-upload-input" class="hidden" type="file" accept=".docx,.odt,.pdf,.txt,.md,application/vnd.openxmlformats-officedocument.wordprocessingml.document,application/vnd.oasis.opendocument.text,application/pdf,text/plain,text/markdown">
+            <button id="meeting-source-upload-button" class="secondary-button" type="button">Загрузить протокол</button>
             <button id="meeting-settings-button" class="secondary-button" type="button">Настройки</button>
             <button id="meeting-create-button" class="primary-button" type="button">Новое заседание</button>
           </div>
@@ -97,7 +101,7 @@ export function ensureMeetingsUi() {
         <div id="meeting-settings-summary" class="meeting-settings-summary"></div>
         <div class="meetings-layout">
           <section class="meetings-list-panel" aria-label="Заседания"><div id="meetings-list" class="meetings-list"><div class="empty-state">Загрузка…</div></div></section>
-          <section id="meeting-detail" class="meeting-detail-panel"><div class="empty-state">Выберите заседание слева.</div></section>
+          <section id="meeting-detail" class="meeting-detail-panel"><div class="empty-state">Выберите заседание слева или загрузите протокол.</div></section>
         </div>
       </section>
     `);
@@ -117,7 +121,7 @@ export function showMeetingNotice(message) {
   notice.textContent = message;
   notice.classList.remove('hidden');
   clearTimeout(showMeetingNotice.timer);
-  showMeetingNotice.timer = setTimeout(() => notice.classList.add('hidden'), 4500);
+  showMeetingNotice.timer = setTimeout(() => notice.classList.add('hidden'), 6000);
 }
 
 export function openMeetingModal(html) {

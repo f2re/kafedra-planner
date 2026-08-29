@@ -94,9 +94,12 @@ export function listMeetings(database, workspaceId, limit = 200) {
   const safeLimit = Math.min(1000, Math.max(1, Number(limit) || 200));
   return database.all(`
     SELECT m.*,
+      source_version.document_id AS source_document_id,
+      source_version.original_name AS source_original_name,
       (SELECT COUNT(*) FROM agenda_items ai WHERE ai.meeting_id = m.id) AS agenda_count,
       (SELECT COUNT(*) FROM meeting_documents md WHERE md.meeting_id = m.id) AS document_count
     FROM meetings m
+    LEFT JOIN document_versions source_version ON source_version.id = m.source_document_version_id
     WHERE m.workspace_id = ?
     ORDER BY COALESCE(m.meeting_date, '') DESC, m.created_at DESC
     LIMIT ?
@@ -119,7 +122,8 @@ export function getMeeting(database, workspaceId, meetingId) {
     SELECT m.*,
       chair.display_name AS chairperson_name,
       secretary.display_name AS secretary_name,
-      source_version.document_id AS source_document_id
+      source_version.document_id AS source_document_id,
+      source_version.original_name AS source_original_name
     FROM meetings m
     LEFT JOIN people chair ON chair.id = m.chairperson_person_id
     LEFT JOIN people secretary ON secretary.id = m.secretary_person_id
