@@ -1,0 +1,68 @@
+<GraceChangeSpec graceVersion="4.0" status="approved">
+  <C-ADAPTIVE-ACTION-CENTER>
+    <Summary>Replace the fragmented global create entry point with one stable adaptive Action Center that launches existing domain flows and routes any supported uploaded document into the exact plan, meeting, directive, science item or safe document-review destination produced by the deterministic worker.</Summary>
+    <Problem>The top-level Создать action currently opens only a calendar record while plans, periodic work, directives, meetings, templates, science imports and reports expose separate launchers. Generic document upload also leaves the user to discover the next domain screen. Protocol persistence always creates a new meeting, so an uploaded protocol cannot safely enrich an already existing meeting even when number and date identify it unambiguously.</Problem>
+    <Goals>
+      <Goal>Provide one immediate + Добавить shell with fixed geometry, three fixed recommendation slots, fixed action groups and deterministic text filtering.</Goal>
+      <Goal>Introduce an extensible action registry whose entries invoke existing domain launchers instead of copying their forms or business logic.</Goal>
+      <Goal>Allow any format already supported by document intake to be dropped or selected in the Action Center, persist it immutably first, then route by exact worker result and documentId without re-upload.</Goal>
+      <Goal>Make protocol persistence idempotently reuse an exact meeting when safe, fill only missing non-conflicting facts, add only non-conflicting agenda data, and preserve conflicts as review items rather than overwriting user/domain state.</Goal>
+      <Goal>Reuse the existing ui_choice_preferences layer for rank-only action frequency so explicit domain context and document classification always outrank personal frequency.</Goal>
+      <Goal>Keep all primary behavior deterministic, offline and usable without LLM, recommendation data or preference persistence.</Goal>
+    </Goals>
+    <Constraints>
+      <Constraint>The current SQLite schema remains unchanged; applied migrations are not edited and no new migration is introduced unless an implementation-blocking schema requirement is discovered, in which case this approved change must be superseded rather than widened.</Constraint>
+      <Constraint>Document blob, document_version, SHA-256, extraction evidence and source locators remain immutable. A route or merge is an orchestration/projection decision, not a replacement source of truth.</Constraint>
+      <Constraint>The existing protocol, directive, plan and science extractors/materializers remain authoritative; the Action Center must not implement a second classifier or parser.</Constraint>
+      <Constraint>Stable geometry is mandatory. Usage statistics may rank actions inside fixed slots but may not move global controls, groups or dangerous decisions.</Constraint>
+      <Constraint>Selected calendar date and deterministic document classification are domain-derived and always stronger than learned ranking.</Constraint>
+      <Constraint>Completion, archive/restore, deletion, ACL, role, PIN, arbitrary business text and automatically inferred document routes never become learned choices.</Constraint>
+      <Constraint>No new frontend framework, animation runtime, CDN, cloud service, Docker dependency or mandatory LLM dependency is allowed.</Constraint>
+      <Constraint>Any failure after upload keeps the documentId and original source available; retries must never require uploading the same source again.</Constraint>
+    </Constraints>
+    <NonGoals>
+      <NonGoal>Replace section navigation, search, notification center, object inspectors or contextual edit actions with the Action Center.</NonGoal>
+      <NonGoal>Invent a generic project entity outside existing domain models.</NonGoal>
+      <NonGoal>Make LLM output authoritative or allow it to execute a domain mutation silently.</NonGoal>
+      <NonGoal>Redesign every existing feature form; existing feature UI is launched through adapters.</NonGoal>
+      <NonGoal>Change release version, SQLite schema or offline dependency manifest.</NonGoal>
+    </NonGoals>
+    <AcceptanceCriteria>
+      <Criterion>The topbar action is + Добавить, Ctrl/Cmd+N opens the same Action Center, and a plus action on a calendar day opens it with that exact date preserved as domain context.</Criterion>
+      <Criterion>The Action Center has a stable desktop sheet and mobile sheet, three fixed recommendation slots, fixed action groups, keyboard navigation, Escape close, focus restoration and a prefers-reduced-motion path that remains fully understandable without spatial animation.</Criterion>
+      <Criterion>The action registry can launch existing calendar task/event, generic document upload, manual plan, plan upload/item, periodic task, directive, meeting, template, science import, science report and review flows without duplicating their domain forms.</Criterion>
+      <Criterion>A supported document uploaded without a declared type is stored through the normal immutable intake before routing; the same accepted documentId is retained through processing, failure and retry.</Criterion>
+      <Criterion>Processed plan, protocol/meeting, directive and scientific documents route to the exact domain object identified by that document processing result; unknown or ambiguous documents remain ordinary documents and surface review rather than being guessed.</Criterion>
+      <Criterion>A protocol with an exact unique meeting match reuses that meeting, fills only empty compatible meeting fields, deduplicates matching agenda items and adds only safe missing agenda facts; contradictory values generate review items and do not overwrite existing values.</Criterion>
+      <Criterion>Ambiguous meeting matches do not merge destructively. The uploaded protocol remains independently traceable and the ambiguity is surfaced for correction.</Criterion>
+      <Criterion>Repeated processing or routing does not create duplicate meetings, agenda items, decisions, plans, directives or preference events for the same idempotency identity.</Criterion>
+      <Criterion>The allowlisted action.center.action preference accepts only known action IDs, is rank-only, is recorded only after a successful explicit user action, and is never incremented by automatic document routing.</Criterion>
+      <Criterion>Recommendation/preference failure degrades to a static safe action catalog; document intake and all direct feature launchers remain usable offline without LLM.</Criterion>
+      <Criterion>Unit/integration tests cover action precedence, allowlist rejection, exact document routing, protocol merge/dedup/conflict behavior and retry-after-upload; Playwright covers desktop, mobile and prefers-reduced-motion Action Center scenarios.</Criterion>
+      <Criterion>npm run check, npm test, npm run docs:check, focused browser tests, GRACE target/final assertions and the unchanged-head project/release/offline checks are successful before merge.</Criterion>
+    </AcceptanceCriteria>
+    <AffectedAreas>
+      <M-API />
+      <M-WORKER />
+      <M-DATABASE />
+      <M-DESIGN-GOVERNANCE />
+      <M-OFFLINE-BUNDLE />
+    </AffectedAreas>
+    <VerificationIntent>
+      <ExpectedCommand>node --test tests/action-center.test.mjs tests/protocol-merge.test.mjs</ExpectedCommand>
+      <ExpectedCommand>playwright test tests/browser/action-center.spec.mjs</ExpectedCommand>
+      <ExpectedCommand>npm run design:check</ExpectedCommand>
+      <ExpectedCommand>npm run check</ExpectedCommand>
+      <ExpectedCommand>npm test</ExpectedCommand>
+      <ExpectedCommand>npm run docs:check</ExpectedCommand>
+      <ExpectedCommand>grace lint --path . --change C-ADAPTIVE-ACTION-CENTER --assertions final --run-commands</ExpectedCommand>
+      <ExpectedEvidence>Exact-document routing and protocol merge tests plus desktop/mobile/reduced-motion browser evidence show one stable Action Center can orchestrate existing domain flows without source loss, duplicate materialization, schema changes or mandatory online dependencies.</ExpectedEvidence>
+    </VerificationIntent>
+    <Assumptions>
+      <Assumption>The verified base revision is main commit adee48d5df671aeba9dd5c5f36f607747705430f and tree 5da9cd0543b42ff6c3a84d062993a98db58547d5.</Assumption>
+      <Assumption>Issue 200 is the human-visible work item and includes the universal document-intake refinement.</Assumption>
+      <Assumption>Current GET /api/documents/:id exposes processing status, review state and extraction runs, while plan/directive/science processing already records exact persisted object IDs.</Assumption>
+      <Assumption>Meeting schema from migration 017 permits manual meetings without a primary source document and provides agenda evidence/source columns sufficient for safe merge without a new migration.</Assumption>
+    </Assumptions>
+  </C-ADAPTIVE-ACTION-CENTER>
+</GraceChangeSpec>
