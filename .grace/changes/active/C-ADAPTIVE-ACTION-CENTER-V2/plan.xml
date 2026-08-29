@@ -1,0 +1,172 @@
+<GraceChangePlan graceVersion="4.0" status="approved">
+  <C-ADAPTIVE-ACTION-CENTER-V2>
+    <IntentSummary>Supersede the unintegrated first attempt and deliver one stable adaptive + Добавить entry point and universal immutable document router by composing existing feature launchers, existing worker classifiers/materializers and a non-destructive protocol-to-meeting merge, with rank-only learning, deterministic degraded fallback and browser verification delegated to the normal project CI.</IntentSummary>
+    <BaselineAssertions>
+      <MustExist><Value>public/index.html</Value></MustExist>
+      <MustExist><Value>public/app.js</Value></MustExist>
+      <MustExist><Value>public/ux-next.js</Value></MustExist>
+      <MustExist><Value>packages/protocols/src/persist.mjs</Value></MustExist>
+      <MustExist><Value>packages/preferences/src/service.mjs</Value></MustExist>
+      <MustExist><Value>docs/ADAPTIVE_UX.md</Value></MustExist>
+      <MustVerify><Module>M-WORKER</Module></MustVerify>
+      <MustVerify><Module>M-DESIGN-GOVERNANCE</Module></MustVerify>
+    </BaselineAssertions>
+    <TargetAssertions>
+      <MustExist><Value>public/action-center.js</Value></MustExist>
+      <MustExist><Value>public/action-center.css</Value></MustExist>
+      <MustExist><Value>tests/action-center.test.mjs</Value></MustExist>
+      <MustExist><Value>tests/protocol-merge.test.mjs</Value></MustExist>
+      <MustExist><Value>tests/browser/action-center.spec.mjs</Value></MustExist>
+      <MustVerify><Module>M-API</Module></MustVerify>
+      <MustVerify><Module>M-WORKER</Module></MustVerify>
+      <MustVerify><Module>M-DATABASE</Module></MustVerify>
+      <MustVerify><Module>M-DESIGN-GOVERNANCE</Module></MustVerify>
+      <MustVerify><Module>M-OFFLINE-BUNDLE</Module></MustVerify>
+      <MustContain><File>public/index.html</File><Text>+ Добавить</Text></MustContain>
+      <MustContain><File>packages/preferences/src/service.mjs</File><Text>action.center.action</Text></MustContain>
+      <MustContain><File>docs/ADAPTIVE_UX.md</File><Text>action.center.action</Text></MustContain>
+      <MustContain><File>docs/UX_FLOWS.md</File><Text>центр действий</Text></MustContain>
+      <MustContain><File>docs/ARCHITECTURE.md</File><Text>Action Center</Text></MustContain>
+      <MustPassCommand><Command>node --test tests/action-center.test.mjs tests/protocol-merge.test.mjs</Command></MustPassCommand>
+      <MustPassCommand><Command>npm run design:check</Command></MustPassCommand>
+      <MustPassCommand><Command>npm run check</Command></MustPassCommand>
+      <MustPassCommand><Command>npm run docs:check</Command></MustPassCommand>
+    </TargetAssertions>
+    <DurableScope>
+      <GraphAnchors>
+        <M-API />
+        <M-WORKER />
+        <M-DATABASE />
+        <M-GRACE-GOVERNANCE />
+        <M-DESIGN-GOVERNANCE />
+        <M-OFFLINE-BUNDLE />
+        <DF-GRACE-BRANCH />
+        <DF-DESIGN-CHANGE />
+      </GraphAnchors>
+      <VerificationAnchors>
+        <V-M-API />
+        <V-M-WORKER />
+        <V-M-DATABASE />
+        <V-M-GRACE-GOVERNANCE />
+        <V-M-DESIGN-GOVERNANCE />
+        <V-M-OFFLINE-BUNDLE />
+      </VerificationAnchors>
+      <ContextArtifacts>
+        <ContextArtifact>principles.xml</ContextArtifact>
+        <ContextArtifact>ux-guidelines.xml</ContextArtifact>
+      </ContextArtifacts>
+    </DurableScope>
+    <ObservedWriteScope>
+      <Glob>.grace/changes/active/C-ADAPTIVE-ACTION-CENTER-V2/**</Glob>
+      <File>public/index.html</File>
+      <File>public/app.js</File>
+      <File>public/ux-next.js</File>
+      <File>public/action-center.js</File>
+      <File>public/action-center.css</File>
+      <File>public/ui-preferences.js</File>
+      <File>public/plans-next.js</File>
+      <File>public/manual-plans-next.js</File>
+      <File>public/work-automation-next.js</File>
+      <File>public/meetings-events.js</File>
+      <File>public/directive-archive-next.js</File>
+      <File>public/science-import-next.js</File>
+      <File>public/science-reports-next.js</File>
+      <File>apps/worker/src/processor.mjs</File>
+      <File>packages/protocols/src/persist.mjs</File>
+      <File>packages/preferences/src/service.mjs</File>
+      <File>tests/action-center.test.mjs</File>
+      <File>tests/protocol-merge.test.mjs</File>
+      <File>tests/browser/action-center.spec.mjs</File>
+      <File>docs/ADAPTIVE_UX.md</File>
+      <File>docs/UX_FLOWS.md</File>
+      <File>docs/ARCHITECTURE.md</File>
+      <File>README.md</File>
+    </ObservedWriteScope>
+    <ImplementationPlan>
+      <T-001>
+        <Title>kafedra-flow-intake: freeze the universal action and document routing state machine</Title>
+        <DependsOn></DependsOn>
+        <AcceptanceCriteria>
+          <Criterion>The flow starts with immediate static actions, accepts a file before any type question, preserves documentId after upload, distinguishes processing, exact destination, ambiguous review and failed/degraded states, and never requires a second upload.</Criterion>
+          <Criterion>Plan, meeting/protocol, directive, science and unknown-document outcomes have explicit next screens; one bad row or conflicting meeting fact does not block other safe results.</Criterion>
+        </AcceptanceCriteria>
+        <Verification><Command>npm run docs:check</Command></Verification>
+      </T-001>
+      <T-002>
+        <Title>kafedra-design: define one stable Action Center shell for desktop and mobile</Title>
+        <DependsOn><T-001 /></DependsOn>
+        <AcceptanceCriteria>
+          <Criterion>Desktop and mobile use the same action hierarchy: fixed title/search-upload region, exactly three fixed recommendation slots, fixed groups and stable controls; keyboard focus, Escape close, focus restoration and drop-zone affordance are explicit.</Criterion>
+          <Criterion>Context changes content inside reserved regions rather than moving controls, and local contextual shortcuts remain available outside the global center.</Criterion>
+        </AcceptanceCriteria>
+        <Verification><Command>npm run design:check</Command></Verification>
+      </T-002>
+      <T-003>
+        <Title>kafedra-motion: specify restrained continuity for Action Center transitions and upload progress</Title>
+        <DependsOn><T-002 /></DependsOn>
+        <AcceptanceCriteria>
+          <Criterion>Routine open/close and content transitions use short interruption-safe opacity/transform continuity without bounce or decorative delay; upload state changes remain readable in static frames.</Criterion>
+          <Criterion>prefers-reduced-motion removes spatial transitions while preserving focus order, progress text, destination state and all controls on desktop and mobile.</Criterion>
+        </AcceptanceCriteria>
+        <Verification><Command>npm run design:check</Command></Verification>
+      </T-003>
+      <T-004>
+        <Title>kafedra-data: preserve provenance, idempotency and rank-only preference safety</Title>
+        <DependsOn><T-001 /><T-003 /></DependsOn>
+        <AcceptanceCriteria>
+          <Criterion>No migration is added; existing document versions, extraction runs, review items, meeting/agenda evidence and ui_choice_preferences remain the only durable stores used by this change.</Criterion>
+          <Criterion>action.center.action validates only known action IDs, records only successful explicit user launches and automatic document routing never records a learned action.</Criterion>
+          <Criterion>Protocol reuse keeps existing non-empty facts authoritative, associates new evidence with the incoming document version and emits idempotent review items for conflicts or ambiguous matches.</Criterion>
+        </AcceptanceCriteria>
+        <Verification><Command>node --test tests/action-center.test.mjs tests/protocol-merge.test.mjs</Command></Verification>
+      </T-004>
+      <T-005>
+        <Title>kafedra-feature: implement safe protocol reuse and exact processing destination identity</Title>
+        <DependsOn><T-003 /><T-004 /></DependsOn>
+        <AcceptanceCriteria>
+          <Criterion>persistProtocol returns the exact meeting ID for both create and safe-reuse paths; same source version is idempotent; exact unique number/date matching may reuse a meeting; ambiguous matching never overwrites an existing meeting.</Criterion>
+          <Criterion>Missing compatible meeting and agenda fields are filled or inserted only when non-conflicting; normalized duplicate agenda items are not duplicated; conflicts are preserved as review items with incoming document evidence.</Criterion>
+          <Criterion>The persisted protocol meeting ID is included in extraction result_json so a client can route a merged protocol to the exact existing meeting without a second API or parser.</Criterion>
+        </AcceptanceCriteria>
+        <Verification><Command>node --test tests/protocol-merge.test.mjs</Command></Verification>
+      </T-005>
+      <T-006>
+        <Title>kafedra-feature: implement the extensible Action Registry, adaptive shell and universal immutable upload router</Title>
+        <DependsOn><T-002 /><T-003 /><T-004 /><T-005 /></DependsOn>
+        <AcceptanceCriteria>
+          <Criterion>+ Добавить, Ctrl/Cmd+N and calendar-day plus enter the same center; day context is carried into task/event creation and outranks learned ranking.</Criterion>
+          <Criterion>Existing feature modules register adapters for their real launchers; the Action Center does not duplicate domain forms and future actions can register without editing a central business-logic switch.</Criterion>
+          <Criterion>File upload uses normal /api/documents immutable intake, polls only the accepted documentId, derives exact destination from the completed extraction result, opens that exact plan/meeting/directive/science target, and falls back to the document/review surface for unknown or ambiguous results.</Criterion>
+          <Criterion>Recommendation slots rank available actions lexicographically by explicit context and domain relevance before action.center.action frequency; preference failure leaves the static catalog usable.</Criterion>
+          <Criterion>Desktop, mobile and prefers-reduced-motion behavior follows T-002/T-003 with no new runtime dependency; dedicated Playwright coverage is mandatory in the normal browser CI before merge.</Criterion>
+        </AcceptanceCriteria>
+        <Verification><Command>node --test tests/action-center.test.mjs</Command></Verification>
+      </T-006>
+      <T-007>
+        <Title>kafedra-design-audit: independently audit the implemented Action Center and document continuity</Title>
+        <DependsOn><T-006 /></DependsOn>
+        <AcceptanceCriteria>
+          <Criterion>The audit returns PASS, REVISE or BLOCK after inspecting hierarchy, stable geometry, document drop/progress/destination continuity, interruption, static state, keyboard/focus, desktop/mobile equivalence, prefers-reduced-motion and consistency with adjacent inspectors/forms.</Criterion>
+        </AcceptanceCriteria>
+        <Verification><Command>npm run design:check</Command></Verification>
+      </T-007>
+      <T-008>
+        <Title>kafedra-tests: verify ranking, routing, meeting merge, degraded mode and responsive interaction</Title>
+        <DependsOn><T-007 /></DependsOn>
+        <AcceptanceCriteria>
+          <Criterion>Unit/integration tests prove domain context outranks frequency, invalid action preference values fail closed, same-source and exact-meeting protocol reuse are idempotent, conflicts remain non-destructive, and route-after-upload uses the exact processing result.</Criterion>
+          <Criterion>Project/browser CI must run tests/browser/action-center.spec.mjs on desktop and mobile and include prefers-reduced-motion coverage for Add, calendar-date creation, generic file upload, exact destination and generic-document fallback; recommendation failure must not block static actions.</Criterion>
+        </AcceptanceCriteria>
+        <Verification><Command>node --test tests/action-center.test.mjs tests/protocol-merge.test.mjs</Command><Command>npm run check</Command><Command>npm run docs:check</Command></Verification>
+      </T-008>
+      <T-009>
+        <Title>kafedra-release: prove no schema, runtime dependency or offline regression</Title>
+        <DependsOn><T-008 /></DependsOn>
+        <AcceptanceCriteria>
+          <Criterion>Version and schema remain unchanged, no dependency is added, existing backup/restore behavior is unaffected, and full project, browser, release, offline and GRACE gates remain mandatory on one unchanged PR head before squash merge.</Criterion>
+        </AcceptanceCriteria>
+        <Verification><Command>bash -n scripts/offline/*.sh deploy/install.sh</Command><Command>npm test</Command></Verification>
+      </T-009>
+    </ImplementationPlan>
+  </C-ADAPTIVE-ACTION-CENTER-V2>
+</GraceChangePlan>
