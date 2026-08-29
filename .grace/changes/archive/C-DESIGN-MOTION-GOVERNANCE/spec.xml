@@ -1,4 +1,4 @@
-<GraceChangeSpec graceVersion="4.0" status="approved">
+<GraceChangeSpec graceVersion="4.0" status="applied">
   <C-DESIGN-MOTION-GOVERNANCE>
     <Summary>Make Apple-inspired product design, motion advising and independent design audit a mandatory specialist path for future Kafedra Planner UI changes inside the existing GRACE 4 lifecycle.</Summary>
     <Problem>Kafedra Planner already has a stable product design guide and a kafedra-design role, but motion selection, reduced-motion decisions and post-implementation design audit are not separate durable responsibilities and are not fail-closed for UI-scoped GRACE plans.</Problem>
