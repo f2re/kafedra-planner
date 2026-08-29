@@ -6,4 +6,8 @@
   <Guideline>Do not learn secrets, ACL decisions, destructive actions, arbitrary business text or stale absolute dates.</Guideline>
   <Guideline>Automation must expose provenance and allow correction without destroying the original evidence.</Guideline>
   <Guideline>New user flows require desktop and mobile verification when the UI is affected.</Guideline>
+  <Guideline>Use an Apple-inspired product language of clear hierarchy, calm density, immediate response, restrained material and continuity without copying Apple assets or screens.</Guideline>
+  <Guideline>For UI-scoped changes route kafedra-design to kafedra-motion, then implementation, independent kafedra-design-audit and kafedra-tests.</Guideline>
+  <Guideline>Motion must explain causality, orientation, direct manipulation or feedback; routine work must not receive decorative delay or conspicuous bounce.</Guideline>
+  <Guideline>Every material motion change keeps static state understandable and defines a prefers-reduced-motion fallback.</Guideline>
 </GraceUXGuidelines>
