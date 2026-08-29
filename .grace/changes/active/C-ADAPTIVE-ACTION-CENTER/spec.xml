@@ -1,0 +1,66 @@
+<GraceChangeSpec graceVersion="4.0" status="approved">
+  <C-ADAPTIVE-ACTION-CENTER>
+    <Summary>Replace the calendar-only global Create launcher with one stable adaptive action center that ranks and launches existing Kafedra Planner workflows without duplicating domain forms.</Summary>
+    <Problem>The global create button opens only a calendar event while plans, documents, directives, periodic work, meetings, templates, science imports, reports and review questions expose separate launchers in different sections. Users must first navigate the product structure even when their intended action is already clear.</Problem>
+    <Goals>
+      <Goal>Provide one global + Добавить action center on the main shell, Ctrl/Cmd+N and selected calendar-day launch points.</Goal>
+      <Goal>Keep exactly three recommendation slots and a fixed group geometry while adapting only the order of available actions.</Goal>
+      <Goal>Rank actions lexicographically by explicit context, domain facts, relative period, explicit personal frequency and static fallback.</Goal>
+      <Goal>Reuse existing feature launchers and forms through a registry and adapters instead of creating parallel subject forms.</Goal>
+      <Goal>Support deterministic Russian action search, keyboard/focus continuity, desktop, mobile and prefers-reduced-motion.</Goal>
+      <Goal>Extend the existing preference allowlist with the rank-only action.center.action context without a schema migration.</Goal>
+    </Goals>
+    <Constraints>
+      <Constraint>The action center never auto-executes an action and never learns completion, archive, restore, delete, ACL, roles, PIN, free business text or absolute dates.</Constraint>
+      <Constraint>A selected calendar day is domain-derived context and always overrides learned ranking or date defaults.</Constraint>
+      <Constraint>Recommendation, context and preference failures must degrade to a static usable action catalog and must not block existing workflows.</Constraint>
+      <Constraint>The existing ui_choice_preferences table remains the sole authenticated preference store; the existing local fallback remains the only unauthenticated fallback.</Constraint>
+      <Constraint>No new runtime dependency, frontend framework, CDN, SaaS, cloud service, mandatory Internet access or mandatory LLM is introduced.</Constraint>
+      <Constraint>SQLite schema, migrations, immutable source documents, evidence, domain lifecycle and backup/restore semantics remain unchanged.</Constraint>
+      <Constraint>All governed writes remain inside the approved ObservedWriteScope.</Constraint>
+    </Constraints>
+    <NonGoals>
+      <NonGoal>Replace section navigation, search, notification viewing, settings or object inspectors.</NonGoal>
+      <NonGoal>Move destructive or state-transition actions such as Выполнено, Вернуть в работу, archive or restore into the global center.</NonGoal>
+      <NonGoal>Create a generic project entity that does not exist in the current domain model.</NonGoal>
+      <NonGoal>Add natural-language LLM execution or let a model silently choose and run an action.</NonGoal>
+      <NonGoal>Rewrite existing plan, document, directive, meeting, science or calendar forms.</NonGoal>
+    </NonGoals>
+    <AcceptanceCriteria>
+      <Criterion>The topbar button is labelled + Добавить and opens the same action center as Ctrl/Cmd+N.</Criterion>
+      <Criterion>A plus inside a calendar day opens the center with that exact date and selecting task or event opens the existing event sheet with the exact date preserved.</Criterion>
+      <Criterion>The center always renders exactly three recommendation slots and fixed groups All, Work, Plans, Documents, Meetings, Science and More in a stable order on desktop and mobile.</Criterion>
+      <Criterion>Pure deterministic ranking proves explicit context outranks any learned frequency, domain facts outrank period and frequency, and period outranks frequency.</Criterion>
+      <Criterion>The first vertical launches the existing task, event, periodic work, manual plan, plan upload, plan item, document upload, directive, template, meeting, science import, science report and review flows.</Criterion>
+      <Criterion>Deterministic Russian text search filters labels, descriptions and explicit synonyms without an LLM.</Criterion>
+      <Criterion>The action registry can be extended by a feature module without changing the action-center shell.</Criterion>
+      <Criterion>action.center.action is rank-only, server allowlisted to known action IDs, idempotently persisted in the existing preference layer and cannot auto-execute anything.</Criterion>
+      <Criterion>Preference/context endpoint failures and corrupted local preference data leave the static catalog usable.</Criterion>
+      <Criterion>The dialog traps focus, closes with Escape, restores focus after ordinary close and remains semantically equivalent on desktop and mobile.</Criterion>
+      <Criterion>Motion is restrained, interruptible and non-semantic; prefers-reduced-motion removes spatial transitions while preserving all states and controls.</Criterion>
+      <Criterion>No migration, package dependency, runtime service, offline artifact dependency or release installation step is added.</Criterion>
+      <Criterion>Focused unit tests, server preference tests, Playwright desktop/mobile/reduced-motion tests, design governance, docs, full project CI, release and full-offline gates pass on one unchanged PR head.</Criterion>
+    </AcceptanceCriteria>
+    <AffectedAreas>
+      <M-API />
+      <M-DESIGN-GOVERNANCE />
+      <M-CI-GATE />
+      <M-OFFLINE-BUNDLE />
+    </AffectedAreas>
+    <VerificationIntent>
+      <ExpectedCommand>node --test tests/action-center.test.mjs tests/action-center-preferences.test.mjs</ExpectedCommand>
+      <ExpectedCommand>npx playwright test tests/browser/action-center.spec.mjs</ExpectedCommand>
+      <ExpectedCommand>npm run design:check</ExpectedCommand>
+      <ExpectedCommand>npm run check</ExpectedCommand>
+      <ExpectedCommand>npm run docs:check</ExpectedCommand>
+      <ExpectedCommand>npm test</ExpectedCommand>
+      <ExpectedCommand>grace lint --path . --change C-ADAPTIVE-ACTION-CENTER --assertions final --run-commands</ExpectedCommand>
+      <ExpectedEvidence>Unit and browser regression plus exact-head GRACE, project, release and offline checks demonstrate a stable adaptive launcher without a second data or form layer.</ExpectedEvidence>
+    </VerificationIntent>
+    <Assumptions>
+      <Assumption>The verified base is main commit adee48d5df671aeba9dd5c5f36f607747705430f and tree 5da9cd0543b42ff6c3a84d062993a98db58547d5 after terminal archive of C-DESIGN-MOTION-GOVERNANCE.</Assumption>
+      <Assumption>Issue 200 is the human-visible work item and acceptance source for this change.</Assumption>
+      <Assumption>The current domain launchers and selectors documented in docs/ACTION_CENTER.md remain the adapters for this vertical.</Assumption>
+    </Assumptions>
+  </C-ADAPTIVE-ACTION-CENTER>
+</GraceChangeSpec>

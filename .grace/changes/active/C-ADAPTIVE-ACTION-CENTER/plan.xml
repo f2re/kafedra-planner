@@ -1,0 +1,127 @@
+<GraceChangePlan graceVersion="4.0" status="approved">
+  <C-ADAPTIVE-ACTION-CENTER>
+    <IntentSummary>Deliver one stable adaptive action-center vertical from global launcher through registry, deterministic ranking, existing feature adapters, preference allowlist, desktop/mobile motion, independent design audit and full regression.</IntentSummary>
+    <BaselineAssertions>
+      <MustExist><Value>public/ux-next.js</Value></MustExist>
+      <MustExist><Value>public/app.js</Value></MustExist>
+      <MustExist><Value>public/ui-preferences.js</Value></MustExist>
+      <MustExist><Value>packages/preferences/src/service.mjs</Value></MustExist>
+      <MustExist><Value>docs/ADAPTIVE_UX.md</Value></MustExist>
+      <MustExist><Value>codex/skills/kafedra-design/SKILL.md</Value></MustExist>
+      <MustExist><Value>codex/skills/kafedra-motion/SKILL.md</Value></MustExist>
+      <MustExist><Value>codex/skills/kafedra-design-audit/SKILL.md</Value></MustExist>
+      <MustVerify><Module>M-API</Module></MustVerify>
+      <MustVerify><Module>M-DESIGN-GOVERNANCE</Module></MustVerify>
+    </BaselineAssertions>
+    <TargetAssertions>
+      <MustExist><Value>public/action-center-core.js</Value></MustExist>
+      <MustExist><Value>public/action-center-registry.js</Value></MustExist>
+      <MustExist><Value>public/action-center-actions.js</Value></MustExist>
+      <MustExist><Value>public/action-center.js</Value></MustExist>
+      <MustExist><Value>public/action-center.css</Value></MustExist>
+      <MustExist><Value>tests/action-center.test.mjs</Value></MustExist>
+      <MustExist><Value>tests/action-center-preferences.test.mjs</Value></MustExist>
+      <MustExist><Value>tests/browser/action-center.spec.mjs</Value></MustExist>
+      <MustExist><Value>docs/ACTION_CENTER.md</Value></MustExist>
+      <MustContain><File>public/ux-next.js</File><Text>action-center.js</Text></MustContain>
+      <MustContain><File>packages/preferences/src/service.mjs</File><Text>action.center.action</Text></MustContain>
+      <MustContain><File>docs/ACTION_CENTER.md</File><Text>prefers-reduced-motion</Text></MustContain>
+      <MustContain><File>docs/ACTION_CENTER.md</File><Text>kafedra-design-audit</Text></MustContain>
+      <MustVerify><Module>M-API</Module></MustVerify>
+      <MustVerify><Module>M-DESIGN-GOVERNANCE</Module></MustVerify>
+      <MustVerify><Module>M-CI-GATE</Module></MustVerify>
+      <MustVerify><Module>M-OFFLINE-BUNDLE</Module></MustVerify>
+      <MustPassCommand><Command>node --test tests/action-center.test.mjs tests/action-center-preferences.test.mjs</Command></MustPassCommand>
+      <MustPassCommand><Command>npx playwright test tests/browser/action-center.spec.mjs</Command></MustPassCommand>
+      <MustPassCommand><Command>npm run design:check</Command></MustPassCommand>
+      <MustPassCommand><Command>npm run check</Command></MustPassCommand>
+      <MustPassCommand><Command>npm run docs:check</Command></MustPassCommand>
+      <MustPassCommand><Command>npm test</Command></MustPassCommand>
+    </TargetAssertions>
+    <DurableScope>
+      <GraphAnchors>
+        <M-API />
+        <M-DESIGN-GOVERNANCE />
+        <M-CI-GATE />
+        <M-OFFLINE-BUNDLE />
+        <DF-DESIGN-CHANGE />
+      </GraphAnchors>
+      <VerificationAnchors>
+        <V-M-API />
+        <V-M-DESIGN-GOVERNANCE />
+        <V-M-CI-GATE />
+        <V-M-OFFLINE-BUNDLE />
+      </VerificationAnchors>
+      <ContextArtifacts>
+        <ContextArtifact>ux-guidelines.xml</ContextArtifact>
+        <ContextArtifact>principles.xml</ContextArtifact>
+      </ContextArtifacts>
+    </DurableScope>
+    <ObservedWriteScope>
+      <Glob>.grace/changes/active/C-ADAPTIVE-ACTION-CENTER/**</Glob>
+      <File>public/action-center-core.js</File>
+      <File>public/action-center-registry.js</File>
+      <File>public/action-center-actions.js</File>
+      <File>public/action-center.js</File>
+      <File>public/action-center.css</File>
+      <File>public/ux-next.js</File>
+      <File>packages/preferences/src/service.mjs</File>
+      <File>tests/action-center.test.mjs</File>
+      <File>tests/action-center-preferences.test.mjs</File>
+      <File>tests/browser/action-center.spec.mjs</File>
+      <File>docs/ACTION_CENTER.md</File>
+      <File>docs/ADAPTIVE_UX.md</File>
+      <File>docs/UX_FLOWS.md</File>
+    </ObservedWriteScope>
+    <ImplementationPlan>
+      <T-001>
+        <Title>kafedra-flow-intake: define one action-center path, context precedence, degraded states and feature handoff</Title>
+        <DependsOn></DependsOn>
+        <AcceptanceCriteria><Criterion>The flow starts instantly from global, keyboard and selected-date launchers; never introduces a confirmation-only step; reuses existing domain forms; and remains complete on desktop, mobile and prefers-reduced-motion when context or preference reads fail.</Criterion></AcceptanceCriteria>
+        <Verification><Command>npm run docs:check</Command></Verification>
+      </T-001>
+      <T-002>
+        <Title>kafedra-design: specify stable desktop and mobile shell geometry, hierarchy, search, recommendation slots, groups, keyboard and focus</Title>
+        <DependsOn><T-001 /></DependsOn>
+        <AcceptanceCriteria><Criterion>The shell has exactly three fixed recommendation slots, fixed group order, calm density, no frequency-driven geometry changes, equivalent desktop/mobile semantics and a fully understandable prefers-reduced-motion state.</Criterion></AcceptanceCriteria>
+        <Verification><Command>npm run design:check</Command></Verification>
+      </T-002>
+      <T-003>
+        <Title>kafedra-motion: define restrained continuity for desktop side sheet, mobile bottom sheet, interruption and reduced motion</Title>
+        <DependsOn><T-002 /></DependsOn>
+        <AcceptanceCriteria><Criterion>Motion uses measured short transitions without bounce or semantic dependence; selected action continuity is preserved; desktop/mobile remain responsive; and prefers-reduced-motion removes spatial movement.</Criterion></AcceptanceCriteria>
+        <Verification><Command>npx playwright test tests/browser/action-center.spec.mjs --grep "reduced motion"</Command></Verification>
+      </T-003>
+      <T-004>
+        <Title>kafedra-data: extend the existing preference allowlist without migration or a second preference store</Title>
+        <DependsOn><T-003 /></DependsOn>
+        <AcceptanceCriteria><Criterion>action.center.action accepts only known action IDs, remains account/workspace scoped and idempotent, rejects unknown IDs and keys, uses the existing backup-covered table and local fallback, and does not change SQLite schema.</Criterion></AcceptanceCriteria>
+        <Verification><Command>node --test tests/action-center-preferences.test.mjs</Command></Verification>
+      </T-004>
+      <T-005>
+        <Title>kafedra-feature: implement pure ranking, registry, adapters and the integrated adaptive action-center vertical</Title>
+        <DependsOn><T-004 /></DependsOn>
+        <AcceptanceCriteria><Criterion>Explicit context, domain facts, relative period, learned rank and static order are deterministic; all approved launchers open existing forms; selected dates survive; search works without LLM; preference and context failures do not block action launch; and desktop/mobile behavior remains equivalent.</Criterion></AcceptanceCriteria>
+        <Verification><Command>node --test tests/action-center.test.mjs tests/action-center-preferences.test.mjs</Command><Command>npx playwright test tests/browser/action-center.spec.mjs</Command></Verification>
+      </T-005>
+      <T-006>
+        <Title>kafedra-design-audit: independently review implemented hierarchy, continuity, static state, accessibility, desktop/mobile and motion</Title>
+        <DependsOn><T-005 /></DependsOn>
+        <AcceptanceCriteria><Criterion>The audit returns PASS, REVISE or BLOCK with evidence for stable geometry, no duplicate forms, keyboard/focus, mobile parity, static clarity, prefers-reduced-motion and consistency with adjacent application screens.</Criterion></AcceptanceCriteria>
+        <Verification><Command>npm run design:check</Command><Command>npx playwright test tests/browser/action-center.spec.mjs</Command></Verification>
+      </T-006>
+      <T-007>
+        <Title>kafedra-tests: prove context precedence, allowlist safety, degraded mode and desktop/mobile regression</Title>
+        <DependsOn><T-006 /></DependsOn>
+        <AcceptanceCriteria><Criterion>Unit tests prove lexicographic precedence and fixed slots; API-level tests prove allowlist safety and idempotency; Playwright proves global/keyboard/date paths, real form reuse, corrupted-preference fallback, desktop/mobile and prefers-reduced-motion.</Criterion></AcceptanceCriteria>
+        <Verification><Command>npm test</Command><Command>npx playwright test tests/browser/action-center.spec.mjs</Command><Command>npm run check</Command><Command>npm run docs:check</Command></Verification>
+      </T-007>
+      <T-008>
+        <Title>kafedra-release: verify unchanged schema, dependency graph, offline runtime and full release gates</Title>
+        <DependsOn><T-007 /></DependsOn>
+        <AcceptanceCriteria><Criterion>No package or migration is added; existing installation, update, backup/restore and offline contracts remain unchanged; full project, release, GRACE and offline checks pass on exact PR head.</Criterion></AcceptanceCriteria>
+        <Verification><Command>bash -n scripts/offline/*.sh deploy/install.sh</Command></Verification>
+      </T-008>
+    </ImplementationPlan>
+  </C-ADAPTIVE-ACTION-CENTER>
+</GraceChangePlan>
