@@ -83,6 +83,14 @@ squash merge с проверкой head SHA
 
 Подробный контракт и разрешённые контексты: `docs/ADAPTIVE_UX.md`.
 
+## Apple-inspired дизайн и motion
+
+`docs/design.md` задаёт обязательный продуктовый характер: ясная иерархия, спокойная плотность, стабильная геометрия, системная предсказуемость, понятные русские действия и restrained material. Apple-inspired означает дисциплину и качество взаимодействия, а не копирование Apple assets/screens.
+
+`docs/MOTION_DESIGN.md` и `codex/skills/kafedra-motion/` задают motion-контракт. Анимация используется только для причинности, ориентации, direct manipulation и локального feedback; routine actions не получают декоративный bounce/задержку. Статическое состояние всегда остаётся понятным, а `prefers-reduced-motion` проектируется явно.
+
+Для UI-scoped GRACE change (`ObservedWriteScope` содержит `public/**` или конкретный `public/...`) specialist path обязателен: `kafedra-design → kafedra-motion → kafedra-feature → kafedra-design-audit → kafedra-tests`. Motion worker может выдать `no-motion`, но стадия решения не пропускается. Design audit выполняется после реализации и не является самооценкой автора дизайна/фичи.
+
 ## Качество изменения
 
 - Реализовывать минимальный вертикальный сценарий целиком: причина → domain/API/storage → UI → ошибки → tests → документация, когда эти слои затронуты.
@@ -98,7 +106,9 @@ squash merge с проверкой head SHA
 Repository-local role skills live in `codex/skills/`; their shared routing is in `docs/CODEX_AGENTS.md` and their design contract is `docs/design.md`. For a matching task, read the role skill before acting:
 
 - `kafedra-flow-intake` for a new or materially changed user workflow;
-- `kafedra-design` for interaction, layout, and responsive UX work;
+- `kafedra-design` for interaction, hierarchy, layout, responsive UX and Apple-inspired product character;
+- `kafedra-motion` for motion/no-motion decisions, reference retrieval, measurable timing/geometry/gesture/reduced-motion briefs;
+- `kafedra-design-audit` for independent post-implementation UI/motion/accessibility/responsive audit;
 - `kafedra-data` for persisted data, entities, migrations, projections, or recovery;
 - `kafedra-tests` for test strategy or coverage;
 - `kafedra-feature` for implementation of a vertical slice;
@@ -120,12 +130,21 @@ GRACE 4 является обязательным внешним lifecycle дл�
 
 Во время реализации:
 
-- `kafedra-flow-intake`, `kafedra-design`, `kafedra-data`, `kafedra-feature`, `kafedra-tests`, `kafedra-release` используются как specialist workers для соответствующих `T-*`;
+- `kafedra-flow-intake`, `kafedra-design`, `kafedra-motion`, `kafedra-data`, `kafedra-feature`, `kafedra-design-audit`, `kafedra-tests`, `kafedra-release` используются как specialist workers для соответствующих `T-*`;
 - каждый worker пишет только в утверждённый `ObservedWriteScope`;
 - approved plan не расширяется задним числом. Изменение scope/assertions/acceptance criteria требует нового superseding `C-*`;
 - параллельное исполнение допускается только после `grace lint --path . --parallel-preflight` и при отсутствии пересекающихся durable/observed scopes;
 - миграции SQLite append-only: уже присутствующий в base SQL-файл нельзя изменять, переименовывать или удалять; новый schema change требует следующего последовательного номера, migration regression test, `M-DATABASE`/`V-M-DATABASE`, clean-install, base→HEAD upgrade, `quick_check`, `foreign_key_check`, backup и restore evidence;
 - GRACE/Bun являются только dev/CI tooling и не добавляются в runtime/offline bundle.
+
+Для UI-scoped GRACE plan:
+
+1. `kafedra-design` фиксирует flow, hierarchy, desktop/mobile и accessibility acceptance.
+2. `kafedra-motion` фиксирует motion brief или явный `no-motion`; `prefers-reduced-motion` обязателен в acceptance.
+3. `kafedra-feature` реализует только после этих решений.
+4. `kafedra-design-audit` независимо проверяет фактическую реализацию и возвращает `PASS`, `REVISE` или `BLOCK`.
+5. Только после `PASS` UI-поток передаётся `kafedra-tests` и release/final gates.
+6. `npm run design:check` / `scripts/design-governance.mjs` fail-closed проверяет наличие и порядок этих стадий в active GRACE plan.
 
 Перед PR/merge:
 
@@ -135,4 +154,4 @@ GRACE 4 является обязательным внешним lifecycle дл�
 4. Слияние — только squash merge через PR с повторной проверкой exact head SHA, mergeability, review threads и required checks.
 5. После merge получить новый `main` SHA и подтвердить post-merge CI. Только после этого C-* получает terminal `applied` и переносится в `.grace/changes/archive/`.
 
-Машинные правила, required checks и административная защита `main` описаны в `docs/GRACE_GOVERNANCE.md`. `scripts/grace-governance.mjs` и `.github/workflows/grace.yml` являются fail-closed enforcement layer поверх инструкций агенту.
+Машинные правила, required checks и административная защита `main` описаны в `docs/GRACE_GOVERNANCE.md`. `scripts/grace-governance.mjs`, `scripts/design-governance.mjs` и `.github/workflows/grace.yml` являются fail-closed enforcement layer поверх инструкций агенту.

@@ -7,4 +7,6 @@
   <Principle>Append-only schema evolution: a migration that reached main is immutable; later changes use a new sequential migration.</Principle>
   <Principle>Recoverability is part of correctness: schema changes prove clean install, upgrade, integrity, pre-migration backup and restoration.</Principle>
   <Principle>Specialist Codex roles refine GRACE tasks but never bypass the GRACE lifecycle or CI gates.</Principle>
+  <Principle>Design continuity is part of correctness: UI work preserves clear hierarchy, stable geometry, desktop/mobile equivalence and a static, accessible state independent of animation.</Principle>
+  <Principle>Motion is evidence-driven and restrained: UI-scoped plans route through design, motion decision, implementation, independent design audit and tests; reduced-motion handling is explicit.</Principle>
 </GracePrinciples>
