@@ -181,6 +181,7 @@ none   обычно оставлять пустым, если поле необ�
 | Группа | Контексты |
 |---|---|
 | Календарь | `calendar.mode`, `calendar.filter.kind`, `calendar.filter.categories`, `calendar.new.kind`, `calendar.new.date_offset`, `calendar.new.category`, `calendar.new.importance`, `calendar.new.reminder` |
+| Центр действий | `action.center.action` |
 | Шаблоны | `template.document.type`, `template.field.type`, `template.field.strategy`, `template.field.required` |
 | Заседания | `meeting.chairperson`, `meeting.secretary`, `meeting.new.date_offset` |
 | Работа | `work.periodic.owner`, `work.periodic.manager`, `work.periodic.period_kind`, `work.periodic.direction`, `work.periodic.start_offset`, `work.periodic.due_offset`, `work.periodic.edit.status`, `work.responsibility.executor`, `work.responsibility.controller`, `work.filter.direction`, `work.filter.status` |
@@ -195,3 +196,23 @@ none   обычно оставлять пустым, если поле необ�
 ## Постоянные настройки не дублируются
 
 Профиль доставки уведомлений уже хранит SMTP/Telegram, digest, quiet hours, день/время и timezone как собственную серверную настройку. Preference-layer не должен создавать вторую копию этих значений. То же относится к сохранённым настройкам заседаний и другим устойчивым предметным/персональным конфигурациям: статистика применяется только там, где действительно сокращает повтор нового действия.
+
+## Адаптивный центр действий
+
+`+ Добавить` использует `action.center.action` только как `rank-only` сигнал. Само расположение глобальной кнопки, три места `Рекомендуется`, группы действий, зона загрузки документа и основные controls остаются фиксированными. Частота может изменить только порядок уже доступных безопасных действий внутри этих фиксированных зон.
+
+Выбор действия записывается только после успешного завершения соответствующего пользовательского сценария. Простое открытие формы, отмена, программный `click()` и автоматическая маршрутизация загруженного документа не увеличивают частоту. Сервер принимает только известные action IDs из allowlist.
+
+Приоритет рекомендаций лексикографический:
+
+```text
+явный текущий контекст
+→ domain-derived доступность и предметные факты
+→ календарный/отчётный период
+→ персональная частота action.center.action
+→ статический порядок продукта
+```
+
+Поэтому клик `+` конкретного дня всегда сохраняет выбранную дату, а распознанный worker-ом план, протокол, распоряжение или научный материал ведёт к точному materialized object независимо от статистики. Такой document route относится к `domain-derived`: он не является пользовательским предпочтением и не обучается.
+
+Если preference-layer недоступен, центр действий показывает тот же статический каталог и продолжает запускать обычные предметные формы. Ошибка preference-layer никогда не блокирует immutable document intake, задачу, событие, план, заседание или другой основной сценарий.

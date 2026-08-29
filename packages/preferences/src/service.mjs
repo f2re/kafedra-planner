@@ -7,6 +7,11 @@ const FIXED_VALUES = new Map([
   ['calendar.new.category', new Set(['organizational', 'education', 'science', 'everyday'])],
   ['calendar.new.importance', new Set(['normal', 'high', 'critical', 'low'])],
   ['calendar.new.reminder', new Set(['', '0', '60', '1440', '4320', '10080'])],
+  ['action.center.action', new Set([
+    'calendar.task.create', 'calendar.event.create', 'document.upload', 'plan.create',
+    'plan.upload', 'plan.item.create', 'work.periodic.create', 'directive.create',
+    'meeting.create', 'template.create', 'science.import', 'science.report', 'review.open'
+  ])],
   ['template.field.required', new Set(['0', '1'])],
   ['template.field.type', new Set(['string', 'text', 'date', 'number', 'boolean'])],
   ['template.field.strategy', new Set(['after_label', 'next_line', 'line', 'between'])],

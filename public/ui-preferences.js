@@ -13,7 +13,7 @@ const $$u = (selector, root = document) => [...root.querySelectorAll(selector)];
 const CALENDAR_CATEGORIES = ['science', 'education', 'organizational', 'everyday'];
 
 const CONTROL_BINDINGS = [
-  { selector: '#event-kind', key: 'calendar.new.kind', policy: 'default', record: 'submit', when: newEvent },
+  { selector: '#event-kind', key: 'calendar.new.kind', policy: 'rank', record: 'submit', when: newEvent },
   { selector: '#event-date', key: 'calendar.new.date_offset', policy: 'date', record: 'submit', when: newGlobalEvent, dateBase: todayKey, required: true },
   { selector: '#event-category', key: 'calendar.new.category', policy: 'default', record: 'submit', when: newEvent },
   { selector: '#event-importance', key: 'calendar.new.importance', policy: 'default', record: 'submit', when: newEvent },
