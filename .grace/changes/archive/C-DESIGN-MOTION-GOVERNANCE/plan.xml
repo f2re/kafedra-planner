@@ -1,4 +1,4 @@
-<GraceChangePlan graceVersion="4.0" status="approved">
+<GraceChangePlan graceVersion="4.0" status="applied">
   <C-DESIGN-MOTION-GOVERNANCE>
     <IntentSummary>Install a durable design → motion → implementation → independent design audit → tests specialist path inside GRACE 4, backed by an offline semantic motion catalog and a fail-closed plan checker for public UI changes.</IntentSummary>
     <BaselineAssertions>
