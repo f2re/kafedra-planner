@@ -1,0 +1,52 @@
+name: GRACE — документ сразу в работу
+
+on:
+  pull_request:
+    paths:
+      - 'public/**'
+      - 'apps/**'
+      - 'packages/**'
+      - 'tests/browser/zero-confirmation-intake.spec.mjs'
+      - 'tests/browser/grace-intake.config.mjs'
+      - 'docs/GRACE_ZERO_CONFIRMATION_INTAKE.md'
+      - '.github/workflows/grace-zero-confirmation.yml'
+  push:
+    branches: [main]
+    paths:
+      - 'public/**'
+      - 'apps/**'
+      - 'packages/**'
+      - 'tests/browser/zero-confirmation-intake.spec.mjs'
+      - 'tests/browser/grace-intake.config.mjs'
+      - 'docs/GRACE_ZERO_CONFIRMATION_INTAKE.md'
+      - '.github/workflows/grace-zero-confirmation.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: grace-zero-confirmation-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  acceptance:
+    name: GRACE acceptance — desktop и mobile
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+      - name: Установить зависимости без изменения lockfile
+        run: npm ci --ignore-scripts --no-audit --no-fund
+      - name: Проверить исходный код и документацию
+        run: |
+          npm run check
+          npm run docs:check
+      - name: Установить Chromium
+        run: npx playwright install --with-deps chromium
+      - name: Проверить сценарий без подтверждений
+        run: npx playwright test --config=tests/browser/grace-intake.config.mjs
