@@ -1,0 +1,54 @@
+<GraceChangeSpec graceVersion="4.0" status="approved">
+  <C-ZERO-CLICK-MEETING-INTAKE>
+    <Summary>Load a protocol document from the Meetings section, create the working meeting immediately, and open the exact created object without a confirmation wizard.</Summary>
+    <Problem>Deterministic protocol extraction and meeting persistence already exist, but the Meetings UI has no protocol upload action and cannot navigate to the meeting created from the exact uploaded document. Operators must leave the section and search for an object that the system already created.</Problem>
+    <Goals>
+      <Goal>Add one obvious upload action for DOCX, ODT, PDF and text protocols in the Meetings section.</Goal>
+      <Goal>Preserve the source through the existing immutable document intake and create the meeting, agenda, decisions, calendar entries and review exceptions automatically.</Goal>
+      <Goal>Navigate to the meeting linked to the exact uploaded document id and keep every extracted field directly editable.</Goal>
+      <Goal>Make protocol persistence explicitly idempotent by source document version and preserve manual corrections on retries.</Goal>
+      <Goal>Cover complete, partial and repeated imports on desktop and mobile without adding a schema migration or release-version change.</Goal>
+    </Goals>
+    <Constraints>
+      <Constraint>No import confirmation, manager approval, mandatory template setup or mandatory report step is introduced.</Constraint>
+      <Constraint>The source document, blob hash, version, extraction evidence and correction history remain immutable or append-only.</Constraint>
+      <Constraint>A missing number, date, agenda item or resolved employee does not block creation of the meeting or other extracted data.</Constraint>
+      <Constraint>The core flow works without Internet, LLM, Docomator, Docker or a new runtime dependency.</Constraint>
+      <Constraint>Existing manual meeting creation, template-library and DOCX generation behavior must continue to work.</Constraint>
+    </Constraints>
+    <NonGoals>
+      <NonGoal>Redesign the meeting template editor or generation model.</NonGoal>
+      <NonGoal>Create a second meeting entity, import staging registry or approval state.</NonGoal>
+      <NonGoal>Change SQLite schema or VERSION unless implementation evidence proves it unavoidable.</NonGoal>
+      <NonGoal>Guess missing or ambiguous facts.</NonGoal>
+    </NonGoals>
+    <AcceptanceCriteria>
+      <Criterion>The Meetings header exposes a compact protocol upload action on desktop and mobile.</Criterion>
+      <Criterion>The upload uses the current document intake with requested type protocol and a header-safe idempotency key.</Criterion>
+      <Criterion>The worker records the persisted meeting id and the list API exposes source document metadata for exact navigation.</Criterion>
+      <Criterion>Two persistence attempts for the same source version return the same meeting without duplicate agenda, decisions, calendar entries or review items.</Criterion>
+      <Criterion>A retry after a manual correction does not overwrite the corrected meeting.</Criterion>
+      <Criterion>A partial protocol still creates and opens a meeting; unresolved fields are ordinary editable exceptions rather than an import blocker.</Criterion>
+      <Criterion>Playwright desktop and mobile load a protocol, open the exact meeting, expose the immutable source, edit a field and prove repeated upload is idempotent.</Criterion>
+      <Criterion>All GRACE, project, release and offline checks pass on one unchanged head, followed by exact-head squash merge, post-merge verification and terminal archive-only transition.</Criterion>
+    </AcceptanceCriteria>
+    <AffectedAreas>
+      <M-API />
+      <M-WORKER />
+      <M-DATABASE />
+      <M-OFFLINE-BUNDLE />
+    </AffectedAreas>
+    <VerificationIntent>
+      <ExpectedCommand>grace lint --path . --change C-ZERO-CLICK-MEETING-INTAKE --assertions final --run-commands</ExpectedCommand>
+      <ExpectedCommand>node --test tests/protocol-import.test.mjs</ExpectedCommand>
+      <ExpectedCommand>npm run check</ExpectedCommand>
+      <ExpectedCommand>npm run docs:check</ExpectedCommand>
+      <ExpectedEvidence>Unit/integration evidence, desktop/mobile browser evidence, exact-SHA GRACE/project/release/offline checks and post-merge verification prove the zero-confirmation import flow.</ExpectedEvidence>
+    </VerificationIntent>
+    <Assumptions>
+      <Assumption>The existing unique meetings(workspace_id, source_document_version_id) constraint remains valid.</Assumption>
+      <Assumption>The document intake response continues to expose the accepted document id.</Assumption>
+      <Assumption>The meetings list and detail APIs remain the canonical read surfaces.</Assumption>
+    </Assumptions>
+  </C-ZERO-CLICK-MEETING-INTAKE>
+</GraceChangeSpec>

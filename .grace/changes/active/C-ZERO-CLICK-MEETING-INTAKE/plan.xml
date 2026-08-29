@@ -1,0 +1,107 @@
+<GraceChangePlan graceVersion="4.0" status="approved">
+  <C-ZERO-CLICK-MEETING-INTAKE>
+    <IntentSummary>Complete the existing protocol extraction path with a direct Meetings upload action, exact source-based navigation and idempotent persistence, while preserving manual corrections and avoiding every confirmation or approval stage.</IntentSummary>
+    <BaselineAssertions>
+      <MustExist><Value>apps/worker/src/processor.mjs</Value></MustExist>
+      <MustExist><Value>packages/protocols/src/persist.mjs</Value></MustExist>
+      <MustExist><Value>packages/protocols/src/meeting-core.mjs</Value></MustExist>
+      <MustExist><Value>public/meetings-state.js</Value></MustExist>
+      <MustExist><Value>public/meetings-events.js</Value></MustExist>
+      <MustExist><Value>tests/browser/meetings.spec.mjs</Value></MustExist>
+      <MustVerify><Module>M-WORKER</Module></MustVerify>
+      <MustVerify><Module>M-API</Module></MustVerify>
+      <MustVerify><Module>M-DATABASE</Module></MustVerify>
+    </BaselineAssertions>
+    <TargetAssertions>
+      <MustExist><Value>tests/protocol-import.test.mjs</Value></MustExist>
+      <MustExist><Value>tests/browser/meeting-import.spec.mjs</Value></MustExist>
+      <MustContain><File>public/meetings-state.js</File><Text>meeting-source-upload-input</Text></MustContain>
+      <MustContain><File>public/meetings-events.js</File><Text>x-document-type</Text></MustContain>
+      <MustContain><File>packages/protocols/src/persist.mjs</File><Text>source_document_version_id = ?</Text></MustContain>
+      <MustContain><File>apps/worker/src/processor.mjs</File><Text>persistedMeeting</Text></MustContain>
+      <MustVerify><Module>M-WORKER</Module></MustVerify>
+      <MustVerify><Module>M-API</Module></MustVerify>
+      <MustVerify><Module>M-DATABASE</Module></MustVerify>
+      <MustPassCommand><Command>node --test tests/protocol-import.test.mjs</Command></MustPassCommand>
+      <MustPassCommand><Command>npm run check</Command></MustPassCommand>
+      <MustPassCommand><Command>npm run docs:check</Command></MustPassCommand>
+    </TargetAssertions>
+    <DurableScope>
+      <GraphAnchors>
+        <M-API />
+        <M-WORKER />
+        <M-DATABASE />
+        <M-OFFLINE-BUNDLE />
+        <DF-GRACE-BRANCH />
+      </GraphAnchors>
+      <VerificationAnchors>
+        <V-M-API />
+        <V-M-WORKER />
+        <V-M-DATABASE />
+        <V-M-OFFLINE-BUNDLE />
+      </VerificationAnchors>
+      <ContextArtifacts>
+        <ContextArtifact>requirements.xml</ContextArtifact>
+        <ContextArtifact>technology.xml</ContextArtifact>
+        <ContextArtifact>principles.xml</ContextArtifact>
+        <ContextArtifact>deployment.xml</ContextArtifact>
+        <ContextArtifact>ux-guidelines.xml</ContextArtifact>
+      </ContextArtifacts>
+    </DurableScope>
+    <ObservedWriteScope>
+      <Glob>.grace/changes/active/C-ZERO-CLICK-MEETING-INTAKE/**</Glob>
+      <File>apps/worker/src/processor.mjs</File>
+      <File>packages/protocols/src/persist.mjs</File>
+      <File>packages/protocols/src/meeting-core.mjs</File>
+      <File>public/meetings-state.js</File>
+      <File>public/meetings-events.js</File>
+      <File>public/meetings-data.js</File>
+      <File>public/meetings-render.js</File>
+      <File>tests/protocol-import.test.mjs</File>
+      <File>tests/browser/meeting-import.spec.mjs</File>
+      <File>tests/browser/meetings.spec.mjs</File>
+      <File>docs/MEETINGS.md</File>
+      <File>docs/UX_FLOWS.md</File>
+      <File>docs/ROADMAP.md</File>
+      <File>docs/ARCHITECTURE.md</File>
+    </ObservedWriteScope>
+    <ImplementationPlan>
+      <T-001>
+        <Title>kafedra-flow-intake: define the one-step protocol intake and exception states</Title>
+        <DependsOn></DependsOn>
+        <AcceptanceCriteria><Criterion>The primary path is upload, immutable save, automatic meeting creation and immediate exact navigation; partial extraction remains a working editable meeting and no confirmation screen appears.</Criterion></AcceptanceCriteria>
+        <Verification><Command>npm run docs:check</Command></Verification>
+      </T-001>
+      <T-002>
+        <Title>kafedra-design: add compact responsive upload and source navigation</Title>
+        <DependsOn><T-001 /></DependsOn>
+        <AcceptanceCriteria><Criterion>Desktop and mobile expose one stable upload action, visible progress, precise success/error copy and an immutable-source link without adding modal steps.</Criterion></AcceptanceCriteria>
+        <Verification><Command>npx playwright test tests/browser/meeting-import.spec.mjs</Command></Verification>
+      </T-002>
+      <T-003>
+        <Title>kafedra-data: enforce source-version idempotency and preserve corrections</Title>
+        <DependsOn><T-001 /></DependsOn>
+        <AcceptanceCriteria><Criterion>Repeated persistence of one source version returns one meeting and does not rewrite operator-edited fields, agenda, decisions, calendar rows or review history.</Criterion></AcceptanceCriteria>
+        <Verification><Command>node --test tests/protocol-import.test.mjs</Command></Verification>
+      </T-003>
+      <T-004>
+        <Title>kafedra-feature: connect worker result, meeting query and immediate UI opening</Title>
+        <DependsOn><T-002 /><T-003 /></DependsOn>
+        <AcceptanceCriteria><Criterion>The worker records the created meeting id, list results expose source document metadata, and the UI opens the exact meeting created from the accepted document id.</Criterion></AcceptanceCriteria>
+        <Verification><Command>npm run check</Command></Verification>
+      </T-004>
+      <T-005>
+        <Title>kafedra-tests: prove complete, partial and repeated imports on desktop and mobile</Title>
+        <DependsOn><T-004 /></DependsOn>
+        <AcceptanceCriteria><Criterion>Unit/integration and Playwright cover exact source navigation, editable partial results, immutable source access, manual correction preservation, repeat idempotency and regression of manual meetings.</Criterion></AcceptanceCriteria>
+        <Verification><Command>node --test tests/protocol-import.test.mjs</Command><Command>npx playwright test tests/browser/meeting-import.spec.mjs tests/browser/meetings.spec.mjs</Command></Verification>
+      </T-005>
+      <T-006>
+        <Title>kafedra-release: verify unchanged schema/version and full offline delivery</Title>
+        <DependsOn><T-005 /></DependsOn>
+        <AcceptanceCriteria><Criterion>No migration or VERSION change is introduced; full GRACE, project, release and offline checks succeed on one unchanged head before exact-head squash merge, post-merge CI and archive-only transition.</Criterion></AcceptanceCriteria>
+        <Verification><Command>npm run check</Command><Command>npm run docs:check</Command></Verification>
+      </T-006>
+    </ImplementationPlan>
+  </C-ZERO-CLICK-MEETING-INTAKE>
+</GraceChangePlan>
