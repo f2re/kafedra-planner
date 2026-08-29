@@ -18,7 +18,7 @@
       <MustContain><File>public/meetings-state.js</File><Text>meeting-source-upload-input</Text></MustContain>
       <MustContain><File>public/meetings-events.js</File><Text>x-document-type</Text></MustContain>
       <MustContain><File>packages/protocols/src/persist.mjs</File><Text>source_document_version_id = ?</Text></MustContain>
-      <MustContain><File>apps/worker/src/processor.mjs</File><Text>persistedMeeting</Text></MustContain>
+      <MustContain><File>packages/protocols/src/meeting-core.mjs</File><Text>source_document_id</Text></MustContain>
       <MustVerify><Module>M-WORKER</Module></MustVerify>
       <MustVerify><Module>M-API</Module></MustVerify>
       <MustVerify><Module>M-DATABASE</Module></MustVerify>
@@ -50,7 +50,6 @@
     </DurableScope>
     <ObservedWriteScope>
       <Glob>.grace/changes/active/C-ZERO-CLICK-MEETING-INTAKE/**</Glob>
-      <File>apps/worker/src/processor.mjs</File>
       <File>packages/protocols/src/persist.mjs</File>
       <File>packages/protocols/src/meeting-core.mjs</File>
       <File>public/meetings-state.js</File>
@@ -85,9 +84,9 @@
         <Verification><Command>node --test tests/protocol-import.test.mjs</Command></Verification>
       </T-003>
       <T-004>
-        <Title>kafedra-feature: connect worker result, meeting query and immediate UI opening</Title>
+        <Title>kafedra-feature: connect canonical meeting query and immediate UI opening</Title>
         <DependsOn><T-002 /><T-003 /></DependsOn>
-        <AcceptanceCriteria><Criterion>The worker records the created meeting id, list results expose source document metadata, and the UI opens the exact meeting created from the accepted document id.</Criterion></AcceptanceCriteria>
+        <AcceptanceCriteria><Criterion>Meeting queries expose source document metadata, and the UI opens the exact meeting created by the existing worker from the accepted document id.</Criterion></AcceptanceCriteria>
         <Verification><Command>npm run check</Command></Verification>
       </T-004>
       <T-005>
