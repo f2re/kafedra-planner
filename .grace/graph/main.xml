@@ -31,10 +31,21 @@
       <M-DATABASE />
       <M-MIGRATION-RUNNER />
     </M-GRACE-GOVERNANCE>
+    <M-DESIGN-GOVERNANCE>
+      <Summary>Repository-level UI governance that requires design, motion decision, implementation, independent design audit and tests for public UI changes.</Summary>
+      <Path>scripts/design-governance.mjs</Path>
+      <M-GRACE-GOVERNANCE />
+      <M-MOTION-KB />
+    </M-DESIGN-GOVERNANCE>
+    <M-MOTION-KB>
+      <Summary>Offline semantic reference catalog and project motion policy used by specialist design agents without adding runtime dependencies.</Summary>
+      <Path>docs/design/reactiive-motion-catalog.md</Path>
+    </M-MOTION-KB>
     <M-CI-GATE>
       <Summary>GitHub Actions gate that validates GRACE contracts and database upgrades for branches, pull requests and main.</Summary>
       <Path>.github/workflows/grace.yml</Path>
       <M-GRACE-GOVERNANCE />
+      <M-DESIGN-GOVERNANCE />
       <M-MIGRATION-RUNNER />
     </M-CI-GATE>
     <M-OFFLINE-BUNDLE>
@@ -46,6 +57,12 @@
       <M-GRACE-GOVERNANCE />
       <M-CI-GATE />
     </DF-GRACE-BRANCH>
+    <DF-DESIGN-CHANGE>
+      <Summary>UI-scoped GRACE flow from product design and motion/no-motion brief through implementation, independent design audit, responsive/reduced-motion tests and release gates.</Summary>
+      <M-DESIGN-GOVERNANCE />
+      <M-MOTION-KB />
+      <M-CI-GATE />
+    </DF-DESIGN-CHANGE>
     <DF-DATABASE-UPGRADE>
       <Summary>Base revision database to pre-migration backup, HEAD migration, integrity verification and restorable baseline evidence.</Summary>
       <M-MIGRATION-RUNNER />

@@ -9,6 +9,8 @@
         <V-M-BACKUP />
         <V-M-MIGRATION-RUNNER />
         <V-M-GRACE-GOVERNANCE />
+        <V-M-DESIGN-GOVERNANCE />
+        <V-M-MOTION-KB />
         <V-M-CI-GATE />
         <V-M-OFFLINE-BUNDLE />
       </Owns>

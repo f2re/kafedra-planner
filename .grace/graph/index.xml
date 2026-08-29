@@ -9,9 +9,12 @@
         <M-BACKUP />
         <M-MIGRATION-RUNNER />
         <M-GRACE-GOVERNANCE />
+        <M-DESIGN-GOVERNANCE />
+        <M-MOTION-KB />
         <M-CI-GATE />
         <M-OFFLINE-BUNDLE />
         <DF-GRACE-BRANCH />
+        <DF-DESIGN-CHANGE />
         <DF-DATABASE-UPGRADE />
       </Owns>
     </GD-MAIN>

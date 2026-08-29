@@ -32,6 +32,18 @@
       <Scenario>Governed writes outside an approved ObservedWriteScope fail closed.</Scenario>
       <Scenario>Applied migrations cannot be modified, renamed or deleted.</Scenario>
     </V-M-GRACE-GOVERNANCE>
+    <V-M-DESIGN-GOVERNANCE>
+      <TestFiles><File>tests/design-governance.test.mjs</File></TestFiles>
+      <Command>node --test tests/design-governance.test.mjs</Command>
+      <Command>npm run design:check</Command>
+      <Scenario>A UI-scoped GRACE plan fails closed when design, motion, implementation, independent design audit or tests are missing or out of order.</Scenario>
+      <Scenario>A UI-scoped GRACE plan explicitly covers desktop, mobile and prefers-reduced-motion behavior.</Scenario>
+    </V-M-DESIGN-GOVERNANCE>
+    <V-M-MOTION-KB>
+      <TestFiles><File>tests/design-governance.test.mjs</File></TestFiles>
+      <Command>npm run design:check</Command>
+      <Scenario>The repository contains design/motion/audit skills and a semantic catalog indexing exactly 123 reference demos without runtime dependency.</Scenario>
+    </V-M-MOTION-KB>
     <V-M-CI-GATE>
       <TestFiles><File>tests/grace-governance.test.mjs</File></TestFiles>
       <Command>node --test tests/grace-governance.test.mjs</Command>
@@ -39,7 +51,7 @@
     </V-M-CI-GATE>
     <V-M-OFFLINE-BUNDLE>
       <Command>bash -n scripts/offline/*.sh deploy/install.sh</Command>
-      <Scenario>Governance changes do not introduce a runtime dependency on Bun or GRACE into the offline bundle.</Scenario>
+      <Scenario>Governance changes do not introduce a runtime dependency on Bun, GRACE or the design/motion reference catalog into the offline bundle.</Scenario>
     </V-M-OFFLINE-BUNDLE>
   </VD-MAIN>
 </GraceVerificationDocument>
