@@ -5,7 +5,7 @@
     <Goals>
       <Goal>Add one obvious upload action for DOCX, ODT, PDF and text protocols in the Meetings section.</Goal>
       <Goal>Preserve the source through the existing immutable document intake and create the meeting, agenda, decisions, calendar entries and review exceptions automatically.</Goal>
-      <Goal>Navigate to the meeting linked to the exact uploaded document id and keep every extracted field directly editable.</Goal>
+      <Goal>Navigate through the canonical meetings query to the object linked to the exact uploaded document id and keep every extracted field directly editable.</Goal>
       <Goal>Make protocol persistence explicitly idempotent by source document version and preserve manual corrections on retries.</Goal>
       <Goal>Cover complete, partial and repeated imports on desktop and mobile without adding a schema migration or release-version change.</Goal>
     </Goals>
@@ -19,13 +19,14 @@
     <NonGoals>
       <NonGoal>Redesign the meeting template editor or generation model.</NonGoal>
       <NonGoal>Create a second meeting entity, import staging registry or approval state.</NonGoal>
+      <NonGoal>Add a second worker result protocol when source-document identity already provides exact navigation.</NonGoal>
       <NonGoal>Change SQLite schema or VERSION unless implementation evidence proves it unavoidable.</NonGoal>
       <NonGoal>Guess missing or ambiguous facts.</NonGoal>
     </NonGoals>
     <AcceptanceCriteria>
       <Criterion>The Meetings header exposes a compact protocol upload action on desktop and mobile.</Criterion>
       <Criterion>The upload uses the current document intake with requested type protocol and a header-safe idempotency key.</Criterion>
-      <Criterion>The worker records the persisted meeting id and the list API exposes source document metadata for exact navigation.</Criterion>
+      <Criterion>The meetings list exposes source document metadata and the UI opens the meeting whose source document id exactly matches the accepted upload.</Criterion>
       <Criterion>Two persistence attempts for the same source version return the same meeting without duplicate agenda, decisions, calendar entries or review items.</Criterion>
       <Criterion>A retry after a manual correction does not overwrite the corrected meeting.</Criterion>
       <Criterion>A partial protocol still creates and opens a meeting; unresolved fields are ordinary editable exceptions rather than an import blocker.</Criterion>
@@ -42,7 +43,6 @@
       <ExpectedCommand>grace lint --path . --change C-ZERO-CLICK-MEETING-INTAKE --assertions final --run-commands</ExpectedCommand>
       <ExpectedCommand>node --test tests/protocol-import.test.mjs</ExpectedCommand>
       <ExpectedCommand>npm run check</ExpectedCommand>
-      <ExpectedCommand>npm run docs:check</ExpectedCommand>
       <ExpectedEvidence>Unit/integration evidence, desktop/mobile browser evidence, exact-SHA GRACE/project/release/offline checks and post-merge verification prove the zero-confirmation import flow.</ExpectedEvidence>
     </VerificationIntent>
     <Assumptions>
