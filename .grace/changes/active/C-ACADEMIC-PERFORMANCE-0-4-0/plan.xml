@@ -3,7 +3,7 @@
     <IntentSummary>Integrate the reviewed academic gradebook implementation into the exact current main, close the Action Center, reporting, acceptance and reduced-motion gaps, migrate additively to schema 31, synchronize release 0.4.0 and prove the complete offline upgrade and publication path.</IntentSummary>
     <BaselineAssertions>
       <MustExist><Value>.grace/changes/active/.gitkeep</Value></MustExist>
-      <MustExist><Value>migrations/030_docomator_fields.sql</Value></MustExist>
+      <MustExist><Value>migrations/030_docomator_field_mapping.sql</Value></MustExist>
       <MustExist><Value>public/action-center.js</Value></MustExist>
       <MustExist><Value>public/action-registry.js</Value></MustExist>
       <MustExist><Value>packages/system/src/acceptance.mjs</Value></MustExist>
