@@ -225,5 +225,10 @@ body.action-center-open { overflow: hidden; }
   .action-center,
   .action-center-backdrop,
   .action-center-recommendation,
-  .action-center-action { animation: none; transition: none; }
+  .action-center-action {
+    animation: none !important;
+    animation-duration: 0s !important;
+    transition: none !important;
+    transition-duration: 0s !important;
+  }
 }
