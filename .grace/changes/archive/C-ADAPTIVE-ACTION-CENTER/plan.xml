@@ -1,0 +1,126 @@
+<GraceChangePlan graceVersion="4.0" status="applied">
+  <C-ADAPTIVE-ACTION-CENTER>
+    <IntentSummary>Deliver one stable adaptive action center and universal immutable document intake router by composing existing feature launchers, deterministic worker/materializer results, rank-only preferences and safe meeting merge rules, then verify desktop/mobile, recovery and offline invariants.</IntentSummary>
+    <BaselineAssertions>
+      <MustExist><Value>public/index.html</Value></MustExist>
+      <MustExist><Value>apps/worker/src/processor.mjs</Value></MustExist>
+      <MustExist><Value>packages/protocols/src/persist.mjs</Value></MustExist>
+      <MustExist><Value>packages/preferences/src/service.mjs</Value></MustExist>
+      <MustExist><Value>docs/ADAPTIVE_UX.md</Value></MustExist>
+      <MustExist><Value>docs/UX_FLOWS.md</Value></MustExist>
+      <MustExist><Value>docs/MOTION_DESIGN.md</Value></MustExist>
+      <MustVerify><Module>M-API</Module></MustVerify>
+      <MustVerify><Module>M-WORKER</Module></MustVerify>
+      <MustVerify><Module>M-DESIGN-GOVERNANCE</Module></MustVerify>
+    </BaselineAssertions>
+    <TargetAssertions>
+      <MustExist><Value>public/action-center-registry.js</Value></MustExist>
+      <MustExist><Value>public/action-center.js</Value></MustExist>
+      <MustExist><Value>public/action-center.css</Value></MustExist>
+      <MustExist><Value>docs/ACTION_CENTER.md</Value></MustExist>
+      <MustExist><Value>tests/action-center.test.mjs</Value></MustExist>
+      <MustExist><Value>tests/protocol-merge.test.mjs</Value></MustExist>
+      <MustExist><Value>tests/browser/action-center.spec.mjs</Value></MustExist>
+      <MustContain><File>public/index.html</File><Text>/action-center.css</Text></MustContain>
+      <MustContain><File>public/index.html</File><Text>/action-center.js</Text></MustContain>
+      <MustContain><File>packages/preferences/src/service.mjs</File><Text>action.center.action</Text></MustContain>
+      <MustContain><File>apps/worker/src/processor.mjs</File><Text>persistedProtocolId</Text></MustContain>
+      <MustContain><File>docs/ACTION_CENTER.md</File><Text>documentId</Text></MustContain>
+      <MustContain><File>docs/ACTION_CENTER.md</File><Text>prefers-reduced-motion</Text></MustContain>
+      <MustPassCommand><Command>node --test tests/action-center.test.mjs tests/protocol-merge.test.mjs</Command></MustPassCommand>
+      <MustPassCommand><Command>npx playwright test tests/browser/action-center.spec.mjs</Command></MustPassCommand>
+      <MustPassCommand><Command>npm run check</Command></MustPassCommand>
+      <MustPassCommand><Command>npm test</Command></MustPassCommand>
+      <MustPassCommand><Command>npm run smoke</Command></MustPassCommand>
+      <MustPassCommand><Command>npm run backup:selftest</Command></MustPassCommand>
+      <MustPassCommand><Command>npm run test:browser</Command></MustPassCommand>
+    </TargetAssertions>
+    <DurableScope>
+      <GraphAnchors>
+        <M-API />
+        <M-WORKER />
+        <M-DATABASE />
+        <M-DESIGN-GOVERNANCE />
+        <M-CI-GATE />
+        <M-OFFLINE-BUNDLE />
+        <DF-DESIGN-CHANGE />
+      </GraphAnchors>
+      <VerificationAnchors>
+        <V-M-API />
+        <V-M-WORKER />
+        <V-M-DATABASE />
+        <V-M-DESIGN-GOVERNANCE />
+        <V-M-CI-GATE />
+        <V-M-OFFLINE-BUNDLE />
+      </VerificationAnchors>
+      <ContextArtifacts>
+        <ContextArtifact>principles.xml</ContextArtifact>
+        <ContextArtifact>ux-guidelines.xml</ContextArtifact>
+      </ContextArtifacts>
+    </DurableScope>
+    <ObservedWriteScope>
+      <Glob>.grace/changes/active/C-ADAPTIVE-ACTION-CENTER/**</Glob>
+      <File>apps/worker/src/processor.mjs</File>
+      <File>packages/preferences/src/service.mjs</File>
+      <File>packages/protocols/src/persist.mjs</File>
+      <File>public/action-center-registry.js</File>
+      <File>public/action-center.js</File>
+      <File>public/action-center.css</File>
+      <File>public/index.html</File>
+      <File>docs/ACTION_CENTER.md</File>
+      <File>tests/action-center.test.mjs</File>
+      <File>tests/protocol-merge.test.mjs</File>
+      <File>tests/browser/action-center.spec.mjs</File>
+    </ObservedWriteScope>
+    <ImplementationPlan>
+      <T-001>
+        <Title>kafedra-flow-intake: specify the universal action and document-intake path</Title>
+        <DependsOn></DependsOn>
+        <AcceptanceCriteria><Criterion>The flow defines entry points, exact document identity, deterministic routing, pending/failed/unknown/ambiguous states, partial success, explicit-context precedence and generic fallback without a confirmation wizard.</Criterion></AcceptanceCriteria>
+        <Verification><Command>npm run docs:check</Command></Verification>
+      </T-001>
+      <T-002>
+        <Title>kafedra-design: define stable desktop and mobile hierarchy</Title>
+        <DependsOn><T-001 /></DependsOn>
+        <AcceptanceCriteria><Criterion>The center has one universal upload zone, fixed groups, exactly three recommendation slots, deterministic search, clear status text, keyboard/focus behavior and equivalent mobile completion without geometry learned from statistics.</Criterion></AcceptanceCriteria>
+        <Verification><Command>npx playwright test tests/browser/action-center.spec.mjs</Command></Verification>
+      </T-002>
+      <T-003>
+        <Title>kafedra-motion: select restrained entry motion and reduced-motion behavior</Title>
+        <DependsOn><T-002 /></DependsOn>
+        <AcceptanceCriteria><Criterion>Only a short interruptible modal or bottom-sheet entry transition explains causality; routine actions have no decorative delay and prefers-reduced-motion leaves the full static state understandable.</Criterion></AcceptanceCriteria>
+        <Verification><Command>npm run design:check</Command></Verification>
+      </T-003>
+      <T-004>
+        <Title>kafedra-data: preserve identity, provenance, idempotency and meeting truth</Title>
+        <DependsOn><T-001 /></DependsOn>
+        <AcceptanceCriteria><Criterion>Existing document/version, extraction run, plan, meeting, agenda, decision, review, calendar, search and ui preference data remain authoritative; exact IDs and evidence are retained; safe protocol merge never overwrites conflicting facts and requires no migration.</Criterion></AcceptanceCriteria>
+        <Verification><Command>node --test tests/protocol-merge.test.mjs</Command><Command>npm run backup:selftest</Command></Verification>
+      </T-004>
+      <T-005>
+        <Title>kafedra-feature: implement registry, ranking, upload routing and launcher adapters</Title>
+        <DependsOn><T-002 /><T-003 /><T-004 /></DependsOn>
+        <AcceptanceCriteria><Criterion>The top-bar, keyboard and calendar-day entry points open the same center; actions use the registry and existing launchers; upload uses the normal immutable endpoint and opens the exact materialized object associated with the returned documentId.</Criterion></AcceptanceCriteria>
+        <Verification><Command>node --test tests/action-center.test.mjs tests/protocol-merge.test.mjs</Command><Command>npm run smoke</Command></Verification>
+      </T-005>
+      <T-006>
+        <Title>kafedra-design-audit: independently verify the rendered implementation</Title>
+        <DependsOn><T-005 /></DependsOn>
+        <AcceptanceCriteria><Criterion>The actual implementation receives PASS only with no blocker or major finding for clarity, fixed geometry, focus, desktop/mobile, reduced motion, provenance, error preservation and exact-object routing.</Criterion></AcceptanceCriteria>
+        <Verification><Command>npx playwright test tests/browser/action-center.spec.mjs</Command></Verification>
+      </T-006>
+      <T-007>
+        <Title>kafedra-tests: cover ranking, routing, merge, degraded mode and responsive workflow</Title>
+        <DependsOn><T-006 /></DependsOn>
+        <AcceptanceCriteria><Criterion>Tests prove explicit and domain context precedence over frequency, server allowlist rejection, fixed slots and groups, date preservation, exact documentId routing, multi-question protocol support, conflict preservation, idempotent retry, desktop/mobile focus and reduced motion.</Criterion></AcceptanceCriteria>
+        <Verification><Command>npm test</Command><Command>npm run test:browser</Command></Verification>
+      </T-007>
+      <T-008>
+        <Title>kafedra-release: verify unchanged schema, recovery and offline compatibility</Title>
+        <DependsOn><T-007 /></DependsOn>
+        <AcceptanceCriteria><Criterion>No migration, VERSION or runtime dependency is added; project, backup/restore, offline and release gates remain green on the exact implementation and post-merge heads.</Criterion></AcceptanceCriteria>
+        <Verification><Command>npm run check</Command><Command>npm run backup:selftest</Command><Command>bash -n scripts/offline/*.sh deploy/install.sh</Command></Verification>
+      </T-008>
+    </ImplementationPlan>
+  </C-ADAPTIVE-ACTION-CENTER>
+</GraceChangePlan>
