@@ -14,16 +14,16 @@ jobs:
     steps:
       - uses: actions/checkout@v4
         with:
-          ref: feature/183-academic-performance-0.4.0
+          ref: 1fe2cf88a2a31d04020f4ddfea19b5fed356131a
           fetch-depth: 1
-      - name: Pack exact academic release branch source tree
+      - name: Pack verified release helper source tree
         run: |
           set -Eeuo pipefail
-          test "$(git rev-parse HEAD)" = "08fb6f939a41533d81e9866c88339f4ee77879a5"
-          tar --exclude=.git -czf /tmp/kafedra-source.tgz .
+          test "$(git rev-parse HEAD)" = "1fe2cf88a2a31d04020f4ddfea19b5fed356131a"
+          tar --exclude=.git -czf /tmp/kafedra-release-helper.tgz .
       - uses: actions/upload-artifact@v4
         with:
-          name: kafedra-current-academic-source
-          path: /tmp/kafedra-source.tgz
+          name: kafedra-release-helper-source
+          path: /tmp/kafedra-release-helper.tgz
           retention-days: 1
           if-no-files-found: error
