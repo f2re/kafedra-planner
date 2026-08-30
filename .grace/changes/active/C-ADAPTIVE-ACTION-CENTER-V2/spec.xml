@@ -1,75 +1,55 @@
 <GraceChangeSpec graceVersion="4.0" status="approved">
   <C-ADAPTIVE-ACTION-CENTER-V2>
-    <Summary>Supersede the unmerged C-ADAPTIVE-ACTION-CENTER change and deliver one stable adaptive Action Center that launches existing domain flows and routes any supported uploaded document into the exact plan, meeting, directive, science item or safe document-review destination produced by the deterministic worker.</Summary>
-    <Problem>The top-level Создать action currently opens only a calendar record while plans, periodic work, directives, meetings, templates, science imports and reports expose separate launchers. Generic document upload also leaves the user to discover the next domain screen. Protocol persistence always creates a new meeting, so an uploaded protocol cannot safely enrich an already existing meeting even when number and date identify it unambiguously. The first unmerged change omitted the existing ui-preferences browser regression from ObservedWriteScope and used a browser command that cannot run in the dependency-free GRACE contract job; this superseding change corrects those governance and compatibility gaps before merge.</Problem>
+    <Summary>Corrective superseding revision of the completed Action Center change: repair the GRACE terminal archive gate so a bundle containing Markdown companion artifacts can be moved immutably from active to archive.</Summary>
+    <Problem>The completed Action Center bundle contains spec.xml, plan.xml, design.md, motion.md and design-audit.md. The current policy requires the archive to preserve this exact five-file set, but archiveCandidate also requires every changed path to be non-governed while isGovernedPath classifies non-XML companions as governed. Moving all five files is therefore rejected before evaluateArchiveTransition can validate them, while moving only XML violates the exact bundle set. The valid terminal transition is mechanically impossible and blocks issue 211 and the next release.</Problem>
     <Goals>
-      <Goal>Provide one immediate + Добавить shell with fixed geometry, three fixed recommendation slots, fixed action groups and deterministic text filtering.</Goal>
-      <Goal>Introduce an extensible action registry whose entries invoke existing domain launchers instead of copying their forms or business logic.</Goal>
-      <Goal>Allow any format already supported by document intake to be dropped or selected in the Action Center, persist it immutably first, then route by exact worker result and documentId without re-upload.</Goal>
-      <Goal>Make protocol persistence idempotently reuse an exact meeting when safe, fill only missing non-conflicting facts, add only non-conflicting agenda data, and preserve conflicts as review items rather than overwriting user or domain state.</Goal>
-      <Goal>Reuse the existing ui_choice_preferences layer for rank-only action frequency so explicit domain context and document classification always outrank personal frequency.</Goal>
-      <Goal>Keep all primary behavior deterministic, offline and usable without LLM, recommendation data or preference persistence.</Goal>
-      <Goal>Preserve the existing adaptive-UX regression contract by entering calendar creation through the Action Center rather than bypassing the new global flow.</Goal>
+      <Goal>Recognize a candidate terminal transition from the matching active and archive C-* paths without requiring Markdown companions to be globally ungoverned.</Goal>
+      <Goal>Keep evaluateArchiveTransition as the authoritative fail-closed validator of allowed paths, exact file set, byte-identical companions, terminal status and absence of an active copy.</Goal>
+      <Goal>Add regression coverage for a valid five-file bundle and for product writes, companion mutation and attempts to rewrite an existing archive.</Goal>
+      <Goal>Document that companion artifacts remain governed during normal implementation and receive a narrow lifecycle exception only inside a validated archive transition.</Goal>
+      <Goal>Complete the correction without changing product behavior, release version, SQLite schema, runtime dependencies or offline assets.</Goal>
     </Goals>
     <Constraints>
-      <Constraint>The current SQLite schema remains unchanged; applied migrations are not edited and no new migration is introduced.</Constraint>
-      <Constraint>Document blob, document_version, SHA-256, extraction evidence and source locators remain immutable. A route or merge is an orchestration or projection decision, not a replacement source of truth.</Constraint>
-      <Constraint>The existing protocol, directive, plan and science extractors and materializers remain authoritative; the Action Center must not implement a second classifier or parser.</Constraint>
-      <Constraint>Stable geometry is mandatory. Usage statistics may rank actions inside fixed slots but may not move global controls, groups or dangerous decisions.</Constraint>
-      <Constraint>Selected calendar date and deterministic document classification are domain-derived and always stronger than learned ranking.</Constraint>
-      <Constraint>Completion, archive or restore, deletion, ACL, role, PIN, arbitrary business text and automatically inferred document routes never become learned choices.</Constraint>
-      <Constraint>No new frontend framework, animation runtime, CDN, cloud service, Docker dependency or mandatory LLM dependency is allowed.</Constraint>
-      <Constraint>Any failure after upload keeps the documentId and original source available; retries must never require uploading the same source again.</Constraint>
-      <Constraint>GRACE final assertions use dependency-free syntax and unit commands; actual Playwright desktop and mobile execution remains mandatory in the unchanged-head project CI.</Constraint>
+      <Constraint>This approved specification supersedes the previous approved revision of the same active change ID only because the one-active-bundle rule and the broken archive gate make rotation to a new C-* impossible before terminal transition.</Constraint>
+      <Constraint>The archive exception may apply only when exactly one active C-* and the same one archive C-* are touched, no active bundle remains at HEAD, and an archived spec.xml plus plan.xml exist at HEAD.</Constraint>
+      <Constraint>All changed paths are still passed to evaluateArchiveTransition; no product, documentation outside the explicitly governed policy note, workflow, migration, graph, context or verification write may be hidden from validation.</Constraint>
+      <Constraint>Existing archives remain immutable. A branch that only edits an archived bundle must continue to fail.</Constraint>
+      <Constraint>Normal implementation governance, ObservedWriteScope enforcement and direct XML lifecycle validation must not be weakened.</Constraint>
+      <Constraint>No release may be published until this correction is merged, post-merge CI is green, and C-ADAPTIVE-ACTION-CENTER-V2 is successfully archived with terminal status applied.</Constraint>
     </Constraints>
     <NonGoals>
-      <NonGoal>Replace section navigation, search, notification center, object inspectors or contextual edit actions with the Action Center.</NonGoal>
-      <NonGoal>Invent a generic project entity outside existing domain models.</NonGoal>
-      <NonGoal>Make LLM output authoritative or allow it to execute a domain mutation silently.</NonGoal>
-      <NonGoal>Redesign every existing feature form; existing feature UI is launched through adapters.</NonGoal>
-      <NonGoal>Change release version, SQLite schema or offline dependency manifest.</NonGoal>
+      <NonGoal>Change Action Center product behavior, document routing, protocol merging or preference ranking.</NonGoal>
+      <NonGoal>Broaden lifecycle exceptions to arbitrary files under .grace or to multiple change IDs.</NonGoal>
+      <NonGoal>Bypass GRACE checks, merge a failing archive PR or manually modify main.</NonGoal>
+      <NonGoal>Change VERSION, schema, migrations, package manifests, release workflows or target deployment behavior.</NonGoal>
     </NonGoals>
     <AcceptanceCriteria>
-      <Criterion>The topbar action is + Добавить, Ctrl/Cmd+N opens the same Action Center, and a plus action on a calendar day opens it with that exact date preserved as domain context.</Criterion>
-      <Criterion>The Action Center has a stable desktop sheet and mobile sheet, three fixed recommendation slots, fixed action groups, keyboard navigation, Escape close, focus restoration and a prefers-reduced-motion path with computed zero-duration transition and no spatial animation.</Criterion>
-      <Criterion>The action registry can launch existing calendar task or event, generic document upload, manual plan, plan upload or item, periodic task, directive, meeting, template, science import, science report and review flows without duplicating their domain forms.</Criterion>
-      <Criterion>A supported document uploaded without a declared type is stored through the normal immutable intake before routing; the same accepted documentId is retained through processing, failure and retry.</Criterion>
-      <Criterion>Processed plan, protocol or meeting, directive and scientific documents route to the exact domain object identified by that document processing result; unknown or ambiguous documents remain ordinary documents and surface review rather than being guessed.</Criterion>
-      <Criterion>A protocol with an exact unique meeting match reuses that meeting, fills only empty compatible meeting fields, deduplicates matching agenda items and adds only safe missing agenda facts; contradictory values generate review items and do not overwrite existing values.</Criterion>
-      <Criterion>Ambiguous meeting matches do not merge destructively. The uploaded protocol remains independently traceable and the ambiguity is surfaced for correction.</Criterion>
-      <Criterion>Repeated processing or routing does not create duplicate meetings, agenda items, decisions, plans, directives or preference events for the same idempotency identity.</Criterion>
-      <Criterion>The allowlisted action.center.action preference accepts only known action IDs, is rank-only, is recorded only after a successful explicit user action, and is never incremented by automatic document routing.</Criterion>
-      <Criterion>The existing ui-preferences Playwright scenario opens calendar creation through the Action Center for both the global button and a concrete calendar date, while preserving all previous safe-default and rank-only assertions.</Criterion>
-      <Criterion>Recommendation or preference failure degrades to a static safe action catalog; document intake and all direct feature launchers remain usable offline without LLM.</Criterion>
-      <Criterion>Unit and integration tests cover action precedence, allowlist rejection, exact document routing, protocol merge, deduplication, conflict behavior and retry after upload; Playwright covers desktop, mobile, compatibility and prefers-reduced-motion scenarios.</Criterion>
-      <Criterion>npm run check, npm test, npm run docs:check, focused and full browser tests, GRACE final assertions and unchanged-head project, release and offline checks are successful before merge.</Criterion>
+      <Criterion>A repository fixture with approved spec.xml and plan.xml plus design.md, motion.md and design-audit.md can move the exact set from active/C-* to archive/C-* with only root statuses changed to applied.</Criterion>
+      <Criterion>The same transition fails when any companion artifact changes content.</Criterion>
+      <Criterion>The same transition fails when an application, workflow, unrelated documentation or other external path is changed in the archive commit.</Criterion>
+      <Criterion>A direct edit of a C-* that already exists only in archive continues to fail as an immutable archive rewrite.</Criterion>
+      <Criterion>Implementation PRs still require one approved active bundle and reject every governed path outside ObservedWriteScope.</Criterion>
+      <Criterion>tests/grace-governance.test.mjs, npm run check, npm run docs:check and the full npm test suite pass.</Criterion>
+      <Criterion>Exact-head project, GRACE, release, database, browser and full-offline CI are green before squash merge.</Criterion>
+      <Criterion>After green post-merge CI, a separate archive-only PR for the complete V2 bundle passes and reaches terminal applied state.</Criterion>
     </AcceptanceCriteria>
     <AffectedAreas>
-      <M-API />
-      <M-WORKER />
-      <M-DATABASE />
-      <M-DESIGN-GOVERNANCE />
+      <M-GRACE-GOVERNANCE />
       <M-CI-GATE />
-      <M-OFFLINE-BUNDLE />
     </AffectedAreas>
     <VerificationIntent>
-      <ExpectedCommand>node --test tests/action-center-registry.test.mjs tests/protocol-merge.test.mjs</ExpectedCommand>
-      <ExpectedCommand>node --check tests/browser/action-center.spec.mjs</ExpectedCommand>
-      <ExpectedCommand>node --check tests/browser/ui-preferences.spec.mjs</ExpectedCommand>
-      <ExpectedCommand>npm run test:browser</ExpectedCommand>
-      <ExpectedCommand>npm run design:check</ExpectedCommand>
+      <ExpectedCommand>node --test tests/grace-governance.test.mjs</ExpectedCommand>
       <ExpectedCommand>npm run check</ExpectedCommand>
-      <ExpectedCommand>npm test</ExpectedCommand>
       <ExpectedCommand>npm run docs:check</ExpectedCommand>
+      <ExpectedCommand>npm test</ExpectedCommand>
       <ExpectedCommand>grace lint --path . --change C-ADAPTIVE-ACTION-CENTER-V2 --assertions final --run-commands</ExpectedCommand>
-      <ExpectedEvidence>Exact-document routing and protocol merge tests plus desktop, mobile, compatibility and reduced-motion browser evidence show one stable Action Center can orchestrate existing domain flows without source loss, duplicate materialization, schema changes or mandatory online dependencies.</ExpectedEvidence>
+      <ExpectedEvidence>Policy regression fixtures prove that Markdown companions are accepted only as part of one exact immutable terminal move, while mutation, outside writes and archive rewrites remain rejected.</ExpectedEvidence>
     </VerificationIntent>
     <Assumptions>
-      <Assumption>The verified base revision is main commit adee48d5df671aeba9dd5c5f36f607747705430f and tree 5da9cd0543b42ff6c3a84d062993a98db58547d5.</Assumption>
-      <Assumption>Issues 200 and 204 are the human-visible work items for the combined Action Center and universal document-intake scenario.</Assumption>
-      <Assumption>This change supersedes the unmerged C-ADAPTIVE-ACTION-CENTER bundle from the same implementation branch; only C-ADAPTIVE-ACTION-CENTER-V2 remains active in the resulting pull-request tree.</Assumption>
-      <Assumption>Current GET /api/documents/:id exposes processing status, review state and extraction runs, while plan, directive and science processing already records exact persisted object IDs.</Assumption>
-      <Assumption>Meeting schema from migration 017 permits manual meetings without a primary source document and provides agenda evidence and source columns sufficient for safe merge without a new migration.</Assumption>
+      <Assumption>The verified base is main commit b3ffdd0afb83ece2a640ffd579d870671e5317d3 with tree c9a1061939e1903913320978ed341f0eb4d658e5.</Assumption>
+      <Assumption>Issue 211 records the blocking lifecycle defect and the required acceptance criteria.</Assumption>
+      <Assumption>PR 206 product implementation and its post-merge CI are complete; this revision changes only governance required to archive that already merged implementation.</Assumption>
+      <Assumption>The existing evaluateArchiveTransition function already enforces the required strict path, content and lifecycle invariants once the candidate reaches it.</Assumption>
     </Assumptions>
   </C-ADAPTIVE-ACTION-CENTER-V2>
 </GraceChangeSpec>
