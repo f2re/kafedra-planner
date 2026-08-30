@@ -1,6 +1,8 @@
 import { AppError } from '../../core/src/errors.mjs';
+import { ACTION_IDS } from '../../../public/action-registry.js';
 
 const FIXED_VALUES = new Map([
+  ['action.center.action', new Set(ACTION_IDS)],
   ['calendar.mode', new Set(['month', 'week', 'tasks'])],
   ['calendar.filter.kind', new Set(['all', 'event', 'task'])],
   ['calendar.new.kind', new Set(['event', 'task'])],
