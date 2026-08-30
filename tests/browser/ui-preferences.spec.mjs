@@ -76,6 +76,9 @@ test('обучаемый UX охватывает новые даты, типы �
   const eventTitle = `Проверка общего обучаемого UX ${testInfo.project.name}`;
 
   await page.locator('#create-button').click();
+  await expect(page.locator('#action-center')).toBeVisible();
+  await page.locator('#action-center [data-action-id="calendar.task"]').first().click();
+  await expect(page.locator('#event-sheet')).toBeVisible();
   await expect(page.locator('#event-kind')).toHaveValue('task');
   await expect(page.locator('#event-category')).toHaveValue('science');
   await expect(page.locator('#event-importance')).toHaveValue('high');
@@ -129,6 +132,9 @@ test('обучаемый UX охватывает новые даты, типы �
   const addOnDay = page.locator('[data-new-on-date]:visible').first();
   const explicitDate = await addOnDay.getAttribute('data-new-on-date');
   await addOnDay.click();
+  await expect(page.locator('#action-center')).toBeVisible();
+  await page.locator('#action-center [data-action-id="calendar.event"]').first().click();
+  await expect(page.locator('#event-sheet')).toBeVisible();
   await expect(page.locator('#event-date')).toHaveValue(explicitDate);
   await closeEventSheet(page);
 
