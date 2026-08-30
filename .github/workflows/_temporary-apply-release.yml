@@ -34,6 +34,13 @@ jobs:
           base64 --decode /tmp/release-040.patch.gz.b64 | gzip --decompress > /tmp/release-040.patch
           git apply --check /tmp/release-040.patch
           git apply /tmp/release-040.patch
+          mkdir -p /tmp/release-workflows
+          while IFS= read -r path; do
+            case "$path" in
+              .github/workflows/_temporary-*) continue ;;
+            esac
+            cp "$path" "/tmp/release-workflows/$(basename "$path")"
+          done < <(git diff --name-only -- .github/workflows)
           rm -rf .github/release-patch
           rm -f .github/workflows/_temporary-apply-release.yml
           rm -f .github/workflows/_temporary-source-snapshot.yml
@@ -47,16 +54,17 @@ jobs:
           npm test
           npm run smoke
           npm run backup:selftest
-      - name: Commit verified release preparation
+      - name: Commit verified non-workflow release preparation
         shell: bash
         run: |
           set -Eeuo pipefail
           test "$(tr -d '[:space:]' < VERSION)" = 0.4.0
-          test ! -e .github/workflows/_temporary-source-snapshot.yml
-          test ! -e .github/workflows/_temporary-apply-release.yml
-          test ! -e .github/release-patch
+          git checkout HEAD -- .github/workflows .github/release-patch
+          mkdir -p .github/release-output/workflows
+          cp /tmp/release-workflows/* .github/release-output/workflows/
+          git diff --check
           git config user.name 'github-actions[bot]'
           git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
           git add -A
-          git commit -m 'Release 0.4.0: учебные ведомости и сводка успеваемости' -m 'Refs #179.'
+          git commit -m 'Release 0.4.0: подготовить проверенные файлы без workflow' -m 'Workflow blobs сохранены как обычные файлы для переноса GitHub connector с workflows:write. Refs #183.'
           git push origin HEAD:feature/academic-performance-040
