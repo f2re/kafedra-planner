@@ -38,6 +38,8 @@ Until terminal archiving, the sole complete active `C-*` remains the governing c
 
 Every repository file is governed except direct XML artifacts inside `.grace/changes/active/C-*` and `.grace/changes/archive/C-*`, which are validated by dedicated lifecycle rules. Consequently, application code, tests, scripts, workflow files, root build/test configuration, documentation, and durable GRACE context/graph/verification artifacts all require exactly one matching active `C-*`. This closes the possibility of changing architectural contracts or weakening a test configuration outside a change plan.
 
+Markdown companion artifacts such as `design.md`, `motion.md` and `design-audit.md` remain ordinary governed files throughout planning and implementation. They receive no general path exemption. Only when one exact `C-*` is removed from `active` and the same complete bundle appears under `archive` may the policy route those matching lifecycle paths to the stricter archive evaluator. That evaluator sees the full diff, rejects every external path, requires an identical file set and byte-identical companions, and permits only the root lifecycle status change in `spec.xml` and `plan.xml`.
+
 Before governed writes:
 
 ```bash
@@ -62,7 +64,7 @@ An approved plan is immutable. If scope, assertions or acceptance criteria mater
 
 GRACE 4 keeps an executable change under `.grace/changes/active/` while selected final assertions are being evaluated. Therefore the completed bundle is archived only after the implementation PR is merged and the new `main` SHA has green post-merge CI.
 
-Archiving is a second, dedicated archive-only branch and PR. The policy accepts it only when all of the following are true:
+Archiving is a second, dedicated archive-only branch and PR. Candidate recognition is based only on one matching active/archive change ID, absence of any active bundle at HEAD and presence of terminal archive `spec.xml` plus `plan.xml`; it does not make companion files globally ungoverned. The strict archive evaluator then accepts the transition only when all of the following are true:
 
 - the exact base contains one approved active bundle;
 - HEAD removes that active bundle and creates the same `C-*` under `archive`;

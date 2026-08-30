@@ -106,8 +106,10 @@ export function runPolicy({
     bundleExistsAtRef(root, head, 'archive', id, { requirePlan: true })
   ));
 
-  const archiveCandidate = governed.length === 0
-    && touchedActive.length === 1
+  // Markdown companion artifacts remain governed during normal implementation.
+  // For a terminal move, evaluateArchiveTransition below validates every path,
+  // the exact file set and byte-identical companion content fail-closed.
+  const archiveCandidate = touchedActive.length === 1
     && touchedArchive.length === 1
     && touchedActive[0] === touchedArchive[0]
     && activeAtHead.length === 0

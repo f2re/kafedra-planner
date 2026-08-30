@@ -56,6 +56,15 @@ function createRepository() {
   return root;
 }
 
+function writeCompanionBundle(root, location, id, status = 'approved') {
+  const prefix = `.grace/changes/${location}/${id}`;
+  write(root, `${prefix}/spec.xml`, approvedSpec(id).replace('status="approved"', `status="${status}"`));
+  write(root, `${prefix}/plan.xml`, approvedPlan(id).replace('status="approved"', `status="${status}"`));
+  write(root, `${prefix}/design.md`, '# Design\n\nStable hierarchy.\n');
+  write(root, `${prefix}/motion.md`, '# Motion\n\nReduced motion.\n');
+  write(root, `${prefix}/design-audit.md`, 'PASS\n');
+}
+
 test('ObservedWriteScope supports exact files and GRACE-style ** globs', () => {
   const xml = `
     <ObservedWriteScope>
@@ -188,21 +197,30 @@ test('policy continues the sole approved active change inherited from the exact 
   }
 });
 
-test('archive-only transition preserves bundle content and changes only terminal status', () => {
+test('archive-only transition preserves Markdown companion artifacts and changes only terminal status', () => {
   const entries = parseNameStatus([
     'D\t.grace/changes/active/C-DONE/spec.xml',
     'D\t.grace/changes/active/C-DONE/plan.xml',
+    'D\t.grace/changes/active/C-DONE/design.md',
+    'D\t.grace/changes/active/C-DONE/motion.md',
+    'D\t.grace/changes/active/C-DONE/design-audit.md',
     'A\t.grace/changes/archive/C-DONE/spec.xml',
-    'A\t.grace/changes/archive/C-DONE/plan.xml'
+    'A\t.grace/changes/archive/C-DONE/plan.xml',
+    'A\t.grace/changes/archive/C-DONE/design.md',
+    'A\t.grace/changes/archive/C-DONE/motion.md',
+    'A\t.grace/changes/archive/C-DONE/design-audit.md'
   ].join('\n'));
   const baseArtifacts = {
     'spec.xml': approvedSpec('C-DONE'),
-    'plan.xml': approvedPlan('C-DONE')
+    'plan.xml': approvedPlan('C-DONE'),
+    'design.md': '# Design\n',
+    'motion.md': '# Motion\n',
+    'design-audit.md': 'PASS\n'
   };
   const archivedArtifacts = Object.fromEntries(
     Object.entries(baseArtifacts).map(([name, value]) => [
       name,
-      value.replace('status="approved"', 'status="applied"')
+      /\.xml$/u.test(name) ? value.replace('status="approved"', 'status="applied"') : value
     ])
   );
   const valid = evaluateArchiveTransition({
@@ -215,10 +233,7 @@ test('archive-only transition preserves bundle content and changes only terminal
   assert.deepEqual(valid.errors, []);
   assert.equal(valid.status, 'applied');
 
-  archivedArtifacts['plan.xml'] = archivedArtifacts['plan.xml'].replace(
-    '</ObservedWriteScope>',
-    '<File>apps/api/src/main.mjs</File></ObservedWriteScope>'
-  );
+  archivedArtifacts['design.md'] = '# Mutated design\n';
   const mutated = evaluateArchiveTransition({
     entries,
     changeId: 'C-DONE',
@@ -264,11 +279,10 @@ test('policy accepts staged branch work, rejects active-only PR, and governs dur
   }
 });
 
-test('policy validates a real approved-active to applied-archive transition', () => {
+test('policy validates a real approved-active to applied-archive transition with Markdown companion artifacts', () => {
   const root = createRepository();
   try {
-    write(root, '.grace/changes/active/C-DONE/spec.xml', approvedSpec('C-DONE'));
-    write(root, '.grace/changes/active/C-DONE/plan.xml', approvedPlan('C-DONE'));
+    writeCompanionBundle(root, 'active', 'C-DONE');
     const base = commitAll(root, 'approved active change');
 
     mkdirSync(join(root, '.grace/changes/archive'), { recursive: true });
@@ -288,6 +302,81 @@ test('policy validates a real approved-active to applied-archive transition', ()
     assert.equal(result.archivedChangeId, 'C-DONE');
     assert.equal(result.archiveStatus, 'applied');
     assert.equal(result.assertionMode, 'current');
+  } finally {
+    rmSync(root, { recursive: true, force: true });
+  }
+});
+
+test('policy rejects a terminal archive with an outside write', () => {
+  const root = createRepository();
+  try {
+    writeCompanionBundle(root, 'active', 'C-DONE');
+    write(root, 'docs/GRACE_GOVERNANCE.md', 'baseline\n');
+    const base = commitAll(root, 'approved active change');
+
+    mkdirSync(join(root, '.grace/changes/archive'), { recursive: true });
+    renameSync(
+      join(root, '.grace/changes/active/C-DONE'),
+      join(root, '.grace/changes/archive/C-DONE')
+    );
+    for (const name of ['spec.xml', 'plan.xml']) {
+      const path = join(root, `.grace/changes/archive/C-DONE/${name}`);
+      const source = readFileSync(path, 'utf8');
+      writeFileSync(path, source.replace('status="approved"', 'status="applied"'));
+    }
+    write(root, 'docs/GRACE_GOVERNANCE.md', 'outside write\n');
+    commitAll(root, 'archive plus product documentation');
+
+    assert.throws(
+      () => runPolicy({ root, base, head: 'HEAD', mode: 'pr' }),
+      /Archive-only transition contains non-lifecycle writes: docs\/GRACE_GOVERNANCE\.md/
+    );
+  } finally {
+    rmSync(root, { recursive: true, force: true });
+  }
+});
+
+test('policy rejects mutation of a Markdown companion during terminal archive', () => {
+  const root = createRepository();
+  try {
+    writeCompanionBundle(root, 'active', 'C-DONE');
+    const base = commitAll(root, 'approved active change');
+
+    mkdirSync(join(root, '.grace/changes/archive'), { recursive: true });
+    renameSync(
+      join(root, '.grace/changes/active/C-DONE'),
+      join(root, '.grace/changes/archive/C-DONE')
+    );
+    for (const name of ['spec.xml', 'plan.xml']) {
+      const path = join(root, `.grace/changes/archive/C-DONE/${name}`);
+      const source = readFileSync(path, 'utf8');
+      writeFileSync(path, source.replace('status="approved"', 'status="applied"'));
+    }
+    write(root, '.grace/changes/archive/C-DONE/design.md', '# Changed during archive\n');
+    commitAll(root, 'mutate archived companion');
+
+    assert.throws(
+      () => runPolicy({ root, base, head: 'HEAD', mode: 'pr' }),
+      /design\.md changed during archive transition/
+    );
+  } finally {
+    rmSync(root, { recursive: true, force: true });
+  }
+});
+
+test('policy rejects a direct rewrite of an existing archive', () => {
+  const root = createRepository();
+  try {
+    writeCompanionBundle(root, 'archive', 'C-DONE', 'applied');
+    const base = commitAll(root, 'existing archive');
+
+    write(root, '.grace/changes/archive/C-DONE/design.md', '# Rewritten archive\n');
+    commitAll(root, 'rewrite existing archive');
+
+    assert.throws(
+      () => runPolicy({ root, base, head: 'HEAD', mode: 'pr' }),
+      /Archived C-\* bundles may change only in one immutable archive-only transition/
+    );
   } finally {
     rmSync(root, { recursive: true, force: true });
   }
