@@ -1,0 +1,73 @@
+<GraceChangeSpec graceVersion="4.0" status="applied">
+  <C-ADAPTIVE-ACTION-CENTER>
+    <Summary>Deliver a stable adaptive action center that launches existing Kafedra Planner workflows and routes any supported uploaded document to the exact materialized domain object without duplicating parsers or forms.</Summary>
+    <Problem>The global create control previously opened only a calendar form while plans, documents, directives, meetings, templates, periodic work and science flows had separate entry points. A user who already selected a file also had to know its destination in advance, despite the deterministic document worker being able to classify and materialize supported domain objects.</Problem>
+    <Goals>
+      <Goal>Replace the global create entry point with one keyboard-accessible center containing a stable catalog, exactly three fixed recommendation slots and a universal document drop zone.</Goal>
+      <Goal>Rank recommendations deterministically by explicit context, domain-derived context, calendar period, personal frequency and static fallback without changing layout or automatically launching actions.</Goal>
+      <Goal>Preserve the existing feature launchers and document processing pipeline; the center is an orchestration layer, not a second parser, form set or source of truth.</Goal>
+      <Goal>After upload, follow the exact returned documentId and open the plan, meeting, directive or science object created or linked by that document's extraction run.</Goal>
+      <Goal>Make protocol materialization safely reuse one unambiguous meeting, add only non-conflicting missing facts and agenda items, retain evidence, and convert conflicts into review items instead of overwriting durable data.</Goal>
+      <Goal>Cover desktop, mobile, keyboard, focus, reduced motion, degraded preference behavior, partial success and idempotent retries with automated tests.</Goal>
+    </Goals>
+    <Constraints>
+      <Constraint>The application remains fully operational offline on Debian and Astra Linux without Docker, CDN, mandatory Internet, cloud services or mandatory LLM.</Constraint>
+      <Constraint>Original blobs, SHA-256, document versions, structural locators and extraction evidence remain immutable.</Constraint>
+      <Constraint>Action recommendations are rank-only. Explicit current context and domain-derived facts are stronger than learned frequency, and programmatic routing never records a learned user choice.</Constraint>
+      <Constraint>The center must not duplicate domain forms, parsers, materializers, persisted entities or projections.</Constraint>
+      <Constraint>Unknown, failed or ambiguous documents remain saved and accessible; one bad row or fragment must not block safely recognized data.</Constraint>
+      <Constraint>Protocol merge may use the same source version or one unambiguous exact normalized protocol number plus exact date; conflicting durable facts are never overwritten silently.</Constraint>
+      <Constraint>No existing SQL migration is edited, renamed or removed. This change does not require a new migration or VERSION change.</Constraint>
+      <Constraint>No runtime dependency is added.</Constraint>
+    </Constraints>
+    <NonGoals>
+      <NonGoal>Replace existing calendar, plans, meetings, directives, templates, review, science or report editors.</NonGoal>
+      <NonGoal>Introduce semantic embeddings, a remote classifier, mandatory llama.cpp or an autonomous destructive agent.</NonGoal>
+      <NonGoal>Redesign every application screen or reorder permanent navigation from usage statistics.</NonGoal>
+      <NonGoal>Automatically resolve ambiguous people, dates, permissions, deletion, completion or other never-learn actions.</NonGoal>
+      <NonGoal>Change the SQLite schema, package version, release artifacts or installer contract.</NonGoal>
+    </NonGoals>
+    <AcceptanceCriteria>
+      <Criterion>The top-bar control is labelled + Добавить and the same center opens from Ctrl/Cmd+N and the plus control of a concrete calendar day.</Criterion>
+      <Criterion>The center always exposes five fixed groups, exactly three recommendation slots, deterministic text search and a universal supported-file drop zone without geometry changes caused by statistics.</Criterion>
+      <Criterion>Clicking a concrete calendar day preserves that exact domain-derived date when the user chooses a task or event, regardless of learned frequency.</Criterion>
+      <Criterion>The action registry is the single catalog and learned frequency may only reorder registered available actions; the server rejects unknown action IDs.</Criterion>
+      <Criterion>The preference/context layer may fail without blocking the static catalog, existing launchers or document upload.</Criterion>
+      <Criterion>An uploaded file is persisted through the normal immutable document intake before classification and is never uploaded a second time merely to continue a domain flow.</Criterion>
+      <Criterion>The client observes the exact documentId returned by upload and opens the materialized plan, meeting, directive or science ID stored in that document's extraction result, never the last object in a section.</Criterion>
+      <Criterion>A processed plan opens its actual plan and source rows; ambiguous rows remain editable and do not block other rows.</Criterion>
+      <Criterion>A protocol opens the exact created or unambiguously matched meeting; safe missing agenda facts are added idempotently, while conflicting fields create review items and preserve existing values and evidence.</Criterion>
+      <Criterion>Repeated protocol materialization creates no duplicate meeting, agenda item, decision, calendar item, open review item or identical search fragment.</Criterion>
+      <Criterion>An unknown, failed or ambiguous document remains accessible as a generic document or review target with an understandable status.</Criterion>
+      <Criterion>The dialog supports keyboard focus containment, Escape close, focus restoration, desktop and mobile completion, and a static understandable prefers-reduced-motion fallback.</Criterion>
+      <Criterion>Unit, integration and Playwright desktop/mobile tests cover precedence, allowlist validation, exact object routing, multi-question protocols, conflict preservation, partial/degraded behavior and reduced motion.</Criterion>
+      <Criterion>npm run check, npm test, smoke, backup self-test, full browser tests, GRACE target/final, project CI and post-merge CI complete successfully on their exact heads.</Criterion>
+      <Criterion>The change is delivered through an ordinary PR, exact-head squash merge, successful post-merge CI and a separate archive-only PR placing this change in terminal applied state.</Criterion>
+    </AcceptanceCriteria>
+    <AffectedAreas>
+      <M-API />
+      <M-WORKER />
+      <M-DATABASE />
+      <M-DESIGN-GOVERNANCE />
+      <M-CI-GATE />
+      <M-OFFLINE-BUNDLE />
+    </AffectedAreas>
+    <VerificationIntent>
+      <ExpectedCommand>node --test tests/action-center.test.mjs tests/protocol-merge.test.mjs</ExpectedCommand>
+      <ExpectedCommand>npx playwright test tests/browser/action-center.spec.mjs</ExpectedCommand>
+      <ExpectedCommand>npm run check</ExpectedCommand>
+      <ExpectedCommand>npm test</ExpectedCommand>
+      <ExpectedCommand>npm run smoke</ExpectedCommand>
+      <ExpectedCommand>npm run backup:selftest</ExpectedCommand>
+      <ExpectedCommand>npm run test:browser</ExpectedCommand>
+      <ExpectedCommand>grace lint --path . --change C-ADAPTIVE-ACTION-CENTER --assertions final --run-commands</ExpectedCommand>
+      <ExpectedEvidence>Exact-head tests and CI demonstrate stable action geometry, context precedence, immutable upload, exact materialized-object routing, safe protocol merge, idempotency, desktop/mobile accessibility and unchanged offline/recovery compatibility.</ExpectedEvidence>
+    </VerificationIntent>
+    <Assumptions>
+      <Assumption>The governed implementation branch was created from exact main commit adee48d5df671aeba9dd5c5f36f607747705430f.</Assumption>
+      <Assumption>Issue 200 is the human-visible work item and PR 204 is the governed implementation pull request.</Assumption>
+      <Assumption>The current UI remains rooted in public and the existing feature modules continue to expose their established launch controls and window adapters.</Assumption>
+      <Assumption>The existing ui_choice_preferences table is sufficient for action.center.action and therefore no migration is needed.</Assumption>
+    </Assumptions>
+  </C-ADAPTIVE-ACTION-CENTER>
+</GraceChangeSpec>
