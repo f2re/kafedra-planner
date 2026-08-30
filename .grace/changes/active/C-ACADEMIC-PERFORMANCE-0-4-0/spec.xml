@@ -1,0 +1,83 @@
+<GraceChangeSpec graceVersion="4.0" status="approved">
+  <C-ACADEMIC-PERFORMANCE-0-4-0>
+    <Summary>Deliver and release Kafedra Planner 0.4.0 as one complete academic-performance vertical: immutable gradebook intake, evidence-backed metadata and grades, current-version lifecycle, discipline summaries and selected-group totals, Action Center entry, responsive UI, schema 31 recovery proof and verified offline release assets.</Summary>
+    <Problem>The repository has a separately tested but unmerged academic-performance implementation on an obsolete base. Current main already contains newer document, Action Center, release, governance and offline contracts. Directly merging the stale branch would risk overwriting current wiring, omitting the new global creation flow, leaving academic tables outside acceptance digests and publishing no coherent version. The department still lacks an operational path from a real XLSX, ODS or CSV gradebook to a traceable report by academic year, semester, group and discipline.</Problem>
+    <Goals>
+      <Goal>Add a stable Учебный процесс → Успеваемость section for desktop and mobile without replacing the existing application shell.</Goal>
+      <Goal>Store every uploaded gradebook through the existing immutable document and document_version intake before analysis or import.</Goal>
+      <Goal>Detect sheet, header, student and discipline columns deterministically, while allowing group, academic year and semester to come either from an exact source cell or an explicit manual value.</Goal>
+      <Goal>Persist raw grades, normalized categories, rules and exact sheet, row, column and cell locators; unknown non-empty values remain reviewable and are never guessed.</Goal>
+      <Goal>Maintain one current successful gradebook per group and academic period, preserve superseded and archived versions, and keep retries idempotent and partial failures isolated.</Goal>
+      <Goal>Provide discipline detail, per-group summary and selected-current-group totals with counts for 5, 4, 3, 2, not-attested and needs-review plus a two-decimal numeric-grade average.</Goal>
+      <Goal>Expose CSV, JSON and sources.json exports without creating a second stored reporting source of truth.</Goal>
+      <Goal>Add a safe rank-only Action Center entry that opens the gradebook import flow; automatic document routing must not learn or mutate academic facts.</Goal>
+      <Goal>Advance to version 0.4.0 and schema 31 with clean install, 30→31 upgrade, repeat migration, backup, restore, forced-failure rollback, full browser, offline, systemd and Project Control evidence.</Goal>
+    </Goals>
+    <Constraints>
+      <Constraint>Migration 031 is additive and immutable after application. Existing migrations 001 through 030 must not be edited, renamed, deleted or reordered.</Constraint>
+      <Constraint>Original XLSX, ODS and CSV blobs, SHA-256 values and document_version rows remain immutable. Manual correction changes derived bindings or facts without deleting extraction evidence.</Constraint>
+      <Constraint>Grade normalization is deterministic. Only explicit 5/4/3/2 and documented textual equivalents become numeric categories; blank cells and dashes are not silently converted to non-attestation.</Constraint>
+      <Constraint>Average grade is calculated only from numeric 2–5 values. Unknown, blank and not-attested values are excluded from the denominator and remain separately countable.</Constraint>
+      <Constraint>A failed import must not supersede the previous current gradebook. One bad row or cell must not block all other valid rows and cells.</Constraint>
+      <Constraint>ACL of academic projections may not exceed access to their source document and workspace.</Constraint>
+      <Constraint>Selected academic period and saved bindings are domain facts and outrank personal statistics. Import, archive, restore, free text, cell mapping and grade correction are never-learn actions.</Constraint>
+      <Constraint>No new runtime package, frontend framework, CDN, Docker dependency, cloud service, mandatory Internet or mandatory LLM is introduced.</Constraint>
+      <Constraint>The stale PR 179 is only a source of reviewed feature files. Current main wiring and release contracts remain authoritative.</Constraint>
+      <Constraint>0.4.0 remains a release candidate until target acceptance issue 27 is completed on real Astra Linux and control Debian hardware.</Constraint>
+    </Constraints>
+    <NonGoals>
+      <NonGoal>Implement an electronic grade-entry journal or replace the institution's authoritative assessment system.</NonGoal>
+      <NonGoal>Infer missing grades, student identity or academic periods with an LLM.</NonGoal>
+      <NonGoal>Store precomputed summary tables as a second source of truth.</NonGoal>
+      <NonGoal>Require approval screens after deterministic import or make an attached report mandatory for ordinary academic work.</NonGoal>
+      <NonGoal>Change unrelated calendar, meeting, directive, science or plan behavior.</NonGoal>
+      <NonGoal>Declare stable production acceptance without real target evidence.</NonGoal>
+    </NonGoals>
+    <AcceptanceCriteria>
+      <Criterion>A user can open Успеваемость from section navigation or the Action Center, upload an XLSX, ODS or CSV gradebook, review the detected structure, correct only ambiguous bindings, import and immediately see the exact created current group-period result.</Criterion>
+      <Criterion>Group, academic year and semester each support exact source-cell and explicit-manual modes, and the UI displays their provenance.</Criterion>
+      <Criterion>Every imported grade preserves raw value, normalized category, normalization rule, source document version and exact sheet/cell locator.</Criterion>
+      <Criterion>5, 4, 3 and 2 plus documented Russian text forms are counted correctly; explicit non-attestation is separate; blanks and dashes do not become non-attestation; unknown non-empty values require review.</Criterion>
+      <Criterion>Per-group discipline rows and totals across selected current groups show recorded values, excellent, good, satisfactory, unsatisfactory, not-attested, needs-review and average grade with decimal comma in operator-facing CSV/UI.</Criterion>
+      <Criterion>Repeated import with the same idempotency identity creates no duplicate import, student, discipline, membership or grade record. A later successful version supersedes the prior current version; a failed version does not.</Criterion>
+      <Criterion>Archive and restore are reversible and preserve all original files, historical versions, evidence and exports.</Criterion>
+      <Criterion>CSV, JSON and sources.json exports are generated from current stored facts and include enough identifiers and locators to audit every aggregate.</Criterion>
+      <Criterion>Academic tables are included in target acceptance stable-table counts, logical digests, backup and restore evidence for schema 31.</Criterion>
+      <Criterion>Migration checks prove clean schema 31, exact-base schema 30 upgrade, repeated migration, quick_check, foreign_key_check, verified pre-migration backup, restore and forced-failure rollback.</Criterion>
+      <Criterion>Desktop and mobile Playwright cover upload, cell/manual metadata, correction, import, period tree, group summary, selected-group totals, detail evidence, exports, retry and reduced-motion.</Criterion>
+      <Criterion>Action Center search and the Учебный процесс group expose academic.import without moving fixed controls; preference recording occurs only after a successful explicit launch.</Criterion>
+      <Criterion>VERSION, package manifests, release notes, current-version documentation and release workflows all agree on 0.4.0; schema documentation agrees on 31.</Criterion>
+      <Criterion>All exact-head GRACE, project, release, database, browser, full-offline, systemd, LLM-degraded and Project Control checks succeed before squash merge.</Criterion>
+      <Criterion>After green post-merge CI, GitHub Release v0.4.0 is public, targets the verified release commit and contains the full tar.gz, its digest, installer, README-INSTALL, Project Control package and digest, and SHA256SUMS.</Criterion>
+      <Criterion>A separate archive-only PR subsequently moves the complete C-ACADEMIC-PERFORMANCE-0-4-0 bundle to status applied without changing release code or moving the tag.</Criterion>
+    </AcceptanceCriteria>
+    <AffectedAreas>
+      <M-API />
+      <M-DATABASE />
+      <M-DESIGN-GOVERNANCE />
+      <M-CI-GATE />
+      <M-OFFLINE-BUNDLE />
+    </AffectedAreas>
+    <VerificationIntent>
+      <ExpectedCommand>node --test tests/academic-performance.test.mjs tests/academic-performance-migration.test.mjs tests/academic-performance-backup.test.mjs tests/academic-performance-wiring.test.mjs tests/academic-performance-period-totals.test.mjs</ExpectedCommand>
+      <ExpectedCommand>node --test tests/action-center-registry.test.mjs tests/target-acceptance.test.mjs tests/release-assets-contract.test.mjs tests/release-recovery-workflow.test.mjs</ExpectedCommand>
+      <ExpectedCommand>node --check tests/browser/academic-performance.spec.mjs</ExpectedCommand>
+      <ExpectedCommand>node --check tests/browser/action-center.spec.mjs</ExpectedCommand>
+      <ExpectedCommand>npm run design:check</ExpectedCommand>
+      <ExpectedCommand>npm run check</ExpectedCommand>
+      <ExpectedCommand>npm test</ExpectedCommand>
+      <ExpectedCommand>npm run docs:check</ExpectedCommand>
+      <ExpectedCommand>npm run backup:selftest</ExpectedCommand>
+      <ExpectedCommand>npm run test:browser</ExpectedCommand>
+      <ExpectedCommand>grace lint --path . --change C-ACADEMIC-PERFORMANCE-0-4-0 --assertions final --run-commands</ExpectedCommand>
+      <ExpectedEvidence>Exact-cell evidence, current-version and partial-success tests, selected-group total calculations, schema 30→31 recovery evidence, desktop/mobile/reduced-motion scenarios and full offline release checks prove one complete operational vertical.</ExpectedEvidence>
+    </VerificationIntent>
+    <Assumptions>
+      <Assumption>The verified base is main commit afb2bb54c8676b279801de98368e7a1b966fed77 with tree 57a1be2dd35d4a740d7a576b14346b5b906211e7.</Assumption>
+      <Assumption>Issue 183 is the human-visible work item and defines the academic-performance and 0.4.0 release scenario.</Assumption>
+      <Assumption>PR 179 at 4013d8ccd069e453564b4239968dcd4393df0ffe contains reviewed feature files and passing historical feature CI but cannot be merged directly because its base predates current Action Center and release governance.</Assumption>
+      <Assumption>Current main has no complete active C-* bundle and its exact post-merge project, release, offline and GRACE checks are successful.</Assumption>
+      <Assumption>The existing document intake supports XLSX, ODS and CSV and remains the only authoritative source-storage path.</Assumption>
+    </Assumptions>
+  </C-ACADEMIC-PERFORMANCE-0-4-0>
+</GraceChangeSpec>
