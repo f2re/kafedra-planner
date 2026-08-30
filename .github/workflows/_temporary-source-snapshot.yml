@@ -13,11 +13,17 @@ jobs:
     runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@v4
-      - name: Pack source tree
-        run: tar --exclude=.git -czf /tmp/kafedra-source.tgz .
+        with:
+          ref: feature/183-academic-performance-0.4.0
+          fetch-depth: 1
+      - name: Pack exact academic release branch source tree
+        run: |
+          set -Eeuo pipefail
+          test "$(git rev-parse HEAD)" = "08fb6f939a41533d81e9866c88339f4ee77879a5"
+          tar --exclude=.git -czf /tmp/kafedra-source.tgz .
       - uses: actions/upload-artifact@v4
         with:
-          name: kafedra-source-snapshot
+          name: kafedra-current-academic-source
           path: /tmp/kafedra-source.tgz
           retention-days: 1
           if-no-files-found: error
