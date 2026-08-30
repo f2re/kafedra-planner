@@ -1,0 +1,61 @@
+<GraceChangeSpec graceVersion="4.0" status="applied">
+  <C-ADAPTIVE-ACTION-CENTER-V2>
+    <Summary>Deliver one stable adaptive + Добавить entry point and universal immutable document router that composes existing Kafedra Planner feature flows and safely enriches an exact existing meeting from an uploaded protocol.</Summary>
+    <Problem>Creation, import and generation actions were distributed across modules, while the global create button opened only a calendar record. A user could not submit an arbitrary supported document from one stable entry point and continue directly in the exact plan, meeting, directive, science object or review flow produced by the existing worker.</Problem>
+    <Goals>
+      <Goal>Provide a stable Action Center shell on desktop and mobile with exactly three recommendation slots, fixed action groups, deterministic search and keyboard access.</Goal>
+      <Goal>Route PDF, DOCX, ODT, XLSX, ODS, text and scans through the existing immutable document intake before classification.</Goal>
+      <Goal>Open the exact materialized plan, meeting, directive or scientific item returned by the existing extraction result, with document or review fallback when classification is unknown or ambiguous.</Goal>
+      <Goal>Allow an uploaded protocol to enrich one uniquely compatible meeting without overwriting existing non-empty facts or duplicating normalized agenda items.</Goal>
+      <Goal>Use action.center.action only as rank-only personalization after a successful explicit user scenario; explicit date and domain facts remain authoritative.</Goal>
+    </Goals>
+    <Constraints>
+      <Constraint>No migration or new durable business store is introduced.</Constraint>
+      <Constraint>Immutable source blobs, document versions, SHA-256, extraction evidence and automatically extracted facts remain preserved.</Constraint>
+      <Constraint>The deterministic worker remains the classifier and materializer; Action Center does not duplicate parsing or silently promote a candidate into a confirmed fact.</Constraint>
+      <Constraint>The application remains fully functional offline, without Docker, CDN, cloud services or an LLM.</Constraint>
+      <Constraint>Stable geometry, safe-default, rank-only, domain-derived and never-learn policies remain authoritative.</Constraint>
+      <Constraint>One bad row, conflicting agenda item or unavailable preference layer must not block other safe results.</Constraint>
+    </Constraints>
+    <NonGoals>
+      <NonGoal>Replace the existing calendar, plan, meeting, directive, science, template or report editors.</NonGoal>
+      <NonGoal>Add a universal free-form project entity or a second document classifier.</NonGoal>
+      <NonGoal>Automatically overwrite saved meeting, agenda, decision, deadline or responsible-person facts.</NonGoal>
+      <NonGoal>Require an LLM for intent recognition, extraction, routing or recommendations.</NonGoal>
+    </NonGoals>
+    <AcceptanceCriteria>
+      <Criterion>The global + Добавить button, Ctrl/Cmd+N and a calendar-day plus enter the same Action Center; a selected calendar date is carried into task/event creation and outranks learned ranking.</Criterion>
+      <Criterion>The shell opens immediately with a static usable catalog, exactly three fixed recommendation slots and fixed groups; preference errors do not block any domain action.</Criterion>
+      <Criterion>Existing feature modules remain the owners of their forms and API writes; the registry launches real task, event, plan, plan-item, periodic-task, directive, meeting, template, science import/report and review flows.</Criterion>
+      <Criterion>A supported file is saved through /api/documents before classification, the accepted documentId remains available after later failure, and no second upload is required.</Criterion>
+      <Criterion>The route is derived from the exact completed extraction result and opens the exact plan, meeting, directive or scientific item even when a prior section filter would otherwise hide it.</Criterion>
+      <Criterion>An unknown or ambiguous document stays a document and/or review item; no statistical or LLM guess is applied as a confirmed type.</Criterion>
+      <Criterion>Protocol persistence returns the exact created or safely reused meeting ID, same-source replay is idempotent, missing compatible fields may be added, normalized duplicate agenda items are not duplicated, and conflicts are retained as review items with incoming evidence.</Criterion>
+      <Criterion>action.center.action accepts only allowlisted action IDs and is recorded only after successful explicit completion; automatic document routing never records a preference.</Criterion>
+      <Criterion>Desktop, mobile, keyboard focus, Escape, Tab/Shift+Tab focus containment, focus restoration and prefers-reduced-motion behavior are covered by regression tests.</Criterion>
+      <Criterion>Unit/integration, Playwright, design, documentation, project, database, backup/recovery, release and offline gates pass on one unchanged PR head.</Criterion>
+    </AcceptanceCriteria>
+    <AffectedAreas>
+      <M-API />
+      <M-WORKER />
+      <M-DATABASE />
+      <M-DESIGN-GOVERNANCE />
+      <M-OFFLINE-BUNDLE />
+    </AffectedAreas>
+    <VerificationIntent>
+      <ExpectedCommand>node --test tests/action-center.test.mjs tests/protocol-merge.test.mjs</ExpectedCommand>
+      <ExpectedCommand>npx playwright test tests/browser/action-center.spec.mjs</ExpectedCommand>
+      <ExpectedCommand>npm run design:check</ExpectedCommand>
+      <ExpectedCommand>npm run check</ExpectedCommand>
+      <ExpectedCommand>npm run docs:check</ExpectedCommand>
+      <ExpectedCommand>npm test</ExpectedCommand>
+      <ExpectedCommand>grace lint --path . --change C-ADAPTIVE-ACTION-CENTER-V2 --assertions final --run-commands</ExpectedCommand>
+      <ExpectedEvidence>Exact-head CI and post-merge CI prove the adaptive Action Center, universal immutable intake routing, non-destructive protocol reuse, responsive interaction and unchanged schema/offline invariants.</ExpectedEvidence>
+    </VerificationIntent>
+    <Assumptions>
+      <Assumption>The verified implementation base was main commit adee48d5df671aeba9dd5c5f36f607747705430f.</Assumption>
+      <Assumption>Issues 200 and 204 are the human-visible work items and PR 206 is the governed functional delivery.</Assumption>
+      <Assumption>The existing worker extraction result remains the authoritative exact-destination contract.</Assumption>
+    </Assumptions>
+  </C-ADAPTIVE-ACTION-CENTER-V2>
+</GraceChangeSpec>
