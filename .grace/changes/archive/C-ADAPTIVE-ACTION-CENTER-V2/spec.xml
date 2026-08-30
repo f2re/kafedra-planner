@@ -1,4 +1,4 @@
-<GraceChangeSpec graceVersion="4.0" status="approved">
+<GraceChangeSpec graceVersion="4.0" status="applied">
   <C-ADAPTIVE-ACTION-CENTER-V2>
     <Summary>Corrective superseding revision of the completed Action Center change: repair the GRACE terminal archive gate so a bundle containing Markdown companion artifacts can be moved immutably from active to archive.</Summary>
     <Problem>The completed Action Center bundle contains spec.xml, plan.xml, design.md, motion.md and design-audit.md. The current policy requires the archive to preserve this exact five-file set, but archiveCandidate also requires every changed path to be non-governed while isGovernedPath classifies non-XML companions as governed. Moving all five files is therefore rejected before evaluateArchiveTransition can validate them, while moving only XML violates the exact bundle set. The valid terminal transition is mechanically impossible and blocks issue 211 and the next release.</Problem>

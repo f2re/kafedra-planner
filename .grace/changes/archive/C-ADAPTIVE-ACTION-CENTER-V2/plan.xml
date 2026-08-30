@@ -1,4 +1,4 @@
-<GraceChangePlan graceVersion="4.0" status="approved">
+<GraceChangePlan graceVersion="4.0" status="applied">
   <C-ADAPTIVE-ACTION-CENTER-V2>
     <IntentSummary>Correct the terminal archive candidate predicate without weakening the strict archive evaluator, add regression coverage for Markdown companions and synchronize the lifecycle contract before archiving the completed Action Center change.</IntentSummary>
     <BaselineAssertions>
