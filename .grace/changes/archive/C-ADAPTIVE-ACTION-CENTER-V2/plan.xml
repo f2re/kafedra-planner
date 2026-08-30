@@ -1,4 +1,4 @@
-<GraceChangePlan graceVersion="4.0" status="approved">
+<GraceChangePlan graceVersion="4.0" status="applied">
   <C-ADAPTIVE-ACTION-CENTER-V2>
     <IntentSummary>Supersede the unmerged first Action Center change and deliver a minimal complete vertical from the topbar through immutable document intake, exact-object routing, conservative protocol merge, stable adaptive ranking, compatibility regression, responsive UI and release evidence.</IntentSummary>
     <BaselineAssertions>
