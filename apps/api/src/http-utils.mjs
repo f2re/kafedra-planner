@@ -4,6 +4,8 @@ import { extname, join, normalize } from 'node:path';
 import { pipeline } from 'node:stream/promises';
 import { AppError } from '../../../packages/core/src/errors.mjs';
 
+const IDEMPOTENCY_KEY_PATTERN = /^[\x21-\x7e]{1,96}$/u;
+
 const staticTypes = new Map([
   ['.html', 'text/html; charset=utf-8'],
   ['.js', 'text/javascript; charset=utf-8'],
@@ -182,6 +184,17 @@ export async function serveStatic(response, publicDir, pathname) {
 
 export function requireHeader(request, name, message) {
   const value = request.headers[name.toLowerCase()];
-  if (typeof value !== 'string' || !value.trim()) throw new AppError('required_header_missing', message, 400, { header: name });
-  return value.trim();
+  if (typeof value !== 'string' || !value.trim()) {
+    throw new AppError('required_header_missing', message, 400, { header: name });
+  }
+  const result = value.trim();
+  if (name.toLowerCase() === 'idempotency-key' && !IDEMPOTENCY_KEY_PATTERN.test(result)) {
+    throw new AppError(
+      'invalid_idempotency_key',
+      'Ключ повторной операции должен быть коротким ASCII-значением без пробелов и управляющих символов.',
+      400,
+      { header: name, maxBytes: 96 }
+    );
+  }
+  return result;
 }
