@@ -1,0 +1,67 @@
+.plans-lifecycle-segment {
+  display: inline-grid;
+  grid-template-columns: repeat(2, minmax(92px, 1fr));
+  align-items: stretch;
+  min-height: 44px;
+  padding: 3px;
+  border: 1px solid var(--border, #d8dde6);
+  border-radius: 12px;
+  background: var(--surface-muted, #f2f4f7);
+  box-sizing: border-box;
+  isolation: isolate;
+}
+
+.plans-lifecycle-segment__button {
+  appearance: none;
+  min-width: 0;
+  min-height: 44px;
+  padding: 0 16px;
+  border: 1px solid transparent;
+  border-radius: 9px;
+  background: transparent;
+  color: var(--text-secondary, #4b5563);
+  font: inherit;
+  font-weight: 600;
+  line-height: 1.2;
+  cursor: pointer;
+  transition:
+    background-color 150ms cubic-bezier(0.2, 0.8, 0.2, 1),
+    border-color 150ms cubic-bezier(0.2, 0.8, 0.2, 1),
+    color 150ms cubic-bezier(0.2, 0.8, 0.2, 1);
+}
+
+.plans-lifecycle-segment__button[aria-selected="true"] {
+  border-color: var(--border-strong, #c8ced8);
+  background: var(--surface, #ffffff);
+  color: var(--text, #172033);
+  box-shadow: 0 1px 2px rgb(15 23 42 / 10%);
+}
+
+.plans-lifecycle-segment__button:hover:not([aria-selected="true"]) {
+  background: rgb(255 255 255 / 55%);
+  color: var(--text, #172033);
+}
+
+.plans-lifecycle-segment__button:focus-visible {
+  position: relative;
+  z-index: 1;
+  outline: 3px solid color-mix(in srgb, var(--accent, #0a84ff) 38%, transparent);
+  outline-offset: 2px;
+}
+
+@media (max-width: 720px) {
+  .plans-lifecycle-segment {
+    width: 100%;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .plans-lifecycle-segment__button {
+    padding-inline: 12px;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .plans-lifecycle-segment__button {
+    transition: none;
+  }
+}
