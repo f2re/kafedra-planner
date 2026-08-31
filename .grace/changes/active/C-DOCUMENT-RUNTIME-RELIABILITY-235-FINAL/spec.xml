@@ -1,0 +1,44 @@
+<GraceChangeSpec graceVersion="4.0" status="approved">
+  <C-DOCUMENT-RUNTIME-RELIABILITY-235-FINAL>
+    <Summary>Finish Unicode-safe document intake, classified Docomator diagnostics and strict recoverable OCR full-bundle activation.</Summary>
+    <Problem>The current release can lose actionable integration errors, reject Unicode-derived HTTP headers and accept an incomplete document runtime. The direct full-bundle entrypoint must prove the target payload and OCR before the existing application update transaction starts.</Problem>
+    <Goals>
+      <Goal>Keep the original document name, bytes, SHA-256, version and evidence while canonicalizing idempotency headers to bounded ASCII.</Goal>
+      <Goal>Expose only safe classified Docomator failures and preserve entered connection values.</Goal>
+      <Goal>Atomically retain the exact target package payload for offline repair.</Goal>
+      <Goal>Run additive package preparation, full preflight and a real control OCR before invoking the existing transactional installer.</Goal>
+      <Goal>Leave the previous release and data active when strict document-runtime acceptance fails.</Goal>
+    </Goals>
+    <Constraints>
+      <Constraint>No schema, migration, release-version, Docker, CDN, mandatory Internet, cloud or mandatory LLM change.</Constraint>
+      <Constraint>Package operations never upgrade, downgrade, remove, pin package versions or run apt --fix-broken.</Constraint>
+      <Constraint>The existing application backup, migration, service and rollback transaction remains the source of truth.</Constraint>
+      <Constraint>Access code and all security-sensitive actions remain never-learn; errors use no decorative motion.</Constraint>
+    </Constraints>
+    <NonGoals>
+      <NonGoal>Redesign the organization module.</NonGoal>
+      <NonGoal>Scan a network or guess ports.</NonGoal>
+      <NonGoal>Make OCR or Docomator mandatory for calendar, tasks and stored source access.</NonGoal>
+      <NonGoal>Publish a release tag.</NonGoal>
+    </NonGoals>
+    <AcceptanceCriteria>
+      <Criterion>Russian, mixed, emoji and long filenames reach document upload on desktop and mobile without changing source identity or creating duplicates on repeat.</Criterion>
+      <Criterion>DNS, refused connection, timeout, TLS, wrong service, not ready and denied access are distinct; unknown 5xx details remain private.</Criterion>
+      <Criterion>A verified profile-bound package set is copied atomically to an immutable cache before package mutation.</Criterion>
+      <Criterion>The published offline entrypoint exits before application update when package preparation, required capabilities or control OCR fail.</Criterion>
+      <Criterion>doctor --repair reuses the retained cache without Internet and ends with the same strict self-test.</Criterion>
+      <Criterion>GRACE final, focused tests, full CI, release, offline and systemd gates pass on one exact head before squash merge and terminal archive.</Criterion>
+    </AcceptanceCriteria>
+    <AffectedAreas><M-API/><M-OFFLINE-BUNDLE/><M-DESIGN-GOVERNANCE/><M-MOTION-KB/><M-CI-GATE/></AffectedAreas>
+    <VerificationIntent>
+      <ExpectedCommand>node --test tests/document-runtime-release.test.mjs tests/http-headers.test.mjs tests/http-utils.test.mjs tests/docomator-integration.test.mjs tests/offline-package-policy.test.mjs</ExpectedCommand>
+      <ExpectedCommand>bash -n scripts/offline/*.sh deploy/*.sh</ExpectedCommand>
+      <ExpectedCommand>python3 -m py_compile scripts/recognition/ocr.py</ExpectedCommand>
+      <ExpectedCommand>npm run check</ExpectedCommand>
+      <ExpectedCommand>npm run docs:check</ExpectedCommand>
+      <ExpectedCommand>npm test</ExpectedCommand>
+      <ExpectedCommand>npx playwright test tests/browser/docomator-integration.spec.mjs tests/browser/unicode-upload-headers.spec.mjs</ExpectedCommand>
+      <ExpectedEvidence>The exact branch head proves the complete document-runtime path without changing data authority or weakening recovery.</ExpectedEvidence>
+    </VerificationIntent>
+  </C-DOCUMENT-RUNTIME-RELIABILITY-235-FINAL>
+</GraceChangeSpec>
