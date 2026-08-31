@@ -1,4 +1,4 @@
-<GraceChangeSpec graceVersion="4.0" status="approved">
+<GraceChangeSpec graceVersion="4.0" status="applied">
   <C-GRACE-EXECUTABLE-ASSERTIONS-240>
     <Summary>Prepare exact project dependencies and an approved Chromium runtime before GRACE executes project and Playwright assertions.</Summary>
     <Problem>GRACE contract jobs install the pinned GRACE CLI but execute approved MustPassCommand entries in a clean runner without project dependencies. A valid Playwright assertion therefore fails while loading playwright.config.mjs because @playwright/test is absent, before any product test is run.</Problem>
