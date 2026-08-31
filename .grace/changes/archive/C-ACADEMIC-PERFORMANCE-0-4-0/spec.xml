@@ -1,4 +1,4 @@
-<GraceChangeSpec graceVersion="4.0" status="approved">
+<GraceChangeSpec graceVersion="4.0" status="applied">
   <C-ACADEMIC-PERFORMANCE-0-4-0>
     <Summary>Deliver and release Kafedra Planner 0.4.0 as one complete academic-performance vertical: immutable gradebook intake, evidence-backed metadata and grades, current-version lifecycle, discipline summaries and selected-group totals, Action Center entry, responsive UI, schema 31 recovery proof and verified offline release assets.</Summary>
     <Problem>The repository has a separately tested but unmerged academic-performance implementation on an obsolete base. Current main already contains newer document, Action Center, release, governance and offline contracts. Directly merging the stale branch would risk overwriting current wiring, omitting the new global creation flow, leaving academic tables outside acceptance digests and publishing no coherent version. The department still lacks an operational path from a real XLSX, ODS or CSV gradebook to a traceable report by academic year, semester, group and discipline.</Problem>
