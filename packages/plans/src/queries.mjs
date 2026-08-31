@@ -54,10 +54,13 @@ function planRow(database, workspaceId, planId) {
 
 function itemRows(database, workspaceId, planId) {
   return database.all(`
-    SELECT pi.*, person.display_name AS responsible_name
+    SELECT pi.*, person.display_name AS responsible_name,
+      COALESCE(psr.inclusion_status, 'included') AS source_inclusion_status
     FROM plan_items pi
     LEFT JOIN people person ON person.id = pi.responsible_person_id
-    WHERE pi.plan_id = ?
+    LEFT JOIN plan_source_row_items psri ON psri.plan_item_id = pi.id
+    LEFT JOIN plan_source_rows psr ON psr.id = psri.source_row_id
+    WHERE pi.plan_id = ? AND COALESCE(psr.inclusion_status, 'included') = 'included'
     ORDER BY COALESCE(pi.due_date, pi.starts_at, '9999-12-31'), pi.source_item_key
   `, planId).map((row) => ({
     ...row,
@@ -117,6 +120,13 @@ export function planItemAudience(database, workspaceId, planItemId) {
   ].filter(Boolean))];
 }
 
+const includedItemClause = `NOT EXISTS (
+  SELECT 1
+  FROM plan_source_row_items inclusion_link
+  JOIN plan_source_rows inclusion_row ON inclusion_row.id = inclusion_link.source_row_id
+  WHERE inclusion_link.plan_item_id = pi.id AND inclusion_row.inclusion_status = 'excluded'
+)`;
+
 function listWhere(filters, params) {
   const clauses = ['p.workspace_id = ?'];
   params.push(filters.workspaceId);
@@ -126,13 +136,19 @@ function listWhere(filters, params) {
   if (filters.status) { clauses.push('p.status = ?'); params.push(filters.status); }
   if (filters.ownerPersonId) { clauses.push('p.owner_person_id = ?'); params.push(filters.ownerPersonId); }
   if (filters.direction) {
-    clauses.push('EXISTS (SELECT 1 FROM plan_items pi WHERE pi.plan_id = p.id AND pi.direction = ?)');
+    clauses.push(`EXISTS (
+      SELECT 1 FROM plan_items pi
+      WHERE pi.plan_id = p.id AND pi.direction = ? AND pi.status <> 'cancelled'
+        AND ${includedItemClause}
+    )`);
     params.push(filters.direction);
   }
   if (filters.responsible) {
     clauses.push(`EXISTS (
       SELECT 1 FROM plan_items pi LEFT JOIN people rp ON rp.id = pi.responsible_person_id
-      WHERE pi.plan_id = p.id AND (pi.responsible_raw LIKE ? OR rp.display_name LIKE ?)
+      WHERE pi.plan_id = p.id AND pi.status <> 'cancelled'
+        AND ${includedItemClause}
+        AND (pi.responsible_raw LIKE ? OR rp.display_name LIKE ?)
     )`);
     const value = `%${filters.responsible}%`;
     params.push(value, value);
@@ -141,6 +157,8 @@ function listWhere(filters, params) {
     clauses.push(`(
       p.title LIKE ? OR p.owner_raw LIKE ? OR p.period_key LIKE ? OR EXISTS (
         SELECT 1 FROM plan_items pi WHERE pi.plan_id = p.id
+          AND pi.status <> 'cancelled'
+          AND ${includedItemClause}
           AND (pi.title LIKE ? OR pi.description LIKE ? OR pi.expected_result LIKE ?)
       )
     )`);
@@ -158,16 +176,30 @@ export function listPlans(database, workspaceId, filters = {}) {
   return database.all(`
     SELECT p.*, owner.display_name AS owner_name,
       dv.document_id AS source_document_id, d.title AS source_document_title,
-      COUNT(pi.id) AS item_count,
-      SUM(CASE WHEN pi.starts_at IS NOT NULL OR pi.due_date IS NOT NULL THEN 1 ELSE 0 END) AS dated_item_count,
-      MIN(COALESCE(pi.starts_at, pi.due_date)) AS first_date,
-      MAX(COALESCE(pi.due_date, pi.ends_at, pi.starts_at)) AS last_date,
-      GROUP_CONCAT(DISTINCT pi.direction) AS directions
+      COUNT(CASE
+        WHEN pi.status <> 'cancelled' AND COALESCE(psr.inclusion_status, 'included') = 'included'
+        THEN pi.id END) AS item_count,
+      SUM(CASE
+        WHEN pi.status <> 'cancelled'
+          AND COALESCE(psr.inclusion_status, 'included') = 'included'
+          AND (pi.starts_at IS NOT NULL OR pi.due_date IS NOT NULL)
+        THEN 1 ELSE 0 END) AS dated_item_count,
+      MIN(CASE
+        WHEN pi.status <> 'cancelled' AND COALESCE(psr.inclusion_status, 'included') = 'included'
+        THEN COALESCE(pi.starts_at, pi.due_date) END) AS first_date,
+      MAX(CASE
+        WHEN pi.status <> 'cancelled' AND COALESCE(psr.inclusion_status, 'included') = 'included'
+        THEN COALESCE(pi.due_date, pi.ends_at, pi.starts_at) END) AS last_date,
+      GROUP_CONCAT(DISTINCT CASE
+        WHEN pi.status <> 'cancelled' AND COALESCE(psr.inclusion_status, 'included') = 'included'
+        THEN pi.direction END) AS directions
     FROM plans p
     LEFT JOIN document_versions dv ON dv.id = p.source_document_version_id
     LEFT JOIN documents d ON d.id = dv.document_id
     LEFT JOIN people owner ON owner.id = p.owner_person_id
     LEFT JOIN plan_items pi ON pi.plan_id = p.id
+    LEFT JOIN plan_source_row_items psri ON psri.plan_item_id = pi.id
+    LEFT JOIN plan_source_rows psr ON psr.id = psri.source_row_id
     WHERE ${clauses.join(' AND ')}
     GROUP BY p.id
     ORDER BY COALESCE(p.year_start, 0) DESC, p.updated_at DESC
@@ -176,12 +208,31 @@ export function listPlans(database, workspaceId, filters = {}) {
 }
 
 export function listPlanFacets(database, workspaceId) {
-  const kinds = database.all(`SELECT plan_kind AS value, COUNT(*) AS count FROM plans WHERE workspace_id = ? GROUP BY plan_kind ORDER BY plan_kind`, workspaceId);
-  const periods = database.all(`SELECT period_key AS value, COUNT(*) AS count FROM plans WHERE workspace_id = ? AND period_key IS NOT NULL GROUP BY period_key ORDER BY period_key DESC`, workspaceId);
+  const kinds = database.all(`
+    SELECT plan_kind AS value, COUNT(*) AS count
+    FROM plans
+    WHERE workspace_id = ?
+    GROUP BY plan_kind
+    ORDER BY plan_kind
+  `, workspaceId);
+  const periods = database.all(`
+    SELECT period_key AS value, COUNT(*) AS count
+    FROM plans
+    WHERE workspace_id = ? AND period_key IS NOT NULL
+    GROUP BY period_key
+    ORDER BY period_key DESC
+  `, workspaceId);
   const directions = database.all(`
     SELECT pi.direction AS value, COUNT(*) AS count
-    FROM plan_items pi JOIN plans p ON p.id = pi.plan_id
-    WHERE p.workspace_id = ? GROUP BY pi.direction ORDER BY pi.direction
+    FROM plan_items pi
+    JOIN plans p ON p.id = pi.plan_id
+    LEFT JOIN plan_source_row_items psri ON psri.plan_item_id = pi.id
+    LEFT JOIN plan_source_rows psr ON psr.id = psri.source_row_id
+    WHERE p.workspace_id = ?
+      AND pi.status <> 'cancelled'
+      AND COALESCE(psr.inclusion_status, 'included') = 'included'
+    GROUP BY pi.direction
+    ORDER BY pi.direction
   `, workspaceId);
   return { kinds, periods, directions };
 }

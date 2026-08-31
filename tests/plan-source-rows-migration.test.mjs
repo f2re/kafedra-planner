@@ -9,7 +9,7 @@ import { CURRENT_SCHEMA_VERSION } from './helpers/current-schema.mjs';
 
 const migrationsDir = resolve('migrations');
 
-test('schema 25 обновляется через 26 до текущей схемы без потери существующих планов', async () => {
+test('schema 25 обновляется через 26 и 32 до текущей схемы без потери существующих планов', async () => {
   const dir = await mkdtemp(join(tmpdir(), 'kafedra-schema-current-'));
   const oldMigrations = join(dir, 'migrations25');
   const dbPath = join(dir, 'upgrade.sqlite3');
@@ -36,7 +36,28 @@ test('schema 25 обновляется через 26 до текущей схе�
       assert.equal(database.get("SELECT title FROM plans WHERE id='plan_before_26'").title, 'План до обновления');
       assert.ok(database.get("SELECT name FROM sqlite_master WHERE type='table' AND name='plan_source_rows'"));
       assert.ok(database.get("SELECT name FROM sqlite_master WHERE type='table' AND name='plan_source_row_items'"));
+      assert.ok(database.get("SELECT name FROM sqlite_master WHERE type='table' AND name='plan_source_row_decisions'"));
+      const columns = new Set(database.all('PRAGMA table_info(plan_source_rows)').map((row) => row.name));
+      for (const name of [
+        'inclusion_status',
+        'inclusion_decided_by_person_id',
+        'inclusion_decided_at',
+        'inclusion_reason',
+        'exclusion_snapshot_json'
+      ]) assert.equal(columns.has(name), true, `missing ${name}`);
       assert.equal(database.get("SELECT lifecycle_status FROM documents LIMIT 1")?.lifecycle_status ?? 'active', 'active');
+      assert.deepEqual(database.all('PRAGMA foreign_key_check'), []);
+      assert.equal(database.quickCheck(), true);
+    } finally {
+      database.close();
+    }
+
+    database = new Database(dbPath, { migrationsDir });
+    try {
+      assert.equal(database.get('SELECT MAX(version) AS version FROM schema_migrations').version, CURRENT_SCHEMA_VERSION);
+      assert.equal(database.get(
+        'SELECT COUNT(*) AS n FROM schema_migrations WHERE version = 32'
+      ).n, 1);
       assert.deepEqual(database.all('PRAGMA foreign_key_check'), []);
       assert.equal(database.quickCheck(), true);
     } finally {

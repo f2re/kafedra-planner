@@ -1,6 +1,11 @@
 import { AppError } from '../../../packages/core/src/errors.mjs';
 import { assertPlanAccess } from '../../../packages/plans/src/access.mjs';
-import { listPlanSourceRows, materializePlanSourceRow } from '../../../packages/plans/src/service.mjs';
+import {
+  getPlanSourceRowDecisionImpact,
+  listPlanSourceRows,
+  materializePlanSourceRow,
+  setPlanSourceRowInclusion
+} from '../../../packages/plans/src/service.mjs';
 import { readJson, sendJson } from './http-utils.mjs';
 
 function workspaceOf(database, request) {
@@ -29,6 +34,11 @@ function mappedError(cause) {
     plan_source_task_title_required: ['У каждой задачи должно быть название.', 400],
     plan_source_execution_mode_invalid: ['Выберите допустимый режим исполнения.', 400],
     plan_source_assignment_preserved: ['У пункта уже есть поручение. Оно сохранено; сначала измените режим исполнения без удаления существующей работы.', 409],
+    plan_source_row_excluded: ['Эта исходная строка не включена в план. Сначала верните её в план.', 409],
+    plan_source_row_decision_invalid: ['Выберите: включить строку в план или не включать её.', 400],
+    plan_source_row_decision_reason_too_long: ['Причина решения должна быть короче 500 символов.', 400],
+    plan_source_row_decision_confirmation_required: ['У строки есть активные связи. Проверьте последствия и подтвердите исключение.', 409],
+    plan_source_row_decision_blocked: ['Строку нельзя исключить автоматически: связанная работа уже выполнена или была вручную изменена.', 409],
     plan_item_date_invalid: ['Проверьте дату мероприятия или контрольного срока.', 400],
     plan_item_date_range_invalid: ['Дата окончания не может быть раньше даты начала.', 400],
     plan_item_direction_invalid: ['Выберите допустимое направление работы.', 400],
@@ -37,7 +47,7 @@ function mappedError(cause) {
     manual_plan_execution_mode_invalid: ['Выберите допустимый режим исполнения.', 400],
     manual_plan_execution_already_linked: ['У пункта уже есть поручение. Система не удаляет его автоматически.', 409]
   };
-  const [message, status] = messages[code] || ['Не удалось разобрать выбранную строку плана.', 500];
+  const [message, status] = messages[code] || ['Не удалось обработать выбранную строку плана.', 500];
   return new AppError(code, message, status, cause?.details);
 }
 
@@ -45,9 +55,13 @@ export function createPlanSourceRowsRouter({ database }) {
   return async function routePlanSourceRows(request, response, url) {
     const method = request.method || 'GET';
     const path = url.pathname;
-    const collection = path.match(/^\/api\/plans\/([^/]+)\/source-rows$/);
-    const materialize = path.match(/^\/api\/plans\/([^/]+)\/source-rows\/([^/]+)\/materialize$/);
-    if (!(method === 'GET' && collection) && !(method === 'POST' && materialize)) return false;
+    const collection = path.match(/^\/api\/plans\/([^/]+)\/source-rows$/u);
+    const materialize = path.match(/^\/api\/plans\/([^/]+)\/source-rows\/([^/]+)\/materialize$/u);
+    const decision = path.match(/^\/api\/plans\/([^/]+)\/source-rows\/([^/]+)\/decision$/u);
+    const handled = (method === 'GET' && collection)
+      || (method === 'POST' && materialize)
+      || ((method === 'GET' || method === 'POST') && decision);
+    if (!handled) return false;
 
     const workspace = workspaceOf(database, request);
     const context = request.auth;
@@ -56,6 +70,28 @@ export function createPlanSourceRowsRouter({ database }) {
         const planId = decodeURIComponent(collection[1]);
         assertPlanAccess(database, workspace.id, context, planId, 'read');
         return sendJson(response, 200, listPlanSourceRows(database, workspace.id, planId));
+      }
+      if (decision) {
+        const planId = decodeURIComponent(decision[1]);
+        const sourceRowId = decodeURIComponent(decision[2]);
+        assertPlanAccess(database, workspace.id, context, planId, 'edit');
+        if (method === 'GET') {
+          return sendJson(response, 200, getPlanSourceRowDecisionImpact(
+            database,
+            workspace.id,
+            planId,
+            sourceRowId
+          ));
+        }
+        const body = await readJson(request);
+        return sendJson(response, 200, setPlanSourceRowInclusion(
+          database,
+          workspace.id,
+          planId,
+          sourceRowId,
+          body,
+          context?.personId || null
+        ));
       }
       const planId = decodeURIComponent(materialize[1]);
       const sourceRowId = decodeURIComponent(materialize[2]);
