@@ -8,12 +8,13 @@ async function openOrganization(page) {
   await expect(page.locator('#docomator-integration')).toBeVisible({ timeout: 15_000 });
 }
 
+const baseSettings = {
+  scheme: 'http', host: '', port: 8080, spaceId: null, groupId: null,
+  includeInactive: false, lastStatus: 'unknown', lastCheckedAt: null,
+  lastImportedAt: null, remoteVersion: null, lastError: null
+};
+
 test('Настройки: адрес Оформлятора → проверка → выбор группы → импорт сотрудников', async ({ page }) => {
-  const baseSettings = {
-    scheme: 'http', host: '', port: 8080, spaceId: null, groupId: null,
-    includeInactive: false, lastStatus: 'unknown', lastCheckedAt: null,
-    lastImportedAt: null, remoteVersion: null, lastError: null
-  };
   let importBody = null;
   await page.route('**/api/integrations/docomator**', async (route) => {
     const request = route.request();
@@ -67,4 +68,34 @@ test('Настройки: адрес Оформлятора → проверка
   expect(importBody.spaceId).toBe('space-1');
   expect(importBody.groupId).toBe('group-1');
   expect(importBody.accessCode).toBe('1234');
+});
+
+test('Настройки показывают безопасную причину ошибки подключения вместо общей 500', async ({ page }) => {
+  let mode = 'dns';
+  await page.route('**/api/integrations/docomator**', async (route) => {
+    const request = route.request();
+    const path = new URL(request.url()).pathname;
+    if (path === '/api/integrations/docomator' && request.method() === 'GET') {
+      return route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(baseSettings) });
+    }
+    if (path === '/api/integrations/docomator/check') {
+      const payload = mode === 'dns'
+        ? { error: { code: 'docomator_dns_error', message: 'Имя сервера Оформлятора не найдено. Проверьте адрес или локальный DNS.' } }
+        : { error: { code: 'docomator_not_ready', message: 'Оформлятор запущен, но его база или runtime ещё не готовы. Дождитесь готовности и повторите проверку.' } };
+      return route.fulfill({ status: mode === 'dns' ? 502 : 503, contentType: 'application/json', body: JSON.stringify(payload) });
+    }
+    return route.fulfill({ status: 404, contentType: 'application/json', body: '{}' });
+  });
+
+  await openOrganization(page);
+  const section = page.locator('#docomator-integration');
+  await section.locator('[name="host"]').fill('docomator.local');
+  await section.locator('[data-docomator-check]').click();
+  await expect(section.locator('#docomator-status')).toContainText('локальный DNS');
+  await expect(section.locator('#docomator-status')).not.toContainText('Внутренняя ошибка сервера');
+
+  mode = 'not-ready';
+  await section.locator('[data-docomator-check]').click();
+  await expect(section.locator('#docomator-status')).toContainText('ещё не готовы');
+  await expect(section.locator('#docomator-source')).toHaveClass(/hidden/);
 });
