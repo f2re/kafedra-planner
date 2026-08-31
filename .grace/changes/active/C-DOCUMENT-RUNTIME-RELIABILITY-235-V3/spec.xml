@@ -1,0 +1,56 @@
+<GraceChangeSpec graceVersion="4.0" status="approved">
+  <C-DOCUMENT-RUNTIME-RELIABILITY-235-V3>
+    <Summary>Complete document-runtime reliability with Unicode-safe uploads, actionable Docomator diagnostics and strict recoverable OCR bundle activation.</Summary>
+    <Problem>The earlier implementation branch proved the upload and integration repairs but its approved plan coupled strict OCR activation to a monolithic installer rewrite. The production requirement is better expressed as a small strict orchestration wrapper around the existing readable application installer.</Problem>
+    <Goals>
+      <Goal>Preserve Unicode document names and evidence while using bounded ASCII idempotency headers.</Goal>
+      <Goal>Return only classified safe Docomator connection diagnostics and retain the entered connection context.</Goal>
+      <Goal>Cache the exact verified target package payload before package mutation and reuse it for deterministic offline repair.</Goal>
+      <Goal>Refuse full-bundle activation before application staging unless Poppler, Tesseract rus/eng, LibreOffice and a real control OCR are ready.</Goal>
+      <Goal>Keep the existing application installer readable and independently testable behind a small strict wrapper.</Goal>
+    </Goals>
+    <Constraints>
+      <Constraint>No SQLite schema, migration, release version, mandatory network service, Docker or LLM dependency changes.</Constraint>
+      <Constraint>Existing document bytes, SHA-256, Unicode source names, document_version and evidence remain immutable.</Constraint>
+      <Constraint>Target package operations remain additive-only: no upgrade, downgrade, removal, package=version or apt --fix-broken.</Constraint>
+      <Constraint>This branch starts from exact current main and contains one active approved change only.</Constraint>
+      <Constraint>Errors and transport normalization use no decorative motion; access codes and security-sensitive values remain never-learn.</Constraint>
+    </Constraints>
+    <NonGoals>
+      <NonGoal>Change the visual architecture of the organization screen.</NonGoal>
+      <NonGoal>Scan networks or ports automatically.</NonGoal>
+      <NonGoal>Make Оформлятор, OCR or LLM mandatory for the core calendar and task data model.</NonGoal>
+      <NonGoal>Publish a new release tag in this change.</NonGoal>
+    </NonGoals>
+    <AcceptanceCriteria>
+      <Criterion>Russian, mixed, emoji and long filenames reach the upload API on desktop and mobile; repeat requests remain idempotent and source identity is unchanged.</Criterion>
+      <Criterion>DNS, connection refused, timeout, TLS, wrong service, not ready and access denied are distinguishable without stack traces, secrets or arbitrary remote details.</Criterion>
+      <Criterion>The package payload is profile-bound, checksum-verified, atomically cached and safe to reuse after interruption.</Criterion>
+      <Criterion>A full bundle exits before application staging when package preparation, full preflight or control OCR fails; the previous release and data remain active.</Criterion>
+      <Criterion>doctor --repair discovers the retained payload, installs only missing capabilities and finishes with a strict self-test.</Criterion>
+      <Criterion>Focused unit/integration/browser tests, full project CI, release/offline/systemd gates and GRACE final pass on one exact head before squash merge.</Criterion>
+    </AcceptanceCriteria>
+    <AffectedAreas>
+      <M-API />
+      <M-OFFLINE-BUNDLE />
+      <M-DESIGN-GOVERNANCE />
+      <M-MOTION-KB />
+      <M-CI-GATE />
+    </AffectedAreas>
+    <VerificationIntent>
+      <ExpectedCommand>node --test tests/http-headers.test.mjs tests/http-utils.test.mjs tests/docomator-integration.test.mjs tests/offline-package-policy.test.mjs tests/deploy-install-contract.test.mjs tests/deployment-flow.test.mjs</ExpectedCommand>
+      <ExpectedCommand>bash -n scripts/offline/*.sh deploy/install.sh deploy/install-core.sh deploy/install-application-core.sh</ExpectedCommand>
+      <ExpectedCommand>python3 -m py_compile scripts/recognition/ocr.py</ExpectedCommand>
+      <ExpectedCommand>npm run check</ExpectedCommand>
+      <ExpectedCommand>npm run docs:check</ExpectedCommand>
+      <ExpectedCommand>npm test</ExpectedCommand>
+      <ExpectedCommand>npx playwright test tests/browser/docomator-integration.spec.mjs tests/browser/unicode-upload-headers.spec.mjs</ExpectedCommand>
+      <ExpectedEvidence>The exact branch head proves upload, classified diagnostics, immutable package cache, strict pre-staging OCR acceptance and offline repair without widening runtime dependencies.</ExpectedEvidence>
+    </VerificationIntent>
+    <Assumptions>
+      <Assumption>The current main application installer remains the verified application/migration/service transaction engine.</Assumption>
+      <Assumption>Full bundles contain application/deploy plus managed Node and Python runtimes before the root wrapper executes.</Assumption>
+      <Assumption>Debian/Astra target-specific package sets are built on compatible reference systems.</Assumption>
+    </Assumptions>
+  </C-DOCUMENT-RUNTIME-RELIABILITY-235-V3>
+</GraceChangeSpec>
