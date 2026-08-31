@@ -142,3 +142,38 @@ body.academic-modal-open { overflow: hidden; }
   .academic-student-list article { grid-template-columns: 1fr; }
   .academic-student-list article > div:last-of-type { text-align: left; }
 }
+
+.academic-period-totals { border-bottom: 1px solid var(--border-color); background: color-mix(in srgb, var(--accent) 3%, var(--surface)); }
+.academic-period-totals-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 16px; padding: 20px 24px 14px; }
+.academic-period-totals-head > div { display: grid; gap: 4px; }
+.academic-period-totals-head span { color: var(--accent); font-size: 12px; font-weight: 700; letter-spacing: .03em; text-transform: uppercase; }
+.academic-period-totals-head h4 { margin: 0; font-size: 18px; }
+.academic-period-totals-head p { max-width: 720px; margin: 0; color: var(--text-secondary); font-size: 12px; line-height: 1.45; }
+.academic-group-selectors { display: flex; flex-wrap: wrap; gap: 8px; padding: 0 24px 16px; }
+.academic-group-selector { display: flex; align-items: center; gap: 9px; min-width: 135px; padding: 9px 11px; border: 1px solid var(--border-color); border-radius: 13px; background: var(--surface); cursor: pointer; }
+.academic-group-selector.selected { border-color: color-mix(in srgb, var(--accent) 48%, var(--border-color)); background: color-mix(in srgb, var(--accent) 7%, var(--surface)); }
+.academic-group-selector input { margin: 0; accent-color: var(--accent); }
+.academic-group-selector > span { display: grid; gap: 2px; }
+.academic-group-selector small { color: var(--text-secondary); font-size: 10px; }
+.academic-totals-table tbody tr { cursor: default; }
+.academic-totals-table tbody tr:hover { background: transparent; }
+.academic-group-summary { background: var(--surface); }
+
+@media (max-width: 680px) {
+  .academic-period-totals-head { align-items: stretch; flex-direction: column; padding: 18px; }
+  .academic-period-totals-head .secondary-button { width: 100%; }
+  .academic-group-selectors { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); padding: 0 18px 16px; }
+  .academic-group-selector { min-width: 0; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .academic-performance-view *,
+  .academic-modal,
+  .academic-backdrop {
+    animation: none !important;
+    animation-duration: 0s !important;
+    transition: none !important;
+    transition-duration: 0s !important;
+    scroll-behavior: auto !important;
+  }
+}

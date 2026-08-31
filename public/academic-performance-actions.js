@@ -3,12 +3,62 @@ import {
   academicApi,
   academicState,
   closeDetails,
+  currentPeriodRuns,
   esc,
   gradeLabel,
   pageError,
-  selectedRun
+  selectedRun,
+  selectedTotalRuns
 } from './academic-performance-state.js';
 import { renderAcademicPerformance } from './academic-performance-view.js';
+
+function totalPeriodKey(run = selectedRun()) {
+  return run ? `${run.academic_year}:${Number(run.semester)}` : null;
+}
+
+export function syncAcademicTotalSelection({ reset = false } = {}) {
+  const key = totalPeriodKey();
+  const available = currentPeriodRuns().map((item) => item.id);
+  if (!key || !available.length) {
+    academicState.totalsPeriodKey = key;
+    academicState.selectedTotalIds = [];
+    academicState.totals = null;
+    return;
+  }
+  const previous = academicState.totalsPeriodKey === key && !reset
+    ? academicState.selectedTotalIds.filter((id) => available.includes(id))
+    : [];
+  academicState.totalsPeriodKey = key;
+  academicState.selectedTotalIds = previous.length ? previous : available;
+}
+
+export async function refreshAcademicTotals() {
+  const request = ++academicState.totalsRequest;
+  const runs = selectedTotalRuns();
+  if (!runs.length) {
+    academicState.totalsLoading = false;
+    academicState.totals = null;
+    renderAcademicPerformance();
+    return;
+  }
+  academicState.totalsLoading = true;
+  renderAcademicPerformance();
+  try {
+    const query = new URLSearchParams({ importIds: runs.map((item) => item.id).join(',') });
+    const payload = await academicApi(`/api/academic-performance/totals?${query}`);
+    if (request === academicState.totalsRequest) academicState.totals = payload;
+  } catch (error) {
+    if (request === academicState.totalsRequest) {
+      academicState.totals = null;
+      pageError(error.message);
+    }
+  } finally {
+    if (request === academicState.totalsRequest) {
+      academicState.totalsLoading = false;
+      renderAcademicPerformance();
+    }
+  }
+}
 
 export async function refreshAcademicPerformance(preferredId = null) {
   if (academicState.loading) return;
@@ -23,12 +73,32 @@ export async function refreshAcademicPerformance(preferredId = null) {
     academicState.selectedId = academicState.items.some((item) => item.id === candidate)
       ? candidate
       : academicState.hierarchy[0]?.semesters?.[0]?.groups?.[0]?.importId || null;
+    syncAcademicTotalSelection();
     renderAcademicPerformance();
+    await refreshAcademicTotals();
   } catch (error) {
     pageError(error.message);
   } finally {
     academicState.loading = false;
   }
+}
+
+export async function selectAcademicRun(importId) {
+  if (!academicState.items.some((item) => item.id === importId)) return;
+  academicState.selectedId = importId;
+  syncAcademicTotalSelection();
+  renderAcademicPerformance();
+  await refreshAcademicTotals();
+}
+
+export async function setAcademicTotalSelection(importId, selected) {
+  const available = new Set(currentPeriodRuns().map((item) => item.id));
+  if (!available.has(importId)) return;
+  const next = new Set(academicState.selectedTotalIds.filter((id) => available.has(id)));
+  if (selected) next.add(importId);
+  else next.delete(importId);
+  academicState.selectedTotalIds = [...next];
+  await refreshAcademicTotals();
 }
 
 export async function openAcademicDetails(disciplineId) {
@@ -61,6 +131,7 @@ export async function archiveSelectedAcademicRun() {
       body: JSON.stringify({ reason: 'Архивировано оператором' })
     });
     academicState.selectedId = null;
+    academicState.totalsPeriodKey = null;
     await refreshAcademicPerformance();
   } catch (error) {
     pageError(error.message);
@@ -78,6 +149,7 @@ export async function restoreSelectedAcademicRun() {
       body: '{}'
     });
     academicState.includeHistory = false;
+    academicState.totalsPeriodKey = null;
     await refreshAcademicPerformance(restored.id);
   } catch (error) {
     pageError(error.message);

@@ -369,6 +369,20 @@ async function launchExisting(actionId) {
     case 'meeting.upload':
       requestUpload('protocol', actionId);
       return 'pending-upload';
+    case 'academic.import':
+      closeCenter({ restoreFocus: false });
+      if (typeof window.kafedraAcademicPerformance?.beginImport === 'function') {
+        window.kafedraAcademicPerformance.beginImport();
+      } else {
+        await openFirstExistingView(['academic-performance']);
+        if (!await clickFirst('[data-academic-import-open]', ['Загрузить ведомость'], 4500)) {
+          throw new Error('Импорт ведомости недоступен.');
+        }
+      }
+      if (!await waitFor('[data-academic-modal]:not(.hidden)', 4500)) {
+        throw new Error('Не удалось открыть импорт ведомости.');
+      }
+      return;
     case 'science.import':
       requestUpload('science', actionId);
       return 'pending-upload';

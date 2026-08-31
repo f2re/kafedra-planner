@@ -7,7 +7,12 @@ export const academicState = {
   uploadedName: '',
   mappingDraft: null,
   includeHistory: false,
-  loading: false
+  loading: false,
+  selectedTotalIds: [],
+  totals: null,
+  totalsLoading: false,
+  totalsRequest: 0,
+  totalsPeriodKey: null
 };
 
 export const $ap = (selector, root = document) => root.querySelector(selector);
@@ -151,6 +156,22 @@ export function pageError(message = '') {
 
 export function selectedRun() {
   return academicState.items.find((item) => item.id === academicState.selectedId) || null;
+}
+
+export function currentPeriodRuns() {
+  const run = selectedRun();
+  if (!run) return [];
+  return academicState.items.filter((item) =>
+    item.is_current
+    && item.lifecycle_status === 'active'
+    && item.academic_year === run.academic_year
+    && Number(item.semester) === Number(run.semester)
+  );
+}
+
+export function selectedTotalRuns() {
+  const selected = new Set(academicState.selectedTotalIds);
+  return currentPeriodRuns().filter((item) => selected.has(item.id));
 }
 
 export function modal(html, wide = false) {

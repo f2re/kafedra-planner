@@ -2,7 +2,6 @@ import { AppError } from '../../../packages/core/src/errors.mjs';
 import { assertObjectAccess } from '../../../packages/access-control/src/service.mjs';
 import {
   academicDisciplineDetails,
-  academicExport,
   academicHierarchy,
   analyzeAcademicPerformance,
   archiveAcademicImport,
@@ -11,6 +10,10 @@ import {
   listAcademicImports,
   restoreAcademicImport
 } from '../../../packages/academic-performance/src/service.mjs';
+import {
+  academicPeriodTotals,
+  academicReportExport
+} from '../../../packages/academic-performance/src/report.mjs';
 import { readJson, sendJson } from './http-utils.mjs';
 
 function workspaceId(database, request) {
@@ -58,6 +61,23 @@ function filteredAccessibleRuns(database, workspace, context, url, { includeHist
     groupCode: url.searchParams.get('groupCode') || null,
     limit: url.searchParams.get('limit') || 500
   }).filter((run) => canReadRun(database, workspace, context, run));
+}
+
+
+function requestedImportIds(url) {
+  const values = [
+    ...url.searchParams.getAll('importId'),
+    ...(url.searchParams.get('importIds') || '').split(',')
+  ];
+  return [...new Set(values.map((value) => String(value || '').trim()).filter(Boolean))];
+}
+
+function selectedAccessibleRuns(database, workspace, context, url) {
+  const runs = filteredAccessibleRuns(database, workspace, context, url);
+  const requested = requestedImportIds(url);
+  if (!requested.length) return runs;
+  const allowed = new Set(requested);
+  return runs.filter((run) => allowed.has(run.id));
 }
 
 function safeFilePart(value, fallback) {
@@ -138,12 +158,17 @@ export function createAcademicPerformanceRouter({ database }) {
       );
     }
 
+    if (path === '/api/academic-performance/totals' && method === 'GET') {
+      const runs = selectedAccessibleRuns(database, workspace, context, url);
+      return sendJson(response, 200, academicPeriodTotals(database, workspace, {
+        importIds: runs.map((run) => run.id)
+      }));
+    }
+
     if (path === '/api/academic-performance/export' && method === 'GET') {
-      const requestedImport = url.searchParams.get('importId');
-      let runs = filteredAccessibleRuns(database, workspace, context, url);
-      if (requestedImport) runs = runs.filter((run) => run.id === requestedImport);
+      const runs = selectedAccessibleRuns(database, workspace, context, url);
       const format = url.searchParams.get('format') || 'csv';
-      const output = academicExport(database, workspace, runs.map((run) => run.id), format);
+      const output = academicReportExport(database, workspace, runs.map((run) => run.id), format);
       sendExport(response, output, exportFilename(runs, output.extension));
       return true;
     }

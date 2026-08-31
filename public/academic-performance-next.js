@@ -13,7 +13,9 @@ import {
   archiveSelectedAcademicRun,
   openAcademicDetails,
   refreshAcademicPerformance,
-  restoreSelectedAcademicRun
+  restoreSelectedAcademicRun,
+  selectAcademicRun,
+  setAcademicTotalSelection
 } from './academic-performance-actions.js';
 import {
   backToAcademicUpload,
@@ -46,11 +48,7 @@ document.addEventListener('click', (event) => {
     return;
   }
   const runButton = event.target.closest('[data-academic-run]');
-  if (runButton) {
-    academicState.selectedId = runButton.dataset.academicRun;
-    renderAcademicPerformance();
-    return;
-  }
+  if (runButton) return selectAcademicRun(runButton.dataset.academicRun);
   const discipline = event.target.closest('[data-academic-discipline]');
   if (discipline) return openAcademicDetails(discipline.dataset.academicDiscipline);
   if (event.target.closest('[data-academic-history]')) {
@@ -70,6 +68,13 @@ document.addEventListener('click', (event) => {
     });
     return;
   }
+  if (event.target.closest('[data-academic-export-selected]')) {
+    if (!academicState.selectedTotalIds.length) return;
+    window.location.href = exportUrl('csv', {
+      importIds: academicState.selectedTotalIds.join(',')
+    });
+    return;
+  }
   const exportButton = event.target.closest('[data-academic-export]');
   if (exportButton && selectedRun()) {
     window.location.href = exportUrl(exportButton.dataset.academicExport, {
@@ -79,6 +84,13 @@ document.addEventListener('click', (event) => {
   }
   if (event.target.closest('[data-academic-archive]')) return archiveSelectedAcademicRun();
   if (event.target.closest('[data-academic-restore]')) return restoreSelectedAcademicRun();
+}, true);
+
+document.addEventListener('change', (event) => {
+  const group = event.target.closest('[data-academic-total-import]');
+  if (!group) return;
+  group.closest('.academic-group-selector')?.classList.toggle('selected', group.checked);
+  setAcademicTotalSelection(group.value, group.checked);
 }, true);
 
 document.addEventListener('submit', (event) => {
@@ -124,6 +136,10 @@ window.kafedraAcademicPerformance = {
   refresh: refreshAcademicPerformance,
   open: () => {
     showView();
-    refreshAcademicPerformance();
+    return refreshAcademicPerformance();
+  },
+  beginImport: () => {
+    showView();
+    beginAcademicImport();
   }
 };

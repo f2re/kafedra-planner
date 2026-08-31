@@ -1,6 +1,6 @@
 # Автоматическая проверка release candidate
 
-Актуальный рубеж: `0.3.4`, схема SQLite **30**. Автоматический gate проверяет код, данные, desktop/mobile UX и поставочный контракт, но не подменяет фактическую приёмку #27 на Astra Linux/Debian.
+Актуальный рубеж: `0.4.0`, схема SQLite **31**. Автоматический gate проверяет код, данные, desktop/mobile UX и поставочный контракт, но не подменяет фактическую приёмку #27 на Astra Linux/Debian.
 
 ## Статические и Node-проверки
 
@@ -17,7 +17,7 @@
 
 Unit/integration подтверждают:
 
-- последовательные миграции до schema 30 и отсутствие конфликтующих номеров;
+- последовательные миграции до schema 31 и отсутствие конфликтующих номеров;
 - `PRAGMA quick_check` и `foreign_key_check`;
 - immutable blob, SHA-256 и сохранение evidence/locator;
 - планы, исходные строки/ячейки, разложение в несколько задач и идемпотентные назначения;
@@ -29,7 +29,9 @@ Unit/integration подтверждают:
 - discovery property definitions, выбор e-mail/должности/дополнительных полей;
 - отказ до локальных изменений при исчезновении выбранного remote property;
 - первый и повторный импорт сотрудников без дублей;
-- включение `meeting_template_catalog`, `meeting_template_test_runs`, `docomator_field_mappings` и `docomator_person_fields` в acceptance digest и backup/restore.
+- включение `meeting_template_catalog`, `meeting_template_test_runs`, `docomator_field_mappings` и `docomator_person_fields` в acceptance digest и backup/restore;
+- schema 31, метаполя ведомости из ячеек/ручного ввода, текущая версия группы/периода и academic backup/restore;
+- расчёт категорий и среднего только по исходным оценкам `2–5`, без двойного учёта старых ведомостей.
 
 ## Browser suites
 
@@ -38,6 +40,7 @@ Unit/integration подтверждают:
 ```bash
 npm run test:browser:plans
 npm run test:browser:core
+npm run test:browser:academic
 npm run test:browser:reports-science
 npm run test:browser:plan-fact
 npm run test:browser:auth
@@ -56,9 +59,10 @@ Desktop/mobile сценарии включают:
 - библиотека шаблонов → тест двумя вопросами → новая версия → основной → точная старая версия → impact → архив → восстановление;
 - Оформлятор → host/port → space/group → выбор remote fields → preview → идемпотентный импорт;
 - оргструктуру, науку, отчёты, `План / факт`, PIN/accounts, release readiness и ACL;
+- ведомость → ручные/ячеечные метаполя → учебный год/семестр/группа → сводка → исходная ячейка;
 - геометрически стабильный режим задач на desktop/mobile.
 
-## Release gate 0.3.4
+## Release gate 0.4.0
 
 Обязательный агрегирующий workflow требует успеха трёх независимых контуров:
 
@@ -97,7 +101,7 @@ Publisher проверяет фактические jobs, а не только t
 
 ## Проверка GitHub Release
 
-Для `v0.3.4` после post-merge CI должны быть подтверждены:
+Для `v0.4.0` после post-merge CI должны быть подтверждены:
 
 - public non-prerelease release;
 - тег указывает на точный squash-commit `main`;

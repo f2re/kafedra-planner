@@ -1,6 +1,6 @@
 {
   "name": "kafedra-planner",
-  "version": "0.3.4",
+  "version": "0.4.0",
   "private": true,
   "license": "MIT",
   "description": "Автономная платформа календаря, документов, решений, сроков и деятельности кафедры.",
@@ -29,6 +29,7 @@
     "test:browser": "npm run test:browser:plans && npm run test:browser:core",
     "test:browser:plans": "playwright test tests/browser/plans.spec.mjs tests/browser/manual-plans.spec.mjs tests/browser/plan-source-rows.spec.mjs tests/browser/lifecycle.spec.mjs",
     "test:browser:core": "playwright test --grep-invert 'Планы:'",
+    "test:browser:academic": "playwright test tests/browser/academic-performance.spec.mjs",
     "test:browser:reports-science": "playwright test --config=playwright.reports-science.config.mjs",
     "test:browser:plan-fact": "playwright test --config=playwright.plan-fact.config.mjs && playwright test --config=playwright.plan-fact-tools.config.mjs",
     "test:browser:plan-fact-tools": "playwright test --config=playwright.plan-fact-tools.config.mjs",

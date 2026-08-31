@@ -67,6 +67,15 @@ test('Успеваемость: ячейки метаполей → ручная
   await expect(page.locator('.academic-metadata-strip')).toContainText('B1');
   await expect(page.locator('.academic-summary-table')).toContainText('Математика');
   await expect(page.locator('.academic-summary-table')).toContainText('Физика');
+  const totalSelector = page.locator('[data-academic-total-import]');
+  await expect(totalSelector).toHaveCount(1);
+  await expect(totalSelector).toBeChecked();
+  await expect(page.locator('.academic-period-totals')).toContainText('Итоги по выбранным группам');
+  await expect(page.locator('.academic-totals-table')).toContainText('3,67');
+  await totalSelector.uncheck();
+  await expect(page.locator('.academic-period-totals')).toContainText('Выберите хотя бы одну группу');
+  await totalSelector.check();
+  await expect(page.locator('.academic-totals-table')).toContainText('3,67');
 
   await page.locator('[data-academic-discipline]').filter({ hasText: 'Математика' }).click();
   await expect(page.getByRole('heading', { name: 'Математика' })).toBeVisible();
@@ -78,6 +87,8 @@ test('Успеваемость: ячейки метаполей → ручная
   expect(reportResponse.status()).toBe(200);
   const report = await reportResponse.text();
   expect(report).toContain('Учебный год;Семестр;Учебная группа;Дисциплина');
+  expect(report).toContain('2026/2027;1;ИВТ-31;Математика');
+  expect(report).toContain('ИТОГИ ПО ДИСЦИПЛИНАМ');
   expect(report).toContain('2026/2027;1;ИВТ-31;Математика');
   expect(report).toContain('3,67');
 });
@@ -94,4 +105,26 @@ test('Успеваемость: мобильный экран сохраняет
   await page.locator('[data-academic-import-open]').click();
   await expect(page.locator('[data-academic-modal]')).toBeVisible();
   await expect(page.locator('[data-academic-upload-form]')).toBeVisible();
+});
+
+
+test('Успеваемость: reduced motion даёт нулевую длительность на desktop и mobile', async ({ page }) => {
+  await page.emulateMedia({ reducedMotion: 'reduce' });
+  await page.goto('/');
+  await page.waitForFunction(() => typeof window.kafedraSetView === 'function', null, { timeout: 12_000 });
+  await expect(navigationButton(page)).toBeVisible({ timeout: 15_000 });
+  await navigationButton(page).click();
+  await page.locator('[data-academic-import-open]').click();
+  const motion = await page.locator('[data-academic-modal]').evaluate((element) => {
+    const style = getComputedStyle(element);
+    return {
+      transitionDuration: style.transitionDuration,
+      animationDuration: style.animationDuration,
+      animationName: style.animationName
+    };
+  });
+  expect(motion.transitionDuration).toBe('0s');
+  expect(motion.animationDuration).toBe('0s');
+  expect(motion.animationName).toBe('none');
+  await expect(page.getByRole('heading', { name: 'Загрузить ведомость' })).toBeVisible();
 });
