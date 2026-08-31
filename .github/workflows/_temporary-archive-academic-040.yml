@@ -1,0 +1,80 @@
+name: Temporary archive academic performance 0.4.0
+
+on:
+  push:
+    branches:
+      - ci/finish-release-040
+
+permissions:
+  contents: write
+
+concurrency:
+  group: temporary-archive-academic-performance-040
+  cancel-in-progress: false
+
+jobs:
+  archive:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - name: Checkout exact released main
+        uses: actions/checkout@v4
+        with:
+          ref: 16031d51579604a1ced8dae4f6e0495867c16715
+          fetch-depth: 0
+      - name: Build strict terminal archive transition
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          test "$(git rev-parse HEAD)" = "16031d51579604a1ced8dae4f6e0495867c16715"
+          test "$(git rev-parse refs/tags/v0.4.0^{commit})" = "16031d51579604a1ced8dae4f6e0495867c16715"
+          change='C-ACADEMIC-PERFORMANCE-0-4-0'
+          active=".grace/changes/active/${change}"
+          archive=".grace/changes/archive/${change}"
+          test -d "$active"
+          test ! -e "$archive"
+          test "$(find "$active" -maxdepth 1 -type f -printf '%f\n' | sort | tr '\n' ' ')" = 'design.md motion.md plan.xml spec.xml '
+          git show HEAD:"${active}/design.md" > /tmp/design.md
+          git show HEAD:"${active}/motion.md" > /tmp/motion.md
+          mkdir -p "$(dirname "$archive")"
+          mv "$active" "$archive"
+          python - <<'PY'
+          from pathlib import Path
+
+          root = Path('.grace/changes/archive/C-ACADEMIC-PERFORMANCE-0-4-0')
+          expected = {
+              'spec.xml': '<GraceChangeSpec graceVersion="4.0" status="approved">',
+              'plan.xml': '<GraceChangePlan graceVersion="4.0" status="approved">',
+          }
+          replacement = {
+              'spec.xml': '<GraceChangeSpec graceVersion="4.0" status="applied">',
+              'plan.xml': '<GraceChangePlan graceVersion="4.0" status="applied">',
+          }
+          for name, marker in expected.items():
+              path = root / name
+              text = path.read_text(encoding='utf-8')
+              if text.count(marker) != 1:
+                  raise SystemExit(f'unexpected root status marker in {name}')
+              path.write_text(text.replace(marker, replacement[name], 1), encoding='utf-8')
+          PY
+          test ! -e "$active"
+          cmp /tmp/design.md "${archive}/design.md"
+          cmp /tmp/motion.md "${archive}/motion.md"
+          grep -Fq '<GraceChangeSpec graceVersion="4.0" status="applied">' "${archive}/spec.xml"
+          grep -Fq '<GraceChangePlan graceVersion="4.0" status="applied">' "${archive}/plan.xml"
+          if git diff --name-only HEAD | grep -Ev "^\.grace/changes/(active|archive)/${change}/(design\.md|motion\.md|plan\.xml|spec\.xml)$"; then
+            echo 'Archive transition changed an unexpected path' >&2
+            exit 1
+          fi
+          git diff --check
+      - name: Commit archive-only branch
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          git switch -c chore/archive-academic-performance-0.4.0
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add -A
+          git commit -m 'GRACE: archive C-ACADEMIC-PERFORMANCE-0-4-0 as applied'
+          git push origin HEAD:chore/archive-academic-performance-0.4.0
