@@ -1,4 +1,4 @@
-name: Release gate 0.3.4
+name: Release gate 0.4.0
 
 on:
   push:
@@ -41,7 +41,7 @@ jobs:
           node-version-file: .nvmrc
           cache: npm
       - run: npm ci --ignore-scripts --no-audit --no-fund
-      - name: Schema 19 → 30 and release evidence
+      - name: Schema 19 → 31 and release evidence
         run: >-
           node --test
           tests/organization-migration.test.mjs
@@ -55,6 +55,9 @@ jobs:
           tests/meeting-template-library.test.mjs
           tests/docomator-fields-migration.test.mjs
           tests/docomator-fields.test.mjs
+          tests/academic-performance-migration.test.mjs
+          tests/academic-performance.test.mjs
+          tests/academic-performance-backup.test.mjs
           tests/lifecycle.test.mjs
           tests/acceptance-020.test.mjs
           tests/backup-restore.test.mjs
@@ -72,7 +75,7 @@ jobs:
           cache: npm
       - run: npm ci --ignore-scripts --no-audit --no-fund
       - run: npx playwright install --with-deps chromium
-      - name: Complete 0.3.4 scenarios
+      - name: Complete 0.4.0 scenarios
         run: >-
           npx playwright test
           tests/browser/organization.spec.mjs
@@ -88,6 +91,7 @@ jobs:
           tests/browser/plan-source-rows.spec.mjs
           tests/browser/lifecycle.spec.mjs
           tests/browser/auto-assignment.spec.mjs
+          tests/browser/academic-performance.spec.mjs
 
   release-gate:
     name: release-gate
