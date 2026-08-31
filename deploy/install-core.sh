@@ -46,11 +46,14 @@ if [[ "$IS_BUNDLE" == true ]]; then
   )
   "$RUNTIME_SOURCE/bin/node" "$APP_SOURCE/scripts/offline/runtime-contract.mjs" verify-bundle --root "$BUNDLE_ROOT"
 fi
-FULL_BUNDLE=false; PYTHON_SOURCE=""; DOCUMENT_CAPABILITIES_DEGRADED=false
+# KAFEDRA_DOCTOR_ALLOW_DEGRADED=true is reserved for an explicit administrator diagnostic, never for full-bundle activation.
+# After a repaired legacy installation the supported command is doctor.sh --repair; a new full bundle must pass strict checks here.
+FULL_BUNDLE=false; PYTHON_SOURCE=""; DOCUMENT_CAPABILITIES_DEGRADED=false; OS_PACKAGE_CACHE_PATH=""
 if [[ "$IS_BUNDLE" == true && -f "$BUNDLE_ROOT/deployment.json" ]]; then
   FULL_BUNDLE=true; PYTHON_SOURCE="$BUNDLE_ROOT/runtime/python"
   [[ -x "$PYTHON_SOURCE/python" && -f "$PYTHON_SOURCE/runtime.json" ]] || { echo "Full bundle не содержит managed Python runtime" >&2; exit 3; }
   "$RUNTIME_SOURCE/bin/node" "$APP_SOURCE/scripts/offline/deployment-contract.mjs" verify --root "$BUNDLE_ROOT" >/dev/null
+
   PACKAGE_STATUS=0
   "$APP_SOURCE/scripts/offline/install-os-packages.sh" "$BUNDLE_ROOT/os-packages" --scope all || PACKAGE_STATUS=$?
   if (( PACKAGE_STATUS >= 70 )); then
@@ -58,23 +61,35 @@ if [[ "$IS_BUNDLE" == true && -f "$BUNDLE_ROOT/deployment.json" ]]; then
     exit "$PACKAGE_STATUS"
   elif (( PACKAGE_STATUS == 20 )); then
     DOCUMENT_CAPABILITIES_DEGRADED=true
-    echo "ВНИМАНИЕ: package database ОС уже конфликтует либо безопасный additive-only план невозможен. Пакеты ОС не изменялись; устанавливаю ядро без части обработки документов." >&2
+    echo "Полный bundle не может быть активирован: target APT не подтвердил безопасный additive-only план. Прежний current, данные, конфигурация и PIN не изменены." >&2
+    exit 20
   elif (( PACKAGE_STATUS != 0 )); then
-    echo "Проверка package layer завершилась неожиданной ошибкой $PACKAGE_STATUS; установка остановлена до изменения приложения." >&2
+    echo "Полный bundle не может быть активирован: проверка package layer завершилась ошибкой $PACKAGE_STATUS до staging release." >&2
     exit "$PACKAGE_STATUS"
   fi
+
   "$RUNTIME_SOURCE/bin/node" "$APP_SOURCE/scripts/system-preflight.mjs" --strict
   if ! "$RUNTIME_SOURCE/bin/node" "$APP_SOURCE/scripts/system-preflight.mjs" --require-full; then
     DOCUMENT_CAPABILITIES_DEGRADED=true
+    echo "Полный bundle не может быть активирован: после установки отсутствуют обязательные OCR/PDF/Office возможности. Прежний release остаётся active." >&2
+    exit 21
   fi
-  if ! "$PYTHON_SOURCE/python" "$APP_SOURCE/scripts/recognition/ocr.py" doctor --languages "${KAFEDRA_OCR_LANGUAGES:-rus+eng}"; then
+  if ! "$PYTHON_SOURCE/python" "$APP_SOURCE/scripts/recognition/ocr.py" doctor --languages "${KAFEDRA_OCR_LANGUAGES:-rus+eng}" --self-test; then
     DOCUMENT_CAPABILITIES_DEGRADED=true
+    echo "Полный bundle не может быть активирован: не пройдены smoke_pdf или smoke_tesseract. Прежний release остаётся active." >&2
+    exit 22
   fi
-  if [[ "$DOCUMENT_CAPABILITIES_DEGRADED" == true ]]; then
-    echo "Документные возможности установлены не полностью. Календарь, задачи, данные и исходные файлы будут доступны; автоматическое восстановление: 'sudo $APP_ROOT/current/scripts/offline/doctor.sh --repair'." >&2
-  else
-    echo "Системные OCR/PDF/Office компоненты готовы."
-  fi
+
+  [[ -x "$APP_SOURCE/scripts/offline/cache-os-packages.sh" ]] || {
+    echo "Полный bundle не может быть активирован: отсутствует cache-os-packages.sh." >&2
+    exit 23
+  }
+  OS_PACKAGE_CACHE_PATH="$("$APP_SOURCE/scripts/offline/cache-os-packages.sh" "$BUNDLE_ROOT/os-packages")"
+  [[ "$OS_PACKAGE_CACHE_PATH" == /* && -d "$OS_PACKAGE_CACHE_PATH" ]] || {
+    echo "Полный bundle не может быть активирован: verified package cache не создан." >&2
+    exit 23
+  }
+  echo "Системные OCR/PDF/Office компоненты и immutable package cache готовы."
 else
   "$RUNTIME_SOURCE/bin/node" "$APP_SOURCE/scripts/system-preflight.mjs" --strict
 fi
@@ -139,7 +154,12 @@ fi
 STAGING_RELEASE=""; cleanup_staging_release() { [[ -z "$STAGING_RELEASE" ]] || rm -rf "$STAGING_RELEASE"; }; trap cleanup_staging_release EXIT
 if [[ "$REUSE_RELEASE" == false ]]; then
   STAGING_RELEASE="$APP_ROOT/releases/.${RELEASE_ID}.staging.$$"; rm -rf "$STAGING_RELEASE"; mkdir -p "$STAGING_RELEASE"; cp -a "$APP_SOURCE/." "$STAGING_RELEASE/"; mkdir -p "$STAGING_RELEASE/runtime"; cp -a "$RUNTIME_SOURCE" "$STAGING_RELEASE/runtime/node"
-  if [[ "$FULL_BUNDLE" == true ]]; then cp -a "$PYTHON_SOURCE" "$STAGING_RELEASE/runtime/python"; install -m 0644 "$BUNDLE_ROOT/deployment.json" "$STAGING_RELEASE/deployment.json"; fi
+  if [[ "$FULL_BUNDLE" == true ]]; then
+    cp -a "$PYTHON_SOURCE" "$STAGING_RELEASE/runtime/python"
+    install -m 0644 "$BUNDLE_ROOT/deployment.json" "$STAGING_RELEASE/deployment.json"
+    printf '%s\n' "$OS_PACKAGE_CACHE_PATH" > "$STAGING_RELEASE/os-package-cache"
+    chmod 0444 "$STAGING_RELEASE/os-package-cache"
+  fi
   if [[ "$LLM_BUNDLE" == true ]]; then
     mkdir -p "$STAGING_RELEASE/runtime/llama"
     cp -a "$BUNDLE_ROOT/llm/runtime/." "$STAGING_RELEASE/runtime/llama/"
@@ -406,11 +426,7 @@ HEALTH_OK=false
 for _attempt in {1..15}; do if systemctl is-active --quiet "$API_SERVICE" && systemctl is-active --quiet "$WORKER_SERVICE" && health_request; then HEALTH_OK=true; break; fi; sleep 1; done
 if [[ "$HEALTH_OK" != true ]]; then echo "Службы не вышли в рабочее состояние после установки." >&2; journalctl -u "$API_SERVICE" -u "$WORKER_SERVICE" -n 80 --no-pager >&2 || true; false; fi
 if [[ "$FULL_BUNDLE" == true ]]; then
-  if [[ "$DOCUMENT_CAPABILITIES_DEGRADED" == true ]]; then
-    KAFEDRA_DOCTOR_ALLOW_DEGRADED=true KAFEDRA_APPLICATION_DIR="$RELEASE_DIR" KAFEDRA_CONFIG_PATH="$CONFIG_FILE" "$RELEASE_DIR/scripts/offline/doctor.sh"
-  else
-    KAFEDRA_APPLICATION_DIR="$RELEASE_DIR" KAFEDRA_CONFIG_PATH="$CONFIG_FILE" "$RELEASE_DIR/scripts/offline/doctor.sh"
-  fi
+  KAFEDRA_APPLICATION_DIR="$RELEASE_DIR" KAFEDRA_CONFIG_PATH="$CONFIG_FILE" "$RELEASE_DIR/scripts/offline/doctor.sh"
 fi
 trap - ERR
 echo "Установлен релиз $RELEASE_ID (версия $VERSION)"

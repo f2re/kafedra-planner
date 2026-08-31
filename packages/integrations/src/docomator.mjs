@@ -5,6 +5,7 @@ const DEFAULT_PORT = 8080;
 const DEFAULT_TIMEOUT_MS = 6_000;
 const MAX_REMOTE_ITEMS = 1_000;
 const ACCESS_CODE_PATTERN = /^\d{4}$/u;
+const DOCOMATOR_SERVICES = new Set(['api', 'docomator', 'docomator-api']);
 
 export class DocomatorIntegrationError extends Error {
   constructor(code, details = null) {
@@ -62,6 +63,41 @@ export function normalizeDocomatorConnection(input = {}) {
   const port = normalizePort(input.port);
   const baseUrl = `${scheme}://${host}:${port}`;
   return { scheme, host: host.replace(/^\[|\]$/gu, ''), port, baseUrl };
+}
+
+function transportCode(error) {
+  const raw = error?.cause?.code || error?.code || '';
+  const code = String(raw).toUpperCase();
+  return /^[A-Z0-9_]{1,80}$/u.test(code) ? code : null;
+}
+
+export function classifyDocomatorTransportError(error) {
+  const code = transportCode(error);
+  const name = String(error?.name || '');
+  if (code === 'ENOTFOUND' || code === 'EAI_AGAIN') return 'docomator_dns_failed';
+  if (code === 'ECONNREFUSED') return 'docomator_connection_refused';
+  if (
+    name === 'TimeoutError'
+    || name === 'AbortError'
+    || code === 'ETIMEDOUT'
+    || code === 'UND_ERR_CONNECT_TIMEOUT'
+    || code === 'UND_ERR_HEADERS_TIMEOUT'
+    || code === 'UND_ERR_BODY_TIMEOUT'
+  ) return 'docomator_timeout';
+  if (code && /(TLS|SSL|CERT|SELF_SIGNED|UNABLE_TO_VERIFY|CERT_ALTNAME)/u.test(code)) {
+    return 'docomator_tls_failed';
+  }
+  return 'docomator_unreachable';
+}
+
+function transportDetails(error) {
+  const code = transportCode(error);
+  return code ? { transportCode: code } : null;
+}
+
+function assertDocomatorService(payload, path) {
+  const service = String(payload?.service || '').trim().toLowerCase();
+  if (!DOCOMATOR_SERVICES.has(service)) fail('docomator_wrong_service', { path });
 }
 
 function mapSettings(row) {
@@ -175,7 +211,7 @@ async function remoteFetch(connection, path, {
       signal: abortSignal(timeoutMs)
     });
   } catch (error) {
-    fail('docomator_unreachable', { cause: String(error?.message || error) });
+    fail(classifyDocomatorTransportError(error), transportDetails(error));
   }
   const text = await response.text().catch(() => '');
   let payload = null;
@@ -296,14 +332,20 @@ export async function checkDocomatorConnection(input, {
 } = {}) {
   const connection = normalizeDocomatorConnection(input);
   const healthResult = await remoteFetch(connection, '/healthz', { fetchImpl });
-  if (!healthResult.response.ok || healthResult.payload?.status !== 'ok') {
-    fail('docomator_unreachable', {
-      status: healthResult.response.status,
-      message: remoteMessage(healthResult.payload, healthResult.text)
-    });
+  if (!healthResult.response.ok) {
+    fail('docomator_unreachable', { status: healthResult.response.status });
   }
+  assertDocomatorService(healthResult.payload, '/healthz');
+  if (healthResult.payload?.status !== 'ok') {
+    fail('docomator_wrong_service', { path: '/healthz' });
+  }
+
   const readyResult = await remoteFetch(connection, '/readyz', { fetchImpl });
-  const ready = readyResult.response.ok;
+  assertDocomatorService(readyResult.payload, '/readyz');
+  if (!readyResult.response.ok || readyResult.payload?.status !== 'ready') {
+    fail('docomator_not_ready', { status: readyResult.response.status });
+  }
+  const ready = true;
   const remoteVersion = optionalText(healthResult.payload?.version, 80);
   const session = await dataSession(connection, input.accessCode, fetchImpl);
   if (session.authRequired) {
@@ -345,7 +387,7 @@ export async function checkDocomatorConnection(input, {
     reachable: true,
     ready,
     authRequired: false,
-    dataAvailable: ready,
+    dataAvailable: true,
     remoteVersion,
     endpoint: connection.baseUrl,
     spaces: session.spaces,
@@ -491,7 +533,9 @@ export function recordDocomatorCheck(database, workspaceId, input, result, now =
 
 export function recordDocomatorFailure(database, workspaceId, input, error, now = new Date().toISOString()) {
   try { saveDocomatorSettings(database, workspaceId, input, now); } catch {}
-  const message = String(error?.details?.message || error?.message || error).slice(0, 500);
+  const message = error instanceof DocomatorIntegrationError
+    ? error.code
+    : 'docomator_integration_failed';
   try {
     setConnectionState(database, workspaceId, {
       status: 'error',

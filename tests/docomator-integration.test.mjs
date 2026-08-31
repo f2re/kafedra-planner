@@ -8,6 +8,7 @@ import { Database } from '../packages/storage/src/database.mjs';
 import { ensureDefaultWorkspace } from '../packages/storage/src/bootstrap.mjs';
 import {
   checkDocomatorConnection,
+  classifyDocomatorTransportError,
   getDocomatorSettings,
   importDocomatorPeople,
   normalizeDocomatorConnection
@@ -71,12 +72,60 @@ function mockDocomator() {
   };
 }
 
+function transportFailure(code, name = 'TypeError') {
+  const error = new Error('sensitive network detail must not be exposed');
+  error.name = name;
+  if (code) error.cause = { code };
+  return error;
+}
+
 test('адрес Оформлятора нормализуется и проверяется до сетевого запроса', () => {
   assert.deepEqual(normalizeDocomatorConnection({ host: '192.168.10.20' }), {
     scheme: 'http', host: '192.168.10.20', port: 8080, baseUrl: 'http://192.168.10.20:8080'
   });
   assert.throws(() => normalizeDocomatorConnection({ host: 'http://bad/path' }), /docomator_host_invalid/u);
   assert.throws(() => normalizeDocomatorConnection({ host: 'server', port: 70000 }), /docomator_port_invalid/u);
+});
+
+test('transport failures receive stable safe diagnostic categories', async () => {
+  const cases = [
+    ['ENOTFOUND', 'TypeError', 'docomator_dns_failed'],
+    ['EAI_AGAIN', 'TypeError', 'docomator_dns_failed'],
+    ['ECONNREFUSED', 'TypeError', 'docomator_connection_refused'],
+    ['ETIMEDOUT', 'TypeError', 'docomator_timeout'],
+    ['UND_ERR_CONNECT_TIMEOUT', 'TypeError', 'docomator_timeout'],
+    ['CERT_HAS_EXPIRED', 'TypeError', 'docomator_tls_failed'],
+    ['ERR_TLS_CERT_ALTNAME_INVALID', 'TypeError', 'docomator_tls_failed'],
+    [null, 'TimeoutError', 'docomator_timeout'],
+    ['EHOSTUNREACH', 'TypeError', 'docomator_unreachable']
+  ];
+  for (const [code, name, expected] of cases) {
+    const error = transportFailure(code, name);
+    assert.equal(classifyDocomatorTransportError(error), expected);
+    await assert.rejects(
+      checkDocomatorConnection({ host: 'docomator.local' }, { fetchImpl: async () => { throw error; } }),
+      (caught) => caught?.code === expected && !String(caught?.details || '').includes('sensitive network detail')
+    );
+  }
+});
+
+test('проверка отличает чужой HTTP-сервис и неготовый Оформлятор', async () => {
+  await assert.rejects(
+    checkDocomatorConnection({ host: 'docomator.local' }, {
+      fetchImpl: async () => json({ service: 'prometheus', status: 'ok' })
+    }),
+    (error) => error?.code === 'docomator_wrong_service'
+  );
+
+  const notReady = async (url) => {
+    const path = new URL(url).pathname;
+    if (path === '/healthz') return json({ service: 'api', status: 'ok' });
+    return json({ service: 'api', status: 'starting' }, 503);
+  };
+  await assert.rejects(
+    checkDocomatorConnection({ host: 'docomator.local' }, { fetchImpl: notReady }),
+    (error) => error?.code === 'docomator_not_ready'
+  );
 });
 
 test('проверка различает доступность сервера, PIN и доступность списка сотрудников', async () => {
@@ -86,6 +135,11 @@ test('проверка различает доступность сервера,
   assert.equal(locked.ready, true);
   assert.equal(locked.authRequired, true);
   assert.equal(locked.dataAvailable, false);
+
+  await assert.rejects(
+    checkDocomatorConnection({ host: 'docomator.local', port: 8080, accessCode: '9999' }, { fetchImpl: remote.fetchImpl }),
+    (error) => error?.code === 'docomator_access_denied'
+  );
 
   const checked = await checkDocomatorConnection({
     host: 'docomator.local', port: 8080, accessCode: '1234', spaceId: 'space-1', groupId: 'group-1'

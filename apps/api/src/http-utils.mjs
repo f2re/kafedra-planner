@@ -4,6 +4,22 @@ import { extname, join, normalize } from 'node:path';
 import { pipeline } from 'node:stream/promises';
 import { AppError } from '../../../packages/core/src/errors.mjs';
 
+const IDEMPOTENCY_KEY_PATTERN = /^[\x21-\x7e]{1,96}$/u;
+
+export const PUBLIC_SERVER_ERROR_CODES = new Set([
+  'docomator_dns_failed',
+  'docomator_dns_error',
+  'docomator_connection_refused',
+  'docomator_timeout',
+  'docomator_tls_failed',
+  'docomator_tls_error',
+  'docomator_wrong_service',
+  'docomator_not_ready',
+  'docomator_unreachable',
+  'docomator_remote_error',
+  'docomator_protocol_error'
+]);
+
 const staticTypes = new Map([
   ['.html', 'text/html; charset=utf-8'],
   ['.js', 'text/javascript; charset=utf-8'],
@@ -29,10 +45,14 @@ export function sendJson(response, status, value, headers = {}) {
 
 export function sendError(response, error, requestId) {
   const status = error instanceof AppError ? error.status : 500;
+  const safeServerError = status >= 500
+    && error instanceof AppError
+    && PUBLIC_SERVER_ERROR_CODES.has(error.code);
+  const expose = status < 500 || safeServerError;
   sendJson(response, status, {
     error: {
-      code: error.code || 'internal_error',
-      message: status >= 500 ? 'Внутренняя ошибка сервера.' : error.message,
+      code: expose ? (error.code || 'internal_error') : 'internal_error',
+      message: expose ? error.message : 'Внутренняя ошибка сервера.',
       details: status >= 500 ? undefined : error.details,
       requestId
     }
@@ -182,6 +202,17 @@ export async function serveStatic(response, publicDir, pathname) {
 
 export function requireHeader(request, name, message) {
   const value = request.headers[name.toLowerCase()];
-  if (typeof value !== 'string' || !value.trim()) throw new AppError('required_header_missing', message, 400, { header: name });
-  return value.trim();
+  if (typeof value !== 'string' || !value.trim()) {
+    throw new AppError('required_header_missing', message, 400, { header: name });
+  }
+  const result = value.trim();
+  if (name.toLowerCase() === 'idempotency-key' && !IDEMPOTENCY_KEY_PATTERN.test(result)) {
+    throw new AppError(
+      'invalid_idempotency_key',
+      'Ключ повторной операции должен быть коротким ASCII-значением без пробелов и управляющих символов.',
+      400,
+      { header: name, maxBytes: 96 }
+    );
+  }
+  return result;
 }

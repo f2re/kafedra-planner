@@ -1,0 +1,192 @@
+<GraceChangePlan graceVersion="4.0" status="approved">
+  <C-DOCUMENT-RUNTIME-RELIABILITY-235>
+    <IntentSummary>Deliver one governed vertical repair for document runtime readiness, Docomator diagnostics and Unicode-safe upload transport, with strict target activation, preserved provenance, responsive inline errors and release-grade regression evidence.</IntentSummary>
+    <BaselineAssertions>
+      <MustExist><Value>config/offline/os-packages.txt</Value></MustExist>
+      <MustExist><Value>deploy/install.sh</Value></MustExist>
+      <MustExist><Value>deploy/install-core.sh</Value></MustExist>
+      <MustExist><Value>scripts/offline/install-os-packages.sh</Value></MustExist>
+      <MustExist><Value>scripts/offline/doctor.sh</Value></MustExist>
+      <MustExist><Value>scripts/recognition/ocr.py</Value></MustExist>
+      <MustExist><Value>packages/integrations/src/docomator.mjs</Value></MustExist>
+      <MustExist><Value>apps/api/src/http-utils.mjs</Value></MustExist>
+      <MustExist><Value>public/ux-next.js</Value></MustExist>
+      <MustExist><Value>public/auth-next.js</Value></MustExist>
+      <MustContain><File>config/offline/os-packages.txt</File><Text>tesseract-ocr-rus</Text></MustContain>
+      <MustContain><File>deploy/install-core.sh</File><Text>DOCUMENT_CAPABILITIES_DEGRADED=true</Text></MustContain>
+      <MustContain><File>deploy/install-core.sh</File><Text>KAFEDRA_DOCTOR_ALLOW_DEGRADED=true</Text></MustContain>
+      <MustContain><File>scripts/offline/doctor.sh</File><Text>if [[ -d "$ROOT/os-packages" ]]</Text></MustContain>
+      <MustContain><File>public/auth-next.js</File><Text>const headers = new Headers</Text></MustContain>
+      <MustContain><File>apps/api/src/http-utils.mjs</File><Text>status &gt;= 500 ? 'Внутренняя ошибка сервера.'</Text></MustContain>
+      <MustVerify><Module>M-API</Module></MustVerify>
+      <MustVerify><Module>M-OFFLINE-BUNDLE</Module></MustVerify>
+      <MustVerify><Module>M-DESIGN-GOVERNANCE</Module></MustVerify>
+      <MustVerify><Module>M-CI-GATE</Module></MustVerify>
+      <MustPassCommand><Command>node --test tests/docomator-integration.test.mjs tests/offline-package-policy.test.mjs tests/deploy-install-contract.test.mjs tests/deployment-flow.test.mjs</Command></MustPassCommand>
+      <MustPassCommand><Command>npm run check</Command></MustPassCommand>
+      <MustPassCommand><Command>npm run docs:check</Command></MustPassCommand>
+    </BaselineAssertions>
+    <TargetAssertions>
+      <MustExist><Value>public/http-headers.js</Value></MustExist>
+      <MustExist><Value>scripts/offline/cache-os-packages.sh</Value></MustExist>
+      <MustExist><Value>tests/http-headers.test.mjs</Value></MustExist>
+      <MustExist><Value>tests/http-utils.test.mjs</Value></MustExist>
+      <MustExist><Value>tests/browser/unicode-upload-headers.spec.mjs</Value></MustExist>
+      <MustExist><Value>.grace/changes/active/C-DOCUMENT-RUNTIME-RELIABILITY-235/design-audit.md</Value></MustExist>
+      <MustContain><File>public/http-headers.js</File><Text>kp-v1-</Text></MustContain>
+      <MustContain><File>public/http-headers.js</File><Text>sha256HexUtf8</Text></MustContain>
+      <MustContain><File>public/ux-next.js</File><Text>installUnicodeSafeHeaders</Text></MustContain>
+      <MustContain><File>apps/api/src/http-utils.mjs</File><Text>PUBLIC_SERVER_ERROR_CODES</Text></MustContain>
+      <MustContain><File>packages/integrations/src/docomator.mjs</File><Text>docomator_dns_failed</Text></MustContain>
+      <MustContain><File>packages/integrations/src/docomator.mjs</File><Text>docomator_connection_refused</Text></MustContain>
+      <MustContain><File>packages/integrations/src/docomator.mjs</File><Text>docomator_timeout</Text></MustContain>
+      <MustContain><File>packages/integrations/src/docomator.mjs</File><Text>docomator_tls_failed</Text></MustContain>
+      <MustContain><File>packages/integrations/src/docomator.mjs</File><Text>docomator_wrong_service</Text></MustContain>
+      <MustContain><File>packages/integrations/src/docomator.mjs</File><Text>docomator_not_ready</Text></MustContain>
+      <MustContain><File>scripts/offline/cache-os-packages.sh</File><Text>KAFEDRA_OS_PACKAGE_CACHE_ROOT</Text></MustContain>
+      <MustContain><File>deploy/install-core.sh</File><Text>cache-os-packages.sh</Text></MustContain>
+      <MustContain><File>deploy/install-core.sh</File><Text>Полный bundle не может быть активирован</Text></MustContain>
+      <MustContain><File>scripts/offline/doctor.sh</File><Text>os-package-cache</Text></MustContain>
+      <MustContain><File>scripts/recognition/ocr.py</File><Text>smoke_tesseract</Text></MustContain>
+      <MustContain><File>scripts/recognition/ocr.py</File><Text>smoke_pdf</Text></MustContain>
+      <MustContain><File>docs/OFFLINE_INSTALL.md</File><Text>full bundle не активируется</Text></MustContain>
+      <MustContain><File>docs/DOCOMATOR_PEOPLE_IMPORT.md</File><Text>docomator_dns_failed</Text></MustContain>
+      <MustPassCommand><Command>node --test tests/http-headers.test.mjs tests/http-utils.test.mjs tests/docomator-integration.test.mjs tests/offline-package-policy.test.mjs tests/deploy-install-contract.test.mjs tests/deployment-flow.test.mjs</Command></MustPassCommand>
+      <MustPassCommand><Command>bash -n scripts/offline/*.sh deploy/install.sh deploy/install-core.sh</Command></MustPassCommand>
+      <MustPassCommand><Command>python3 -m py_compile scripts/recognition/ocr.py</Command></MustPassCommand>
+      <MustPassCommand><Command>npm run check</Command></MustPassCommand>
+      <MustPassCommand><Command>npm run docs:check</Command></MustPassCommand>
+      <MustPassCommand><Command>npm test</Command></MustPassCommand>
+      <MustPassCommand><Command>npx playwright test tests/browser/docomator-integration.spec.mjs tests/browser/unicode-upload-headers.spec.mjs</Command></MustPassCommand>
+    </TargetAssertions>
+    <DurableScope>
+      <GraphAnchors>
+        <M-API />
+        <M-DESIGN-GOVERNANCE />
+        <M-MOTION-KB />
+        <M-OFFLINE-BUNDLE />
+        <M-CI-GATE />
+        <DF-GRACE-BRANCH />
+        <DF-DESIGN-CHANGE />
+      </GraphAnchors>
+      <VerificationAnchors>
+        <V-M-API />
+        <V-M-DESIGN-GOVERNANCE />
+        <V-M-MOTION-KB />
+        <V-M-OFFLINE-BUNDLE />
+        <V-M-CI-GATE />
+      </VerificationAnchors>
+      <ContextArtifacts>
+        <ContextArtifact>principles.xml</ContextArtifact>
+        <ContextArtifact>deployment.xml</ContextArtifact>
+        <ContextArtifact>ux-guidelines.xml</ContextArtifact>
+      </ContextArtifacts>
+    </DurableScope>
+    <ObservedWriteScope>
+      <Glob>.grace/changes/active/C-DOCUMENT-RUNTIME-RELIABILITY-235/**</Glob>
+      <File>public/http-headers.js</File>
+      <File>public/ux-next.js</File>
+      <File>apps/api/src/http-utils.mjs</File>
+      <File>apps/api/src/docomator-integration-router.mjs</File>
+      <File>packages/integrations/src/docomator.mjs</File>
+      <File>packages/integrations/src/docomator-fields.mjs</File>
+      <File>scripts/offline/cache-os-packages.sh</File>
+      <File>scripts/offline/doctor.sh</File>
+      <File>scripts/offline/build-full-bundle.sh</File>
+      <File>scripts/recognition/ocr.py</File>
+      <File>deploy/install-core.sh</File>
+      <File>deploy/install.sh</File>
+      <File>docs/OCR_AND_PREVIEW.md</File>
+      <File>docs/OFFLINE_INSTALL.md</File>
+      <File>docs/DOCOMATOR_PEOPLE_IMPORT.md</File>
+      <File>tests/http-headers.test.mjs</File>
+      <File>tests/http-utils.test.mjs</File>
+      <File>tests/docomator-integration.test.mjs</File>
+      <File>tests/offline-package-policy.test.mjs</File>
+      <File>tests/deploy-install-contract.test.mjs</File>
+      <File>tests/deployment-flow.test.mjs</File>
+      <File>tests/browser/docomator-integration.spec.mjs</File>
+      <File>tests/browser/unicode-upload-headers.spec.mjs</File>
+    </ObservedWriteScope>
+    <ImplementationPlan>
+      <T-001>
+        <Title>kafedra-flow-intake: fix the install, repair, upload and integration state model</Title>
+        <DependsOn></DependsOn>
+        <AcceptanceCriteria>
+          <Criterion>The full-profile path has explicit preflight, package preparation, smoke, activation, repair and rollback states; no state is named ready while OCR is blocked.</Criterion>
+          <Criterion>Unicode upload normalization is invisible to the operator and preserves the source name, while Docomator errors retain entered connection context and offer one clear correction.</Criterion>
+          <Criterion>Partial Docomator failure never blocks local structure management and package failure never damages the previously active release.</Criterion>
+        </AcceptanceCriteria>
+        <Verification><Command>npm run docs:check</Command></Verification>
+      </T-001>
+      <T-002>
+        <Title>kafedra-design: specify stable inline diagnostics for desktop and mobile</Title>
+        <DependsOn><T-001 /></DependsOn>
+        <AcceptanceCriteria>
+          <Criterion>Protocol, host, port, access code, check action, endpoint and status remain in a stable card; failures use an inline status and no modal.</Criterion>
+          <Criterion>Desktop and mobile preserve focus, readable wrapping and tap targets; access code and dangerous transport state are never-learn controls.</Criterion>
+          <Criterion>No visual control is added for transport hashing because the user should only observe a successful upload.</Criterion>
+        </AcceptanceCriteria>
+        <Verification><Command>npm run design:check</Command></Verification>
+      </T-002>
+      <T-003>
+        <Title>kafedra-motion: apply no-motion to failures and transport normalization</Title>
+        <DependsOn><T-002 /></DependsOn>
+        <AcceptanceCriteria>
+          <Criterion>Error appearance, upload header normalization and full-install rejection use no-motion; meaning never depends on animation.</Criterion>
+          <Criterion>Existing busy-state feedback may use a restrained short transition, and prefers-reduced-motion removes all nonessential transitions.</Criterion>
+        </AcceptanceCriteria>
+        <Verification><Command>npm run design:check</Command></Verification>
+      </T-003>
+      <T-004>
+        <Title>kafedra-data: preserve source identity and define immutable package-cache authority</Title>
+        <DependsOn><T-003 /></DependsOn>
+        <AcceptanceCriteria>
+          <Criterion>No schema change is required; Unicode source names, bytes, hashes, document versions and evidence remain authoritative and unchanged.</Criterion>
+          <Criterion>The cache identity derives from verified target profile and manifest digest, is copied atomically and is safe to reuse after interruption.</Criterion>
+          <Criterion>Repeated repair and repeated request canonicalization are deterministic and idempotent.</Criterion>
+        </AcceptanceCriteria>
+        <Verification><Command>node --test tests/http-headers.test.mjs tests/offline-package-policy.test.mjs</Command></Verification>
+      </T-004>
+      <T-005>
+        <Title>kafedra-feature: implement strict full activation, safe Docomator errors and Unicode headers</Title>
+        <DependsOn><T-004 /></DependsOn>
+        <AcceptanceCriteria>
+          <Criterion>The installer caches and verifies the target payload, installs missing packages, runs real smoke checks and refuses the full release before staging when any required document capability remains unavailable.</Criterion>
+          <Criterion>Repair discovers the retained payload and runs before strict acceptance; unknown server failures remain private while classified Docomator failures remain actionable.</Criterion>
+          <Criterion>One imported browser helper normalizes raw idempotency values before native Headers construction and fetch, without changing callers or source metadata.</Criterion>
+        </AcceptanceCriteria>
+        <Verification><Command>node --test tests/http-headers.test.mjs tests/http-utils.test.mjs tests/docomator-integration.test.mjs</Command><Command>bash -n scripts/offline/*.sh deploy/install.sh deploy/install-core.sh</Command><Command>python3 -m py_compile scripts/recognition/ocr.py</Command></Verification>
+      </T-005>
+      <T-006>
+        <Title>kafedra-design-audit: independently inspect implemented errors, focus and responsive stability</Title>
+        <DependsOn><T-005 /></DependsOn>
+        <AcceptanceCriteria>
+          <Criterion>The audit records pass or actionable findings for actual desktop, mobile, keyboard and reduced-motion behavior and verifies that the implementation matches design.md and motion.md.</Criterion>
+          <Criterion>No blocker or major finding remains unresolved before tests are declared final.</Criterion>
+        </AcceptanceCriteria>
+        <Verification><Command>npm run design:check</Command></Verification>
+      </T-006>
+      <T-007>
+        <Title>kafedra-tests: cover Unicode, classified gateway failures and strict package recovery</Title>
+        <DependsOn><T-006 /></DependsOn>
+        <AcceptanceCriteria>
+          <Criterion>Unit and integration tests cover synchronous UTF-8 SHA-256, canonical stability, Header shapes, safe error serialization, network categories, wrong service and not-ready responses.</Criterion>
+          <Criterion>Playwright verifies desktop and mobile inline failure and Unicode request construction; deployment tests verify strict full activation and retained repair payload contracts.</Criterion>
+          <Criterion>Focused tests and the complete project test suite pass without mocks in production code.</Criterion>
+        </AcceptanceCriteria>
+        <Verification><Command>npm test</Command><Command>npx playwright test tests/browser/docomator-integration.spec.mjs tests/browser/unicode-upload-headers.spec.mjs</Command></Verification>
+      </T-007>
+      <T-008>
+        <Title>kafedra-release: prove exact-target offline install, rollback and exact-head CI</Title>
+        <DependsOn><T-007 /></DependsOn>
+        <AcceptanceCriteria>
+          <Criterion>The Debian full bundle and systemd target test complete with strict OCR, Poppler and LibreOffice acceptance; no degraded full install is accepted.</Criterion>
+          <Criterion>Backup, update, repeated install, interruption recovery and rollback remain green, and documentation states that Astra requires its own matching reference build.</Criterion>
+          <Criterion>GRACE final and every required exact-head project check are green before squash merge; post-merge checks precede a separate archive-only applied transition.</Criterion>
+        </AcceptanceCriteria>
+        <Verification><Command>npm run check</Command><Command>npm run docs:check</Command><Command>npm test</Command></Verification>
+      </T-008>
+    </ImplementationPlan>
+  </C-DOCUMENT-RUNTIME-RELIABILITY-235>
+</GraceChangePlan>
