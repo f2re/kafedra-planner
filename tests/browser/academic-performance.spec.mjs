@@ -65,8 +65,9 @@ test('Успеваемость: ячейки метаполей → ручная
   await expect(page.getByRole('heading', { name: 'Группа ИВТ-31' })).toBeVisible();
   await expect(page.locator('.academic-metadata-strip')).toContainText('введено вручную');
   await expect(page.locator('.academic-metadata-strip')).toContainText('B1');
-  await expect(page.locator('.academic-summary-table')).toContainText('Математика');
-  await expect(page.locator('.academic-summary-table')).toContainText('Физика');
+  const groupSummary = page.locator('.academic-summary-table:not(.academic-totals-table)');
+  await expect(groupSummary).toContainText('Математика');
+  await expect(groupSummary).toContainText('Физика');
   const totalSelector = page.locator('[data-academic-total-import]');
   await expect(totalSelector).toHaveCount(1);
   await expect(totalSelector).toBeChecked();
