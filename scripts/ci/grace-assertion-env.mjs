@@ -4,6 +4,7 @@ import { resolve } from 'node:path';
 import { pathToFileURL } from 'node:url';
 
 const CHANGE_ID_PATTERN = /^C-[A-Z0-9](?:[A-Z0-9-]*[A-Z0-9])?$/u;
+const PLAYWRIGHT_COMMAND_MARKER = 'playwright test';
 
 function decodeXml(value) {
   return String(value)
@@ -24,6 +25,8 @@ export function extractCommandTexts(planXml) {
 
 export function commandNeedsPlaywright(command) {
   const normalized = String(command || '').replace(/\\\s*\n/gu, ' ').trim();
+  const lower = normalized.toLowerCase();
+  if (lower === PLAYWRIGHT_COMMAND_MARKER || lower.startsWith(`${PLAYWRIGHT_COMMAND_MARKER} `)) return true;
   const segments = normalized.split(/[;&|()"']/u).map((value) => value.trim()).filter(Boolean);
   return segments.some((segment) =>
     /^(?:[A-Z_][A-Z0-9_]*=\S+\s+)*(?:npx\s+(?:--yes\s+)?(?:playwright(?:@[\w.-]+)?\s+)?|)playwright\s+test(?:\s|$)/iu.test(segment)
