@@ -35,7 +35,7 @@ jobs:
           node-version-file: target/.nvmrc
           cache: npm
           cache-dependency-path: target/package-lock.json
-      - name: Apply prepared non-workflow patch
+      - name: Recover and apply prepared non-workflow patch
         shell: bash
         run: |
           set -Eeuo pipefail
@@ -49,7 +49,14 @@ jobs:
           payload += '=' * (-len(payload) % 4)
           Path('/tmp/release-040-nonworkflow.patch.gz').write_bytes(base64.urlsafe_b64decode(payload))
           PY
+          set +e
           gzip --decompress --stdout /tmp/release-040-nonworkflow.patch.gz > /tmp/release-040-nonworkflow.patch
+          gzip_status=$?
+          set -e
+          printf 'gzip_status=%s compressed_bytes=%s patch_bytes=%s\n' \
+            "$gzip_status" \
+            "$(wc -c < /tmp/release-040-nonworkflow.patch.gz)" \
+            "$(wc -c < /tmp/release-040-nonworkflow.patch)"
           git -C target apply --check /tmp/release-040-nonworkflow.patch
           git -C target apply /tmp/release-040-nonworkflow.patch
           git -C target diff --check
@@ -57,6 +64,16 @@ jobs:
             echo 'Non-workflow patch attempted to modify workflow files' >&2
             exit 1
           fi
+      - name: Upload recovered patch
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: release-040-recovered-nonworkflow-patch
+          path: |
+            /tmp/release-040-nonworkflow.patch
+            /tmp/release-040-nonworkflow.patch.gz
+          retention-days: 1
+          if-no-files-found: warn
       - name: Verify complete release source
         working-directory: target
         shell: bash
