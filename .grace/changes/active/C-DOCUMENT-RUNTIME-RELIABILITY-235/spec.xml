@@ -1,0 +1,72 @@
+<GraceChangeSpec graceVersion="4.0" status="approved">
+  <C-DOCUMENT-RUNTIME-RELIABILITY-235>
+    <Summary>Restore the operational document path on Debian and Astra Linux: a full bundle must deliver verified OCR or refuse activation, Docomator failures must remain safely diagnosable, and every browser upload must accept Unicode file names without constructing invalid HTTP headers.</Summary>
+    <Problem>The published 0.4.0 code declares Tesseract, Russian and English language data, Poppler and LibreOffice in its full package profile, but the installer treats a non-mutating package failure as an acceptable degraded full deployment, does not persist the package payload beside the installed system, and runs strict checks before the repair branch can repair anything. A target can therefore activate a release without OCR and later have no local payload available for recovery. In parallel, controlled Docomator gateway failures are converted by the generic HTTP error serializer into an indistinguishable internal-server message, while browser code can pass an idempotency key containing a raw Cyrillic file name into the native Headers constructor before the existing fetch wrapper normalizes it.</Problem>
+    <Goals>
+      <Goal>Make the full offline profile fail closed before application staging or current-switch when its exact target package layer cannot provide Tesseract, rus and eng language data, Poppler, LibreOffice and a real OCR smoke result.</Goal>
+      <Goal>Persist a verified immutable copy of the target package payload in an installer-owned local cache so a later root repair can use it without Internet access or an original removable medium.</Goal>
+      <Goal>Reorder repair diagnostics so missing document capabilities can actually be repaired before strict acceptance is evaluated, while preserving additive-only APT, no automatic fix-broken and rollback safety.</Goal>
+      <Goal>Classify DNS, refused connection, timeout, TLS, wrong-service, not-ready, access and protocol failures from Docomator and expose only predetermined safe operational messages to the administrator.</Goal>
+      <Goal>Introduce one synchronous deterministic UTF-8 SHA-256 normalization path for idempotency header values before any native Headers construction, while preserving the original Unicode document name and immutable source metadata.</Goal>
+      <Goal>Prove desktop and mobile behavior, keyboard/focus continuity, repeated uploads, offline installation and exact-target rejection without adding runtime dependencies or a schema migration.</Goal>
+    </Goals>
+    <Constraints>
+      <Constraint>The verified base is main commit e5367b5423a9b14b1b81c8083ff1e96aee793f03 with tree 4c3b27197b15813bc7ff11b8e4e380c0c5b389a5.</Constraint>
+      <Constraint>Issue 235 is the authoritative user scenario and acceptance record; issue 234 is the operational repair umbrella.</Constraint>
+      <Constraint>Only one active GRACE change may exist. Plan and meeting corrections in issues 236 and 237 remain queued until this change is merged, post-merge verified and archived as applied.</Constraint>
+      <Constraint>No applied migration is edited and no new migration is introduced by this change.</Constraint>
+      <Constraint>Full-bundle strictness must not make OCR, LibreOffice, Docomator, Internet or an LLM mandatory for development, runtime-only bundles or the deterministic calendar and task core.</Constraint>
+      <Constraint>An Astra package payload must be produced on a matching Astra reference series and architecture. A Debian package closure must never be represented as an Astra artifact.</Constraint>
+      <Constraint>APT operations remain additive-only: no package version pinning on target, downgrade, upgrade of an installed package, removal, allow-downgrades or automatic fix-broken.</Constraint>
+      <Constraint>Raw network causes, stack traces, cookies, access codes and remote response bodies are not public error details.</Constraint>
+      <Constraint>The original file name, document bytes, SHA-256, document version and evidence locators remain unchanged; only the transport idempotency identity is canonicalized.</Constraint>
+      <Constraint>No new npm, Python or system runtime dependency may be added beyond the document packages already declared in the target package profile.</Constraint>
+    </Constraints>
+    <NonGoals>
+      <NonGoal>Publish or overwrite a release asset from this implementation PR.</NonGoal>
+      <NonGoal>Build Astra packages on GitHub-hosted Debian runners or claim Astra acceptance without a matching reference target.</NonGoal>
+      <NonGoal>Scan the local network or probe alternative Docomator ports automatically.</NonGoal>
+      <NonGoal>Make Docomator required for local staff management.</NonGoal>
+      <NonGoal>Change plan filtering, reversible plan-row decisions, meeting identity or meeting-template repetition; those are governed by issues 236 and 237.</NonGoal>
+      <NonGoal>Physically remove a source document or rewrite its provenance.</NonGoal>
+    </NonGoals>
+    <AcceptanceCriteria>
+      <Criterion>A full target bundle whose package step cannot produce an additive-only compatible plan exits before staging a new release, changing current, migrating SQLite or stopping the previously working application for an extended operation.</Criterion>
+      <Criterion>A successful full installation records a verified immutable package payload in the installer cache and the cache can be reused idempotently by doctor repair without the original bundle.</Criterion>
+      <Criterion>The normal full-profile doctor requires Tesseract, requested rus and eng languages, pdftoppm, pdftotext, LibreOffice, a real Tesseract TSV smoke and a Poppler PDF-render smoke.</Criterion>
+      <Criterion>Repair evaluates package health and installs missing capabilities before executing strict doctor; an unrepaired state returns non-zero and never reports the system as fully ready.</Criterion>
+      <Criterion>Package cache writes are atomic, profile checked, checksum verified and never mutate an existing payload with a different manifest.</Criterion>
+      <Criterion>Docomator DNS, refused connection, timeout, TLS, wrong-service and not-ready failures have distinct stable codes and concise Russian messages, while unknown 5xx errors remain masked as an internal server error.</Criterion>
+      <Criterion>The access code is not persisted or echoed, and public 5xx error responses omit low-level details even for safely classified operational errors.</Criterion>
+      <Criterion>The UI keeps host, protocol, port and current access-code input available after a failed check, renders an inline status rather than a modal, and remains usable by keyboard on desktop and mobile.</Criterion>
+      <Criterion>Every raw idempotency header value is converted synchronously to a bounded ASCII kp-v1 SHA-256 identity before a native Headers constructor sees it; a value already in canonical form is stable.</Criterion>
+      <Criterion>Cyrillic, mixed-script, emoji and long file names reach the upload request without a ByteString exception, and repeating the same input produces the same idempotency value without changing the preserved source name.</Criterion>
+      <Criterion>Focused unit, integration, shell syntax, Python compilation, Playwright desktop/mobile, systemd full-offline, backup and project regression gates pass on one exact head.</Criterion>
+      <Criterion>GRACE final, project CI, release gate, database gate, browser gate and full-offline gate are successful before exact-head squash merge; post-merge CI is successful before the separate archive-only terminal transition.</Criterion>
+    </AcceptanceCriteria>
+    <AffectedAreas>
+      <M-API />
+      <M-DESIGN-GOVERNANCE />
+      <M-MOTION-KB />
+      <M-OFFLINE-BUNDLE />
+      <M-CI-GATE />
+    </AffectedAreas>
+    <VerificationIntent>
+      <ExpectedCommand>node --test tests/http-headers.test.mjs tests/http-utils.test.mjs tests/docomator-integration.test.mjs tests/offline-package-policy.test.mjs tests/deploy-install-contract.test.mjs tests/deployment-flow.test.mjs</ExpectedCommand>
+      <ExpectedCommand>bash -n scripts/offline/*.sh deploy/install.sh deploy/install-core.sh</ExpectedCommand>
+      <ExpectedCommand>python3 -m py_compile scripts/recognition/ocr.py</ExpectedCommand>
+      <ExpectedCommand>npm run check</ExpectedCommand>
+      <ExpectedCommand>npm run docs:check</ExpectedCommand>
+      <ExpectedCommand>npm test</ExpectedCommand>
+      <ExpectedCommand>npx playwright test tests/browser/docomator-integration.spec.mjs tests/browser/unicode-upload-headers.spec.mjs</ExpectedCommand>
+      <ExpectedCommand>grace lint --path . --change C-DOCUMENT-RUNTIME-RELIABILITY-235 --assertions final --run-commands</ExpectedCommand>
+      <ExpectedEvidence>The exact branch head shows strict full-profile activation, an immutable repair payload, real document smoke checks, safe classified integration errors and Unicode-safe requests while the deterministic core remains independent of all optional integrations.</ExpectedEvidence>
+    </VerificationIntent>
+    <Assumptions>
+      <Assumption>The current target screenshot is consistent with the existing degraded full-install branch: Tesseract is absent, rus and eng are missing and doctor reports command_not_found while API and worker remain active.</Assumption>
+      <Assumption>The 0.4.0 GitHub release contains a Debian 12 amd64 package closure; it is not a matching Astra package asset.</Assumption>
+      <Assumption>The existing outer transaction installer can restore the previous current, services, config and backup when the inner installer exits non-zero.</Assumption>
+      <Assumption>The existing immutable document store already preserves Unicode source names and hashes independently from the transport idempotency key.</Assumption>
+    </Assumptions>
+  </C-DOCUMENT-RUNTIME-RELIABILITY-235>
+</GraceChangeSpec>
