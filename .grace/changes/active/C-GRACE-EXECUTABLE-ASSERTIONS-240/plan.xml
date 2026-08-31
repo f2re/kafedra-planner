@@ -1,0 +1,96 @@
+<GraceChangePlan graceVersion="4.0" status="approved">
+  <C-GRACE-EXECUTABLE-ASSERTIONS-240>
+    <IntentSummary>Make GRACE executable assertions reproducible by installing locked project dependencies and conditionally preparing Chromium before selected baseline or final commands run.</IntentSummary>
+    <BaselineAssertions>
+      <MustExist><Value>.github/workflows/grace.yml</Value></MustExist>
+      <MustExist><Value>package-lock.json</Value></MustExist>
+      <MustExist><Value>playwright.config.mjs</Value></MustExist>
+      <MustExist><Value>tests/grace-governance.test.mjs</Value></MustExist>
+      <MustContain><File>.github/workflows/grace.yml</File><Text>Install pinned GRACE CLI</Text></MustContain>
+      <MustContain><File>.github/workflows/grace.yml</File><Text>Run selected GRACE assertion gate</Text></MustContain>
+      <MustVerify><Module>M-GRACE-GOVERNANCE</Module></MustVerify>
+      <MustVerify><Module>M-CI-GATE</Module></MustVerify>
+      <MustPassCommand><Command>node --test tests/grace-governance.test.mjs</Command></MustPassCommand>
+    </BaselineAssertions>
+    <TargetAssertions>
+      <MustExist><Value>scripts/ci/grace-assertion-env.mjs</Value></MustExist>
+      <MustExist><Value>tests/grace-assertion-env.test.mjs</Value></MustExist>
+      <MustContain><File>.github/workflows/grace.yml</File><Text>npm ci --ignore-scripts --no-audit --no-fund</Text></MustContain>
+      <MustContain><File>.github/workflows/grace.yml</File><Text>Install Chromium for approved browser assertions</Text></MustContain>
+      <MustContain><File>.github/workflows/grace.yml</File><Text>steps.assertion_env.outputs.playwright == 'true'</Text></MustContain>
+      <MustContain><File>scripts/ci/grace-assertion-env.mjs</File><Text>playwright test</Text></MustContain>
+      <MustContain><File>scripts/ci/grace-assertion-env.mjs</File><Text>GITHUB_OUTPUT</Text></MustContain>
+      <MustContain><File>docs/GRACE_GOVERNANCE.md</File><Text>Executable assertion environment</Text></MustContain>
+      <MustVerify><Module>M-GRACE-GOVERNANCE</Module></MustVerify>
+      <MustVerify><Module>M-CI-GATE</Module></MustVerify>
+      <MustPassCommand><Command>node --test tests/grace-assertion-env.test.mjs</Command></MustPassCommand>
+      <MustPassCommand><Command>npm run check</Command></MustPassCommand>
+      <MustPassCommand><Command>npm run docs:check</Command></MustPassCommand>
+    </TargetAssertions>
+    <DurableScope>
+      <GraphAnchors>
+        <M-GRACE-GOVERNANCE />
+        <M-CI-GATE />
+        <DF-GRACE-BRANCH />
+      </GraphAnchors>
+      <VerificationAnchors>
+        <V-M-GRACE-GOVERNANCE />
+        <V-M-CI-GATE />
+      </VerificationAnchors>
+      <ContextArtifacts>
+        <ContextArtifact>principles.xml</ContextArtifact>
+        <ContextArtifact>technology.xml</ContextArtifact>
+        <ContextArtifact>deployment.xml</ContextArtifact>
+      </ContextArtifacts>
+    </DurableScope>
+    <ObservedWriteScope>
+      <Glob>.grace/changes/active/C-GRACE-EXECUTABLE-ASSERTIONS-240/**</Glob>
+      <File>.github/workflows/grace.yml</File>
+      <File>scripts/ci/grace-assertion-env.mjs</File>
+      <File>tests/grace-assertion-env.test.mjs</File>
+      <File>docs/GRACE_GOVERNANCE.md</File>
+    </ObservedWriteScope>
+    <ImplementationPlan>
+      <T-001>
+        <Title>kafedra-release: define the executable assertion preparation contract</Title>
+        <DependsOn></DependsOn>
+        <AcceptanceCriteria>
+          <Criterion>Only selected baseline and final change gates prepare project dependencies.</Criterion>
+          <Criterion>The selected active plan is the sole authority for whether a browser runtime is needed.</Criterion>
+          <Criterion>Any preparation failure blocks assertions and no generated dependency state is committed.</Criterion>
+        </AcceptanceCriteria>
+        <Verification><Command>node --test tests/grace-assertion-env.test.mjs</Command></Verification>
+      </T-001>
+      <T-002>
+        <Title>kafedra-feature: implement deterministic plan inspection and workflow preparation</Title>
+        <DependsOn><T-001 /></DependsOn>
+        <AcceptanceCriteria>
+          <Criterion>The helper validates change ids, reads the exact active plan, decodes Command text and emits stable JSON or GitHub output.</Criterion>
+          <Criterion>The workflow runs locked npm installation before assertions and installs Chromium only for detected Playwright commands.</Criterion>
+          <Criterion>Current-mode GRACE lint remains lightweight and unchanged.</Criterion>
+        </AcceptanceCriteria>
+        <Verification><Command>npm run check</Command></Verification>
+      </T-002>
+      <T-003>
+        <Title>kafedra-tests: prove positive, negative and fail-closed detection cases</Title>
+        <DependsOn><T-002 /></DependsOn>
+        <AcceptanceCriteria>
+          <Criterion>Tests distinguish executable Command entries from prose and cover direct Playwright and npm browser invocations.</Criterion>
+          <Criterion>Invalid ids and missing plans fail without path traversal.</Criterion>
+          <Criterion>GitHub output is machine-readable and deterministic.</Criterion>
+        </AcceptanceCriteria>
+        <Verification><Command>node --test tests/grace-assertion-env.test.mjs</Command><Command>npm run docs:check</Command></Verification>
+      </T-003>
+      <T-004>
+        <Title>kafedra-release: complete exact-head CI, squash merge and post-merge verification</Title>
+        <DependsOn><T-003 /></DependsOn>
+        <AcceptanceCriteria>
+          <Criterion>GRACE final and every mandatory project check succeed for one unchanged PR head.</Criterion>
+          <Criterion>The squash merge is followed by successful post-merge CI before an archive-only applied transition.</Criterion>
+          <Criterion>PR 238 is updated from the new main only after this prerequisite is applied.</Criterion>
+        </AcceptanceCriteria>
+        <Verification><Command>npm run check</Command><Command>npm run docs:check</Command></Verification>
+      </T-004>
+    </ImplementationPlan>
+  </C-GRACE-EXECUTABLE-ASSERTIONS-240>
+</GraceChangePlan>
