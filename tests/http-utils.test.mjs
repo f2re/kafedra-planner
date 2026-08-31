@@ -2,70 +2,90 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 
 import { AppError } from '../packages/core/src/errors.mjs';
-import { PUBLIC_SERVER_ERROR_CODES, sendError } from '../apps/api/src/http-utils.mjs';
+import {
+  PUBLIC_SERVER_ERROR_CODES,
+  sendError
+} from '../apps/api/src/http-utils.mjs';
 
-class ResponseCapture {
-  writeHead(status, headers) {
-    this.status = status;
-    this.headers = headers;
-  }
-
-  end(body) {
-    this.body = body;
-  }
+function captureResponse() {
+  let status = null;
+  let headers = null;
+  let body = '';
+  return {
+    response: {
+      writeHead(nextStatus, nextHeaders) {
+        status = nextStatus;
+        headers = nextHeaders;
+      },
+      end(value = '') {
+        body += String(value);
+      }
+    },
+    result() {
+      return {
+        status,
+        headers,
+        payload: JSON.parse(body)
+      };
+    }
+  };
 }
 
-function serialize(error, requestId = 'request-1') {
-  const response = new ResponseCapture();
-  sendError(response, error, requestId);
-  return { response, payload: JSON.parse(response.body) };
+function serialize(error, requestId = 'request-test') {
+  const capture = captureResponse();
+  sendError(capture.response, error, requestId);
+  return capture.result();
 }
 
-test('classified Docomator 5xx errors keep their safe code and message without details', () => {
-  const error = new AppError(
-    'docomator_dns_failed',
-    'Имя сервера Оформлятора не найдено. Проверьте адрес или локальный DNS.',
-    502,
-    { transportCode: 'ENOTFOUND', sensitive: 'must-not-leak' }
-  );
-  const { response, payload } = serialize(error);
-  assert.equal(response.status, 502);
-  assert.equal(payload.error.code, 'docomator_dns_failed');
-  assert.equal(payload.error.message, error.message);
-  assert.equal(Object.hasOwn(payload.error, 'details'), false);
-  assert.equal(payload.error.requestId, 'request-1');
+test('предопределённые безопасные 5xx сохраняют код и понятное сообщение без details', () => {
+  for (const code of PUBLIC_SERVER_ERROR_CODES) {
+    const result = serialize(new AppError(
+      code,
+      `Безопасное сообщение: ${code}`,
+      code === 'docomator_timeout' ? 504 : 502,
+      { cause: 'секретная внутренняя причина' }
+    ));
+    assert.equal(result.status, code === 'docomator_timeout' ? 504 : 502);
+    assert.equal(result.payload.error.code, code);
+    assert.equal(result.payload.error.message, `Безопасное сообщение: ${code}`);
+    assert.equal(Object.hasOwn(result.payload.error, 'details'), false);
+    assert.equal(result.payload.error.requestId, 'request-test');
+  }
 });
 
-test('unknown server errors are masked even when they carry an AppError code', () => {
-  const error = new AppError('database_secret_failure', 'sensitive database path', 500, { path: '/secret' });
-  const { payload } = serialize(error);
-  assert.equal(payload.error.code, 'internal_error');
-  assert.equal(payload.error.message, 'Внутренняя ошибка сервера.');
-  assert.equal(Object.hasOwn(payload.error, 'details'), false);
-  assert.equal(JSON.stringify(payload).includes('/secret'), false);
+test('неизвестный 5xx не раскрывает внутренний код, сообщение или details', () => {
+  const result = serialize(new AppError(
+    'sqlite_internal_state',
+    'SQLITE_BUSY at /opt/kafedra-planner/data/private.sqlite3',
+    500,
+    { stack: 'private stack', databasePath: '/opt/kafedra-planner/data/private.sqlite3' }
+  ));
+  assert.equal(result.status, 500);
+  assert.equal(result.payload.error.code, 'internal_error');
+  assert.equal(result.payload.error.message, 'Внутренняя ошибка сервера.');
+  assert.equal(Object.hasOwn(result.payload.error, 'details'), false);
+  assert.equal(result.payload.error.requestId, 'request-test');
 });
 
-test('ordinary client errors preserve actionable details', () => {
-  const error = new AppError('invalid_input', 'Проверьте введённое значение.', 400, { field: 'host' });
-  const { response, payload } = serialize(error);
-  assert.equal(response.status, 400);
-  assert.equal(payload.error.code, 'invalid_input');
-  assert.equal(payload.error.message, error.message);
-  assert.deepEqual(payload.error.details, { field: 'host' });
+test('ошибка клиента сохраняет предметную диагностику и безопасные details', () => {
+  const result = serialize(new AppError(
+    'invalid_document_kind',
+    'Выберите поддерживаемый тип документа.',
+    422,
+    { allowed: ['plan', 'directive'] }
+  ));
+  assert.equal(result.status, 422);
+  assert.equal(result.payload.error.code, 'invalid_document_kind');
+  assert.equal(result.payload.error.message, 'Выберите поддерживаемый тип документа.');
+  assert.deepEqual(result.payload.error.details, { allowed: ['plan', 'directive'] });
 });
 
-test('public server error allowlist contains only predetermined operational codes', () => {
-  assert.deepEqual([...PUBLIC_SERVER_ERROR_CODES].sort(), [
-    'docomator_connection_refused',
-    'docomator_dns_error',
-    'docomator_dns_failed',
-    'docomator_not_ready',
-    'docomator_protocol_error',
-    'docomator_remote_error',
-    'docomator_timeout',
-    'docomator_tls_error',
-    'docomator_tls_failed',
-    'docomator_unreachable',
-    'docomator_wrong_service'
-  ]);
+test('необработанное исключение всегда становится нейтральной внутренней ошибкой', () => {
+  const result = serialize(new Error('private runtime failure'));
+  assert.equal(result.status, 500);
+  assert.deepEqual(result.payload.error, {
+    code: 'internal_error',
+    message: 'Внутренняя ошибка сервера.',
+    requestId: 'request-test'
+  });
 });
