@@ -1,4 +1,4 @@
-<GraceChangePlan graceVersion="4.0" status="approved">
+<GraceChangePlan graceVersion="4.0" status="applied">
   <C-ACADEMIC-PERFORMANCE-0-4-0>
     <IntentSummary>Integrate the reviewed academic gradebook implementation into the exact current main, close the Action Center, reporting, acceptance and reduced-motion gaps, migrate additively to schema 31, synchronize release 0.4.0 and prove the complete offline upgrade and publication path.</IntentSummary>
     <BaselineAssertions>
