@@ -73,6 +73,18 @@ jobs:
           --base "$GRACE_BASE_REF"
           --mode "$GRACE_POLICY_MODE"
           --github-output
+      - name: Inspect executable assertion environment
+        id: assertion_env
+        if: ${{ steps.policy.outputs.assertion_mode == 'baseline' || steps.policy.outputs.assertion_mode == 'final' }}
+        env:
+          CHANGE_ID: ${{ steps.policy.outputs.change_id }}
+        run: node scripts/ci/grace-assertion-env.mjs --change "$CHANGE_ID" --github-output
+      - name: Install exact project dependencies for executable assertions
+        if: ${{ steps.policy.outputs.assertion_mode == 'baseline' || steps.policy.outputs.assertion_mode == 'final' }}
+        run: npm ci --ignore-scripts --no-audit --no-fund
+      - name: Install Chromium for approved browser assertions
+        if: ${{ steps.assertion_env.outputs.playwright == 'true' }}
+        run: npx playwright install --with-deps chromium
       - name: Run selected GRACE assertion gate
         env:
           CHANGE_ID: ${{ steps.policy.outputs.change_id }}
@@ -169,7 +181,7 @@ jobs:
         if: ${{ github.event_name == 'pull_request' || github.ref == 'refs/heads/main' }}
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          GRACE_CONTRACT_RESULT: ${{ needs.contract.result }}
-          GRACE_DATABASE_RESULT: ${{ needs.database.result }}
+          GRACE_CONTRACT_RESULT: ${{ neds.contract.result }}
+          GRACE_DATABASE_RESULTS: ${{ needs.database.result }}
           GRACE_HEAD_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
         run: node scripts/github/grace-merge-gate.mjs

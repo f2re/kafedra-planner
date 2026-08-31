@@ -58,20 +58,20 @@ grace status --path . --json
 
 An approved plan is immutable. If scope, assertions or acceptance criteria materially change, supersede the change bundle instead of silently widening an approved plan.
 
-`scripts/github/grace-policy-gate.mjs` independently compares the branch with its exact base and rejects writes outside `ObservedWriteScope`. It is deliberately separate from GRACE CLI so an agent cannot make a broad diff merely by keeping XML syntactically valid.
+`scripts/github/grace-policy-gate.mjs`independently compares the branch with its exact base and rejects writes outside `ObservedWriteScope`. It is deliberately separate from GRACE CLI so an agent cannot make a broad diff merely by keeping XML syntactically valid.
 
 ## Terminal archive transition
 
 GRACE 4 keeps an executable change under `.grace/changes/active/` while selected final assertions are being evaluated. Therefore the completed bundle is archived only after the implementation PR is merged and the new `main` SHA has green post-merge CI.
 
-Archiving is a second, dedicated archive-only branch and PR. Candidate recognition is based only on one matching active/archive change ID, absence of any active bundle at HEAD and presence of terminal archive `spec.xml` plus `plan.xml`; it does not make companion files globally ungoverned. The strict archive evaluator then accepts the transition only when all of the following are true:
+Archiving is a second, dedicated archive-only branch and PR. Candidate recognition is based only on one matching active/archive change ID, absence of any active bundle at HEAD and presence of terminal archive `spec.xml` plus `plan.xml; it does not make companion files globally ungoverned. The strict archive evaluator then accepts the transition only when all of the following are true:
 
 - the exact base contains one approved active bundle;
 - HEAD removes that active bundle and creates the same `C-*` under `archive`;
 - no application, documentation, workflow, context, graph, verification or other repository file changes;
 - the exact bundle file set is preserved;
 - every companion artifact is byte-identical;
-- `spec.xml` and `plan.xml` differ only in their root `status`;
+- `spec.xml` and `plan.xml differ only in their root `status`;
 - both roots use the same terminal status: `applied`, `rejected`, `cancelled` or `superseded`;
 - no active copy remains at HEAD.
 
@@ -142,6 +142,20 @@ The desired required checks for `main` are:
 - `science-reports-browser`
 
 A required check that is pending, failed, cancelled, missing or unexpectedly skipped is not merge evidence. Conditional assertion modes are executed inside one check step, so lifecycle selection does not create misleading skipped check jobs.
+
+### Executable assertion environment
+
+For `baseline` and `final` change stages, the contract job prepares the same locked project toolchain that the approved `MustPassCommand` entries expect before it invokes `grace lint --run-commands`. It runs:
+
+```bash
+npm ci --ignore-scripts --no-audit --no-fund
+```
+
+The committed `package-lock.json` is authoritative. Installation failure is a gate failure; CI never updates the lockfile or commits generated `node_modules`. Current-only lint does not install project dependencies.
+
+`scripts/ci/grace-assertion-env.mjs` inspects only `<Command>` elements in the selected active plan. If one of those commands directly runs `playwright test` or an `npm run test:browser*` script, the workflow installs the pinned Chromium runtime with its runner system dependencies before assertions. Plans without browser commands do not pay this cost. Detection or browser installation failure is fail-closed; it does not turn the assertion into a skip.
+
+This preparation belongs only to engineering CI. Playwright, Chromium and GRACE remain absent from the production runtime and offline Debian/Astra bundle.
 
 ## Server-side protection of main
 
