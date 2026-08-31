@@ -1,0 +1,42 @@
+<GraceChangeSpec graceVersion="4.0" status="approved">
+  <C-PLANS-LIFECYCLE-SEGMENT-245-V2>
+    <Summary>Expose current and archived plans as a persistent one-action segmented control.</Summary>
+    <Problem>The primary lifecycle view is mixed into the general plan filters, so moving between current and archived plans requires opening a dropdown and obscures a frequent high-level navigation state.</Problem>
+    <Goals>
+      <Goal>Show `Текущие | Архив` permanently in the plans toolbar.</Goal>
+      <Goal>Switch lifecycle views with one click, tap or keyboard action without changing plan data or lifecycle semantics.</Goal>
+      <Goal>Preserve search and selection when valid, and fall back to the first available plan or an accurate empty state.</Goal>
+      <Goal>Provide stable desktop/mobile geometry, visible focus, text-first selection and reduced-motion behavior.</Goal>
+    </Goals>
+    <Constraints>
+      <Constraint>No API, SQLite schema, migration, plan lifecycle, source row, evidence or document intake change.</Constraint>
+      <Constraint>The lifecycle view is never-learn; usage statistics cannot change the default, value, order or position.</Constraint>
+      <Constraint>The iteration does not redesign the remaining filters, plan detail or source-row editor.</Constraint>
+      <Constraint>The temporary branch worker is removed before final assertions and exists only to apply the reviewed append-only integration to the existing entry script.</Constraint>
+    </Constraints>
+    <NonGoals>
+      <NonGoal>Move every plan filter into a popover.</NonGoal>
+      <NonGoal>Redesign plan cards or the inspector.</NonGoal>
+      <NonGoal>Change archive/restore commands or impact calculation.</NonGoal>
+      <NonGoal>Add adaptive ranking to lifecycle state.</NonGoal>
+    </NonGoals>
+    <AcceptanceCriteria>
+      <Criterion>One click or tap on `Архив` shows archived plans and one action on `Текущие` returns to active plans.</Criterion>
+      <Criterion>Lifecycle selection is no longer required inside the general filter dropdown.</Criterion>
+      <Criterion>Each segment exposes selected semantics, visible focus and a reliable 44 px target on desktop and mobile.</Criterion>
+      <Criterion>Search and a still-valid selected plan survive switching; an invalid selection is replaced deterministically without a stale detail.</Criterion>
+      <Criterion>Empty current and archive views explain the state and preserve the available primary action.</Criterion>
+      <Criterion>Focused unit/browser tests, full CI and GRACE final pass on one exact head before squash merge and terminal archive.</Criterion>
+    </AcceptanceCriteria>
+    <AffectedAreas><M-PLANS/><M-DESIGN-GOVERNANCE/><M-MOTION-KB/><M-CI-GATE/></AffectedAreas>
+    <VerificationIntent>
+      <ExpectedCommand>node --test tests/plans-lifecycle-segment.test.mjs</ExpectedCommand>
+      <ExpectedCommand>npm run design:check</ExpectedCommand>
+      <ExpectedCommand>npm run check</ExpectedCommand>
+      <ExpectedCommand>npm run docs:check</ExpectedCommand>
+      <ExpectedCommand>npm test</ExpectedCommand>
+      <ExpectedCommand>npx playwright test tests/browser/plans-lifecycle-segment.spec.mjs</ExpectedCommand>
+      <ExpectedEvidence>The exact branch head proves one-action lifecycle navigation on desktop, mobile, keyboard and reduced motion without changing persisted data.</ExpectedEvidence>
+    </VerificationIntent>
+  </C-PLANS-LIFECYCLE-SEGMENT-245-V2>
+</GraceChangeSpec>
