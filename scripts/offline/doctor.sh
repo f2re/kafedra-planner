@@ -6,7 +6,11 @@ NODE="$ROOT/runtime/node/bin/node"
 PYTHON="$ROOT/runtime/python/python"
 OCR="$ROOT/scripts/recognition/ocr.py"
 ENV_PARSER="$ROOT/scripts/offline/environment-file.sh"
+MODE="${1:-}"
 ALLOW_DEGRADED="${KAFEDRA_DOCTOR_ALLOW_DEGRADED:-false}"
+if [[ "$MODE" == "--repair" || "$MODE" == "--auto-repair" || "$MODE" == "--heal" ]]; then
+  ALLOW_DEGRADED=true
+fi
 [[ "$ALLOW_DEGRADED" == true || "$ALLOW_DEGRADED" == false ]] || { echo "Некорректный KAFEDRA_DOCTOR_ALLOW_DEGRADED=$ALLOW_DEGRADED" >&2; exit 2; }
 [[ -x "$NODE" ]] || { echo "✗ Node runtime: $NODE" >&2; exit 2; }
 [[ -x "$PYTHON" ]] || { echo "✗ Python runtime: $PYTHON" >&2; exit 2; }
@@ -28,14 +32,12 @@ process.exit(c.officeExtract&&c.pdfText&&c.ocr&&c.officePreview?0:1);
 ' "$PREFLIGHT_JSON"; then
     DEGRADED=true
   fi
-  if ! "$PYTHON" "$OCR" doctor --languages "$LANGUAGES"; then
+  if ! "$PYTHON" "$OCR" doctor --languages "$LANGUAGES" --self-test; then
     DEGRADED=true
-    echo "– OCR $LANGUAGES недоступен; календарь, задачи, данные и исходные документы продолжают работать." >&2
+    echo "– OCR $LANGUAGES или контрольное распознавание недоступно; календарь, задачи, данные и исходные документы продолжают работать." >&2
   fi
 else
-  # Default doctor remains the strict release/acceptance gate. The installer
-  # opts into degraded mode explicitly only after a non-mutating package failure.
-  "$PYTHON" "$OCR" doctor --languages "$LANGUAGES"
+  "$PYTHON" "$OCR" doctor --languages "$LANGUAGES" --self-test
   "$NODE" "$ROOT/scripts/system-preflight.mjs" --require-full
 fi
 if command -v systemctl >/dev/null 2>&1; then
@@ -55,7 +57,7 @@ if [[ "${KAFEDRA_LLM_ENABLED:-false}" == true ]]; then
 else
   echo '✓ LLM: выключен (основной контур автономен)'
 fi
-if [[ "${1:-}" == "--repair" || "${1:-}" == "--auto-repair" || "${1:-}" == "--heal" ]]; then
+if [[ "$MODE" == "--repair" || "$MODE" == "--auto-repair" || "$MODE" == "--heal" ]]; then
   echo "=== Автоматическое устранение проблем и восстановление возможностей ==="
   if [[ "${EUID:-$(id -u)}" -ne 0 ]]; then
     echo "Для автоматического устранения требуются права root (sudo $0 --repair)" >&2
@@ -77,20 +79,22 @@ if [[ "${1:-}" == "--repair" || "${1:-}" == "--auto-repair" || "${1:-}" == "--he
   else
     echo "✓ apt-get check: чисто"
     if [[ -d "$ROOT/os-packages" ]]; then
-      echo "Доустанавливаю недостающие компоненты из $ROOT/os-packages..."
-      if "$ROOT/scripts/offline/install-os-packages.sh" "$ROOT/os-packages" --scope all; then
-        echo "✓ Системные компоненты успешно добавлены."
+      echo "Доустанавливаю недостающие компоненты из сохранённого автономного payload $ROOT/os-packages..."
+      if KAFEDRA_APT_MODE=bundle "$ROOT/scripts/offline/install-os-packages.sh" "$ROOT/os-packages" --scope all; then
+        echo "✓ Системные компоненты успешно добавлены из установленного release."
       else
         echo "– Пакеты не удалось добавить полностью; ядро продолжает работать." >&2
       fi
+    else
+      echo "✗ В активном release отсутствует сохранённый os-packages payload; используйте полный совместимый bundle." >&2
     fi
   fi
   echo ""
-  echo "=== Итоговая проверка системы ==="
-  exec "$0"
+  echo "=== Итоговая строгая проверка системы ==="
+  exec env KAFEDRA_DOCTOR_ALLOW_DEGRADED=false "$0"
 fi
 
-if [[ "${1:-}" == "--diagnose-apt" ]]; then
+if [[ "$MODE" == "--diagnose-apt" ]]; then
   echo "=== Диагностика состояния пакетов ОС ==="
   audit="$(dpkg --audit 2>&1 || true)"
   if [[ -n "$audit" ]]; then
@@ -115,7 +119,7 @@ if [[ "$DEGRADED" == true ]]; then
   echo 'Kafedra Planner: ядро готово; часть обработки документов недоступна.'
   if [[ -d "$ROOT/os-packages" ]]; then
     echo 'Для восстановления полной обработки документов после исправления APT ОС выполните:'
-    echo "  sudo \"$ROOT/scripts/offline/install-os-packages.sh\" \"$ROOT/os-packages\""
+    echo "  sudo \"$ROOT/scripts/offline/doctor.sh\" --repair"
   fi
 else
   echo 'Kafedra Planner: готов к работе.'
