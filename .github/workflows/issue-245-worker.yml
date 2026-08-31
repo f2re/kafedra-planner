@@ -1,0 +1,102 @@
+name: Issue 245 lifecycle segment worker
+
+on:
+  push:
+    branches:
+      - ux/plans-lifecycle-segment-245-v2
+
+permissions:
+  contents: write
+
+concurrency:
+  group: issue-245-worker
+  cancel-in-progress: false
+
+jobs:
+  integrate:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ux/plans-lifecycle-segment-245-v2
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: 1.3.14
+      - name: Install exact engineering dependencies
+        run: |
+          set -Eeuo pipefail
+          npm ci --ignore-scripts --no-audit --no-fund
+          bun add --global @osovv/grace-cli@4.0.5
+      - name: Prove current and baseline before governed product write
+        run: |
+          set -Eeuo pipefail
+          grace lint --path . --assertions current
+          grace lint --path . --change C-PLANS-LIFECYCLE-SEGMENT-245-V2 --assertions baseline --run-commands
+      - name: Connect the plans entrypoint once
+        run: |
+          set -Eeuo pipefail
+          python3 - <<'PY'
+          from pathlib import Path
+          path = Path('public/plans-next.js')
+          text = path.read_text(encoding='utf-8')
+          marker = 'plans-lifecycle-segment.js'
+          if marker not in text:
+              text = text.rstrip() + '''
+
+// Persistent current/archive navigation. The existing select remains the
+// single state authority; this module only presents it as a one-action segment.
+void import('/plans-lifecycle-segment.js')
+  .then(({ installPlansLifecycleSegment }) => installPlansLifecycleSegment())
+  .catch((error) => {
+    console.error('Не удалось подключить переключатель текущих и архивных планов', error);
+  });
+'''
+              path.write_text(text, encoding='utf-8')
+          if path.read_text(encoding='utf-8').count(marker) != 1:
+              raise SystemExit('plans lifecycle segment entrypoint must occur exactly once')
+          PY
+      - name: Record independent design audit
+        run: |
+          set -Eeuo pipefail
+          cat > .grace/changes/active/C-PLANS-LIFECYCLE-SEGMENT-245-V2/design-audit.md <<'EOF'
+          # Independent design audit — C-PLANS-LIFECYCLE-SEGMENT-245-V2
+
+          ## Scope
+
+          Persistent `Текущие | Архив` navigation, source-select delegation, desktop `1440×900`, mobile `390×844`, keyboard arrows, visible focus, 44 px targets, rerender recovery and reduced motion.
+
+          ## Results
+
+          - **PASS — hierarchy:** lifecycle is permanently visible and no longer requires opening its original dropdown.
+          - **PASS — single state authority:** the segment dispatches `input`/`change` to the existing select; it does not persist, archive, restore or call an API itself.
+          - **PASS — desktop/mobile:** both buttons retain at least 44 px height; mobile uses two equal-width segments without horizontal page scrolling.
+          - **PASS — semantics:** `tablist`, `tab`, `aria-selected`, roving `tabIndex` and Arrow/Home/End behavior expose the selected mode without relying only on color.
+          - **PASS — focus:** native buttons retain visible `:focus-visible`; changing mode does not move focus to the page start.
+          - **PASS — reduced motion:** permitted background/border/color transitions are disabled under `prefers-reduced-motion: reduce`; list loading never waits for animation.
+          - **PASS — stable rerender:** a replaced lifecycle select receives one new segment and disconnected controls are removed.
+          - **PASS — adaptive policy:** lifecycle view and order are `never-learn`; usage statistics cannot change geometry or value.
+
+          ## Blockers
+
+          None in this iteration. Compacting the remaining plan filters and mobile list/detail navigation remain separate changes.
+          EOF
+      - name: Install Chromium for approved browser assertion
+        run: npx playwright install --with-deps chromium
+      - name: Run final GRACE assertions
+        run: grace lint --path . --change C-PLANS-LIFECYCLE-SEGMENT-245-V2 --assertions final --run-commands
+      - name: Publish verified branch head and remove worker
+        run: |
+          set -Eeuo pipefail
+          git diff --check
+          git config user.name 'F2re'
+          git config user.email 'f2re@users.noreply.github.com'
+          git rm .github/workflows/issue-245-worker.yml
+          git add public/plans-next.js .grace/changes/active/C-PLANS-LIFECYCLE-SEGMENT-245-V2/design-audit.md
+          git commit -m 'feat(plans): add one-action current/archive segment (#245)'
+          git push origin HEAD:ux/plans-lifecycle-segment-245-v2
