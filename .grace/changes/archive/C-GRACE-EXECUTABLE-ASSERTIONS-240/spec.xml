@@ -1,0 +1,48 @@
+<GraceChangeSpec graceVersion="4.0" status="applied">
+  <C-GRACE-EXECUTABLE-ASSERTIONS-240>
+    <Summary>Prepare exact project dependencies and an approved Chromium runtime before GRACE executes project and Playwright assertions.</Summary>
+    <Problem>GRACE contract jobs install the pinned GRACE CLI but execute approved MustPassCommand entries in a clean runner without project dependencies. A valid Playwright assertion therefore fails while loading playwright.config.mjs because @playwright/test is absent, before any product test is run.</Problem>
+    <Goals>
+      <Goal>Install dependencies exactly from package-lock.json before baseline or final executable assertions.</Goal>
+      <Goal>Detect Playwright commands only inside the selected approved change plan and install Chromium only when such an assertion is present.</Goal>
+      <Goal>Keep dependency, browser and assertion failures fail-closed and observable.</Goal>
+      <Goal>Unblock the approved browser evidence in issue 235 without modifying its approved plan or widening its observed write scope.</Goal>
+    </Goals>
+    <Constraints>
+      <Constraint>GRACE CLI and Bun remain pinned engineering tools and do not enter the application runtime or offline bundle.</Constraint>
+      <Constraint>npm ci must use the committed lockfile, ignore lifecycle scripts and must not mutate repository files.</Constraint>
+      <Constraint>Chromium preparation occurs only for a selected baseline or final change whose Command entries request Playwright.</Constraint>
+      <Constraint>No product behavior, database schema, release version, package version or user interface changes are included.</Constraint>
+      <Constraint>A missing lockfile, failed dependency installation, failed browser installation or failed assertion remains a blocking error.</Constraint>
+    </Constraints>
+    <NonGoals>
+      <NonGoal>Install Playwright or Chromium into the production application, Debian/Astra bundle or target host.</NonGoal>
+      <NonGoal>Change project test commands or make browser assertions optional.</NonGoal>
+      <NonGoal>Modify the approved C-DOCUMENT-RUNTIME-RELIABILITY-235 plan.</NonGoal>
+    </NonGoals>
+    <AcceptanceCriteria>
+      <Criterion>Baseline and final GRACE change gates run npm ci --ignore-scripts --no-audit --no-fund before executable assertions.</Criterion>
+      <Criterion>A deterministic helper reads only the selected active plan Command entries and reports whether Playwright is required.</Criterion>
+      <Criterion>The workflow installs Chromium with Playwright system dependencies only when the helper reports an approved browser assertion.</Criterion>
+      <Criterion>A plan without a Playwright command does not trigger Chromium installation.</Criterion>
+      <Criterion>Regression tests cover direct Playwright commands, npm browser scripts, unrelated prose, XML entities, invalid change ids and GitHub output.</Criterion>
+      <Criterion>GRACE current, baseline, final, project CI and post-merge CI succeed on exact immutable heads before the change is archived as applied.</Criterion>
+    </AcceptanceCriteria>
+    <AffectedAreas>
+      <M-GRACE-GOVERNANCE />
+      <M-CI-GATE />
+    </AffectedAreas>
+    <VerificationIntent>
+      <ExpectedCommand>node --test tests/grace-assertion-env.test.mjs</ExpectedCommand>
+      <ExpectedCommand>npm run check</ExpectedCommand>
+      <ExpectedCommand>npm run docs:check</ExpectedCommand>
+      <ExpectedCommand>grace lint --path . --change C-GRACE-EXECUTABLE-ASSERTIONS-240 --assertions final --run-commands</ExpectedCommand>
+      <ExpectedEvidence>The exact branch head prepares locked project dependencies, conditionally installs Chromium, and then executes selected assertions without weakening their result.</ExpectedEvidence>
+    </VerificationIntent>
+    <Assumptions>
+      <Assumption>package-lock.json remains the authoritative development dependency lockfile.</Assumption>
+      <Assumption>Approved change plans keep executable commands inside Command elements.</Assumption>
+      <Assumption>GitHub-hosted Ubuntu permits the same Playwright Chromium installation already used by the project browser job.</Assumption>
+    </Assumptions>
+  </C-GRACE-EXECUTABLE-ASSERTIONS-240>
+</GraceChangeSpec>
