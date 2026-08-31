@@ -244,6 +244,7 @@ def tesseract_languages():
     return [line for line in lines if not line.lower().startswith("list of available")], None
 
 
+
 def write_control_pdf(path):
     content = b"BT /F1 30 Tf 28 42 Td (TEST 123) Tj ET\n"
     objects = [
@@ -270,34 +271,61 @@ def write_control_pdf(path):
         stream.write(document)
 
 
+def smoke_pdf(pdf_path, image_prefix):
+    """Render one control PDF page through Poppler and return a stable result."""
+    image_path = image_prefix + ".png"
+    if not shutil.which("pdftoppm"):
+        return {"status": "blocked", "error": "pdftoppm_missing", "imagePath": None}
+    try:
+        subprocess.run(
+            ["pdftoppm", "-singlefile", "-png", "-r", "220", pdf_path, image_prefix],
+            check=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE,
+            universal_newlines=True, timeout=60,
+        )
+    except (OSError, subprocess.SubprocessError) as exc:
+        return {"status": "blocked", "error": command_error(exc), "imagePath": None}
+    ready = os.path.isfile(image_path) and os.path.getsize(image_path) > 0
+    return {
+        "status": "ready" if ready else "blocked",
+        "error": None if ready else "control_pdf_render_missing",
+        "imagePath": image_path if ready else None,
+    }
+
+
+def smoke_tesseract(image_path):
+    """Recognize the rendered control image and verify a deterministic token."""
+    if not image_path or not shutil.which("tesseract"):
+        return {"status": "blocked", "error": "tesseract_missing", "text": ""}
+    try:
+        completed = subprocess.run(
+            ["tesseract", image_path, "stdout", "-l", "eng", "--psm", "7", "--dpi", "220"],
+            check=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE,
+            universal_newlines=True, timeout=60,
+        )
+    except (OSError, subprocess.SubprocessError) as exc:
+        return {"status": "blocked", "error": command_error(exc), "text": ""}
+    text = clean_text(completed.stdout)
+    normalized = re.sub(r"[^A-Z0-9]+", "", text.upper())
+    ready = "TEST" in normalized and "123" in normalized
+    return {
+        "status": "ready" if ready else "blocked",
+        "error": None if ready else "control_ocr_text_mismatch",
+        "text": text[:160],
+    }
+
+
 def control_ocr_self_test():
-    if not shutil.which("pdftoppm") or not shutil.which("tesseract"):
-        return {"status": "blocked", "error": "control_ocr_commands_missing", "text": ""}
     with tempfile.TemporaryDirectory(prefix="kafedra-ocr-doctor-") as directory:
         pdf_path = os.path.join(directory, "control.pdf")
         image_prefix = os.path.join(directory, "control")
-        image_path = image_prefix + ".png"
         write_control_pdf(pdf_path)
-        try:
-            subprocess.run(
-                ["pdftoppm", "-singlefile", "-png", "-r", "220", pdf_path, image_prefix],
-                check=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE,
-                universal_newlines=True, timeout=60,
-            )
-            completed = subprocess.run(
-                ["tesseract", image_path, "stdout", "-l", "eng", "--psm", "7", "--dpi", "220"],
-                check=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE,
-                universal_newlines=True, timeout=60,
-            )
-        except (OSError, subprocess.SubprocessError) as exc:
-            return {"status": "blocked", "error": command_error(exc), "text": ""}
-        text = clean_text(completed.stdout)
-        normalized = re.sub(r"[^A-Z0-9]+", "", text.upper())
-        ready = "TEST" in normalized and "123" in normalized
+        pdf_result = smoke_pdf(pdf_path, image_prefix)
+        tesseract_result = smoke_tesseract(pdf_result.get("imagePath"))
+        ready = pdf_result["status"] == "ready" and tesseract_result["status"] == "ready"
         return {
             "status": "ready" if ready else "blocked",
-            "error": None if ready else "control_ocr_text_mismatch",
-            "text": text[:160],
+            "smokePdf": {key: value for key, value in pdf_result.items() if key != "imagePath"},
+            "smokeTesseract": tesseract_result,
         }
 
 
@@ -312,12 +340,19 @@ def doctor(languages, self_test=False):
         "pdftotext": bool(shutil.which("pdftotext")),
         "languages": not missing,
     }
-    control = {"status": "skipped", "error": None, "text": ""}
+    control = {
+        "status": "skipped",
+        "smokePdf": {"status": "skipped", "error": None},
+        "smokeTesseract": {"status": "skipped", "error": None, "text": ""},
+    }
     if self_test:
         control = control_ocr_self_test() if all(checks.values()) else {
-            "status": "blocked", "error": "control_ocr_prerequisites_missing", "text": ""
+            "status": "blocked",
+            "smokePdf": {"status": "blocked", "error": "control_ocr_prerequisites_missing"},
+            "smokeTesseract": {"status": "blocked", "error": "control_ocr_prerequisites_missing", "text": ""},
         }
-        checks["controlOcr"] = control["status"] == "ready"
+        checks["smokePdf"] = control["smokePdf"]["status"] == "ready"
+        checks["smokeTesseract"] = control["smokeTesseract"]["status"] == "ready"
     return {
         "status": "ready" if all(checks.values()) else "blocked",
         "pythonVersion": "%s.%s.%s" % sys.version_info[:3],
@@ -329,7 +364,6 @@ def doctor(languages, self_test=False):
         "controlOcr": control,
         "error": error,
     }
-
 
 def main(argv=None):
     parser = argparse.ArgumentParser(description="Локальное OCR Kafedra Planner")

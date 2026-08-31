@@ -228,3 +228,30 @@ config:     /etc/kafedra-planner/kafedra-planner.env
 GitHub CI строит чистый Debian 12 full bundle, проверяет `additive-only-v2`, реально устанавливает bundle без сети под systemd, затем выполняет строгий OCR/Poppler/LibreOffice doctor. Поэтому degraded mode не может скрыть неполный clean artifact.
 
 Реальная Astra Linux остаётся отдельной приёмкой по [`TARGET_ACCEPTANCE.md`](TARGET_ACCEPTANCE.md) и issue #27. Именно там проверяются vendor revisions пакетов, реальные ведомственные документы, update/rollback и восстановление.
+
+## Fail-closed активация полного комплекта
+
+Полный `full bundle` является обещанием готового контура документов, а не установкой ядра в скрыто деградированном состоянии. Поэтому **full bundle не активируется**, если до создания staging release не подтверждены все условия:
+
+- target profile и architecture совпадают с package payload;
+- APT допускает только additive-only установку без upgrade, downgrade и removal;
+- доступны `pdftotext` и `pdftoppm`;
+- Tesseract видит запрошенные языки `rus` и `eng`;
+- LibreOffice доступен для офисного preview;
+- контрольные `smoke_pdf` и `smoke_tesseract` реально проходят.
+
+При любом таком отказе установщик завершает работу до переключения `current`, миграции SQLite и остановки работающих служб. Предыдущий release, данные, конфигурация, PIN и резервные копии остаются неизменными. Runtime-only и development-режимы по-прежнему могут работать без необязательной обработки документов, но опубликованный полный комплект не выдаёт деградацию за готовность.
+
+После успешной проверки package payload копируется в immutable installer-owned cache:
+
+```text
+/var/cache/kafedra-planner/os-packages/<target-profile>/<manifest-sha256>/
+```
+
+В установленном release сохраняется только проверенный указатель `os-package-cache`. Повторная установка того же payload переиспользует тот же digest и не перезаписывает содержимое. Команда:
+
+```bash
+sudo /opt/kafedra-planner/current/scripts/offline/doctor.sh --repair
+```
+
+сначала проверяет этот локальный cache и выполняет безопасную offline additive-only установку, а уже затем запускает строгий doctor. Исходная флешка или каталог, из которого выполнялась установка, для восстановления не требуются. Повреждённый, чужой по профилю или изменённый cache отклоняется без замены и без `apt --fix-broken`.

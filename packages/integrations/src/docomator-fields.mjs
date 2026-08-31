@@ -1,6 +1,7 @@
 import { newId } from '../../core/src/ids.mjs';
 import {
   DocomatorIntegrationError,
+  classifyDocomatorTransportError,
   importDocomatorPeople,
   normalizeDocomatorConnection
 } from './docomator.mjs';
@@ -107,7 +108,7 @@ async function remoteFetch(connection, path, {
       signal: typeof AbortSignal?.timeout === 'function' ? AbortSignal.timeout(TIMEOUT_MS) : undefined
     });
   } catch (error) {
-    fail('docomator_unreachable', { cause: String(error?.message || error) });
+    fail(classifyDocomatorTransportError(error));
   }
   const text = await response.text().catch(() => '');
   let payload = null;
