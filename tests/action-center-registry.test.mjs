@@ -13,7 +13,7 @@ import { supportedUiPreferenceKeys } from '../packages/preferences/src/service.m
 test('реестр действий имеет стабильные группы и уникальные разрешённые идентификаторы', () => {
   assert.equal(new Set(ACTION_IDS).size, ACTION_IDS.length);
   assert.deepEqual(ACTION_GROUPS.map((group) => group.id), [
-    'calendar', 'documents', 'plans', 'work', 'meetings', 'science'
+    'calendar', 'documents', 'plans', 'work', 'meetings', 'academic', 'science'
   ]);
   assert.ok(ACTIONS.every((action) => ACTION_GROUPS.some((group) => group.id === action.group)));
   assert.ok(supportedUiPreferenceKeys().includes('action.center.action'));
@@ -45,7 +45,10 @@ test('поиск детерминированно находит предмет�
     'meeting.create', 'meeting.upload'
   ]);
   assert.deepEqual(filterActions(ACTIONS, 'EXCEL').map((action) => action.id), [
-    'document.upload', 'plan.upload'
+    'document.upload', 'plan.upload', 'academic.import'
+  ]);
+  assert.deepEqual(filterActions(ACTIONS, 'ведомость').map((action) => action.id), [
+    'academic.import'
   ]);
 });
 

@@ -9,7 +9,7 @@
 
 Kafedra Planner is an offline-first daily work system for an academic department: calendar, annual plans, assignments, documents, meetings, reporting, research activity, and auditable evidence.
 
-> Current milestone: **`0.3.4`**, SQLite schema **30**. Core workflows do not require Internet access, an LLM, Docker, Docomator, or cloud services. The project remains a release candidate until the real Astra Linux/Debian installation, upgrade, restoration, and rollback acceptance in [TARGET_ACCEPTANCE.md](docs/TARGET_ACCEPTANCE.md) and issue #27 is complete.
+> Current milestone: **`0.4.0`**, SQLite schema **31**. Core workflows do not require Internet access, an LLM, Docker, Docomator, or cloud services. The project remains a release candidate until the real Astra Linux/Debian installation, upgrade, restoration, and rollback acceptance in [TARGET_ACCEPTANCE.md](docs/TARGET_ACCEPTANCE.md) and issue #27 is complete.
 
 **[Download an offline bundle](https://github.com/f2re/kafedra-planner/releases)** · **[Install guide](docs/GITHUB_RELEASES.md)** · **[Security policy](SECURITY.md)** · **[Contributing](CONTRIBUTING.md)**
 
@@ -37,6 +37,7 @@ A failing file, adapter, OCR component, optional converter, or integration must 
 - deterministic automatic assignment when an imported responsible person matches exactly one active employee; ambiguous names stay unresolved for operator review;
 - assignment execution, reports, manager confirmation or return for revision;
 - meetings, agenda, minutes and extracts generated from ordinary DOCX files through a visual field/repeat-block editor;
+- academic grade sheets grouped by academic year, semester and group, with auditable metadata and discipline summaries;
 - a versioned meeting-template library with default selection, exact historical versions, test filling, impact preview, reversible archive and restoration;
 - optional local-network employee import from Docomator with health/readiness/data checks, space/group selection, selectable remote fields, and idempotent remote employee mapping;
 - local four-digit PIN onboarding, sessions, roles, object ACL, and audit trail;
@@ -46,6 +47,14 @@ A failing file, adapter, OCR component, optional converter, or integration must 
 ![Department calendar](docs/screenshots/calendar.webp)
 
 ![Annual plan](docs/screenshots/annual-plan.webp)
+
+## Academic performance
+
+Under **Academic process → Performance**, an operator uploads an XLSX, ODS or CSV grade sheet with students in rows and disciplines in columns. The system proposes the sheet, header row, student column, disciplines, group, academic year and semester.
+
+Group, academic year and semester may be read from an exact source cell or entered manually. Cell-derived values retain the document version, sheet, address, raw value and locator. The working view is grouped as `academic year → semester → group`; only the latest successful sheet for each group contributes to totals, while older and failed versions remain available as history.
+
+The report contains one row per group and discipline with counts for excellent, good, satisfactory, unsatisfactory and not-attested results, review-required values, and an average calculated only from grades 2–5. CSV, JSON and `sources.json` exports retain the same filters and provenance. See [ACADEMIC_PERFORMANCE.md](docs/ACADEMIC_PERFORMANCE.md).
 
 ## Docomator employee import
 
@@ -88,6 +97,7 @@ The full list of browser, release, and deployment checks is in the Russian [READ
 - [User workflows](docs/UX_FLOWS.md)
 - [Docomator employee import](docs/DOCOMATOR_PEOPLE_IMPORT.md)
 - [Meeting template library](docs/MEETING_TEMPLATE_LIBRARY.md)
+- [Academic performance](docs/ACADEMIC_PERFORMANCE.md)
 - [Authorization and object access](docs/AUTHORIZATION.md)
 - [Release candidate and release gates](docs/RELEASE_CANDIDATE.md)
 - [Target acceptance](docs/TARGET_ACCEPTANCE.md)

@@ -1,6 +1,6 @@
 # Целевая эксплуатационная приёмка Astra Linux / Debian
 
-Автоматический Ubuntu/Debian CI не закрывает целевую приёмку. Этот документ дополняет issue #27 и применяется к **Kafedra Planner 0.3.4, schema SQLite 30** на реальной Astra Linux и контрольной Debian тем же release bundle, который прошёл GitHub CI.
+Автоматический Ubuntu/Debian CI не закрывает целевую приёмку. Этот документ дополняет issue #27 и применяется к **Kafedra Planner 0.4.0, schema SQLite 31** на реальной Astra Linux и контрольной Debian тем же release bundle, который прошёл GitHub CI.
 
 Отдельно проверяется package contract `full-airgap-v2 / additive-only-v2`: Kafedra Planner не должен обновлять, понижать, удалять или автоматически исправлять уже установленные пакеты ОС.
 
@@ -9,12 +9,12 @@
 Оператор получает:
 
 ```text
-kafedra-planner-0.3.4-<profile>.tar.gz
-kafedra-planner-0.3.4-<profile>.tar.gz.sha256
+kafedra-planner-0.4.0-<profile>.tar.gz
+kafedra-planner-0.4.0-<profile>.tar.gz.sha256
 install-kafedra-planner.sh
 README-INSTALL.txt
-kafedra-planner-0.3.4-project-control.f2re.zip
-kafedra-planner-0.3.4-project-control.f2re.zip.sha256
+kafedra-planner-0.4.0-project-control.f2re.zip
+kafedra-planner-0.4.0-project-control.f2re.zip.sha256
 SHA256SUMS
 ```
 
@@ -22,7 +22,7 @@ SHA256SUMS
 
 ```bash
 sha256sum -c --strict SHA256SUMS
-sha256sum -c --strict kafedra-planner-0.3.4-*.tar.gz.sha256
+sha256sum -c --strict kafedra-planner-0.4.0-*.tar.gz.sha256
 ```
 
 На target используется внешний wrapper, а не внутренний `deploy/install.sh`:
@@ -37,8 +37,8 @@ sudo KAFEDRA_APT_MODE=bundle ./install-kafedra-planner.sh
 
 Необходимо провести минимум четыре независимых сценария:
 
-1. чистая установка `0.3.4` на поддерживаемой здоровой Debian/Astra;
-2. обновление реальной копии `0.3.3 / schema 28` до `0.3.4 / schema 30`;
+1. чистая установка `0.4.0` на поддерживаемой здоровой Debian/Astra;
+2. обновление реальной копии `0.3.4 / schema 30` до `0.4.0 / schema 31`;
 3. restore на чистый контрольный узел;
 4. forced rollback после контролируемого сбоя миграции или post-update health-check.
 
@@ -57,15 +57,18 @@ sudo KAFEDRA_APT_MODE=bundle ./install-kafedra-planner.sh
 - API/worker systemd status и hardening properties;
 - сведения о последнем проверенном backup без секретов.
 
-Schema 30 evidence обязан включать как минимум:
+Schema 31 evidence обязан включать как минимум:
 
 - организационные и научные устойчивые таблицы;
 - `meeting_template_catalog`;
 - `meeting_template_test_runs`;
 - `docomator_field_mappings`;
-- `docomator_person_fields`.
+- `docomator_person_fields`;
+- `academic_groups`, `academic_periods`, `academic_students`, `academic_group_memberships`;
+- `academic_disciplines`, `academic_grade_imports`, `academic_grade_import_metadata`;
+- `academic_grade_import_disciplines`, `academic_grade_import_students`, `academic_grade_records`, `academic_grade_import_issues`.
 
-## Чистая установка 0.3.4
+## Чистая установка 0.4.0
 
 1. Подтвердить до установки:
 
@@ -96,12 +99,12 @@ sudo /opt/kafedra-planner/current/runtime/node/bin/node \
   /opt/kafedra-planner/current/scripts/target-acceptance.mjs capture \
   --config /etc/kafedra-planner/kafedra-planner.env \
   --require-full \
-  --output /root/kafedra-0.3.4-clean.json
+  --output /root/kafedra-0.4.0-clean.json
 ```
 
 `--require-full` делает блокирующими отсутствие OCR/Office/PDF capabilities, проблемы SQLite/blobs/systemd и отсутствие актуального проверенного encrypted backup. На здоровой поддерживаемой ОС degraded mode не считается успешной полной приёмкой.
 
-## Обновление 0.3.3 / schema 28 → 0.3.4 / schema 30
+## Обновление 0.3.4 / schema 30 → 0.4.0 / schema 31
 
 На копии реальной существующей установки до обновления должны присутствовать:
 
@@ -112,15 +115,16 @@ sudo /opt/kafedra-planner/current/runtime/node/bin/node \
 - рабочий и архивный документ/план с логическим преемником;
 - сотрудники, оргназначения и существующие связи Оформлятора;
 - обычный marker-based шаблон заседаний и сформированный документ;
-- научные материалы и `План / факт`.
+- научные материалы и `План / факт`;
+- минимум одна XLSX/ODS/CSV-ведомость для проверки upgrade и backup/restore после применения schema 31.
 
 Порядок:
 
 1. создать и проверить encrypted backup;
 2. снять `before` evidence;
-3. запустить wrapper `0.3.4`;
-4. подтвердить применение migration `029` и затем `030`;
-5. убедиться, что schema version равна `30`;
+3. запустить wrapper `0.4.0`;
+4. подтвердить применение migration `031`;
+5. убедиться, что schema version равна `31`;
 6. проверить отсутствие потери или перепривязки исходных записей;
 7. снять `after` evidence и сравнить.
 
@@ -132,7 +136,25 @@ sudo /opt/kafedra-planner/current/runtime/node/bin/node \
 - изменение calendar origin;
 - потеря `docomator_person_links`;
 - потеря существующих meeting settings или generated documents;
+- включение старой/ошибочной ведомости в текущую сводку либо потеря locator исходной оценки;
 - нарушение `quick_check`/`foreign_key_check`.
+
+## Приёмка учебных ведомостей и успеваемости
+
+Использовать реальную ведомость с несколькими дисциплинами, пустыми ячейками, оценками `2–5`, явной неаттестацией и одним неизвестным обозначением.
+
+1. Загрузить XLSX или ODS и дождаться обычной обработки документа.
+2. Подтвердить автоматически найденные лист, строку заголовков, ФИО и дисциплины.
+3. Указать учебную группу из конкретной ячейки; проверить отображение листа, адреса и raw value.
+4. Указать учебный год вручную, а семестр — из другой ячейки.
+5. Импортировать ведомость и проверить иерархию `учебный год → семестр → группа`.
+6. Сверить количество каждой категории и средний балл вручную; пустые и неаттестации не должны входить в среднее.
+7. Открыть дисциплину и проверить переход к студенту и точному адресу исходной ячейки.
+8. Скачать CSV, JSON и `sources.json`; фильтры периода/группы должны совпадать с экраном.
+9. Загрузить новую успешную версию той же группы/периода: прежняя остаётся в истории, но не удваивает сумму.
+10. Выполнить ошибочный импорт: последняя готовая версия должна остаться текущей.
+11. Архивировать и восстановить ведомость без удаления документа, оценок и истории.
+12. После backup/restore повторно сравнить сводку, версии документов, SHA-256 и локаторы.
 
 ## Приёмка визуального DOCX и библиотеки заседаний
 
@@ -204,7 +226,7 @@ sudo /opt/kafedra-planner/current/runtime/node/bin/node \
 3. Контролируемо сорвать migration или post-update health-check.
 4. Убедиться, что прежние release, symlink, database и systemd state восстановлены автоматически.
 5. Снять `after-rollback` evidence и сравнить.
-6. Повторить обновление без искусственного сбоя и подтвердить schema 30.
+6. Повторить обновление без искусственного сбоя и подтвердить schema 31.
 
 Ручное редактирование symlink/SQLite не считается успешным rollback.
 

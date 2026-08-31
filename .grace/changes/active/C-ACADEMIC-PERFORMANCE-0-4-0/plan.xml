@@ -1,0 +1,209 @@
+<GraceChangePlan graceVersion="4.0" status="approved">
+  <C-ACADEMIC-PERFORMANCE-0-4-0>
+    <IntentSummary>Integrate the reviewed academic gradebook implementation into the exact current main, close the Action Center, reporting, acceptance and reduced-motion gaps, migrate additively to schema 31, synchronize release 0.4.0 and prove the complete offline upgrade and publication path.</IntentSummary>
+    <BaselineAssertions>
+      <MustExist><Value>.grace/changes/active/.gitkeep</Value></MustExist>
+      <MustExist><Value>migrations/030_docomator_field_mapping.sql</Value></MustExist>
+      <MustExist><Value>public/action-center.js</Value></MustExist>
+      <MustExist><Value>public/action-registry.js</Value></MustExist>
+      <MustExist><Value>packages/system/src/acceptance.mjs</Value></MustExist>
+      <MustExist><Value>.github/workflows/release.yml</Value></MustExist>
+      <MustContain><File>VERSION</File><Text>0.3.4</Text></MustContain>
+      <MustContain><File>public/index.html</File><Text>+ Добавить</Text></MustContain>
+      <MustContain><File>docs/GRACE_GOVERNANCE.md</File><Text>immutable archive-only PR</Text></MustContain>
+      <MustPassCommand><Command>npm run check</Command></MustPassCommand>
+      <MustPassCommand><Command>node --test tests/action-center-registry.test.mjs tests/target-acceptance.test.mjs</Command></MustPassCommand>
+      <MustPassCommand><Command>npm run backup:selftest</Command></MustPassCommand>
+      <MustVerify><Module>M-API</Module></MustVerify>
+      <MustVerify><Module>M-DATABASE</Module></MustVerify>
+      <MustVerify><Module>M-DESIGN-GOVERNANCE</Module></MustVerify>
+      <MustVerify><Module>M-CI-GATE</Module></MustVerify>
+      <MustVerify><Module>M-OFFLINE-BUNDLE</Module></MustVerify>
+    </BaselineAssertions>
+    <TargetAssertions>
+      <MustExist><Value>apps/api/src/academic-performance-router.mjs</Value></MustExist>
+      <MustExist><Value>migrations/031_academic_performance.sql</Value></MustExist>
+      <MustExist><Value>packages/academic-performance/src/service.mjs</Value></MustExist>
+      <MustExist><Value>packages/academic-performance/src/table.mjs</Value></MustExist>
+      <MustExist><Value>packages/academic-performance/src/report.mjs</Value></MustExist>
+      <MustExist><Value>public/academic-performance-next.js</Value></MustExist>
+      <MustExist><Value>public/academic-performance-next.css</Value></MustExist>
+      <MustExist><Value>docs/ACADEMIC_PERFORMANCE.md</Value></MustExist>
+      <MustExist><Value>docs/releases/0.4.0.md</Value></MustExist>
+      <MustExist><Value>tests/academic-performance-period-totals.test.mjs</Value></MustExist>
+      <MustExist><Value>tests/browser/academic-performance.spec.mjs</Value></MustExist>
+      <MustContain><File>apps/api/src/app.mjs</File><Text>createAcademicPerformanceRouter</Text></MustContain>
+      <MustContain><File>public/ux-next.js</File><Text>academic-performance-next.js</Text></MustContain>
+      <MustContain><File>public/action-registry.js</File><Text>academic.import</Text></MustContain>
+      <MustContain><File>public/action-center.js</File><Text>academic.import</Text></MustContain>
+      <MustContain><File>packages/system/src/acceptance.mjs</File><Text>academic_grade_records</Text></MustContain>
+      <MustContain><File>public/academic-performance-next.css</File><Text>prefers-reduced-motion</Text></MustContain>
+      <MustContain><File>VERSION</File><Text>0.4.0</Text></MustContain>
+      <MustContain><File>package.json</File><Text>"version": "0.4.0"</Text></MustContain>
+      <MustContain><File>.github/workflows/release-gate.yml</File><Text>Release gate 0.4.0</Text></MustContain>
+      <MustContain><File>.github/workflows/release-gate.yml</File><Text>academic-performance.spec.mjs</Text></MustContain>
+      <MustContain><File>.github/workflows/release.yml</File><Text>Release gate 0.4.0</Text></MustContain>
+      <MustContain><File>docs/TARGET_ACCEPTANCE.md</File><Text>schema SQLite 31</Text></MustContain>
+      <MustPassCommand><Command>node --test tests/academic-performance.test.mjs tests/academic-performance-migration.test.mjs tests/academic-performance-backup.test.mjs tests/academic-performance-wiring.test.mjs tests/academic-performance-period-totals.test.mjs</Command></MustPassCommand>
+      <MustPassCommand><Command>node --test tests/action-center-registry.test.mjs tests/target-acceptance.test.mjs tests/release-assets-contract.test.mjs tests/release-recovery-workflow.test.mjs</Command></MustPassCommand>
+      <MustPassCommand><Command>node --check tests/browser/academic-performance.spec.mjs</Command></MustPassCommand>
+      <MustPassCommand><Command>node --check tests/browser/action-center.spec.mjs</Command></MustPassCommand>
+      <MustPassCommand><Command>npm run design:check</Command></MustPassCommand>
+      <MustPassCommand><Command>npm run check</Command></MustPassCommand>
+      <MustPassCommand><Command>npm test</Command></MustPassCommand>
+      <MustPassCommand><Command>npm run docs:check</Command></MustPassCommand>
+      <MustPassCommand><Command>npm run backup:selftest</Command></MustPassCommand>
+      <MustPassCommand><Command>bash -n scripts/offline/*.sh deploy/install.sh</Command></MustPassCommand>
+    </TargetAssertions>
+    <DurableScope>
+      <GraphAnchors>
+        <M-API />
+        <M-DATABASE />
+        <M-DESIGN-GOVERNANCE />
+        <M-CI-GATE />
+        <M-OFFLINE-BUNDLE />
+        <DF-GRACE-BRANCH />
+        <DF-DESIGN-CHANGE />
+      </GraphAnchors>
+      <VerificationAnchors>
+        <V-M-API />
+        <V-M-DATABASE />
+        <V-M-DESIGN-GOVERNANCE />
+        <V-M-CI-GATE />
+        <V-M-OFFLINE-BUNDLE />
+      </VerificationAnchors>
+      <ContextArtifacts>
+        <ContextArtifact>principles.xml</ContextArtifact>
+        <ContextArtifact>ux-guidelines.xml</ContextArtifact>
+      </ContextArtifacts>
+    </DurableScope>
+    <ObservedWriteScope>
+      <Glob>.grace/changes/active/C-ACADEMIC-PERFORMANCE-0-4-0/**</Glob>
+      <File>apps/api/src/academic-performance-router.mjs</File>
+      <File>apps/api/src/app.mjs</File>
+      <File>migrations/031_academic_performance.sql</File>
+      <File>packages/academic-performance/src/service.mjs</File>
+      <File>packages/academic-performance/src/table.mjs</File>
+      <File>packages/academic-performance/src/report.mjs</File>
+      <File>packages/system/src/acceptance.mjs</File>
+      <File>public/academic-performance-actions.js</File>
+      <File>public/academic-performance-import.js</File>
+      <File>public/academic-performance-next.css</File>
+      <File>public/academic-performance-next.js</File>
+      <File>public/academic-performance-state.js</File>
+      <File>public/academic-performance-view.js</File>
+      <File>public/action-registry.js</File>
+      <File>public/action-center.js</File>
+      <File>public/index.html</File>
+      <File>public/ux-next.js</File>
+      <File>docs/ACADEMIC_PERFORMANCE.md</File>
+      <File>docs/ACTION_CENTER.md</File>
+      <File>docs/ARCHITECTURE.md</File>
+      <File>docs/BACKUP_RESTORE.md</File>
+      <File>docs/OFFLINE_INSTALL.md</File>
+      <File>docs/PROJECT_CONTROL.md</File>
+      <File>docs/RELEASE_CANDIDATE.md</File>
+      <File>docs/ROADMAP.md</File>
+      <File>docs/TARGET_ACCEPTANCE.md</File>
+      <File>docs/UX_FLOWS.md</File>
+      <File>docs/VALIDATION.md</File>
+      <File>docs/releases/0.4.0.md</File>
+      <File>README.md</File>
+      <File>README.en.md</File>
+      <File>VERSION</File>
+      <File>package.json</File>
+      <File>package-lock.json</File>
+      <File>.github/workflows/ci.yml</File>
+      <File>.github/workflows/release-gate.yml</File>
+      <File>.github/workflows/release.yml</File>
+      <File>tests/academic-performance-backup.test.mjs</File>
+      <File>tests/academic-performance-migration.test.mjs</File>
+      <File>tests/academic-performance-period-totals.test.mjs</File>
+      <File>tests/academic-performance-wiring.test.mjs</File>
+      <File>tests/academic-performance.test.mjs</File>
+      <File>tests/action-center-registry.test.mjs</File>
+      <File>tests/browser/academic-performance.spec.mjs</File>
+      <File>tests/browser/action-center.spec.mjs</File>
+      <File>tests/release-assets-contract.test.mjs</File>
+      <File>tests/release-recovery-workflow.test.mjs</File>
+      <File>tests/target-acceptance.test.mjs</File>
+    </ObservedWriteScope>
+    <ImplementationPlan>
+      <T-001>
+        <Title>kafedra-flow-intake: define immutable gradebook states and immediate destination</Title>
+        <DependsOn></DependsOn>
+        <AcceptanceCriteria>
+          <Criterion>The primary flow is upload source, preserve documentId and version, analyze, correct ambiguity, import and open the exact current group-period summary without a redundant confirmation screen.</Criterion>
+          <Criterion>Failures preserve the source and operator selections; a failed row, cell or later version does not block valid facts or replace the previous current import.</Criterion>
+        </AcceptanceCriteria>
+        <Verification><Command>node --test tests/academic-performance.test.mjs</Command></Verification>
+      </T-001>
+      <T-002>
+        <Title>kafedra-data: integrate schema 31, provenance, lifecycle, totals and recovery</Title>
+        <DependsOn><T-001 /></DependsOn>
+        <AcceptanceCriteria>
+          <Criterion>Migration 031 is the next additive immutable migration and stores groups, periods, students, memberships, disciplines, imports, bindings, records and issues with source locators.</Criterion>
+          <Criterion>Current, superseded, archived and restored states are idempotent; academic tables participate in logical digest, backup and restore.</Criterion>
+          <Criterion>Selected-current-group totals are calculated from grade records with a weighted numeric-only average and are not stored as a second truth.</Criterion>
+        </AcceptanceCriteria>
+        <Verification><Command>node --test tests/academic-performance-migration.test.mjs tests/academic-performance-backup.test.mjs tests/academic-performance-period-totals.test.mjs</Command></Verification>
+      </T-002>
+      <T-003>
+        <Title>kafedra-design: deliver stable desktop and mobile academic hierarchy</Title>
+        <DependsOn><T-001 /><T-002 /></DependsOn>
+        <AcceptanceCriteria>
+          <Criterion>Desktop shows academic year, semester and group navigation beside the selected summary; mobile presents the same flow as sequential sections without horizontal dependency.</Criterion>
+          <Criterion>One primary upload/import path, visible source bindings, calm table hierarchy, empty/loading/partial/error states and evidence drill-down remain stable regardless of usage statistics.</Criterion>
+          <Criterion>The Action Center gains a fixed Учебный процесс group without moving global controls or changing the fixed recommendation geometry.</Criterion>
+        </AcceptanceCriteria>
+        <Verification><Command>node --check tests/browser/academic-performance.spec.mjs</Command></Verification>
+      </T-003>
+      <T-004>
+        <Title>kafedra-motion: keep disclosure restrained and provide true reduced-motion</Title>
+        <DependsOn><T-003 /></DependsOn>
+        <AcceptanceCriteria>
+          <Criterion>Only short disclosure transitions assist orientation; importing, totals, table updates and evidence remain understandable in static frames.</Criterion>
+          <Criterion>prefers-reduced-motion computes zero transition duration and introduces no spatial animation on desktop or mobile.</Criterion>
+        </AcceptanceCriteria>
+        <Verification><Command>node --check tests/browser/academic-performance.spec.mjs</Command></Verification>
+      </T-004>
+      <T-005>
+        <Title>kafedra-feature: integrate API, section, Action Center and exports end to end</Title>
+        <DependsOn><T-002 /><T-003 /><T-004 /></DependsOn>
+        <AcceptanceCriteria>
+          <Criterion>The current application router and ux-next load the academic module without replacing newer Action Center, documents, plans, meetings, science or release code.</Criterion>
+          <Criterion>academic.import launches the existing academic import form, is allowlisted and rank-only, and records preference only after successful explicit launch.</Criterion>
+          <Criterion>CSV, JSON and sources exports include per-group detail and selected-group totals while preserving exact source navigation.</Criterion>
+        </AcceptanceCriteria>
+        <Verification><Command>node --test tests/academic-performance-wiring.test.mjs tests/action-center-registry.test.mjs</Command></Verification>
+      </T-005>
+      <T-006>
+        <Title>kafedra-design-audit: independently verify clarity, evidence and responsive parity</Title>
+        <DependsOn><T-005 /></DependsOn>
+        <AcceptanceCriteria>
+          <Criterion>The implemented interface has no blocker or major finding for desktop, mobile, keyboard, source visibility, partial success, preserved input or reduced-motion.</Criterion>
+        </AcceptanceCriteria>
+        <Verification><Command>npm run design:check</Command></Verification>
+      </T-006>
+      <T-007>
+        <Title>kafedra-tests: prove normalization, lifecycle, ACL, totals and complete browser flows</Title>
+        <DependsOn><T-006 /></DependsOn>
+        <AcceptanceCriteria>
+          <Criterion>Unit and integration tests cover grade aliases, blanks, unknowns, columns after Z, cell/manual metadata, current replacement, failed replacement, archive/restore, ACL, idempotency, totals and all exports.</Criterion>
+          <Criterion>Playwright covers the Action Center entry and direct navigation, desktop, mobile, selected groups, evidence, exports, retry and true zero-duration reduced motion.</Criterion>
+        </AcceptanceCriteria>
+        <Verification><Command>npm test</Command><Command>node --check tests/browser/academic-performance.spec.mjs</Command><Command>node --check tests/browser/action-center.spec.mjs</Command></Verification>
+      </T-007>
+      <T-008>
+        <Title>kafedra-release: publish verified 0.4.0 offline release candidate</Title>
+        <DependsOn><T-007 /></DependsOn>
+        <AcceptanceCriteria>
+          <Criterion>VERSION, package manifests, release markers and notes agree on 0.4.0; schema documentation and acceptance agree on 31.</Criterion>
+          <Criterion>Exact-head GRACE, project, release, database, browser and full-offline checks pass; post-merge publisher creates immutable release assets and checksums without moving an old tag.</Criterion>
+          <Criterion>Upgrade from 0.3.4/schema 30 creates and verifies backup, migrates to 31, passes health and can restore the prior release and data after forced failure.</Criterion>
+        </AcceptanceCriteria>
+        <Verification><Command>npm run check</Command><Command>npm run docs:check</Command><Command>npm run backup:selftest</Command><Command>bash -n scripts/offline/*.sh deploy/install.sh</Command></Verification>
+      </T-008>
+    </ImplementationPlan>
+  </C-ACADEMIC-PERFORMANCE-0-4-0>
+</GraceChangePlan>

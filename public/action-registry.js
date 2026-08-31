@@ -4,6 +4,7 @@ export const ACTION_GROUPS = Object.freeze([
   { id: 'plans', label: 'Планы' },
   { id: 'work', label: 'Работа кафедры' },
   { id: 'meetings', label: 'Заседания' },
+  { id: 'academic', label: 'Учебный процесс' },
   { id: 'science', label: 'Наука и отчёты' }
 ]);
 
@@ -20,8 +21,9 @@ export const ACTIONS = Object.freeze([
   { id: 'directive.upload', group: 'work', label: 'Загрузить распоряжение', detail: 'Извлечь номер, дату и поручения', terms: ['распоряжение', 'приказ', 'указ', 'поручение'], order: 100 },
   { id: 'meeting.create', group: 'meetings', label: 'Создать заседание', detail: 'Подготовить повестку вручную', terms: ['заседание', 'повестка', 'протокол'], order: 110 },
   { id: 'meeting.upload', group: 'meetings', label: 'Загрузить протокол', detail: 'Создать или дополнить заседание', terms: ['протокол', 'заседание', 'повестка'], order: 120 },
-  { id: 'science.import', group: 'science', label: 'Импортировать научные данные', detail: 'Распознать список публикаций и работ', terms: ['наука', 'публикация', 'импорт'], order: 130 },
-  { id: 'science.report', group: 'science', label: 'Сформировать отчёт', detail: 'Открыть научные и годовые отчёты', terms: ['отчёт', 'годовой', 'научный'], order: 140 }
+  { id: 'academic.import', group: 'academic', label: 'Загрузить ведомость', detail: 'Распознать оценки и открыть сводку успеваемости', terms: ['ведомость', 'оценки', 'успеваемость', 'группа', 'excel', 'xlsx', 'ods', 'csv'], order: 130 },
+  { id: 'science.import', group: 'science', label: 'Импортировать научные данные', detail: 'Распознать список публикаций и работ', terms: ['наука', 'публикация', 'импорт'], order: 140 },
+  { id: 'science.report', group: 'science', label: 'Сформировать отчёт', detail: 'Открыть научные и годовые отчёты', terms: ['отчёт', 'годовой', 'научный'], order: 150 }
 ]);
 
 export const ACTION_IDS = Object.freeze(ACTIONS.map((action) => action.id));
@@ -53,7 +55,8 @@ function contextScore(action, context = {}) {
   if (context.explicitAction === action.id) return 1000;
   let score = 0;
   if (context.date && action.group === 'calendar') score += 300;
-  if (context.view && context.view === action.group) score += 120;
+  const contextGroup = context.view === 'academic-performance' ? 'academic' : context.view;
+  if (contextGroup && contextGroup === action.group) score += 120;
   if (context.documentType === 'plan' && action.id === 'plan.upload') score += 500;
   if (context.documentType === 'protocol' && action.id === 'meeting.upload') score += 500;
   if (context.documentType === 'directive' && action.id === 'directive.upload') score += 500;

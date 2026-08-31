@@ -41,11 +41,11 @@ test('центр имеет стабильную структуру, работ�
   const center = page.locator('#action-center');
   await expect(center).toBeVisible();
   await expect(center.locator('#action-center-recommendations > *')).toHaveCount(3);
-  await expect(center.locator('[data-action-group]')).toHaveCount(6);
+  await expect(center.locator('[data-action-group]')).toHaveCount(7);
 
   await page.locator('#action-center-search').fill('протокол');
   await expect(center.locator('[data-action-id="meeting.upload"]').first()).toBeVisible();
-  await expect(center.locator('[data-action-group]')).toHaveCount(6);
+  await expect(center.locator('[data-action-group]')).toHaveCount(7);
   await page.keyboard.press('Escape');
   await expect(center).toBeHidden();
   await expect(create).toBeFocused();
@@ -67,6 +67,21 @@ test('центр имеет стабильную структуру, работ�
   await center.locator('[data-action-id="calendar.event"]').first().click();
   await expect(page.locator('#event-sheet')).toBeVisible();
   await expect(page.locator('#event-date')).toHaveValue(explicitDate);
+});
+
+
+test('центр запускает существующий импорт ведомости без дублирования формы', async ({ page }) => {
+  await openApplication(page);
+  await page.locator('#create-button').click();
+  const center = page.locator('#action-center');
+  await page.locator('#action-center-search').fill('ведомость');
+  const action = center.locator('[data-action-id="academic.import"]').first();
+  await expect(action).toBeVisible();
+  await action.click();
+  await expect(center).toBeHidden();
+  await expect(page.locator('[data-view-panel="academic-performance"]')).toBeVisible();
+  await expect(page.locator('[data-academic-modal]')).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Загрузить ведомость' })).toBeVisible();
 });
 
 test('универсальная загрузка открывает точный созданный план', async ({ page }, testInfo) => {
@@ -104,5 +119,5 @@ test('reduced motion оставляет понятное статическое 
   expect(motion.transitionDuration).toBe('0s');
   await expect(page.locator('#action-center-title')).toHaveText('Что нужно сделать?');
   await expect(page.locator('#action-center-recommendations > *')).toHaveCount(3);
-  await expect(page.locator('[data-action-group]')).toHaveCount(6);
+  await expect(page.locator('[data-action-group]')).toHaveCount(7);
 });
