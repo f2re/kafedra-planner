@@ -1,35 +1,6 @@
-import { isUploadRequest, normalizeIdempotencyHeader } from './http-headers.js';
+import { installUnicodeSafeHeaders } from './http-headers.js';
 
-const rawFetch = window.fetch.bind(window);
-const GENERATED_UPLOAD_KEY = /^kp-upload-v1-[a-f0-9]{64}$/u;
-
-function rawHeaderEntries(headers) {
-  if (!headers) return [];
-  if (headers instanceof Headers) return [...headers.entries()];
-  if (Array.isArray(headers)) return headers.map(([name, value]) => [name, value]);
-  if (typeof headers === 'object') return Object.entries(headers);
-  return [];
-}
-
-async function safeHeaders(input, init, headers) {
-  const upload = isUploadRequest(input, init);
-  const entries = [];
-  for (const [rawName, rawValue] of rawHeaderEntries(headers)) {
-    const name = String(rawName);
-    let value = String(rawValue ?? '');
-    if (name.toLowerCase() === 'idempotency-key' && !GENERATED_UPLOAD_KEY.test(value)) {
-      value = await normalizeIdempotencyHeader(value, { upload });
-    }
-    entries.push([name, value]);
-  }
-  return new Headers(entries);
-}
-
-window.fetch = async function headerSafeFetch(input, init = {}) {
-  if (!init?.headers) return rawFetch(input, init);
-  const headers = await safeHeaders(input, init, init.headers);
-  return rawFetch(input, { ...init, headers });
-};
+installUnicodeSafeHeaders(window);
 
 await import('./auth-next.js');
 await import('./notification-delivery.js');
