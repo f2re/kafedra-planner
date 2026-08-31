@@ -1,0 +1,1 @@
+/tmp/kpwork/deploy/install-core.sh
