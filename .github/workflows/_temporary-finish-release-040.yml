@@ -16,7 +16,7 @@ jobs:
   apply:
     if: github.actor != 'github-actions[bot]'
     runs-on: ubuntu-24.04
-    timeout-minutes: 25
+    timeout-minutes: 30
     steps:
       - name: Checkout helper payload
         uses: actions/checkout@v4
@@ -35,7 +35,7 @@ jobs:
           node-version-file: target/.nvmrc
           cache: npm
           cache-dependency-path: target/package-lock.json
-      - name: Recover and apply prepared non-workflow patch
+      - name: Apply exact prepared completion patches
         shell: bash
         run: |
           set -Eeuo pipefail
@@ -43,37 +43,29 @@ jobs:
           python - <<'PY'
           from pathlib import Path
           import base64
+          import gzip
 
-          chunks = sorted(Path('helper/.github/finish-release-040').glob('chunk-*'))
-          payload = ''.join(path.read_text(encoding='utf-8').strip() for path in chunks)
-          payload += '=' * (-len(payload) % 4)
-          Path('/tmp/release-040-nonworkflow.patch.gz').write_bytes(base64.urlsafe_b64decode(payload))
+          def decode(directory: str, destination: str) -> None:
+              chunks = sorted(Path(directory).glob('chunk-*'))
+              if not chunks:
+                  raise SystemExit(f'No chunks in {directory}')
+              payload = ''.join(path.read_text(encoding='utf-8').strip() for path in chunks)
+              payload += '=' * (-len(payload) % 4)
+              compressed = base64.urlsafe_b64decode(payload)
+              Path(destination).write_bytes(gzip.decompress(compressed))
+
+          decode('helper/.github/finish-release-040', '/tmp/release-040-tracked.patch')
+          decode('helper/.github/finish-release-040-new', '/tmp/release-040-newfiles.patch')
           PY
-          set +e
-          gzip --decompress --stdout /tmp/release-040-nonworkflow.patch.gz > /tmp/release-040-nonworkflow.patch
-          gzip_status=$?
-          set -e
-          printf 'gzip_status=%s compressed_bytes=%s patch_bytes=%s\n' \
-            "$gzip_status" \
-            "$(wc -c < /tmp/release-040-nonworkflow.patch.gz)" \
-            "$(wc -c < /tmp/release-040-nonworkflow.patch)"
-          git -C target apply --check /tmp/release-040-nonworkflow.patch
-          git -C target apply /tmp/release-040-nonworkflow.patch
+          git -C target apply --check /tmp/release-040-tracked.patch
+          git -C target apply /tmp/release-040-tracked.patch
+          git -C target apply --check /tmp/release-040-newfiles.patch
+          git -C target apply /tmp/release-040-newfiles.patch
           git -C target diff --check
           if git -C target diff --name-only | grep -q '^\.github/workflows/'; then
-            echo 'Non-workflow patch attempted to modify workflow files' >&2
+            echo 'Prepared non-workflow patches attempted to modify workflow files' >&2
             exit 1
           fi
-      - name: Upload recovered patch
-        if: always()
-        uses: actions/upload-artifact@v4
-        with:
-          name: release-040-recovered-nonworkflow-patch
-          path: |
-            /tmp/release-040-nonworkflow.patch
-            /tmp/release-040-nonworkflow.patch.gz
-          retention-days: 1
-          if-no-files-found: warn
       - name: Verify complete release source
         working-directory: target
         shell: bash
