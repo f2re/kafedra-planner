@@ -244,7 +244,64 @@ def tesseract_languages():
     return [line for line in lines if not line.lower().startswith("list of available")], None
 
 
-def doctor(languages):
+def write_control_pdf(path):
+    content = b"BT /F1 30 Tf 28 42 Td (TEST 123) Tj ET\n"
+    objects = [
+        b"<< /Type /Catalog /Pages 2 0 R >>",
+        b"<< /Type /Pages /Kids [3 0 R] /Count 1 >>",
+        b"<< /Type /Page /Parent 2 0 R /MediaBox [0 0 260 100] /Resources << /Font << /F1 4 0 R >> >> /Contents 5 0 R >>",
+        b"<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica-Bold >>",
+        b"<< /Length %d >>\nstream\n" % len(content) + content + b"endstream",
+    ]
+    document = bytearray(b"%PDF-1.4\n%\xe2\xe3\xcf\xd3\n")
+    offsets = [0]
+    for number, obj in enumerate(objects, 1):
+        offsets.append(len(document))
+        document.extend(("%d 0 obj\n" % number).encode("ascii"))
+        document.extend(obj)
+        document.extend(b"\nendobj\n")
+    xref = len(document)
+    document.extend(("xref\n0 %d\n" % (len(objects) + 1)).encode("ascii"))
+    document.extend(b"0000000000 65535 f \n")
+    for offset in offsets[1:]:
+        document.extend(("%010d 00000 n \n" % offset).encode("ascii"))
+    document.extend(("trailer\n<< /Size %d /Root 1 0 R >>\nstartxref\n%d\n%%%%EOF\n" % (len(objects) + 1, xref)).encode("ascii"))
+    with open(path, "wb") as stream:
+        stream.write(document)
+
+
+def control_ocr_self_test():
+    if not shutil.which("pdftoppm") or not shutil.which("tesseract"):
+        return {"status": "blocked", "error": "control_ocr_commands_missing", "text": ""}
+    with tempfile.TemporaryDirectory(prefix="kafedra-ocr-doctor-") as directory:
+        pdf_path = os.path.join(directory, "control.pdf")
+        image_prefix = os.path.join(directory, "control")
+        image_path = image_prefix + ".png"
+        write_control_pdf(pdf_path)
+        try:
+            subprocess.run(
+                ["pdftoppm", "-singlefile", "-png", "-r", "220", pdf_path, image_prefix],
+                check=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE,
+                universal_newlines=True, timeout=60,
+            )
+            completed = subprocess.run(
+                ["tesseract", image_path, "stdout", "-l", "eng", "--psm", "7", "--dpi", "220"],
+                check=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE,
+                universal_newlines=True, timeout=60,
+            )
+        except (OSError, subprocess.SubprocessError) as exc:
+            return {"status": "blocked", "error": command_error(exc), "text": ""}
+        text = clean_text(completed.stdout)
+        normalized = re.sub(r"[^A-Z0-9]+", "", text.upper())
+        ready = "TEST" in normalized and "123" in normalized
+        return {
+            "status": "ready" if ready else "blocked",
+            "error": None if ready else "control_ocr_text_mismatch",
+            "text": text[:160],
+        }
+
+
+def doctor(languages, self_test=False):
     requested = [item for item in str(languages or "rus+eng").split("+") if item]
     available, error = tesseract_languages()
     missing = [item for item in requested if item not in available]
@@ -255,6 +312,12 @@ def doctor(languages):
         "pdftotext": bool(shutil.which("pdftotext")),
         "languages": not missing,
     }
+    control = {"status": "skipped", "error": None, "text": ""}
+    if self_test:
+        control = control_ocr_self_test() if all(checks.values()) else {
+            "status": "blocked", "error": "control_ocr_prerequisites_missing", "text": ""
+        }
+        checks["controlOcr"] = control["status"] == "ready"
     return {
         "status": "ready" if all(checks.values()) else "blocked",
         "pythonVersion": "%s.%s.%s" % sys.version_info[:3],
@@ -263,6 +326,7 @@ def doctor(languages):
         "requestedLanguages": requested,
         "availableLanguages": available,
         "missingLanguages": missing,
+        "controlOcr": control,
         "error": error,
     }
 
@@ -282,6 +346,7 @@ def main(argv=None):
     for target in (image, pdf):
         target.add_argument("--dpi", type=int, default=250)
     pdf.add_argument("--max-pages", type=int, default=50)
+    doctor_parser.add_argument("--self-test", action="store_true")
     args = parser.parse_args(argv)
     if not args.command:
         parser.error("не указана команда")
@@ -290,7 +355,7 @@ def main(argv=None):
     elif args.command == "pdf":
         result = recognize_pdf(args.path, args.languages, args.dpi, args.max_pages)
     elif args.command == "doctor":
-        result = doctor(args.languages)
+        result = doctor(args.languages, self_test=args.self_test)
     else:
         if args.path == "-":
             content = sys.stdin.read()
