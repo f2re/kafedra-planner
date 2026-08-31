@@ -1,21 +1,79 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
+import { createHash } from 'node:crypto';
 import { execFile } from 'node:child_process';
-import { mkdtemp, rm, writeFile, readFile } from 'node:fs/promises';
+import { chmod, mkdir, mkdtemp, readFile, readdir, rm, stat, writeFile } from 'node:fs/promises';
 import { promisify } from 'node:util';
 import { tmpdir } from 'node:os';
-import { join, resolve } from 'node:path';
+import { basename, dirname, join, resolve } from 'node:path';
 import { systemRequirements } from '../packages/system/src/preflight.mjs';
 
 const run = promisify(execFile);
 const collector = await readFile(new URL('../scripts/offline/collect-os-packages.sh', import.meta.url), 'utf8');
 const installer = await readFile(new URL('../scripts/offline/install-os-packages.sh', import.meta.url), 'utf8');
+const packageCache = await readFile(new URL('../scripts/offline/cache-os-packages.sh', import.meta.url), 'utf8');
 const lib = await readFile(new URL('../scripts/offline/lib.sh', import.meta.url), 'utf8');
 const deployment = await readFile(new URL('../scripts/offline/deployment-contract.mjs', import.meta.url), 'utf8');
 const doctor = await readFile(new URL('../scripts/offline/doctor.sh', import.meta.url), 'utf8');
 const deployCore = await readFile(new URL('../deploy/install-core.sh', import.meta.url), 'utf8');
 const preflightCli = await readFile(new URL('../scripts/system-preflight.mjs', import.meta.url), 'utf8');
 const packageProfile = await readFile(new URL('../config/offline/os-packages.txt', import.meta.url), 'utf8');
+const packageCachePath = resolve('scripts/offline/cache-os-packages.sh');
+
+function sha256(value) {
+  return createHash('sha256').update(value).digest('hex');
+}
+
+async function currentOsProfile() {
+  const script = `source ${JSON.stringify(resolve('scripts/offline/lib.sh'))}; detect_os_profile /etc/os-release`;
+  const { stdout } = await run('bash', ['-lc', script]);
+  const [family, id, version, architecture] = stdout.trimEnd().split('\n');
+  assert.ok(family && id && version && architecture, `incomplete OS profile: ${stdout}`);
+  return { family, id, version, architecture };
+}
+
+async function createPackagePayload(work) {
+  const payload = join(work, 'payload');
+  const packageRoot = join(work, 'deb-root');
+  const controlRoot = join(packageRoot, 'DEBIAN');
+  await mkdir(payload, { recursive: true });
+  await mkdir(controlRoot, { recursive: true });
+  await writeFile(join(controlRoot, 'control'), [
+    'Package: kp-cache-fixture',
+    'Version: 1.0',
+    'Architecture: all',
+    'Maintainer: Kafedra Planner tests',
+    'Description: immutable package cache fixture',
+    ''
+  ].join('\n'));
+
+  const fileName = 'kp-cache-fixture_1.0_all.deb';
+  const debPath = join(payload, fileName);
+  await run('dpkg-deb', ['--build', packageRoot, debPath]);
+  const debDigest = sha256(await readFile(debPath));
+  const requested = 'kp-cache-fixture\n';
+  await writeFile(join(payload, 'requested-packages.txt'), requested);
+  await writeFile(join(payload, 'manifest.sha256'), `${debDigest}  ${fileName}\n`);
+  await writeFile(
+    join(payload, 'packages.tsv'),
+    `sha256\tpackage\tversion\tarchitecture\tfilename\n${debDigest}\tkp-cache-fixture\t1.0\tall\t${fileName}\n`
+  );
+
+  const profile = await currentOsProfile();
+  await writeFile(join(payload, 'source-os.env'), [
+    `OS_FAMILY=${profile.family}`,
+    `OS_ID=${profile.id}`,
+    `OS_VERSION_ID=${profile.version}`,
+    `DEB_ARCHITECTURE=${profile.architecture}`,
+    'DEPENDENCY_CLOSURE=full-airgap-v2',
+    'TARGET_INSTALL_POLICY=additive-only-v2',
+    'REFERENCE_APT_CHECK=passed',
+    'APT_INSTALL_RECOMMENDS=false',
+    `REQUESTED_PACKAGES_SHA256=${sha256(requested)}`,
+    ''
+  ].join('\n'));
+  return payload;
+}
 
 test('build package layer requires healthy reference APT and publishes additive-only-v2 policy', () => {
   assert.match(collector, /apt-get check/u);
@@ -27,6 +85,57 @@ test('build package layer requires healthy reference APT and publishes additive-
   assert.match(deployment, /FORMAT_VERSION = 2/u);
   assert.match(deployment, /full-airgap-v2/u);
   assert.match(deployment, /additive-only-v2/u);
+});
+
+test('verified OS payload cache is profile-bound, atomic and never overwrites an immutable entry', () => {
+  assert.match(packageCache, /KAFEDRA_OS_PACKAGE_CACHE_ROOT/u);
+  assert.match(packageCache, /verify_os_package_set "\$SOURCE" 1/u);
+  assert.match(packageCache, /sha256_of "\$SOURCE\/manifest\.sha256"/u);
+  assert.match(packageCache, /mktemp -d/u);
+  assert.match(packageCache, /mv -T -n/u);
+  assert.match(packageCache, /chmod 0555 "\$TEMP"/u);
+  assert.doesNotMatch(packageCache, /rm -rf -- "\$DESTINATION"/u);
+  assert.ok(
+    packageCache.indexOf('verify_os_package_set "$SOURCE" 1')
+      < packageCache.indexOf('install -d -m 0755 "$KAFEDRA_OS_PACKAGE_CACHE_ROOT"'),
+    'payload must be verified before the cache root is written'
+  );
+});
+
+test('verified OS payload is cached once and corruption is rejected without replacement', async () => {
+  const work = await mkdtemp(join(tmpdir(), 'kafedra-package-cache-'));
+  try {
+    const payload = await createPackagePayload(work);
+    const cacheRoot = join(work, 'cache');
+    const options = {
+      env: { ...process.env, KAFEDRA_OS_PACKAGE_CACHE_ROOT: cacheRoot }
+    };
+
+    const first = await run('bash', [packageCachePath, payload], options);
+    const destination = first.stdout.trim();
+    assert.ok(destination.startsWith(`${cacheRoot}/`), destination);
+    assert.equal((await stat(destination)).mode & 0o222, 0);
+    for (const name of await readdir(destination)) {
+      assert.equal((await stat(join(destination, name))).mode & 0o222, 0, `${name} must be read-only`);
+    }
+
+    const second = await run('bash', [packageCachePath, payload], options);
+    assert.equal(second.stdout.trim(), destination);
+    assert.deepEqual((await readdir(dirname(destination))).sort(), [basename(destination)]);
+
+    const inventory = join(destination, 'packages.tsv');
+    await chmod(destination, 0o755);
+    await chmod(inventory, 0o644);
+    await writeFile(inventory, 'corrupted inventory\n');
+    await chmod(inventory, 0o444);
+    await chmod(destination, 0o555);
+
+    await assert.rejects(() => run('bash', [packageCachePath, payload], options));
+    assert.equal(await readFile(inventory, 'utf8'), 'corrupted inventory\n');
+  } finally {
+    await run('chmod', ['-R', 'u+w', work]).catch(() => {});
+    await rm(work, { recursive: true, force: true });
+  }
 });
 
 test('target installer is capability-aware and never repairs or replaces installed OS packages', () => {
