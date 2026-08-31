@@ -1,0 +1,79 @@
+name: Temporary finish release 0.4.0 non-workflow changes
+
+on:
+  push:
+    branches:
+      - ci/finish-release-040
+
+permissions:
+  contents: write
+
+concurrency:
+  group: temporary-finish-release-040
+  cancel-in-progress: false
+
+jobs:
+  apply:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 25
+    steps:
+      - name: Checkout helper payload
+        uses: actions/checkout@v4
+        with:
+          ref: ci/finish-release-040
+          path: helper
+          fetch-depth: 1
+      - name: Checkout exact pull-request branch
+        uses: actions/checkout@v4
+        with:
+          ref: feature/183-academic-performance-0.4.0
+          path: target
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: target/.nvmrc
+          cache: npm
+          cache-dependency-path: target/package-lock.json
+      - name: Apply prepared non-workflow patch
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          test "$(git -C target rev-parse HEAD)" = "08fb6f939a41533d81e9866c88339f4ee77879a5"
+          cat helper/.github/finish-release-040/chunk-* > /tmp/release-040-nonworkflow.patch.gz.b64
+          base64 --decode /tmp/release-040-nonworkflow.patch.gz.b64 | gzip --decompress > /tmp/release-040-nonworkflow.patch
+          git -C target apply --check /tmp/release-040-nonworkflow.patch
+          git -C target apply /tmp/release-040-nonworkflow.patch
+          git -C target diff --check
+          if git -C target diff --name-only | grep -q '^\.github/workflows/'; then
+            echo 'Non-workflow patch attempted to modify workflow files' >&2
+            exit 1
+          fi
+      - name: Verify complete release source
+        working-directory: target
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          npm ci --ignore-scripts --no-audit --no-fund
+          npm run check
+          npm test
+          npm run smoke
+          npm run backup:selftest
+          test "$(tr -d '[:space:]' < VERSION)" = "0.4.0"
+          test -f packages/academic-performance/src/report.mjs
+          test -f tests/academic-performance-period-totals.test.mjs
+          grep -Fq 'academic.import' public/action-registry.js
+          grep -Fq 'academic.import' public/action-center.js
+          grep -Fq 'academic_grade_records' packages/system/src/acceptance.mjs
+          grep -Fq 'prefers-reduced-motion' public/academic-performance-next.css
+          grep -Fq 'schema SQLite 31' docs/TARGET_ACCEPTANCE.md
+      - name: Commit verified non-workflow changes
+        working-directory: target
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add -A
+          git commit -m 'Release 0.4.0: complete academic performance vertical' -m 'Adds Action Center integration, selected-group totals, acceptance coverage, release metadata and regression tests. Refs #183.'
+          git push origin HEAD:feature/183-academic-performance-0.4.0
