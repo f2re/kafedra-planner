@@ -1,4 +1,4 @@
-<GraceChangePlan graceVersion="4.0" status="approved">
+<GraceChangePlan graceVersion="4.0" status="applied">
   <C-DOCUMENT-RUNTIME-RELIABILITY-235>
     <IntentSummary>Deliver one governed vertical repair for document runtime readiness, Docomator diagnostics and Unicode-safe upload transport, with strict target activation, preserved provenance, responsive inline errors and release-grade regression evidence.</IntentSummary>
     <BaselineAssertions>
