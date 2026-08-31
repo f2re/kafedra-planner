@@ -73,6 +73,33 @@ jobs:
           --base "$GRACE_BASE_REF"
           --mode "$GRACE_POLICY_MODE"
           --github-output
+      - name: Inspect executable assertion environment
+        id: assertion_env
+        env:
+          CHANGE_ID: ${{ steps.policy.outputs.change_id }}
+          ASSERTION_MODE: ${{ steps.policy.outputs.assertion_mode }}
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          if [[ "$ASSERTION_MODE" == "baseline" || "$ASSERTION_MODE" == "final" ]]; then
+            node scripts/ci/grace-assertion-env.mjs --change "$CHANGE_ID" --github-output
+          else
+            printf 'playwright=false\ncommand_count=0\n' >> "$GITHUB_OUTPUT"
+          fi
+      - name: Install exact project dependencies for executable assertions
+        env:
+          ASSERTION_MODE: ${{ steps.policy.outputs.assertion_mode }}
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          if [[ "$ASSERTION_MODE" == "baseline" || "$ASSERTION_MODE" == "final" ]]; then
+            npm ci --ignore-scripts --no-audit --no-fund
+          else
+            echo "Project dependencies are not required for current assertions."
+          fi
+      - name: Install Chromium for approved browser assertions
+        if: steps.assertion_env.outputs.playwright == 'true'
+        run: npx playwright install --with-deps chromium
       - name: Run selected GRACE assertion gate
         env:
           CHANGE_ID: ${{ steps.policy.outputs.change_id }}
