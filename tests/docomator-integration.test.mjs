@@ -89,13 +89,13 @@ test('адрес Оформлятора нормализуется и прове
 
 test('transport failures receive stable safe diagnostic categories', async () => {
   const cases = [
-    ['ENOTFOUND', 'TypeError', 'docomator_dns_error'],
-    ['EAI_AGAIN', 'TypeError', 'docomator_dns_error'],
+    ['ENOTFOUND', 'TypeError', 'docomator_dns_failed'],
+    ['EAI_AGAIN', 'TypeError', 'docomator_dns_failed'],
     ['ECONNREFUSED', 'TypeError', 'docomator_connection_refused'],
     ['ETIMEDOUT', 'TypeError', 'docomator_timeout'],
     ['UND_ERR_CONNECT_TIMEOUT', 'TypeError', 'docomator_timeout'],
-    ['CERT_HAS_EXPIRED', 'TypeError', 'docomator_tls_error'],
-    ['ERR_TLS_CERT_ALTNAME_INVALID', 'TypeError', 'docomator_tls_error'],
+    ['CERT_HAS_EXPIRED', 'TypeError', 'docomator_tls_failed'],
+    ['ERR_TLS_CERT_ALTNAME_INVALID', 'TypeError', 'docomator_tls_failed'],
     [null, 'TimeoutError', 'docomator_timeout'],
     ['EHOSTUNREACH', 'TypeError', 'docomator_unreachable']
   ];

@@ -74,7 +74,7 @@ function transportCode(error) {
 export function classifyDocomatorTransportError(error) {
   const code = transportCode(error);
   const name = String(error?.name || '');
-  if (code === 'ENOTFOUND' || code === 'EAI_AGAIN') return 'docomator_dns_error';
+  if (code === 'ENOTFOUND' || code === 'EAI_AGAIN') return 'docomator_dns_failed';
   if (code === 'ECONNREFUSED') return 'docomator_connection_refused';
   if (
     name === 'TimeoutError'
@@ -85,7 +85,7 @@ export function classifyDocomatorTransportError(error) {
     || code === 'UND_ERR_BODY_TIMEOUT'
   ) return 'docomator_timeout';
   if (code && /(TLS|SSL|CERT|SELF_SIGNED|UNABLE_TO_VERIFY|CERT_ALTNAME)/u.test(code)) {
-    return 'docomator_tls_error';
+    return 'docomator_tls_failed';
   }
   return 'docomator_unreachable';
 }
