@@ -1,0 +1,207 @@
+<GraceChangePlan graceVersion="4.0" status="approved">
+  <C-PLANS-REVERSIBLE-UX-236>
+    <IntentSummary>Deliver a governed plans vertical that combines a stable Apple-inspired toolbar with reversible source-row inclusion decisions, preserving evidence and existing work while reducing clicks and responsive overflow.</IntentSummary>
+    <BaselineAssertions>
+      <MustExist><Value>public/plans-next.js</Value></MustExist>
+      <MustExist><Value>public/plans-next.css</Value></MustExist>
+      <MustExist><Value>public/lifecycle-safe.js</Value></MustExist>
+      <MustExist><Value>public/plan-source-rows-next.js</Value></MustExist>
+      <MustExist><Value>public/plan-source-rows-next.css</Value></MustExist>
+      <MustExist><Value>apps/api/src/plan-source-rows-router.mjs</Value></MustExist>
+      <MustExist><Value>packages/plans/src/source-rows.mjs</Value></MustExist>
+      <MustExist><Value>packages/plans/src/queries.mjs</Value></MustExist>
+      <MustExist><Value>migrations/031_academic_performance.sql</Value></MustExist>
+      <MustContain><File>public/lifecycle-safe.js</File><Text>plans-lifecycle-status</Text></MustContain>
+      <MustContain><File>public/plans-next.css</File><Text>.plans-filterbar</Text></MustContain>
+      <MustContain><File>public/plan-source-rows-next.js</File><Text>plan-more-filters</Text></MustContain>
+      <MustContain><File>packages/plans/src/source-rows.mjs</File><Text>materializePlanSourceRow</Text></MustContain>
+      <MustVerify><Module>M-API</Module></MustVerify>
+      <MustVerify><Module>M-DATABASE</Module></MustVerify>
+      <MustVerify><Module>M-BACKUP</Module></MustVerify>
+      <MustVerify><Module>M-MIGRATION-RUNNER</Module></MustVerify>
+      <MustVerify><Module>M-DESIGN-GOVERNANCE</Module></MustVerify>
+      <MustVerify><Module>M-MOTION-KB</Module></MustVerify>
+      <MustVerify><Module>M-CI-GATE</Module></MustVerify>
+      <MustPassCommand><Command>node --test tests/plan-source-rows.test.mjs tests/plan-source-rows-migration.test.mjs tests/lifecycle.test.mjs</Command></MustPassCommand>
+      <MustPassCommand><Command>npm run check</Command></MustPassCommand>
+      <MustPassCommand><Command>npm run docs:check</Command></MustPassCommand>
+    </BaselineAssertions>
+    <TargetAssertions>
+      <MustExist><Value>migrations/032_plan_source_row_decisions.sql</Value></MustExist>
+      <MustExist><Value>tests/plan-source-row-decisions.test.mjs</Value></MustExist>
+      <MustExist><Value>tests/browser/plans-reversible-ux.spec.mjs</Value></MustExist>
+      <MustExist><Value>.grace/changes/active/C-PLANS-REVERSIBLE-UX-236/design.md</Value></MustExist>
+      <MustExist><Value>.grace/changes/active/C-PLANS-REVERSIBLE-UX-236/motion.md</Value></MustExist>
+      <MustExist><Value>.grace/changes/active/C-PLANS-REVERSIBLE-UX-236/design-audit.md</Value></MustExist>
+      <MustContain><File>migrations/032_plan_source_row_decisions.sql</File><Text>inclusion_status</Text></MustContain>
+      <MustContain><File>migrations/032_plan_source_row_decisions.sql</File><Text>exclusion_snapshot_json</Text></MustContain>
+      <MustContain><File>migrations/032_plan_source_row_decisions.sql</File><Text>plan_source_row_decisions</Text></MustContain>
+      <MustContain><File>packages/plans/src/source-rows.mjs</File><Text>getPlanSourceRowDecisionImpact</Text></MustContain>
+      <MustContain><File>packages/plans/src/source-rows.mjs</File><Text>setPlanSourceRowInclusion</Text></MustContain>
+      <MustContain><File>packages/plans/src/source-rows.mjs</File><Text>plan_source_row_excluded</Text></MustContain>
+      <MustContain><File>apps/api/src/plan-source-rows-router.mjs</File><Text>/decision</Text></MustContain>
+      <MustContain><File>packages/plans/src/queries.mjs</File><Text>source_inclusion_status</Text></MustContain>
+      <MustContain><File>public/plans-next.js</File><Text>data-plan-lifecycle</Text></MustContain>
+      <MustContain><File>public/plans-next.js</File><Text>data-plan-filters-toggle</Text></MustContain>
+      <MustContain><File>public/plans-next.js</File><Text>plans-filter-active-count</Text></MustContain>
+      <MustContain><File>public/plan-source-rows-next.js</File><Text>data-source-row-decision</Text></MustContain>
+      <MustContain><File>public/plan-source-rows-next.js</File><Text>excluded</Text></MustContain>
+      <MustContain><File>public/plans-next.css</File><Text>.plans-toolbar</Text></MustContain>
+      <MustContain><File>public/plans-next.css</File><Text>.plans-filter-popover</Text></MustContain>
+      <MustContain><File>public/plans-next.css</File><Text>prefers-reduced-motion</Text></MustContain>
+      <MustContain><File>docs/PLANS.md</File><Text>Текущие | Архив</Text></MustContain>
+      <MustContain><File>docs/PLAN_SOURCE_ROWS.md</File><Text>Не включать в план</Text></MustContain>
+      <MustContain><File>docs/UX_FLOWS.md</File><Text>Вернуть в план</Text></MustContain>
+      <MustVerify><Module>M-API</Module></MustVerify>
+      <MustVerify><Module>M-DATABASE</Module></MustVerify>
+      <MustVerify><Module>M-BACKUP</Module></MustVerify>
+      <MustVerify><Module>M-MIGRATION-RUNNER</Module></MustVerify>
+      <MustVerify><Module>M-DESIGN-GOVERNANCE</Module></MustVerify>
+      <MustVerify><Module>M-MOTION-KB</Module></MustVerify>
+      <MustVerify><Module>M-CI-GATE</Module></MustVerify>
+      <MustVerify><Module>M-OFFLINE-BUNDLE</Module></MustVerify>
+      <MustPassCommand><Command>node --test tests/plan-source-rows.test.mjs tests/plan-source-row-decisions.test.mjs tests/plan-source-rows-migration.test.mjs tests/lifecycle.test.mjs</Command></MustPassCommand>
+      <MustPassCommand><Command>npm run check</Command></MustPassCommand>
+      <MustPassCommand><Command>npm run docs:check</Command></MustPassCommand>
+      <MustPassCommand><Command>npm test</Command></MustPassCommand>
+      <MustPassCommand><Command>npx playwright test tests/browser/plans-reversible-ux.spec.mjs tests/browser/plan-source-rows.spec.mjs tests/browser/lifecycle.spec.mjs</Command></MustPassCommand>
+    </TargetAssertions>
+    <DurableScope>
+      <GraphAnchors>
+        <M-API />
+        <M-DATABASE />
+        <M-BACKUP />
+        <M-MIGRATION-RUNNER />
+        <M-DESIGN-GOVERNANCE />
+        <M-MOTION-KB />
+        <M-CI-GATE />
+        <M-OFFLINE-BUNDLE />
+        <DF-GRACE-BRANCH />
+        <DF-DESIGN-CHANGE />
+        <DF-DATABASE-UPGRADE />
+      </GraphAnchors>
+      <VerificationAnchors>
+        <V-M-API />
+        <V-M-DATABASE />
+        <V-M-BACKUP />
+        <V-M-MIGRATION-RUNNER />
+        <V-M-DESIGN-GOVERNANCE />
+        <V-M-MOTION-KB />
+        <V-M-CI-GATE />
+        <V-M-OFFLINE-BUNDLE />
+      </VerificationAnchors>
+      <ContextArtifacts>
+        <ContextArtifact>principles.xml</ContextArtifact>
+        <ContextArtifact>ux-guidelines.xml</ContextArtifact>
+        <ContextArtifact>deployment.xml</ContextArtifact>
+        <ContextArtifact>technology.xml</ContextArtifact>
+      </ContextArtifacts>
+    </DurableScope>
+    <ObservedWriteScope>
+      <Glob>.grace/changes/active/C-PLANS-REVERSIBLE-UX-236/**</Glob>
+      <File>migrations/032_plan_source_row_decisions.sql</File>
+      <File>packages/plans/src/source-rows.mjs</File>
+      <File>packages/plans/src/service.mjs</File>
+      <File>packages/plans/src/queries.mjs</File>
+      <File>apps/api/src/plan-source-rows-router.mjs</File>
+      <File>public/plans-next.js</File>
+      <File>public/plans-next.css</File>
+      <File>public/lifecycle-safe.js</File>
+      <File>public/lifecycle-next.css</File>
+      <File>public/plan-source-rows-next.js</File>
+      <File>public/plan-source-rows-next.css</File>
+      <File>docs/PLANS.md</File>
+      <File>docs/PLAN_SOURCE_ROWS.md</File>
+      <File>docs/DOCUMENT_PLAN_LIFECYCLE.md</File>
+      <File>docs/UX_FLOWS.md</File>
+      <File>tests/plan-source-rows.test.mjs</File>
+      <File>tests/plan-source-row-decisions.test.mjs</File>
+      <File>tests/plan-source-rows-migration.test.mjs</File>
+      <File>tests/lifecycle.test.mjs</File>
+      <File>tests/browser/plans-reversible-ux.spec.mjs</File>
+      <File>tests/browser/plan-source-rows.spec.mjs</File>
+      <File>tests/browser/lifecycle.spec.mjs</File>
+    </ObservedWriteScope>
+    <ImplementationPlan>
+      <T-001>
+        <Title>kafedra-flow-intake: define lifecycle, filter and reversible row-decision states</Title>
+        <DependsOn></DependsOn>
+        <AcceptanceCriteria>
+          <Criterion>The common path reaches current or archived plans in one action and exposes secondary filters without losing search or period context.</Criterion>
+          <Criterion>Source-row decisions distinguish immediate, confirmable and blocked impact and always preserve a restoration path.</Criterion>
+          <Criterion>Error, repeated request, no-result, offline and partial-success states retain the current plan, filter values and row editor.</Criterion>
+        </AcceptanceCriteria>
+        <Verification><Command>npm run docs:check</Command></Verification>
+      </T-001>
+      <T-002>
+        <Title>kafedra-design: adapt proven segmented, toolbar and bounded disclosure patterns</Title>
+        <DependsOn><T-001 /></DependsOn>
+        <AcceptanceCriteria>
+          <Criterion>The visible hierarchy is lifecycle, search, period, filters and one primary plan action; controls use existing Kafedra tokens and surfaces.</Criterion>
+          <Criterion>The design records adaptations from Docomator segmented controls and Planer Solving sticky operator controls without copying assets or introducing a new framework.</Criterion>
+          <Criterion>Desktop, mobile, keyboard, 320 pixel width, long Russian labels and focus restoration are specified before implementation.</Criterion>
+        </AcceptanceCriteria>
+        <Verification><Command>npm run design:check</Command></Verification>
+      </T-002>
+      <T-003>
+        <Title>kafedra-motion: use no-motion for commits and restrained disclosure continuity</Title>
+        <DependsOn><T-002 /></DependsOn>
+        <AcceptanceCriteria>
+          <Criterion>Lifecycle and source-row decision commits use no-motion and update semantic state immediately.</Criterion>
+          <Criterion>The filters disclosure uses only a short interruptible opacity and small translation transition; reduced motion is instant.</Criterion>
+          <Criterion>No movement changes hit-target geometry or delays an operational action.</Criterion>
+        </AcceptanceCriteria>
+        <Verification><Command>npm run design:check</Command></Verification>
+      </T-003>
+      <T-004>
+        <Title>kafedra-data: add reversible inclusion authority and recovery-safe migration</Title>
+        <DependsOn><T-003 /></DependsOn>
+        <AcceptanceCriteria>
+          <Criterion>Migration 032 is additive, records current decision plus append-only history and preserves all source and evidence fields.</Criterion>
+          <Criterion>Exclusion snapshots only the projection states changed by the decision; restoration does not overwrite later edits.</Criterion>
+          <Criterion>Clean install, exact-base upgrade, repeated migration, integrity checks, verified backup, restore and forced-failure rollback pass.</Criterion>
+        </AcceptanceCriteria>
+        <Verification><Command>node --test tests/plan-source-rows-migration.test.mjs tests/plan-source-row-decisions.test.mjs</Command></Verification>
+      </T-004>
+      <T-005>
+        <Title>kafedra-feature: implement API, domain projections and responsive plans UI</Title>
+        <DependsOn><T-004 /></DependsOn>
+        <AcceptanceCriteria>
+          <Criterion>The API enforces plan edit ACL, returns impact before a confirmable decision and rejects materialization of excluded rows.</Criterion>
+          <Criterion>The toolbar and disclosure replace the lifecycle select and overloaded grid without duplicate controls.</Criterion>
+          <Criterion>No-impact exclude, impact confirmation, blocked completed work, undo and restore all operate on persisted truth.</Criterion>
+        </AcceptanceCriteria>
+        <Verification><Command>node --test tests/plan-source-rows.test.mjs tests/plan-source-row-decisions.test.mjs tests/lifecycle.test.mjs</Command></Verification>
+      </T-005>
+      <T-006>
+        <Title>kafedra-design-audit: independently inspect hierarchy, overflow, focus and decision clarity</Title>
+        <DependsOn><T-005 /></DependsOn>
+        <AcceptanceCriteria>
+          <Criterion>The audit returns PASS, REVISE or BLOCK with actual desktop, mobile, keyboard and reduced-motion evidence.</Criterion>
+          <Criterion>No blocker or major issue remains in one-click lifecycle, filter bounds, source visibility, impact wording or restoration discoverability.</Criterion>
+        </AcceptanceCriteria>
+        <Verification><Command>npm run design:check</Command></Verification>
+      </T-006>
+      <T-007>
+        <Title>kafedra-tests: prove migration, idempotency, projection and interaction regressions</Title>
+        <DependsOn><T-006 /></DependsOn>
+        <AcceptanceCriteria>
+          <Criterion>Unit and integration tests cover state transitions, snapshots, duplicate requests, re-extraction and materialize rejection.</Criterion>
+          <Criterion>Playwright covers desktop and mobile lifecycle, popover or sheet, viewport bounds, keyboard, reduced motion, exclusion impact, undo and restoration.</Criterion>
+          <Criterion>Complete project tests pass without production mocks or skipped required behavior.</Criterion>
+        </AcceptanceCriteria>
+        <Verification><Command>npm test</Command><Command>npx playwright test tests/browser/plans-reversible-ux.spec.mjs tests/browser/plan-source-rows.spec.mjs tests/browser/lifecycle.spec.mjs</Command></Verification>
+      </T-007>
+      <T-008>
+        <Title>kafedra-release: synchronize prerequisite, prove exact-head CI and archive applied change</Title>
+        <DependsOn><T-007 /></DependsOn>
+        <AcceptanceCriteria>
+          <Criterion>The branch is synchronized with the terminal main that contains issue 235 without force-push or losing the approved scope.</Criterion>
+          <Criterion>GRACE final and all mandatory project, browser, database, release and full-offline checks succeed on one immutable PR head.</Criterion>
+          <Criterion>Squash merge, post-merge CI and a separate archive-only applied PR complete before issue 237 begins.</Criterion>
+        </AcceptanceCriteria>
+        <Verification><Command>npm run check</Command><Command>npm run docs:check</Command><Command>npm test</Command></Verification>
+      </T-008>
+    </ImplementationPlan>
+  </C-PLANS-REVERSIBLE-UX-236>
+</GraceChangePlan>

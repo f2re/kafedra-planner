@@ -1,0 +1,74 @@
+<GraceChangeSpec graceVersion="4.0" status="approved">
+  <C-PLANS-REVERSIBLE-UX-236>
+    <Summary>Replace the overloaded plans filter row with a stable one-click lifecycle toolbar and add a reversible, evidence-preserving decision for excluding or restoring incorrectly recognized source rows.</Summary>
+    <Problem>The current plans screen spreads search, kind, period, direction, responsible person, reset and lifecycle across a wide grid. The lifecycle state is injected as a select, so changing between current and archived plans requires opening a dropdown and selecting a second value. Secondary filters overflow at constrained widths. An extracted source row can be corrected or split, but it cannot be explicitly excluded and later restored while preserving the immutable source, machine suggestion, linked work and audit history.</Problem>
+    <Goals>
+      <Goal>Expose a permanently visible one-click segmented control for current and archived plans, backed by the existing server-side status query.</Goal>
+      <Goal>Keep search and period visible while moving kind, direction and responsible filters into one compact disclosure that remains inside the desktop viewport and becomes a bottom sheet on mobile.</Goal>
+      <Goal>Persist an explicit included or excluded decision on each source row without changing the source document, cells, locator, machine suggestion or document version.</Goal>
+      <Goal>Calculate decision impact before exclusion, apply no-impact exclusions immediately, require explicit confirmation for active linked work and refuse silent destruction of completed or manually authoritative work.</Goal>
+      <Goal>Make exclusion and restoration idempotent, auditable and respected by repeated extraction and materialization.</Goal>
+      <Goal>Deliver one coherent desktop, mobile, keyboard and reduced-motion interaction using existing Kafedra surfaces and proven local patterns from Docomator and Planer Solving.</Goal>
+    </Goals>
+    <Constraints>
+      <Constraint>The verified base is main commit 4969c6af8520e52b1aa8812804b70ed77b508e0f with tree b2f7a399e2fddf49d124201d871cc1c512658ed8.</Constraint>
+      <Constraint>Issue 236 is the authoritative scenario and acceptance record.</Constraint>
+      <Constraint>Implementation may be prepared in an independent branch, but merge is blocked until C-DOCUMENT-RUNTIME-RELIABILITY-235 is merged, post-merge verified and archived, then the branch is synchronized with the new main without force-push.</Constraint>
+      <Constraint>Migration 032 is additive. Applied migrations are not edited, renamed or removed.</Constraint>
+      <Constraint>The original document, document version, source row text, cells, locator, machine suggestion, confidence and evidence remain immutable authorities.</Constraint>
+      <Constraint>An exclusion decision is never learned or applied automatically. Lifecycle, exclusion, restoration, confirmation and free-text reason are never-learn controls.</Constraint>
+      <Constraint>No new runtime dependency, CDN, remote font, Docker service, cloud service or mandatory LLM is introduced.</Constraint>
+      <Constraint>Reference repositories provide interaction principles only. Their assets and source are not copied wholesale.</Constraint>
+      <Constraint>Existing object ACL and plan access checks remain authoritative at every new endpoint.</Constraint>
+      <Constraint>Completed work is never silently cancelled or rewritten. Any blocking impact is explicit and recoverable.</Constraint>
+    </Constraints>
+    <NonGoals>
+      <NonGoal>Change meeting identity, meeting year filtering or meeting template repetition; those remain in issue 237.</NonGoal>
+      <NonGoal>Physically delete a source row, plan item, assignment, calendar entry, evidence record or immutable document.</NonGoal>
+      <NonGoal>Move obligations between old and new plans automatically.</NonGoal>
+      <NonGoal>Reshape the interface from usage statistics or add a second preferences mechanism.</NonGoal>
+      <NonGoal>Replace the existing plans workbench, lifecycle service or modal and sheet infrastructure with a new framework.</NonGoal>
+    </NonGoals>
+    <AcceptanceCriteria>
+      <Criterion>The plans toolbar presents Current and Archive as a permanently visible segmented control; each state is reachable with one click or one keyboard activation and sends status to GET /api/plans.</Criterion>
+      <Criterion>Search and period remain visible. Kind, direction and responsible person are inside one Filters disclosure with an active-count indicator and contextual reset.</Criterion>
+      <Criterion>The desktop disclosure is anchored, width-bounded and collision-safe; it never covers the sidebar or creates horizontal page overflow. The mobile disclosure uses the existing bottom-sheet interaction with focus containment and focus restoration.</Criterion>
+      <Criterion>All interactive controls retain an effective 44 by 44 CSS pixel target, visible focus and textual state. Meaning is not conveyed only by colour.</Criterion>
+      <Criterion>Migration 032 adds explicit row inclusion state, actor, timestamp, reason, reversible projection snapshot and append-only decision history.</Criterion>
+      <Criterion>GET source rows returns decision state, decision history summary and impact information without discarding original extraction data.</Criterion>
+      <Criterion>An included row can be excluded and an excluded row can be restored. Repeating the same decision returns the same state without duplicate history or duplicate projection changes.</Criterion>
+      <Criterion>Repeated extraction updates machine fields but never changes an explicit excluded decision. Materialize rejects an excluded row until it is restored.</Criterion>
+      <Criterion>A row with no meaningful links is excluded immediately and offers an undo action. A row with active assignments or linked material requires a concrete impact confirmation. Completed or manually authoritative work is blocked from destructive automatic change and remains navigable.</Criterion>
+      <Criterion>Items cancelled by an exclusion disappear from active plan counts, calendar and work projections while their history and source relation remain inspectable. Restoration reactivates only projection states that were changed by that exclusion and were not subsequently edited.</Criterion>
+      <Criterion>The source-row workbench exposes Included, Needs review and Excluded counts and never leaves an excluded row without a one-click restoration path.</Criterion>
+      <Criterion>Desktop, mobile, keyboard and reduced-motion Playwright tests cover lifecycle switching, filter disclosure, viewport bounds, no-impact exclusion, impact confirmation, blocked completed work, undo, restore and repeated requests.</Criterion>
+      <Criterion>Clean install, upgrade from exact base, repeated migration, quick_check, foreign_key_check, backup verification, restore and forced migration failure rollback succeed.</Criterion>
+      <Criterion>GRACE final and every exact-head project, browser, database, release and offline check are successful before squash merge; post-merge CI precedes a separate archive-only applied transition.</Criterion>
+    </AcceptanceCriteria>
+    <AffectedAreas>
+      <M-API />
+      <M-DATABASE />
+      <M-BACKUP />
+      <M-MIGRATION-RUNNER />
+      <M-DESIGN-GOVERNANCE />
+      <M-MOTION-KB />
+      <M-CI-GATE />
+      <M-OFFLINE-BUNDLE />
+    </AffectedAreas>
+    <VerificationIntent>
+      <ExpectedCommand>node --test tests/plan-source-rows.test.mjs tests/plan-source-row-decisions.test.mjs tests/plan-source-rows-migration.test.mjs tests/lifecycle.test.mjs</ExpectedCommand>
+      <ExpectedCommand>npm run check</ExpectedCommand>
+      <ExpectedCommand>npm run docs:check</ExpectedCommand>
+      <ExpectedCommand>npm test</ExpectedCommand>
+      <ExpectedCommand>npx playwright test tests/browser/plans-reversible-ux.spec.mjs tests/browser/plan-source-rows.spec.mjs tests/browser/lifecycle.spec.mjs</ExpectedCommand>
+      <ExpectedCommand>grace lint --path . --change C-PLANS-REVERSIBLE-UX-236 --assertions final --run-commands</ExpectedCommand>
+      <ExpectedEvidence>The exact branch head shows a one-click lifecycle, a bounded progressive filter disclosure and reversible evidence-preserving source-row decisions with migration, projection, browser and recovery evidence.</ExpectedEvidence>
+    </VerificationIntent>
+    <Assumptions>
+      <Assumption>The existing plans API status filter and lifecycle archive service remain the source of truth for plan lifecycle.</Assumption>
+      <Assumption>The existing source-row to plan-item relation uniquely identifies derived work that may be safely inspected before a decision.</Assumption>
+      <Assumption>Assignment cancelled and calendar cancelled are historical states, not physical deletion.</Assumption>
+      <Assumption>Docomator segmented controls and Planer Solving sticky operator controls are suitable principles when adapted to existing Kafedra tokens and DOM.</Assumption>
+    </Assumptions>
+  </C-PLANS-REVERSIBLE-UX-236>
+</GraceChangeSpec>
