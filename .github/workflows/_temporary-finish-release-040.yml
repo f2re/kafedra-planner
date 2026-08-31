@@ -40,8 +40,16 @@ jobs:
         run: |
           set -Eeuo pipefail
           test "$(git -C target rev-parse HEAD)" = "08fb6f939a41533d81e9866c88339f4ee77879a5"
-          cat helper/.github/finish-release-040/chunk-* > /tmp/release-040-nonworkflow.patch.gz.b64
-          base64 --decode /tmp/release-040-nonworkflow.patch.gz.b64 | gzip --decompress > /tmp/release-040-nonworkflow.patch
+          python - <<'PY'
+          from pathlib import Path
+          import base64
+
+          chunks = sorted(Path('helper/.github/finish-release-040').glob('chunk-*'))
+          payload = ''.join(path.read_text(encoding='utf-8').strip() for path in chunks)
+          payload += '=' * (-len(payload) % 4)
+          Path('/tmp/release-040-nonworkflow.patch.gz').write_bytes(base64.urlsafe_b64decode(payload))
+          PY
+          gzip --decompress --stdout /tmp/release-040-nonworkflow.patch.gz > /tmp/release-040-nonworkflow.patch
           git -C target apply --check /tmp/release-040-nonworkflow.patch
           git -C target apply /tmp/release-040-nonworkflow.patch
           git -C target diff --check
