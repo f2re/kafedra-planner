@@ -1,4 +1,4 @@
-<GraceChangeSpec graceVersion="4.0" status="approved">
+<GraceChangeSpec graceVersion="4.0" status="applied">
   <C-KAFEDRA-AI-SKILLS-PROFILE-288>
     <Summary>Vendor the verified Kafedra Planner document-workspace skills profile and make its orchestrator the mandatory project-local routing preflight for future development.</Summary>
     <Problem>The reusable Kafedra document-workspace profile exists in ai-agents-skills but kafedra-planner does not yet pin, validate, or automatically route future work through it. Agents can therefore miss document-workspace invariants or depend on external/global installation state.</Problem>

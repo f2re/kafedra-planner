@@ -1,4 +1,4 @@
-<GraceChangePlan graceVersion="4.0" status="approved">
+<GraceChangePlan graceVersion="4.0" status="applied">
   <C-KAFEDRA-AI-SKILLS-PROFILE-288>
     <IntentSummary>Make the verified Kafedra document-workspace profile a pinned, offline, repository-local routing layer while preserving GRACE and existing project-role authority.</IntentSummary>
     <BaselineAssertions>
