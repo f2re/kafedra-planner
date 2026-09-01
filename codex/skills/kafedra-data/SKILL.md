@@ -14,3 +14,5 @@ Migrations are ordered, immutable SQL files in `migrations/` and execute transac
 Verify schema change with focused migration tests, `PRAGMA foreign_key_check`, `PRAGMA quick_check`, and the relevant service/integration tests. Update backup logical digests and restore coverage for every durable table or relation. Ensure API and worker both tolerate the release state during an atomic install, and arrange re-buildable projections rather than persisting redundant truth.
 
 Handoff a short entity/migration contract to `kafedra-feature`, test cases to `kafedra-tests`, and release consequences to `kafedra-release`.
+
+Kafedra profile handoff: after `kafedra-workspace-orchestrator` preflight, use `kafedra-provenance-and-inspector` when source-derived facts/evidence are involved, `kafedra-plan-calendar-continuity` when persisted truth feeds plan/calendar/plan-fact projections, `kafedra-states-and-recovery` for retry/idempotency semantics, and `kafedra-template-and-structured-document-flow` for versioned template facts. Profile guidance cannot weaken this role's SQLite, migration, backup or source-of-truth rules.

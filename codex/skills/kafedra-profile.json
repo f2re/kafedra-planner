@@ -1,0 +1,30 @@
+{
+  "schemaVersion": 1,
+  "source": {
+    "repository": "f2re/ai-agents-skills",
+    "commit": "2645ab8afd34963e80397981d582ea3b141db8e3",
+    "basePath": ".agents/skills"
+  },
+  "integration": {
+    "orchestrator": "kafedra-workspace-orchestrator",
+    "authority": "project-first",
+    "runtimeDependency": false,
+    "automaticUpstreamPull": false
+  },
+  "skills": [
+    { "name": "kafedra-workspace-orchestrator", "path": "codex/skills/kafedra-workspace-orchestrator/SKILL.md", "upstreamPath": ".agents/skills/kafedra-workspace-orchestrator/SKILL.md", "blobSha": "aa5cdff00e6b518df57a45aff5e578a10b931f9c" },
+    { "name": "kafedra-document-workspace", "path": "codex/skills/kafedra-document-workspace/SKILL.md", "upstreamPath": ".agents/skills/kafedra-document-workspace/SKILL.md", "blobSha": "0c853c4d9a0abd5c54fea7953a301d59a3aaa5f8" },
+    { "name": "kafedra-document-intake", "path": "codex/skills/kafedra-document-intake/SKILL.md", "upstreamPath": ".agents/skills/kafedra-document-intake/SKILL.md", "blobSha": "2fd3199d55e5803c330586e8f47a488337cb8494" },
+    { "name": "kafedra-provenance-and-inspector", "path": "codex/skills/kafedra-provenance-and-inspector/SKILL.md", "upstreamPath": ".agents/skills/kafedra-provenance-and-inspector/SKILL.md", "blobSha": "2a2818bb5c2c1be7e14b7c1096a8b5c3d405e011" },
+    { "name": "kafedra-action-recomposition", "path": "codex/skills/kafedra-action-recomposition/SKILL.md", "upstreamPath": ".agents/skills/kafedra-action-recomposition/SKILL.md", "blobSha": "caa94c7bea4b7fbceb0f384edc33c2f8a3dce3df" },
+    { "name": "kafedra-review-by-exception", "path": "codex/skills/kafedra-review-by-exception/SKILL.md", "upstreamPath": ".agents/skills/kafedra-review-by-exception/SKILL.md", "blobSha": "8d47f6eda68e57484159105af0050943361cb4b4" },
+    { "name": "kafedra-search-and-navigation", "path": "codex/skills/kafedra-search-and-navigation/SKILL.md", "upstreamPath": ".agents/skills/kafedra-search-and-navigation/SKILL.md", "blobSha": "a0f5cb3303342308a619065698dc89264f6ff116" },
+    { "name": "kafedra-responsive-inspector", "path": "codex/skills/kafedra-responsive-inspector/SKILL.md", "upstreamPath": ".agents/skills/kafedra-responsive-inspector/SKILL.md", "blobSha": "8b863d0ba32ca9230567ed3ca451bd5d75ed816e" },
+    { "name": "kafedra-motion-continuity", "path": "codex/skills/kafedra-motion-continuity/SKILL.md", "upstreamPath": ".agents/skills/kafedra-motion-continuity/SKILL.md", "blobSha": "cb350ffe7e5dec02ac397a9a1d3d5981a45d6d5b" },
+    { "name": "kafedra-states-and-recovery", "path": "codex/skills/kafedra-states-and-recovery/SKILL.md", "upstreamPath": ".agents/skills/kafedra-states-and-recovery/SKILL.md", "blobSha": "fc0f83ed13999614d634e6c1d0602fb5099fb9b0" },
+    { "name": "kafedra-adaptive-controls", "path": "codex/skills/kafedra-adaptive-controls/SKILL.md", "upstreamPath": ".agents/skills/kafedra-adaptive-controls/SKILL.md", "blobSha": "9eeb78dc1149608db649a5040d2c7708563ae6f1" },
+    { "name": "kafedra-plan-calendar-continuity", "path": "codex/skills/kafedra-plan-calendar-continuity/SKILL.md", "upstreamPath": ".agents/skills/kafedra-plan-calendar-continuity/SKILL.md", "blobSha": "5c5aa08c0090455902722a1e9aef1c3377a5018c" },
+    { "name": "kafedra-template-and-structured-document-flow", "path": "codex/skills/kafedra-template-and-structured-document-flow/SKILL.md", "upstreamPath": ".agents/skills/kafedra-template-and-structured-document-flow/SKILL.md", "blobSha": "249828096577508af9f8aa1ca489d2a35fde3e4e" },
+    { "name": "kafedra-ux-acceptance", "path": "codex/skills/kafedra-ux-acceptance/SKILL.md", "upstreamPath": ".agents/skills/kafedra-ux-acceptance/SKILL.md", "blobSha": "eeead5bbf0fde9eeb4d2829761bd72418324850d" }
+  ]
+}

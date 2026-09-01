@@ -2,6 +2,7 @@ import { readdir } from 'node:fs/promises';
 import { extname, join } from 'node:path';
 import { spawn } from 'node:child_process';
 import { checkDocumentation, formatDocumentationErrors } from './docs-consistency.mjs';
+import { validateKafedraAiSkillsProfile, formatAiSkillsProfileErrors } from './ai-skills-profile-check.mjs';
 
 const roots = ['apps', 'packages', 'public', 'scripts', 'tests'];
 const files = [];
@@ -30,6 +31,15 @@ if (documentationErrors.length) {
   process.exitCode = 1;
 } else {
   console.log('Документация согласована с package.json и деревом репозитория.');
+}
+
+const profileErrors = await validateKafedraAiSkillsProfile();
+if (profileErrors.length) {
+  console.error(`Kafedra AI skills profile содержит ${profileErrors.length} ошибок:`);
+  console.error(formatAiSkillsProfileErrors(profileErrors));
+  process.exitCode = 1;
+} else {
+  console.log('Kafedra AI skills profile соответствует pinned snapshot и project routing.');
 }
 
 console.log(`Проверено модулей: ${files.length}`);

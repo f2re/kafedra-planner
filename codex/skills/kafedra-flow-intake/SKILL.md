@@ -14,3 +14,5 @@ Return **Accept**, **Revise**, or **Reject**. An Accept decision must state why 
 Check `docs/design.md`’s UX acceptance questions and classify every changed control under `safe-default`, `rank-only`, `domain-derived`, or `never-learn`. Explicitly reject a proposal that silently changes saved data, moves stable navigation based on usage, obscures evidence/ACL, or depends on online-only capability.
 
 Handoff a concise brief to `kafedra-design`; include `kafedra-data` when the proposal adds a fact, state transition, relation, or reporting projection. Do not implement the feature in this role unless the user asks for implementation.
+
+Kafedra profile handoff: run after the mandatory `kafedra-workspace-orchestrator` preflight. For upload/import/processing load `kafedra-document-intake`; for ambiguity load `kafedra-review-by-exception`; for plan/calendar continuity load `kafedra-plan-calendar-continuity`. Use only the focused skills selected by the orchestrator, and keep this project-local intake decision authoritative.
