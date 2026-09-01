@@ -28,3 +28,5 @@ Return exactly one verdict: `PASS`, `REVISE`, or `BLOCK`.
 For every finding provide severity (`blocker`, `major`, `minor`), evidence (screen/state/file/test), violated design rule, and the smallest corrective change. `PASS` requires no blocker/major findings and explicit evidence for desktop, mobile and reduced-motion behavior. `REVISE` means the change can stay in scope but needs corrections. `BLOCK` means the implementation violates a product invariant, accessibility/safety constraint, approved GRACE scope or cannot be verified.
 
 Do not treat aesthetic preference as a blocker. Do not approve based only on screenshots when interaction, focus, error or motion behavior is material. Hand concrete regression requirements to `kafedra-tests`.
+
+Kafedra profile handoff: after implementation, pair this independent project-local audit with `kafedra-ux-acceptance` whenever the orchestrator classified document/workspace UX as material. The profile audit adds provenance, partial-success, recomposition, adaptive, responsive and recovery checks; the project role still owns the final `PASS`, `REVISE` or `BLOCK` decision under the approved GRACE/design contract.
