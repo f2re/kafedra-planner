@@ -1,0 +1,39 @@
+<GraceChangeSpec graceVersion="4.0" status="approved">
+  <C-CALENDAR-FIXTURE-DATE-263-V3>
+    <Summary>Supersede the stale V2 branch and make the fixed August 2026 browser fixtures navigate their own calendar controls from the current exact main.</Summary>
+    <Problem>Mandatory browser CI is date-dependent: plan and directive scenarios create August 2026 fixtures but the UI opens the real current month. V2 proved the fix on an older exact base but is now stale and non-mergeable.</Problem>
+    <Goals>
+      <Goal>Port the already verified deterministic calendar navigation to the current exact main.</Goal>
+      <Goal>Use explicit controls for the main calendar and directive archive calendar so hidden calendars are never addressed.</Goal>
+      <Goal>Restore mandatory browser, release and offline gates without changing production behavior.</Goal>
+    </Goals>
+    <Constraints>
+      <Constraint>The exact base is main bd815c7960e4aa37fec4df258a4f827dffbe0a44.</Constraint>
+      <Constraint>This change supersedes C-CALENDAR-FIXTURE-DATE-263-V2 and PR 264; the old approved plan is not modified.</Constraint>
+      <Constraint>Only the two browser scenarios, one shared test helper and this GRACE bundle may change.</Constraint>
+      <Constraint>No production UI, API, SQLite, worker, workflow, dependency or system-clock change.</Constraint>
+      <Constraint>No test is skipped, removed or weakened.</Constraint>
+    </Constraints>
+    <NonGoals>
+      <NonGoal>Remove the accidental release probe files.</NonGoal>
+      <NonGoal>Change calendar domain behavior.</NonGoal>
+      <NonGoal>Change required checks or release policy.</NonGoal>
+    </NonGoals>
+    <AcceptanceCriteria>
+      <Criterion>The plan scenario navigates its main calendar to August 2026 and finds the August 15 event from any current month.</Criterion>
+      <Criterion>The directive scenario navigates its own archive calendar to August 2026 and finds the August 25 entry from any current month.</Criterion>
+      <Criterion>The shared helper uses explicit title/previous/next selectors and asserts the target month and year.</Criterion>
+      <Criterion>Plan browser, core browser, full CI, release gate, full offline and GRACE merge gates succeed on one exact head.</Criterion>
+      <Criterion>After squash merge, post-merge CI succeeds and a separate archive-only PR records applied state.</Criterion>
+    </AcceptanceCriteria>
+    <AffectedAreas><M-CI-GATE /></AffectedAreas>
+    <VerificationIntent>
+      <ExpectedCommand>npm run test:browser:plans</ExpectedCommand>
+      <ExpectedCommand>npx playwright test tests/browser/directive-archive.spec.mjs</ExpectedCommand>
+      <ExpectedCommand>npm run test:browser:core</ExpectedCommand>
+      <ExpectedCommand>npm run check</ExpectedCommand>
+      <ExpectedCommand>npm test</ExpectedCommand>
+      <ExpectedEvidence>The exact current-main branch proves both fixed August fixtures through their visible calendar controls.</ExpectedEvidence>
+    </VerificationIntent>
+  </C-CALENDAR-FIXTURE-DATE-263-V3>
+</GraceChangeSpec>
