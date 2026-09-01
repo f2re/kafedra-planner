@@ -1,0 +1,157 @@
+<GraceChangePlan graceVersion="4.0" status="approved">
+  <C-PLANS-LIFECYCLE-SEGMENT-252-V2>
+    <IntentSummary>Deliver one UI-only vertical that exposes active/archive plan navigation as a persistent accessible segment, delegates data loading to the existing lifecycle and plans modules, and explicitly excludes any separate mobile mode.</IntentSummary>
+    <BaselineAssertions>
+      <MustExist><Value>public/ux-next.js</Value></MustExist>
+      <MustExist><Value>public/plans-next.js</Value></MustExist>
+      <MustExist><Value>public/plans-next.css</Value></MustExist>
+      <MustExist><Value>public/lifecycle-safe.js</Value></MustExist>
+      <MustExist><Value>public/lifecycle-next.css</Value></MustExist>
+      <MustExist><Value>tests/browser/lifecycle.spec.mjs</Value></MustExist>
+      <MustContain><File>public/ux-next.js</File><Text>await import('./lifecycle-safe.js')</Text></MustContain>
+      <MustContain><File>public/lifecycle-safe.js</File><Text>plans-lifecycle-status</Text></MustContain>
+      <MustContain><File>public/lifecycle-safe.js</File><Text>url.searchParams.set('status', lifecycleState.planMode)</Text></MustContain>
+      <MustContain><File>public/plans-next.js</File><Text>plansState.selectedPlanId = null</Text></MustContain>
+      <MustContain><File>public/plans-next.js</File><Text>Планов по этим условиям нет.</Text></MustContain>
+      <MustVerify><Module>M-PLANS</Module></MustVerify>
+      <MustVerify><Module>M-DESIGN-GOVERNANCE</Module></MustVerify>
+      <MustVerify><Module>M-MOTION-KB</Module></MustVerify>
+      <MustVerify><Module>M-CI-GATE</Module></MustVerify>
+      <MustPassCommand><Command>node --test tests/lifecycle.test.mjs</Command></MustPassCommand>
+      <MustPassCommand><Command>npm run design:check</Command></MustPassCommand>
+      <MustPassCommand><Command>npm run check</Command></MustPassCommand>
+      <MustPassCommand><Command>npm run docs:check</Command></MustPassCommand>
+    </BaselineAssertions>
+    <TargetAssertions>
+      <MustExist><Value>public/plans-lifecycle-segment.js</Value></MustExist>
+      <MustExist><Value>public/plans-lifecycle-segment.css</Value></MustExist>
+      <MustExist><Value>tests/plans-lifecycle-segment.test.mjs</Value></MustExist>
+      <MustExist><Value>tests/browser/plans-lifecycle-segment.spec.mjs</Value></MustExist>
+      <MustExist><Value>.grace/changes/active/C-PLANS-LIFECYCLE-SEGMENT-252-V2/design.md</Value></MustExist>
+      <MustExist><Value>.grace/changes/active/C-PLANS-LIFECYCLE-SEGMENT-252-V2/motion.md</Value></MustExist>
+      <MustExist><Value>.grace/changes/active/C-PLANS-LIFECYCLE-SEGMENT-252-V2/design-audit.md</Value></MustExist>
+      <MustContain><File>public/ux-next.js</File><Text>await import('./plans-lifecycle-segment.js')</Text></MustContain>
+      <MustContain><File>public/plans-lifecycle-segment.js</File><Text>plans-lifecycle-segment</Text></MustContain>
+      <MustContain><File>public/plans-lifecycle-segment.js</File><Text>role', 'tablist'</Text></MustContain>
+      <MustContain><File>public/plans-lifecycle-segment.js</File><Text>role="tab"</Text></MustContain>
+      <MustContain><File>public/plans-lifecycle-segment.js</File><Text>aria-selected</Text></MustContain>
+      <MustContain><File>public/plans-lifecycle-segment.js</File><Text>select.dispatchEvent(new Event('change', { bubbles: true }))</Text></MustContain>
+      <MustContain><File>public/plans-lifecycle-segment.js</File><Text>Архивных планов по этим условиям нет.</Text></MustContain>
+      <MustContain><File>public/plans-lifecycle-segment.css</File><Text>min-height: 44px</Text></MustContain>
+      <MustContain><File>public/plans-lifecycle-segment.css</File><Text>prefers-reduced-motion</Text></MustContain>
+      <MustContain><File>tests/browser/plans-lifecycle-segment.spec.mjs</File><Text>width: 1440, height: 900</Text></MustContain>
+      <MustContain><File>tests/browser/plans-lifecycle-segment.spec.mjs</File><Text>width: 900, height: 700</Text></MustContain>
+      <MustVerify><Module>M-PLANS</Module></MustVerify>
+      <MustVerify><Module>M-DESIGN-GOVERNANCE</Module></MustVerify>
+      <MustVerify><Module>M-MOTION-KB</Module></MustVerify>
+      <MustVerify><Module>M-CI-GATE</Module></MustVerify>
+      <MustPassCommand><Command>node --test tests/plans-lifecycle-segment.test.mjs</Command></MustPassCommand>
+      <MustPassCommand><Command>npm run design:check</Command></MustPassCommand>
+      <MustPassCommand><Command>npm run check</Command></MustPassCommand>
+      <MustPassCommand><Command>npm run docs:check</Command></MustPassCommand>
+      <MustPassCommand><Command>npm test</Command></MustPassCommand>
+      <MustPassCommand><Command>npx playwright test tests/browser/plans-lifecycle-segment.spec.mjs --project=desktop</Command></MustPassCommand>
+    </TargetAssertions>
+    <DurableScope>
+      <GraphAnchors>
+        <M-PLANS />
+        <M-DESIGN-GOVERNANCE />
+        <M-MOTION-KB />
+        <M-CI-GATE />
+        <DF-GRACE-BRANCH />
+        <DF-DESIGN-CHANGE />
+      </GraphAnchors>
+      <VerificationAnchors>
+        <V-M-PLANS />
+        <V-M-DESIGN-GOVERNANCE />
+        <V-M-MOTION-KB />
+        <V-M-CI-GATE />
+      </VerificationAnchors>
+      <ContextArtifacts>
+        <ContextArtifact>principles.xml</ContextArtifact>
+        <ContextArtifact>ux-guidelines.xml</ContextArtifact>
+        <ContextArtifact>technology.xml</ContextArtifact>
+      </ContextArtifacts>
+    </DurableScope>
+    <ObservedWriteScope>
+      <Glob>.grace/changes/active/C-PLANS-LIFECYCLE-SEGMENT-252-V2/**</Glob>
+      <File>public/ux-next.js</File>
+      <File>public/plans-lifecycle-segment.js</File>
+      <File>public/plans-lifecycle-segment.css</File>
+      <File>tests/plans-lifecycle-segment.test.mjs</File>
+      <File>tests/browser/plans-lifecycle-segment.spec.mjs</File>
+    </ObservedWriteScope>
+    <ImplementationPlan>
+      <T-001>
+        <Title>kafedra-flow-intake: fix active/archive view and stale-detail states</Title>
+        <DependsOn></DependsOn>
+        <AcceptanceCriteria>
+          <Criterion>Lifecycle mode changes through one explicit action and never changes persisted plan status.</Criterion>
+          <Criterion>Search and ordinary filters remain; an absent selected plan never remains in the detail pane.</Criterion>
+          <Criterion>Loading, no-result, archive/restore and repeated-switch states remain deterministic.</Criterion>
+        </AcceptanceCriteria>
+        <Verification><Command>node --test tests/lifecycle.test.mjs</Command></Verification>
+      </T-001>
+      <T-002>
+        <Title>kafedra-design: specify persistent segmented hierarchy without a mobile-specific mode</Title>
+        <DependsOn><T-001 /></DependsOn>
+        <AcceptanceCriteria>
+          <Criterion>The lifecycle segment is permanently visible before ordinary filters and not duplicated by a visible select.</Criterion>
+          <Criterion>Text, shape, aria-selected and focus express selection independently of color.</Criterion>
+          <Criterion>The 1440x900 primary desktop geometry, narrowed desktop window and 44 pixel targets are fixed and never-learn.</Criterion>
+        </AcceptanceCriteria>
+        <Verification><Command>npm run design:check</Command></Verification>
+      </T-002>
+      <T-003>
+        <Title>kafedra-motion: use a restrained interruptible selection transition</Title>
+        <DependsOn><T-002 /></DependsOn>
+        <AcceptanceCriteria>
+          <Criterion>Only background, border, shadow or indicator state transitions for 120–180 milliseconds.</Criterion>
+          <Criterion>Reduced motion is instant and data loading, focus and keyboard actions never wait for animation.</Criterion>
+          <Criterion>No mobile navigation or mobile-specific transition is added.</Criterion>
+        </AcceptanceCriteria>
+        <Verification><Command>npm run design:check</Command></Verification>
+      </T-003>
+      <T-004>
+        <Title>kafedra-feature: add an accessible adapter over the existing lifecycle state bridge</Title>
+        <DependsOn><T-003 /></DependsOn>
+        <AcceptanceCriteria>
+          <Criterion>The adapter hides the legacy select, emits its existing change event and performs no direct API filtering.</Criterion>
+          <Criterion>Click, Enter, Space and arrow-key interaction update the correct status-filtered server request.</Criterion>
+          <Criterion>Mode-specific empty text is applied only after the existing plans loader reports a no-result state.</Criterion>
+        </AcceptanceCriteria>
+        <Verification><Command>node --test tests/plans-lifecycle-segment.test.mjs</Command></Verification>
+      </T-004>
+      <T-005>
+        <Title>kafedra-design-audit: inspect actual focus, desktop overflow and reduced-motion states</Title>
+        <DependsOn><T-004 /></DependsOn>
+        <AcceptanceCriteria>
+          <Criterion>The audit records PASS, REVISE or BLOCK for primary desktop, narrowed desktop, keyboard, focus, empty and reduced-motion behavior.</Criterion>
+          <Criterion>The audit explicitly confirms that no distinct mobile mode or mobile state machine was introduced.</Criterion>
+          <Criterion>No blocker or major issue remains before final tests.</Criterion>
+        </AcceptanceCriteria>
+        <Verification><Command>npm run design:check</Command></Verification>
+      </T-005>
+      <T-006>
+        <Title>kafedra-tests: prove one-action server filtering and compatibility</Title>
+        <DependsOn><T-005 /></DependsOn>
+        <AcceptanceCriteria>
+          <Criterion>Unit tests cover stable modes, keyboard calculation, single state bridge, 44 pixel target and reduced motion.</Criterion>
+          <Criterion>Playwright desktop covers 1440x900 and a narrowed 900x700 window, click, keyboard, server query, preserved search, stale detail, empty state and page overflow.</Criterion>
+          <Criterion>Existing lifecycle tests continue to pass through the hidden compatibility select; no new mobile-specific test or behavior is added.</Criterion>
+        </AcceptanceCriteria>
+        <Verification><Command>npm test</Command><Command>npx playwright test tests/browser/plans-lifecycle-segment.spec.mjs --project=desktop</Command></Verification>
+      </T-006>
+      <T-007>
+        <Title>kafedra-release: exact-head merge, post-merge and terminal archive</Title>
+        <DependsOn><T-006 /></DependsOn>
+        <AcceptanceCriteria>
+          <Criterion>GRACE final and every required project check succeed on one unchanged PR head.</Criterion>
+          <Criterion>Squash merge is followed by successful post-merge CI before a separate archive-only applied transition.</Criterion>
+          <Criterion>Issue 252 closes only after the terminal lifecycle is confirmed.</Criterion>
+        </AcceptanceCriteria>
+        <Verification><Command>npm run check</Command><Command>npm run docs:check</Command><Command>npm test</Command></Verification>
+      </T-007>
+    </ImplementationPlan>
+  </C-PLANS-LIFECYCLE-SEGMENT-252-V2>
+</GraceChangePlan>

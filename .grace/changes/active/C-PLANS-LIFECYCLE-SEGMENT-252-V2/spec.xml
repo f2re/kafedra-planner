@@ -1,0 +1,60 @@
+<GraceChangeSpec graceVersion="4.0" status="approved">
+  <C-PLANS-LIFECYCLE-SEGMENT-252-V2>
+    <Summary>Replace the hidden plan lifecycle dropdown with a persistent one-action `Текущие | Архив` segmented control without introducing any separate mobile mode.</Summary>
+    <Problem>The current plans UI adds lifecycle state as a select inside the general filter grid. A user must discover and open that select to move between active and archived plans, although lifecycle is the primary mutually exclusive view of the register. The previous planning-only change also added mobile-specific acceptance that the product owner has explicitly removed.</Problem>
+    <Goals>
+      <Goal>Show current and archived plan modes permanently in the plans toolbar.</Goal>
+      <Goal>Switch the existing server-side `status=active|archived` query with one click or keyboard action.</Goal>
+      <Goal>Preserve current search and ordinary filters while removing stale plan detail when the selected plan is absent in the new result.</Goal>
+      <Goal>Provide accurate mode-specific empty states, 44 pixel targets, visible focus and reduced-motion behavior in the shared desktop web interface.</Goal>
+    </Goals>
+    <Constraints>
+      <Constraint>The verified base is exact main commit e6c767949a19a9232e19d95fd8f0632d978f9e69 after terminal archive of C-DOCUMENT-RUNTIME-RELIABILITY-235.</Constraint>
+      <Constraint>Issue 252 is the authoritative micro-iteration and issue 236 remains the parent plans repair.</Constraint>
+      <Constraint>This change supersedes the unmerged planning-only C-PLANS-LIFECYCLE-SEGMENT-252 at commit 7721df3a995bd4a998f22708ee93073586fe28cc because an approved plan is not edited after a material scope decision.</Constraint>
+      <Constraint>No separate mobile mode, mobile list-to-detail navigation, bottom sheet, mobile animation or mobile-specific acceptance is introduced.</Constraint>
+      <Constraint>The existing responsive layout remains untouched except for the shared control fitting naturally when the desktop window is narrowed.</Constraint>
+      <Constraint>No API, SQLite schema, migration, plan lifecycle, archive/restore command, source-row decision, evidence or document-intake change is included.</Constraint>
+      <Constraint>The existing lifecycle select may remain only as an internal compatibility bridge to the current lifecycle module; it is not a second visible or focusable state source.</Constraint>
+      <Constraint>Lifecycle view is never-learn: usage statistics cannot select, reorder or reposition the modes.</Constraint>
+      <Constraint>No CDN, cloud service, Docker, Internet or LLM dependency is added.</Constraint>
+    </Constraints>
+    <NonGoals>
+      <NonGoal>Create or support a distinct mobile interaction mode.</NonGoal>
+      <NonGoal>Move the remaining plan filters into a popover or bottom sheet.</NonGoal>
+      <NonGoal>Redesign plan cards, detail, source rows or archive impact dialogs.</NonGoal>
+      <NonGoal>Implement reversible exclusion of extracted rows.</NonGoal>
+      <NonGoal>Change persisted plan status or backend filtering semantics.</NonGoal>
+    </NonGoals>
+    <AcceptanceCriteria>
+      <Criterion>`Текущие | Архив` is permanently visible and changes the register with one click, Enter, Space or arrow-key action.</Criterion>
+      <Criterion>The legacy lifecycle select is hidden from visual and accessibility navigation while retaining compatibility with existing lifecycle operations.</Criterion>
+      <Criterion>The visible control uses tablist/tab semantics, correct aria-selected state, roving tabindex and a minimum 44 pixel hit area.</Criterion>
+      <Criterion>The request continues to use the existing server `status=active|archived` parameter; the adapter does not filter an already loaded combined set.</Criterion>
+      <Criterion>Search and ordinary filters survive the switch; stale detail is cleared or replaced deterministically by the first available plan.</Criterion>
+      <Criterion>Empty current and archive results have mode-specific text and do not leave previous-plan detail visible.</Criterion>
+      <Criterion>The primary desktop viewport 1440x900 and a narrowed desktop window retain stable geometry and no page-level horizontal overflow; no mobile-specific state machine exists.</Criterion>
+      <Criterion>Focused tests, full project CI and GRACE final pass on one exact head before squash merge, post-merge CI and a separate terminal archive transition.</Criterion>
+    </AcceptanceCriteria>
+    <AffectedAreas>
+      <M-PLANS />
+      <M-DESIGN-GOVERNANCE />
+      <M-MOTION-KB />
+      <M-CI-GATE />
+    </AffectedAreas>
+    <VerificationIntent>
+      <ExpectedCommand>node --test tests/plans-lifecycle-segment.test.mjs</ExpectedCommand>
+      <ExpectedCommand>npm run design:check</ExpectedCommand>
+      <ExpectedCommand>npm run check</ExpectedCommand>
+      <ExpectedCommand>npm run docs:check</ExpectedCommand>
+      <ExpectedCommand>npm test</ExpectedCommand>
+      <ExpectedCommand>npx playwright test tests/browser/plans-lifecycle-segment.spec.mjs --project=desktop</ExpectedCommand>
+      <ExpectedEvidence>The exact branch head proves one-action lifecycle navigation using the existing server query, with stable desktop and narrowed-window geometry, focus and reduced-motion behavior and no data-contract or mobile-mode change.</ExpectedEvidence>
+    </VerificationIntent>
+    <Assumptions>
+      <Assumption>The existing lifecycle module remains the authority that appends the selected status to `/api/plans` requests.</Assumption>
+      <Assumption>The existing plans loader already clears selectedPlanId when the selected plan is absent from the returned status-filtered set.</Assumption>
+      <Assumption>Archive and restore operations continue to update the internal lifecycle select and refresh the plans view.</Assumption>
+    </Assumptions>
+  </C-PLANS-LIFECYCLE-SEGMENT-252-V2>
+</GraceChangeSpec>
