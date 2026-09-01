@@ -61,6 +61,21 @@ async function openPlans(page) {
   await expect(panel).toBeVisible();
 }
 
+async function navigateCalendarToAugust2026(page) {
+  const targetYear = 2026;
+  const targetMonthIndex = 7;
+  const current = await page.evaluate(() => {
+    const today = new Date();
+    return { year: today.getFullYear(), monthIndex: today.getMonth() };
+  });
+  const monthDistance = (targetYear - current.year) * 12 + targetMonthIndex - current.monthIndex;
+  const periodButton = monthDistance < 0 ? '#previous-period' : '#next-period';
+  for (let step = 0; step < Math.abs(monthDistance); step += 1) {
+    await page.locator(periodButton).click();
+  }
+  await expect(page.locator('#calendar-title')).toContainText(/август.*2026/i);
+}
+
 async function uploadThroughPlans(page, path) {
   const responsePromise = page.waitForResponse(
     (response) => response.url().endsWith('/api/documents') && response.request().method() === 'POST',
@@ -107,7 +122,7 @@ test('Планы: DOCX → новый период → календарь → и
 
     await navigationButton(page, 'calendar').click();
     await expect(page.locator('[data-view-panel="calendar"]')).toBeVisible();
-    await expect(page.locator('#calendar-title')).toContainText(/август/i);
+    await navigateCalendarToAugust2026(page);
     const event = page.getByRole('button', { name: 'Браузерное заседание кафедры', exact: true }).first();
     await expect(event).toBeVisible({ timeout: 15_000 });
     await event.click();
