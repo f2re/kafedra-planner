@@ -1,0 +1,49 @@
+<GraceChangeSpec graceVersion="4.0" status="approved">
+  <C-RELEASE-0-4-1-254>
+    <Summary>Publish patch release 0.4.1 from a clean, fully merged and post-merge-verified main revision.</Summary>
+    <Problem>The document-runtime reliability work and desktop plans lifecycle improvement are merged and need a version-consistent, reproducible offline release with Russian release notes and verified artifacts.</Problem>
+    <Goals>
+      <Goal>Set every authoritative committed version marker to 0.4.1 without changing application behavior or SQLite schema.</Goal>
+      <Goal>Document the exact user-visible changes, compatibility boundary and excluded unfinished branches.</Goal>
+      <Goal>Build and verify the full offline artifact, systemd installation, update/rollback and strict OCR runtime gates.</Goal>
+      <Goal>Publish tag v0.4.1 and a non-draft, non-prerelease GitHub Release only from the exact verified main commit.</Goal>
+    </Goals>
+    <Constraints>
+      <Constraint>The release contains only commits already merged into main through completed GRACE lifecycles.</Constraint>
+      <Constraint>No historical, draft, unmerged or experimental branch is copied into the release.</Constraint>
+      <Constraint>No mobile mode, mobile navigation, bottom sheet, gesture or mobile-only transition is introduced.</Constraint>
+      <Constraint>No SQLite migration, destructive reset, Docker, CDN, mandatory Internet, cloud or mandatory LLM dependency is added.</Constraint>
+      <Constraint>Applied SQL migrations and immutable document sources remain unchanged.</Constraint>
+      <Constraint>Tag and GitHub Release are created only after the release PR squash merge and successful post-merge CI on the exact main commit.</Constraint>
+    </Constraints>
+    <NonGoals>
+      <NonGoal>Implement any remaining parent issue 236 source-row or plan-detail work.</NonGoal>
+      <NonGoal>Change the package-installation or database-recovery architecture.</NonGoal>
+      <NonGoal>Publish a prerelease or replace v0.4.0 assets.</NonGoal>
+      <NonGoal>Close unrelated open roadmap issues.</NonGoal>
+    </NonGoals>
+    <AcceptanceCriteria>
+      <Criterion>VERSION, package.json and package-lock.json agree on 0.4.1 and no authoritative marker remains at 0.4.0.</Criterion>
+      <Criterion>Release notes identify document-runtime reliability, Unicode-safe uploads, classified Docomator diagnostics and the desktop current/archive plans control.</Criterion>
+      <Criterion>Release notes explicitly exclude unfinished branches and mobile-specific modes.</Criterion>
+      <Criterion>Unit, integration, browser, release-gate, full offline Debian 12, systemd, backup/restore and GRACE final checks pass on one exact PR head.</Criterion>
+      <Criterion>The release PR is squash-merged, new main completes post-merge CI, and tag v0.4.1 points to that exact commit.</Criterion>
+      <Criterion>The GitHub Release is published, not draft/prerelease, contains Russian notes and exposes verified downloadable artifacts with SHA-256.</Criterion>
+      <Criterion>A separate archive-only PR leaves C-RELEASE-0-4-1-254 in terminal applied state.</Criterion>
+    </AcceptanceCriteria>
+    <AffectedAreas>
+      <M-API />
+      <M-OFFLINE-BUNDLE />
+      <M-CI-GATE />
+    </AffectedAreas>
+    <VerificationIntent>
+      <ExpectedCommand>node --test tests/release-version.test.mjs</ExpectedCommand>
+      <ExpectedCommand>npm run check</ExpectedCommand>
+      <ExpectedCommand>npm run docs:check</ExpectedCommand>
+      <ExpectedCommand>npm test</ExpectedCommand>
+      <ExpectedCommand>npm run release:gate</ExpectedCommand>
+      <ExpectedCommand>bash -n scripts/offline/*.sh deploy/*.sh</ExpectedCommand>
+      <ExpectedEvidence>The exact release commit, tag, release metadata, offline artifacts and checks all identify version 0.4.1 and preserve the 0.4.0 upgrade path.</ExpectedEvidence>
+    </VerificationIntent>
+  </C-RELEASE-0-4-1-254>
+</GraceChangeSpec>
