@@ -1,0 +1,46 @@
+<GraceChangeSpec graceVersion="4.0" status="approved">
+  <C-PLANS-LIFECYCLE-DESKTOP-252-V4>
+    <Summary>Replace the hidden plan lifecycle dropdown with a persistent desktop `Текущие | Архив` segmented control.</Summary>
+    <Problem>The primary active/archive register mode is currently hidden inside a generic select, requiring an unnecessary menu open for every switch.</Problem>
+    <Goals>
+      <Goal>Expose active and archived plans as one permanently visible desktop control.</Goal>
+      <Goal>Reuse the existing server-side `status=active|archived` query and lifecycle state authority.</Goal>
+      <Goal>Preserve search and ordinary filters while preventing stale detail after a mode switch.</Goal>
+      <Goal>Provide explicit keyboard, focus, empty, loading and error states without decorative motion.</Goal>
+    </Goals>
+    <Constraints>
+      <Constraint>Exact base is the `main` commit from which branch `ux/plans-lifecycle-desktop-252-v4` was created.</Constraint>
+      <Constraint>No API, SQLite schema, migration, plan lifecycle, archive/restore command, source-row decision, evidence or document-intake change.</Constraint>
+      <Constraint>No mobile-specific mode, mobile navigation, bottom sheet, gesture or mobile-only transition is designed or implemented; existing unrelated responsive CSS is left unchanged.</Constraint>
+      <Constraint>Lifecycle view is never-learn: statistics cannot select, reorder or reposition the modes.</Constraint>
+      <Constraint>No CDN, cloud, Docker, Internet or LLM dependency is added.</Constraint>
+    </Constraints>
+    <NonGoals>
+      <NonGoal>Redesign the remaining plan filters.</NonGoal>
+      <NonGoal>Redesign plan detail or source rows.</NonGoal>
+      <NonGoal>Implement reversible exclusion of extracted rows.</NonGoal>
+      <NonGoal>Change persisted plan status or backend filtering semantics.</NonGoal>
+    </NonGoals>
+    <AcceptanceCriteria>
+      <Criterion>`Текущие | Архив` is permanently visible in the desktop plans toolbar and changes the register with one click, Enter, Space, Home, End or horizontal arrow key.</Criterion>
+      <Criterion>The legacy lifecycle select is removed from visual and accessibility navigation but remains an internal compatibility bridge to the existing controller.</Criterion>
+      <Criterion>The visible control uses tablist/tab semantics, correct aria-selected state, roving tabindex, visible focus and a minimum 44 pixel hit area.</Criterion>
+      <Criterion>The existing server `status=active|archived` parameter remains authoritative; the adapter does not filter a combined client-side list.</Criterion>
+      <Criterion>Search and ordinary filters survive switching; a selected plan absent from the returned set cannot remain in detail.</Criterion>
+      <Criterion>Empty active and archive results use distinct operator text.</Criterion>
+      <Criterion>No mobile-specific acceptance or implementation is added; the existing application remains usable when the window is narrowed.</Criterion>
+      <Criterion>State changes remain complete with no animation and under `prefers-reduced-motion`.</Criterion>
+      <Criterion>Focused tests, desktop Playwright, full project CI and GRACE final pass on one exact head before squash merge, post-merge CI and terminal archive.</Criterion>
+    </AcceptanceCriteria>
+    <AffectedAreas><M-API/><M-DESIGN-GOVERNANCE/><M-MOTION-KB/><M-CI-GATE/></AffectedAreas>
+    <VerificationIntent>
+      <ExpectedCommand>node --test tests/plans-lifecycle-desktop.test.mjs</ExpectedCommand>
+      <ExpectedCommand>npm run design:check</ExpectedCommand>
+      <ExpectedCommand>npm run check</ExpectedCommand>
+      <ExpectedCommand>npm run docs:check</ExpectedCommand>
+      <ExpectedCommand>npm test</ExpectedCommand>
+      <ExpectedCommand>npx playwright test tests/browser/plans-lifecycle-desktop.spec.mjs --project=desktop</ExpectedCommand>
+      <ExpectedEvidence>The exact branch head proves one-action desktop lifecycle navigation through the existing status query with no data-contract or mobile-mode change.</ExpectedEvidence>
+    </VerificationIntent>
+  </C-PLANS-LIFECYCLE-DESKTOP-252-V4>
+</GraceChangeSpec>
