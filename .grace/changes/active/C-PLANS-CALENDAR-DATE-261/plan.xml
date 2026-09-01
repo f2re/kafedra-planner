@@ -1,0 +1,61 @@
+<GraceChangePlan graceVersion="4.0" status="approved">
+  <C-PLANS-CALENDAR-DATE-261>
+    <IntentSummary>Repair one date-dependent browser regression by navigating to the fixed fixture month through existing controls, with no product or mobile-mode change.</IntentSummary>
+    <BaselineAssertions>
+      <MustExist><Value>tests/browser/plans.spec.mjs</Value></MustExist>
+      <MustExist><Value>public/app.js</Value></MustExist>
+      <MustContain><File>tests/browser/plans.spec.mjs</File><Text>startsAt: '2026-08-15'</Text></MustContain>
+      <MustContain><File>tests/browser/plans.spec.mjs</File><Text>toContainText(/август/i)</Text></MustContain>
+      <MustContain><File>public/app.js</File><Text>state.calendarDate.setMonth(state.calendarDate.getMonth() - 1)</Text></MustContain>
+      <MustContain><File>public/app.js</File><Text>state.calendarDate.setMonth(state.calendarDate.getMonth() + 1)</Text></MustContain>
+      <MustVerify><Module>M-CI-GATE</Module></MustVerify>
+      <MustPassCommand><Command>npm run check</Command></MustPassCommand>
+      <MustPassCommand><Command>npm run docs:check</Command></MustPassCommand>
+      <MustPassCommand><Command>npm test</Command></MustPassCommand>
+    </BaselineAssertions>
+    <TargetAssertions>
+      <MustExist><Value>tests/browser/plans.spec.mjs</Value></MustExist>
+      <MustContain><File>tests/browser/plans.spec.mjs</File><Text>targetMonthIndex</Text></MustContain>
+      <MustContain><File>tests/browser/plans.spec.mjs</File><Text>monthDistance</Text></MustContain>
+      <MustContain><File>tests/browser/plans.spec.mjs</File><Text>#previous-period</Text></MustContain>
+      <MustContain><File>tests/browser/plans.spec.mjs</File><Text>#next-period</Text></MustContain>
+      <MustContain><File>tests/browser/plans.spec.mjs</File><Text>/август.*2026/i</Text></MustContain>
+      <MustVerify><Module>M-CI-GATE</Module></MustVerify>
+      <MustPassCommand><Command>npm run check</Command></MustPassCommand>
+      <MustPassCommand><Command>npm run docs:check</Command></MustPassCommand>
+      <MustPassCommand><Command>npm test</Command></MustPassCommand>
+      <MustPassCommand><Command>npx playwright test tests/browser/plans.spec.mjs --project=desktop</Command></MustPassCommand>
+      <MustPassCommand><Command>npm run test:browser:plans</Command></MustPassCommand>
+    </TargetAssertions>
+    <DurableScope>
+      <GraphAnchors><M-CI-GATE /></GraphAnchors>
+      <VerificationAnchors><V-M-CI-GATE /></VerificationAnchors>
+      <ContextArtifacts><ContextArtifact>principles.xml</ContextArtifact><ContextArtifact>technology.xml</ContextArtifact></ContextArtifacts>
+    </DurableScope>
+    <ObservedWriteScope>
+      <Glob>.grace/changes/active/C-PLANS-CALENDAR-DATE-261/**</Glob>
+      <File>tests/browser/plans.spec.mjs</File>
+    </ObservedWriteScope>
+    <ImplementationPlan>
+      <T-001>
+        <Title>kafedra-tests: navigate to the fixed fixture month before assertions</Title>
+        <DependsOn></DependsOn>
+        <AcceptanceCriteria>
+          <Criterion>The helper computes the month delta from the browser date and uses previous/next period buttons.</Criterion>
+          <Criterion>The title proves August 2026 before the calendar item is asserted.</Criterion>
+          <Criterion>No production or mobile-specific code changes.</Criterion>
+        </AcceptanceCriteria>
+        <Verification><Command>npx playwright test tests/browser/plans.spec.mjs --project=desktop</Command></Verification>
+      </T-001>
+      <T-002>
+        <Title>kafedra-release: verify, merge, post-merge and archive the test hotfix</Title>
+        <DependsOn><T-001 /></DependsOn>
+        <AcceptanceCriteria>
+          <Criterion>Focused and full browser gates pass on one exact head.</Criterion>
+          <Criterion>Squash merge is followed by successful post-merge CI and separate terminal archive.</Criterion>
+        </AcceptanceCriteria>
+        <Verification><Command>npm run test:browser:plans</Command><Command>npm test</Command></Verification>
+      </T-002>
+    </ImplementationPlan>
+  </C-PLANS-CALENDAR-DATE-261>
+</GraceChangePlan>
