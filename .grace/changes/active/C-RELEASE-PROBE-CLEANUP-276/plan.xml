@@ -6,14 +6,14 @@
       <MustExist><Value>.probe-do-not-create</Value></MustExist>
       <MustExist><Value>VERSION</Value></MustExist>
       <MustContain><File>VERSION</File><Text>0.4.0</Text></MustContain>
-      <MustVerify><Module>M-CI-GATE /></MustVerify>
+      <MustVerify><Module>M-CI-GATE</Module></MustVerify>
       <MustPassCommand><Command>test -f __invalid_release_probe__ &amp;&amp; test -f .probe-do-not-create</Command></MustPassCommand>
       <MustPassCommand><Command>npm run check</Command></MustPassCommand>
     </BaselineAssertions>
     <TargetAssertions>
       <MustExist><Value>VERSION</Value></MustExist>
       <MustContain><File>VERSION</File><Text>0.4.0</Text></MustContain>
-      <MustVerify><Module>M-CI-GATE /></MustVerify>
+      <MustVerify><Module>M-CI-GATE</Module></MustVerify>
       <MustPassCommand><Command>test ! -e __invalid_release_probe__ &amp;&amp; test ! -e .probe-do-not-create</Command></MustPassCommand>
       <MustPassCommand><Command>npm run check</Command></MustPassCommand>
       <MustPassCommand><Command>npm test</Command></MustPassCommand>
