@@ -1,0 +1,74 @@
+<GraceChangePlan graceVersion="4.0" status="approved">
+  <C-RELEASE-PROBE-CLEANUP-276-V2>
+    <IntentSummary>Restore a clean release baseline by deleting exactly two accidental probe files and nothing else.</IntentSummary>
+    <BaselineAssertions>
+      <MustExist><Value>__invalid_release_probe__</Value></MustExist>
+      <MustExist><Value>.probe-do-not-create</Value></MustExist>
+      <MustExist><Value>VERSION</Value></MustExist>
+      <MustContain><File>VERSION</File><Text>0.4.0</Text></MustContain>
+      <MustVerify><Module>M-CI-GATE</Module></MustVerify>
+      <MustPassCommand><Command>test -f __invalid_release_probe__ &amp;&amp; test -f .probe-do-not-create</Command></MustPassCommand>
+      <MustPassCommand><Command>npm run check</Command></MustPassCommand>
+      <MustPassCommand><Command>npm run docs:check</Command></MustPassCommand>
+    </BaselineAssertions>
+    <TargetAssertions>
+      <MustExist><Value>VERSION</Value></MustExist>
+      <MustContain><File>VERSION</File><Text>0.4.0</Text></MustContain>
+      <MustVerify><Module>M-CI-GATE</Module></MustVerify>
+      <MustPassCommand><Command>test ! -e __invalid_release_probe__ &amp;&amp; test ! -e .probe-do-not-create</Command></MustPassCommand>
+      <MustPassCommand><Command>npm run check</Command></MustPassCommand>
+      <MustPassCommand><Command>npm run docs:check</Command></MustPassCommand>
+      <MustPassCommand><Command>npm test</Command></MustPassCommand>
+    </TargetAssertions>
+    <DurableScope>
+      <GraphAnchors><M-CI-GATE /><DF-GRACE-BRANCH /></GraphAnchors>
+      <VerificationAnchors><V-M-CI-GATE /></VerificationAnchors>
+      <ContextArtifacts><ContextArtifact>principles.xml</ContextArtifact><ContextArtifact>technology.xml</ContextArtifact></ContextArtifacts>
+    </DurableScope>
+    <ObservedWriteScope>
+      <Glob>.grace/changes/active/C-RELEASE-PROBE-CLEANUP-276-V2/**</Glob>
+      <File>__invalid_release_probe__</File>
+      <File>.probe-do-not-create</File>
+    </ObservedWriteScope>
+    <ImplementationPlan>
+      <T-001>
+        <Title>kafedra-release: verify exact base and accidental artifacts</Title>
+        <DependsOn></DependsOn>
+        <AcceptanceCriteria>
+          <Criterion>The exact base contains both known probe files and no active GRACE change.</Criterion>
+          <Criterion>The files are confirmed as root-level probe text and not application inputs.</Criterion>
+        </AcceptanceCriteria>
+        <Verification><Command>test -f __invalid_release_probe__ &amp;&amp; test -f .probe-do-not-create</Command></Verification>
+      </T-001>
+      <T-002>
+        <Title>kafedra-release: remove only the two probe files</Title>
+        <DependsOn><T-001 /></DependsOn>
+        <AcceptanceCriteria>
+          <Criterion>Both paths are absent from the implementation head.</Criterion>
+          <Criterion>No file outside the two paths and the active GRACE bundle changes.</Criterion>
+          <Criterion>Git history is preserved through a normal commit and pull request.</Criterion>
+        </AcceptanceCriteria>
+        <Verification><Command>test ! -e __invalid_release_probe__ &amp;&amp; test ! -e .probe-do-not-create</Command></Verification>
+      </T-002>
+      <T-003>
+        <Title>kafedra-tests: prove project and release gates remain intact</Title>
+        <DependsOn><T-002 /></DependsOn>
+        <AcceptanceCriteria>
+          <Criterion>GRACE final, check, docs and full unit tests succeed on the same exact head.</Criterion>
+          <Criterion>Normal GitHub CI, database, release, browser, offline and Project Control checks all succeed.</Criterion>
+        </AcceptanceCriteria>
+        <Verification><Command>npm run check</Command><Command>npm run docs:check</Command><Command>npm test</Command></Verification>
+      </T-003>
+      <T-004>
+        <Title>kafedra-release: exact-head squash merge, post-merge and terminal archive</Title>
+        <DependsOn><T-003 /></DependsOn>
+        <AcceptanceCriteria>
+          <Criterion>The implementation PR is squash-merged only from its unchanged verified head.</Criterion>
+          <Criterion>Post-merge CI succeeds before a separate archive-only `applied` transition.</Criterion>
+          <Criterion>Issue 276 closes only after terminal archive post-merge verification.</Criterion>
+        </AcceptanceCriteria>
+        <Verification><Command>npm run check</Command></Verification>
+      </T-004>
+    </ImplementationPlan>
+  </C-RELEASE-PROBE-CLEANUP-276-V2>
+</GraceChangePlan>

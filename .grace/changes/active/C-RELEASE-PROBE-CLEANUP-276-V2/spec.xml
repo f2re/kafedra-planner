@@ -1,0 +1,38 @@
+<GraceChangeSpec graceVersion="4.0" status="approved">
+  <C-RELEASE-PROBE-CLEANUP-276-V2>
+    <Summary>Remove two accidental release-probe files from the current exact main without changing product behavior or rewriting history.</Summary>
+    <Problem>The files `__invalid_release_probe__` and `.probe-do-not-create` were created by direct connector capability probes. They are not application, test, documentation or release artifacts and must not enter version 0.4.1.</Problem>
+    <Goals>
+      <Goal>Delete exactly the two confirmed probe files through a governed pull request.</Goal>
+      <Goal>Preserve all Git history and leave the application, tests, workflows, documentation, version and database unchanged.</Goal>
+      <Goal>Restore a clean release baseline and close the change through post-merge CI and a separate terminal archive.</Goal>
+    </Goals>
+    <Constraints>
+      <Constraint>The exact base is main `3aa3d6153dc672f2fa2e685d8923b6affef711e3`.</Constraint>
+      <Constraint>The implementation diff outside this GRACE bundle may only delete `__invalid_release_probe__` and `.probe-do-not-create`.</Constraint>
+      <Constraint>No production code, test, workflow, documentation, dependency, VERSION, SQLite schema or migration changes are allowed.</Constraint>
+      <Constraint>No force-push, reset, tag movement or history rewrite is allowed.</Constraint>
+    </Constraints>
+    <NonGoals>
+      <NonGoal>Prepare or publish version 0.4.1.</NonGoal>
+      <NonGoal>Implement the desktop plans lifecycle segment.</NonGoal>
+      <NonGoal>Change release, CI or GRACE policy.</NonGoal>
+      <NonGoal>Remove any historical evidence from existing commits.</NonGoal>
+    </NonGoals>
+    <AcceptanceCriteria>
+      <Criterion>Both confirmed probe files are absent from the implementation head.</Criterion>
+      <Criterion>The exact implementation diff contains only the two deletions and this approved GRACE bundle.</Criterion>
+      <Criterion>VERSION remains 0.4.0 and SQLite schema remains unchanged.</Criterion>
+      <Criterion>GRACE final and every mandatory project check, including full offline Debian/systemd/LLM and Project Control, succeed on one unchanged head.</Criterion>
+      <Criterion>The change is squash-merged, post-merge CI succeeds, and a separate archive-only pull request records terminal `applied` state.</Criterion>
+    </AcceptanceCriteria>
+    <AffectedAreas><M-CI-GATE /></AffectedAreas>
+    <VerificationIntent>
+      <ExpectedCommand>test ! -e __invalid_release_probe__ &amp;&amp; test ! -e .probe-do-not-create</ExpectedCommand>
+      <ExpectedCommand>npm run check</ExpectedCommand>
+      <ExpectedCommand>npm run docs:check</ExpectedCommand>
+      <ExpectedCommand>npm test</ExpectedCommand>
+      <ExpectedEvidence>The exact branch head differs from main only by deleting the two accidental root files and adding the approved cleanup change.</ExpectedEvidence>
+    </VerificationIntent>
+  </C-RELEASE-PROBE-CLEANUP-276-V2>
+</GraceChangeSpec>
