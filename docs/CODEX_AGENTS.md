@@ -4,6 +4,7 @@ These roles are implemented as repository-local skills in `codex/skills/`. Invok
 
 | Role / skill | Owns | Produces | Must involve next |
 |---|---|---|---|
+| Workspace preflight / `kafedra-workspace-orchestrator` | Classify substantial Kafedra/document work and select the smallest reusable profile route | Selected profile concerns and observable acceptance inputs | Existing project role that owns the work; never bypasses GRACE |
 | Flow intake & UX acceptance / `kafedra-flow-intake` | Problem framing, navigation fit, UX acceptance | A short accept / revise / reject decision with evidence and risks | Designer before UI work; feature delivery after acceptance |
 | Product designer / `kafedra-design` | Interaction design, information hierarchy, Apple-inspired visual character, responsive states | Flow specification and UI acceptance criteria | `kafedra-motion` for every UI-scoped GRACE change; data steward if a new fact/state is implied |
 | Motion advisor / `kafedra-motion` | Motion intent, reference retrieval, timing/geometry/material, gestures, reduced motion, performance | A measurable motion brief or explicit `no-motion` decision | Feature delivery; design audit after implementation |
@@ -15,16 +16,19 @@ These roles are implemented as repository-local skills in `codex/skills/`. Invok
 
 ## Default handoff
 
+For substantial work, run `kafedra-workspace-orchestrator` first and hand only the selected profile concerns into the existing project roles. Small internal fixes that do not alter user flow, rendered UI, schema, deployment or a product contract may go directly to the owning project role.
+
 For a non-UI change:
 
 ```text
-request → flow intake (when needed) → data/design (when needed) → feature delivery → tests → release gate
+request → workspace preflight → flow intake (when needed) → data/design (when needed) → feature delivery → tests → release gate
 ```
 
 For any GRACE plan whose `ObservedWriteScope` touches `public/**`:
 
 ```text
 request
+  → workspace preflight
   → flow intake (when flow changes)
   → kafedra-design
   → kafedra-motion
@@ -37,6 +41,26 @@ request
 `kafedra-motion` is a mandatory decision point for UI changes but may return `no-motion`; this prevents decorative animation from becoming a default. `kafedra-design-audit` is intentionally after implementation and must inspect the actual result rather than approving its own design brief.
 
 Small internal fixes may skip design intake only when they do not alter user flow, rendered UI, schema, deployment, or a product contract. The feature role still checks that the change does not duplicate an existing entity or projection.
+
+## Kafedra workspace profile
+
+The reusable document-workspace profile is pinned locally under `codex/skills/` and described in `docs/KAFEDRA_SKILLS_PROFILE.md`. `kafedra-workspace-orchestrator` is a pre-routing layer only: project `AGENTS.md`, the approved GRACE change, domain/design/release docs and the repository-local specialist role remain authoritative.
+
+Do not load all profile skills for every task. Route by the actual operational problem:
+
+| Problem | Focused reusable profile | Existing project owner |
+|---|---|---|
+| New/material document workflow | `kafedra-document-workspace`, plus intake/provenance/review/states only as needed | `kafedra-flow-intake` → `kafedra-design` / `kafedra-data` |
+| Upload, extraction or processing | `kafedra-document-intake`, `kafedra-states-and-recovery`, `kafedra-provenance-and-inspector`; `kafedra-review-by-exception` only for ambiguity | `kafedra-flow-intake` / `kafedra-data` / `kafedra-feature` |
+| Existing control clutter or click tax | `kafedra-action-recomposition` | `kafedra-design` → `kafedra-feature` |
+| Plan → task → calendar → Plan/Fact continuity | `kafedra-plan-calendar-continuity` | `kafedra-flow-intake` / `kafedra-data` / `kafedra-feature` / `kafedra-tests` |
+| Search/list/detail/inspector | `kafedra-search-and-navigation`, `kafedra-document-workspace`, `kafedra-provenance-and-inspector`, optionally `kafedra-responsive-inspector` | `kafedra-design` → `kafedra-feature` |
+| Adaptive defaults or ranking | `kafedra-adaptive-controls` | `kafedra-design` / `kafedra-data` / `kafedra-tests` |
+| Material motion/direct manipulation | `kafedra-motion-continuity` | `kafedra-motion` |
+| Final document-workspace UI acceptance | `kafedra-ux-acceptance` | independent `kafedra-design-audit` → `kafedra-tests` |
+| Template/structured document work | `kafedra-template-and-structured-document-flow` plus provenance/states as needed | `kafedra-flow-intake` / `kafedra-data` / `kafedra-feature` |
+
+The vendor snapshot is intentionally offline and immutable between governed updates. `npm run skills:check` verifies the upstream commit, all fourteen Git blob hashes and mandatory handoff markers. A new upstream commit is adopted only through a new Issue/GRACE change; ordinary development never auto-pulls it.
 
 ## Design sources of truth
 
@@ -67,15 +91,18 @@ The check validates routing, not aesthetics. The audit role remains responsible 
 - A material UI change has an independent `kafedra-design-audit` PASS before final test/release handoff.
 - Relevant unit/integration tests and browser coverage (for UI) pass; `npm run check` and `npm run docs:check` pass when contracts or docs change.
 - Migration and release consequences are explicit. A release-impacting change has backup/restore and rollback evidence before promotion.
+- The pinned Kafedra workspace profile and routing pass `npm run skills:check`; profile updates never happen implicitly.
 
 ## GRACE orchestration
 
-GRACE 4 owns the outer lifecycle. A significant request is represented by one approved active `C-*`; the specialist roles above are routed to `T-*` tasks in its approved `GraceChangePlan`.
+GRACE 4 owns the outer lifecycle. A significant request is represented by one approved active `C-*`; the workspace preflight and specialist roles above are routed to `T-*` tasks in its approved `GraceChangePlan`.
 
 ```text
 GraceChangeSpec
       ↓
 GraceChangePlan
+      ↓
+workspace profile preflight / selective routing
       ↓
 T-* flow-intake (when needed)
       ↓
@@ -96,4 +123,4 @@ T-* release
 GRACE target/final → GitHub required checks → exact-head squash merge
 ```
 
-Specialist handoffs never widen `ObservedWriteScope`, rewrite approved assertions, push directly to `main`, or replace the selected GRACE final gate with focused tests. Schema work owned by `kafedra-data` must also satisfy the repository migration gate described in `docs/GRACE_GOVERNANCE.md`. Release work owned by `kafedra-release` consumes the successful GRACE/project/release checks; it cannot declare a go decision while any mandatory check is pending, failed, cancelled, missing or unexpectedly skipped.
+Profile routing and specialist handoffs never widen `ObservedWriteScope`, rewrite approved assertions, push directly to `main`, or replace the selected GRACE final gate with focused tests. Schema work owned by `kafedra-data` must also satisfy the repository migration gate described in `docs/GRACE_GOVERNANCE.md`. Release work owned by `kafedra-release` consumes the successful GRACE/project/release checks; it cannot declare a go decision while any mandatory check is pending, failed, cancelled, missing or unexpectedly skipped.

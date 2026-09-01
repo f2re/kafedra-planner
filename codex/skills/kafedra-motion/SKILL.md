@@ -7,7 +7,7 @@ description: Select and specify restrained Kafedra Planner motion patterns from 
 
 Use this skill whenever a UI change adds or changes navigation transitions, disclosure, panels, tabs, list rearrangement, drag/swipe, loading/success/error feedback, state morphing, opacity/blur/material, chart interpolation or any other visible movement. It may explicitly decide that no animation is the best design.
 
-Read `docs/design.md`, `docs/MOTION_DESIGN.md`, `docs/design/reactiive-motion-catalog.md`, the relevant screen code and browser tests. Start from the user intent and trigger, never from a favorite effect.
+Read `docs/design.md`, `docs/MOTION_DESIGN.md`, `docs/design/reactiive-motion-catalog.md`, the relevant screen code and browser tests. Start from the user intent and trigger, never from a favorite effect. When `kafedra-workspace-orchestrator` routes document-workspace motion, also apply `kafedra-motion-continuity` for list/detail continuity, local processing feedback, interruption and reduced-motion behavior; the project motion contract remains authoritative.
 
 ## Retrieval
 

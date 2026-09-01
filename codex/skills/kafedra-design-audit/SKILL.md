@@ -5,7 +5,7 @@ description: Independently audit implemented Kafedra Planner UI against the appr
 
 # Design audit
 
-Use this skill after UI implementation and before final test/release handoff. Do not redesign from taste and do not silently broaden scope. Read `docs/design.md`, `docs/MOTION_DESIGN.md`, the approved GRACE spec/plan, the `kafedra-design` flow specification, any `kafedra-motion` brief, the implementation diff and relevant Playwright coverage.
+Use this skill after UI implementation and before final test/release handoff. Do not redesign from taste and do not silently broaden scope. Read `docs/design.md`, `docs/MOTION_DESIGN.md`, the approved GRACE spec/plan, the `kafedra-design` flow specification, any `kafedra-motion` brief, the implementation diff and relevant Playwright coverage. For material document-workspace changes also apply `kafedra-ux-acceptance` as a focused evidence checklist; this role remains the independent project verdict and project contracts outrank the reusable profile.
 
 The audit is independent from implementation: verify what is actually rendered/implemented rather than accepting the proposed design as evidence.
 

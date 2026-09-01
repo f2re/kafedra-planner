@@ -101,10 +101,29 @@ squash merge с проверкой head SHA
 - Локальная или фокусная проверка не заменяет полный GitHub CI.
 - После изменения синхронизировать затронутые README/VERSION/ROADMAP/архитектурные документы только тогда, когда меняется соответствующий контракт или рубеж продукта.
 
+## Kafedra workspace profile — обязательный preflight
+
+Для любой существенной разработки до выбора specialist worker выполнить обязательный preflight через `codex/skills/kafedra-workspace-orchestrator/SKILL.md`. Оркестратор сначала классифицирует пользовательскую задачу и выбирает минимальный набор профильных skills; он не заменяет архитектурный анализ, GRACE 4 или существующие роли проекта.
+
+Приоритет остаётся проектным: `AGENTS.md` и явная авторизация пользователя → approved GRACE contract → архитектурные/предметные документы → repository-local specialist role → выбранный reusable skill. Если профиль предлагает более общий паттерн, а проектный контракт задаёт конкретное поведение, действует проектный контракт.
+
+Не загружать весь профиль для каждой задачи. Примеры маршрутизации:
+
+- загрузка/import/распознавание документа → `kafedra-document-intake` + `kafedra-states-and-recovery` + `kafedra-provenance-and-inspector`, а `kafedra-review-by-exception` только при реальной неоднозначности;
+- document/list/detail → `kafedra-document-workspace` + `kafedra-provenance-and-inspector` + при необходимости `kafedra-responsive-inspector`;
+- упрощение перегруженных контролов → `kafedra-action-recomposition`;
+- план → задача → календарь → План/факт → `kafedra-plan-calendar-continuity`;
+- обучаемые defaults/ranking → `kafedra-adaptive-controls`;
+- motion/gesture → `kafedra-motion-continuity` через проектный `kafedra-motion`;
+- финальная проверка material document-workspace UI → `kafedra-ux-acceptance` внутри независимого `kafedra-design-audit` и `kafedra-tests`.
+
+Pinned source, полный список 14 skills, SHA и процедура обновления описаны в `docs/KAFEDRA_SKILLS_PROFILE.md`. `npm run skills:check` обязан fail-closed проверять snapshot и routing; upstream-профиль нельзя молча обновлять по движущейся ветке.
+
 ## Codex project roles
 
-Repository-local role skills live in `codex/skills/`; their shared routing is in `docs/CODEX_AGENTS.md` and their design contract is `docs/design.md`. For a matching task, read the role skill before acting:
+Repository-local role skills live in `codex/skills/`; their shared routing is in `docs/CODEX_AGENTS.md` and their design contract is `docs/design.md`. Для существенной задачи сначала применяется `kafedra-workspace-orchestrator`, после чего выбранные профильные правила передаются соответствующему repository-local worker. For a matching task, read the role skill before acting:
 
+- `kafedra-workspace-orchestrator` for mandatory substantial-work preflight and selective profile routing;
 - `kafedra-flow-intake` for a new or materially changed user workflow;
 - `kafedra-design` for interaction, hierarchy, layout, responsive UX and Apple-inspired product character;
 - `kafedra-motion` for motion/no-motion decisions, reference retrieval, measurable timing/geometry/gesture/reduced-motion briefs;
@@ -130,7 +149,7 @@ GRACE 4 является обязательным внешним lifecycle дл�
 
 Во время реализации:
 
-- `kafedra-flow-intake`, `kafedra-design`, `kafedra-motion`, `kafedra-data`, `kafedra-feature`, `kafedra-design-audit`, `kafedra-tests`, `kafedra-release` используются как specialist workers для соответствующих `T-*`;
+- `kafedra-workspace-orchestrator` выполняет preflight/route внутри approved `C-*`, затем `kafedra-flow-intake`, `kafedra-design`, `kafedra-motion`, `kafedra-data`, `kafedra-feature`, `kafedra-design-audit`, `kafedra-tests`, `kafedra-release` используются как specialist workers для соответствующих `T-*`;
 - каждый worker пишет только в утверждённый `ObservedWriteScope`;
 - approved plan не расширяется задним числом. Изменение scope/assertions/acceptance criteria требует нового superseding `C-*`;
 - параллельное исполнение допускается только после `grace lint --path . --parallel-preflight` и при отсутствии пересекающихся durable/observed scopes;
