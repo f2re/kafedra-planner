@@ -1,0 +1,73 @@
+name: Finalize published release 0.4.1
+
+on:
+  push:
+    branches:
+      - release/0.4.1-finalize
+    paths:
+      - .github/workflows/release-prepare-0.4.1.yml
+
+permissions:
+  contents: write
+
+concurrency:
+  group: finalize-release-0.4.1
+  cancel-in-progress: false
+
+jobs:
+  finalize:
+    runs-on: ubuntu-24.04
+    env:
+      GH_TOKEN: ${{ github.token }}
+      RELEASE_TAG: v0.4.1
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: release/0.4.1-finalize
+          fetch-depth: 0
+          persist-credentials: true
+
+      - name: Verify tag and published assets
+        id: verify
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          main_sha="$(git ls-remote origin refs/heads/main | awk '{print $1}')"
+          tag_sha="$(gh api "/repos/$GITHUB_REPOSITORY/git/ref/tags/$RELEASE_TAG" --jq '.object.sha')"
+          tag_type="$(gh api "/repos/$GITHUB_REPOSITORY/git/ref/tags/$RELEASE_TAG" --jq '.object.type')"
+          if [[ "$tag_type" == tag ]]; then
+            target_sha="$(gh api "/repos/$GITHUB_REPOSITORY/git/tags/$tag_sha" --jq '.object.sha')"
+          else
+            target_sha="$tag_sha"
+          fi
+          [[ "$target_sha" == "$main_sha" ]] || { echo "tag=$target_sha main=$main_sha" >&2; exit 1; }
+          [[ "$(git show "$main_sha:VERSION" | tr -d '\r\n')" == '0.4.1' ]]
+          release="$(gh api "/repos/$GITHUB_REPOSITORY/releases/tags/$RELEASE_TAG")"
+          [[ "$(jq -r '.draft' <<<"$release")" == false ]]
+          [[ "$(jq -r '.prerelease' <<<"$release")" == false ]]
+          jq -e 'any(.assets[]; .name|test("^kafedra-planner-0\\.4\\.1-.*\\.tar\\.gz$"))' <<<"$release" >/dev/null
+          jq -e 'any(.assets[]; .name|test("\\.tar\\.gz\\.sha256$"))' <<<"$release" >/dev/null
+
+      - name: Apply the reviewed Russian release notes
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          gh release edit "$RELEASE_TAG" \
+            --repo "$GITHUB_REPOSITORY" \
+            --title 'Kafedra Planner 0.4.1' \
+            --notes-file docs/RELEASE_0.4.1.md \
+            --draft=false \
+            --prerelease=false \
+            --verify-tag
+
+      - name: Remove the one-time finalizer from its branch
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          git fetch origin release/0.4.1-finalize
+          git checkout -B release/0.4.1-finalize origin/release/0.4.1-finalize
+          git rm .github/workflows/release-prepare-0.4.1.yml
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git commit -m 'chore(release): remove one-time 0.4.1 finalizer (#254)'
+          git push origin HEAD:release/0.4.1-finalize
