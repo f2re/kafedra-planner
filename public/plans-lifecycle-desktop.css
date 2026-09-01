@@ -62,6 +62,6 @@
 
 @media (prefers-reduced-motion: reduce) {
   .plans-lifecycle-segment [role='tab'] {
-    transition: none;
+    transition: none !important;
   }
 }
