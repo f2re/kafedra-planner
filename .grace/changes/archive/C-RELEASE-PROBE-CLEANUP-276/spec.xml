@@ -1,4 +1,4 @@
-<GraceChangeSpec graceVersion="4.0" status="approved">
+<GraceChangeSpec graceVersion="4.0" status="applied">
   <C-RELEASE-PROBE-CLEANUP-276>
     <Summary>Remove two accidental release-probe files from main without rewriting Git history or changing product behavior.</Summary>
     <Problem>Two direct probe commits added __invalid_release_probe__ and .probe-do-not-create after the last governed merge. They are not product artifacts and must not enter the next release bundle.</Problem>

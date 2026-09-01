@@ -1,4 +1,4 @@
-<GraceChangePlan graceVersion="4.0" status="approved">
+<GraceChangePlan graceVersion="4.0" status="applied">
   <C-RELEASE-PROBE-CLEANUP-276>
     <IntentSummary>Restore a governed release baseline by deleting two accidental probe files and nothing else.</IntentSummary>
     <BaselineAssertions>
