@@ -47,7 +47,8 @@
       <MustPassCommand><Command>npm run check</Command></MustPassCommand>
       <MustPassCommand><Command>npm run docs:check</Command></MustPassCommand>
       <MustPassCommand><Command>npm test</Command></MustPassCommand>
-      <MustPassCommand><Command>npx playwright test tests/browser/plans-lifecycle-desktop.spec.mjs --project=desktop</Command></MustPassCommand>
+      <MustPassCommand><Command>bash -lc 'set +e; npx playwright test tests/browser/plans-lifecycle-desktop.spec.mjs --project=desktop --reporter=json &gt; /tmp/plans-lifecycle-pw.json 2&gt;&amp;1; printf "%s" "$?" &gt; /tmp/plans-lifecycle-pw.status; exit 0'</Command></MustPassCommand>
+      <MustPassCommand><Command>node -e "const fs=require('node:fs');const s=Number(fs.readFileSync('/tmp/plans-lifecycle-pw.status','utf8'));if(!s)process.exit(0);const t=fs.readFileSync('/tmp/plans-lifecycle-pw.json','utf8');const m=t.match(/plans-lifecycle-desktop\\.spec\\.mjs:(\\d+):(\\d+)/);process.exit(Math.min(250,Math.max(2,Number(m?.[1]||249))))"</Command></MustPassCommand>
     </TargetAssertions>
     <DurableScope>
       <GraphAnchors><M-API/><M-DESIGN-GOVERNANCE/><M-MOTION-KB/><M-CI-GATE/><DF-GRACE-BRANCH/><DF-DESIGN-CHANGE/></GraphAnchors>
