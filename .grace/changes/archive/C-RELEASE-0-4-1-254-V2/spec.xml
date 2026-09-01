@@ -1,0 +1,50 @@
+<GraceChangeSpec graceVersion="4.0" status="applied">
+  <C-RELEASE-0-4-1-254-V2>
+    <Summary>Publish patch release 0.4.1 from the exact clean main after all selected feature changes completed their merge, post-merge and terminal archive lifecycle.</Summary>
+    <Problem>The current main includes document-runtime reliability and the desktop plans lifecycle improvement, but the committed version metadata and public release artifacts still identify 0.4.0.</Problem>
+    <Goals>
+      <Goal>Set all authoritative committed version markers to 0.4.1 in one reproducible GitHub-side change.</Goal>
+      <Goal>Document only user-visible changes reachable from the exact release base.</Goal>
+      <Goal>Prove full regression, offline bundle, systemd installation, update/rollback and strict OCR gates before tagging.</Goal>
+      <Goal>Publish tag v0.4.1 and a non-draft, non-prerelease GitHub Release from the exact post-merge main commit.</Goal>
+    </Goals>
+    <Constraints>
+      <Constraint>No unmerged, historical, draft or experimental branch is included.</Constraint>
+      <Constraint>No mobile mode, mobile navigation, bottom sheet, gesture or mobile-only transition is included.</Constraint>
+      <Constraint>No SQLite migration, schema change, destructive reset, Docker, CDN, mandatory Internet, cloud or mandatory LLM dependency is introduced.</Constraint>
+      <Constraint>Applied SQL migrations and immutable document sources remain byte-identical.</Constraint>
+      <Constraint>A temporary branch-only GitHub workflow may update existing version files atomically after baseline; it must delete itself in the same commit and must not appear in the pull-request diff.</Constraint>
+      <Constraint>Tag and GitHub Release are created only after release PR squash merge and successful exact-main post-merge CI.</Constraint>
+    </Constraints>
+    <NonGoals>
+      <NonGoal>Implement remaining source-row or plan-detail work from issue 236.</NonGoal>
+      <NonGoal>Change package, installation, backup, migration or recovery architecture.</NonGoal>
+      <NonGoal>Replace or mutate the v0.4.0 tag or release assets.</NonGoal>
+      <NonGoal>Publish a prerelease.</NonGoal>
+    </NonGoals>
+    <AcceptanceCriteria>
+      <Criterion>VERSION, package.json and package-lock.json agree on 0.4.1.</Criterion>
+      <Criterion>README and ROADMAP identify 0.4.1 as the current release without rewriting historical migration or release evidence.</Criterion>
+      <Criterion>Release notes describe strict document-runtime activation and repair, Unicode-safe uploads, classified Docomator diagnostics and the desktop `Текущие | Архив` control.</Criterion>
+      <Criterion>Release notes explicitly state that mobile-specific modes and unfinished branch work are not included.</Criterion>
+      <Criterion>The temporary updater workflow is absent from the final branch diff.</Criterion>
+      <Criterion>Version tests, complete project CI, release-gate, full offline Debian 12, systemd, backup/restore and GRACE final pass on one exact PR head.</Criterion>
+      <Criterion>After squash merge and exact-main post-merge CI, tag v0.4.1 points to that exact commit and the GitHub Release is published with verified assets and SHA-256.</Criterion>
+      <Criterion>A separate archive-only PR leaves C-RELEASE-0-4-1-254-V2 in terminal applied state.</Criterion>
+    </AcceptanceCriteria>
+    <AffectedAreas>
+      <M-API />
+      <M-OFFLINE-BUNDLE />
+      <M-CI-GATE />
+    </AffectedAreas>
+    <VerificationIntent>
+      <ExpectedCommand>node --test tests/release-version.test.mjs</ExpectedCommand>
+      <ExpectedCommand>npm run check</ExpectedCommand>
+      <ExpectedCommand>npm run docs:check</ExpectedCommand>
+      <ExpectedCommand>npm test</ExpectedCommand>
+      <ExpectedCommand>npm run release:gate</ExpectedCommand>
+      <ExpectedCommand>bash -n scripts/offline/*.sh deploy/*.sh</ExpectedCommand>
+      <ExpectedEvidence>The exact release commit, tag, release metadata, offline artifacts and checks all identify version 0.4.1 and preserve the supported 0.4.0 upgrade path.</ExpectedEvidence>
+    </VerificationIntent>
+  </C-RELEASE-0-4-1-254-V2>
+</GraceChangeSpec>
