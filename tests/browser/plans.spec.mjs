@@ -3,6 +3,7 @@ import { mkdtemp, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 import { writeZipArchive } from '../../packages/plan-docx/src/archive.mjs';
+import { navigateCalendarToDate } from './calendar-fixture-navigation.mjs';
 
 test.beforeEach(async ({ page }, testInfo) => {
   page.on('pageerror', (error) => console.log(`[plans:${testInfo.project.name}:pageerror] ${error.stack || error.message}`));
@@ -107,7 +108,7 @@ test('Планы: DOCX → новый период → календарь → и
 
     await navigationButton(page, 'calendar').click();
     await expect(page.locator('[data-view-panel="calendar"]')).toBeVisible();
-    await expect(page.locator('#calendar-title')).toContainText(/август/i);
+    await navigateCalendarToDate(page, '2026-08-15');
     const event = page.getByRole('button', { name: 'Браузерное заседание кафедры', exact: true }).first();
     await expect(event).toBeVisible({ timeout: 15_000 });
     await event.click();

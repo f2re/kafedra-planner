@@ -1,0 +1,72 @@
+<GraceChangePlan graceVersion="4.0" status="approved">
+  <C-CALENDAR-FIXTURE-DATE-263-V3>
+    <IntentSummary>Port the already proven date-independent calendar fixture navigation onto the current exact main without product changes.</IntentSummary>
+    <BaselineAssertions>
+      <MustExist><Value>tests/browser/plans.spec.mjs</Value></MustExist>
+      <MustExist><Value>tests/browser/directive-archive.spec.mjs</Value></MustExist>
+      <MustContain><File>tests/browser/plans.spec.mjs</File><Text>2026-08-15</Text></MustContain>
+      <MustContain><File>tests/browser/directive-archive.spec.mjs</File><Text>2026-08-25</Text></MustContain>
+      <MustVerify><Module>M-CI-GATE</Module></MustVerify>
+      <MustPassCommand><Command>npm run check</Command></MustPassCommand>
+      <MustPassCommand><Command>npm test</Command></MustPassCommand>
+    </BaselineAssertions>
+    <TargetAssertions>
+      <MustExist><Value>tests/browser/calendar-fixture-navigation.mjs</Value></MustExist>
+      <MustContain><File>tests/browser/calendar-fixture-navigation.mjs</File><Text>navigateCalendarToDate</Text></MustContain>
+      <MustContain><File>tests/browser/calendar-fixture-navigation.mjs</File><Text>titleSelector</Text></MustContain>
+      <MustContain><File>tests/browser/calendar-fixture-navigation.mjs</File><Text>previousSelector</Text></MustContain>
+      <MustContain><File>tests/browser/calendar-fixture-navigation.mjs</File><Text>nextSelector</Text></MustContain>
+      <MustContain><File>tests/browser/plans.spec.mjs</File><Text>navigateCalendarToDate</Text></MustContain>
+      <MustContain><File>tests/browser/directive-archive.spec.mjs</File><Text>navigateCalendarToDate</Text></MustContain>
+      <MustVerify><Module>M-CI-GATE</Module></MustVerify>
+      <MustPassCommand><Command>npm run test:browser:plans</Command></MustPassCommand>
+      <MustPassCommand><Command>npx playwright test tests/browser/directive-archive.spec.mjs</Command></MustPassCommand>
+      <MustPassCommand><Command>npm run test:browser:core</Command></MustPassCommand>
+      <MustPassCommand><Command>npm run check</Command></MustPassCommand>
+      <MustPassCommand><Command>npm test</Command></MustPassCommand>
+    </TargetAssertions>
+    <DurableScope>
+      <GraphAnchors><M-CI-GATE /><DF-GRACE-BRANCH /></GraphAnchors>
+      <VerificationAnchors><V-M-CI-GATE /></VerificationAnchors>
+      <ContextArtifacts><ContextArtifact>principles.xml</ContextArtifact><ContextArtifact>technology.xml</ContextArtifact></ContextArtifacts>
+    </DurableScope>
+    <ObservedWriteScope>
+      <Glob>.grace/changes/active/C-CALENDAR-FIXTURE-DATE-263-V3/**</Glob>
+      <File>tests/browser/calendar-fixture-navigation.mjs</File>
+      <File>tests/browser/plans.spec.mjs</File>
+      <File>tests/browser/directive-archive.spec.mjs</File>
+    </ObservedWriteScope>
+    <ImplementationPlan>
+      <T-001>
+        <Title>kafedra-tests: port explicit calendar navigation helper from superseded V2</Title>
+        <DependsOn></DependsOn>
+        <AcceptanceCriteria>
+          <Criterion>The helper reads the displayed period of an explicitly selected calendar.</Criterion>
+          <Criterion>It computes month distance to an explicit fixture date and clicks only that calendar's previous or next control.</Criterion>
+          <Criterion>It asserts the resulting month and year and does nothing when already at the target month.</Criterion>
+        </AcceptanceCriteria>
+        <Verification><Command>npm run test:browser:plans</Command></Verification>
+      </T-001>
+      <T-002>
+        <Title>kafedra-tests: wire plan and directive fixtures to their respective calendar controls</Title>
+        <DependsOn><T-001 /></DependsOn>
+        <AcceptanceCriteria>
+          <Criterion>The plan flow keeps 2026-08-15 and uses #calendar-title/#previous-period/#next-period.</Criterion>
+          <Criterion>The directive flow keeps 2026-08-25 and uses .directive-calendar-head h3 with data-directive-month controls.</Criterion>
+          <Criterion>No production file or test skip changes.</Criterion>
+        </AcceptanceCriteria>
+        <Verification><Command>npx playwright test tests/browser/directive-archive.spec.mjs</Command><Command>npm run test:browser:core</Command></Verification>
+      </T-002>
+      <T-003>
+        <Title>kafedra-release: exact-head CI, squash merge, post-merge and terminal archive</Title>
+        <DependsOn><T-002 /></DependsOn>
+        <AcceptanceCriteria>
+          <Criterion>GRACE final and every mandatory project check succeed on one unchanged head.</Criterion>
+          <Criterion>The full offline job completes successfully.</Criterion>
+          <Criterion>Post-merge CI succeeds before a separate archive-only applied transition.</Criterion>
+        </AcceptanceCriteria>
+        <Verification><Command>npm run check</Command><Command>npm test</Command></Verification>
+      </T-003>
+    </ImplementationPlan>
+  </C-CALENDAR-FIXTURE-DATE-263-V3>
+</GraceChangePlan>
