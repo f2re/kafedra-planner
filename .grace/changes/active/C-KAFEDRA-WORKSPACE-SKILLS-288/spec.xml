@@ -1,0 +1,57 @@
+<GraceChangeSpec graceVersion="4.0" status="approved">
+  <C-KAFEDRA-WORKSPACE-SKILLS-288>
+    <Summary>Integrate the pinned Kafedra Planner document-workspace skill profile as a repository-local, fail-closed routing layer for all future substantial development without changing product runtime behavior.</Summary>
+    <Problem>The reusable Kafedra document-workspace profile exists in f2re/ai-agents-skills, but Kafedra Planner does not yet vendor the profile or require its orchestrator before future development, so document workflow, provenance, review-by-exception, partial-success, adaptive-control and motion rules can be applied inconsistently.</Problem>
+    <Goals>
+      <Goal>Vendor the complete 14-skill Kafedra profile from f2re/ai-agents-skills commit 2645ab8afd34963e80397981d582ea3b141db8e3 with exact Git-blob provenance.</Goal>
+      <Goal>Make kafedra-workspace-orchestrator an explicit repository development preflight while keeping AGENTS.md, GRACE 4 and existing repository-local specialist roles authoritative.</Goal>
+      <Goal>Connect the reusable profile to the existing flow, design, motion, feature, independent design-audit and test handoff chain without creating a competing lifecycle.</Goal>
+      <Goal>Add a dependency-free deterministic validator and regression tests that fail when the pinned snapshot, routing markers or role handoffs are removed or altered.</Goal>
+      <Goal>Document an explicit, reviewable update procedure so a later upstream profile revision is never pulled silently.</Goal>
+    </Goals>
+    <Constraints>
+      <Constraint>The existing GRACE 4 lifecycle remains the outer governance mechanism and approved ObservedWriteScope cannot be widened silently.</Constraint>
+      <Constraint>Project-local AGENTS.md, domain documentation and existing kafedra specialist roles outrank reusable profile defaults.</Constraint>
+      <Constraint>No production UI, API, storage, schema, migration, VERSION, package runtime dependency or product workflow may change.</Constraint>
+      <Constraint>The integrated profile must be available offline from the repository and must not require network access, a remote agent service, Docker or an LLM.</Constraint>
+      <Constraint>Only the Kafedra-specific profile is vendored; meteorological and unrelated generic skills are not imported automatically.</Constraint>
+      <Constraint>Profile updates require a new reviewed commit pin, manifest update and successful deterministic verification.</Constraint>
+    </Constraints>
+    <NonGoals>
+      <NonGoal>Redesign any existing Kafedra Planner screen or user flow in this change.</NonGoal>
+      <NonGoal>Replace kafedra-flow-intake, kafedra-design, kafedra-motion, kafedra-feature, kafedra-design-audit, kafedra-tests, kafedra-data or kafedra-release with external agents.</NonGoal>
+      <NonGoal>Install the whole ai-agents-skills repository, its installer, integrations or meteorological profile into Kafedra Planner.</NonGoal>
+      <NonGoal>Introduce a runtime plugin mechanism or automatic network synchronization of skills.</NonGoal>
+    </NonGoals>
+    <AcceptanceCriteria>
+      <Criterion>Exactly fourteen pinned Kafedra profile SKILL.md files are present under codex/skills and each Git blob matches the manifest sourced from ai-agents-skills commit 2645ab8afd34963e80397981d582ea3b141db8e3.</Criterion>
+      <Criterion>AGENTS.md requires kafedra-workspace-orchestrator preflight for substantial development and states that project-local authority and GRACE 4 remain stronger than reusable profile defaults.</Criterion>
+      <Criterion>docs/CODEX_AGENTS.md documents selective routing from the orchestrator into existing project roles rather than loading the whole profile for every task.</Criterion>
+      <Criterion>The existing flow, design, motion, feature, independent design-audit and test skills contain explicit handoff/reference points to the workspace profile where relevant.</Criterion>
+      <Criterion>docs/KAFEDRA_SKILLS_PROFILE.md records upstream repository, exact commit, skill set, authority rules and a safe manual update procedure.</Criterion>
+      <Criterion>A dependency-free validator verifies manifest provenance, all fourteen local Git-blob hashes, orchestrator/routing markers and required role handoffs.</Criterion>
+      <Criterion>Regression tests prove the validator fails when an orchestrator skill, pinned skill bytes or mandatory routing marker is missing or changed.</Criterion>
+      <Criterion>npm run check, npm run docs:check and the GRACE target/final gates pass, and existing project/release/offline/database CI remains green on one exact PR head.</Criterion>
+      <Criterion>Delivery uses a normal PR, exact-head squash merge, post-merge CI and a separate archive-only terminal applied transition.</Criterion>
+    </AcceptanceCriteria>
+    <AffectedAreas>
+      <M-GRACE-GOVERNANCE />
+      <M-DESIGN-GOVERNANCE />
+      <M-CI-GATE />
+      <M-OFFLINE-BUNDLE />
+    </AffectedAreas>
+    <VerificationIntent>
+      <ExpectedCommand>node scripts/kafedra-skills-governance.mjs</ExpectedCommand>
+      <ExpectedCommand>node --test tests/kafedra-skills-governance.test.mjs</ExpectedCommand>
+      <ExpectedCommand>npm run check</ExpectedCommand>
+      <ExpectedCommand>npm run docs:check</ExpectedCommand>
+      <ExpectedCommand>grace lint --path . --change C-KAFEDRA-WORKSPACE-SKILLS-288 --assertions final --run-commands</ExpectedCommand>
+      <ExpectedEvidence>The local manifest and Git-blob verification prove the reusable profile is pinned and intact while unchanged-head GRACE, project, release, offline and database checks prove no runtime surface was altered.</ExpectedEvidence>
+    </VerificationIntent>
+    <Assumptions>
+      <Assumption>The verified base revision is main commit 67c2506ae03ac3543589b4f500a519eb808f90a6 with tree 20100a227491f8b62a92e877aceb415e6a5b144c.</Assumption>
+      <Assumption>Issue 288 is the human-visible work item for this change.</Assumption>
+      <Assumption>The verified upstream profile commit is 2645ab8afd34963e80397981d582ea3b141db8e3 and contains fourteen Kafedra-specific SKILL.md files.</Assumption>
+    </Assumptions>
+  </C-KAFEDRA-WORKSPACE-SKILLS-288>
+</GraceChangeSpec>

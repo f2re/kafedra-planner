@@ -1,0 +1,129 @@
+<GraceChangePlan graceVersion="4.0" status="approved">
+  <C-KAFEDRA-WORKSPACE-SKILLS-288>
+    <IntentSummary>Vendor the pinned fourteen-skill Kafedra document-workspace profile, route it through the existing repository specialist chain, and make profile integrity fail closed through dependency-free checks while leaving application runtime and schema untouched.</IntentSummary>
+    <BaselineAssertions>
+      <MustExist><Value>AGENTS.md</Value></MustExist>
+      <MustExist><Value>docs/CODEX_AGENTS.md</Value></MustExist>
+      <MustExist><Value>codex/skills/kafedra-flow-intake/SKILL.md</Value></MustExist>
+      <MustExist><Value>codex/skills/kafedra-design/SKILL.md</Value></MustExist>
+      <MustExist><Value>codex/skills/kafedra-motion/SKILL.md</Value></MustExist>
+      <MustExist><Value>codex/skills/kafedra-feature/SKILL.md</Value></MustExist>
+      <MustExist><Value>codex/skills/kafedra-design-audit/SKILL.md</Value></MustExist>
+      <MustExist><Value>codex/skills/kafedra-tests/SKILL.md</Value></MustExist>
+      <MustVerify><Module>M-GRACE-GOVERNANCE</Module></MustVerify>
+      <MustVerify><Module>M-DESIGN-GOVERNANCE</Module></MustVerify>
+    </BaselineAssertions>
+    <TargetAssertions>
+      <MustExist><Value>codex/skills/kafedra-profile.manifest.json</Value></MustExist>
+      <MustExist><Value>codex/skills/kafedra-workspace-orchestrator/SKILL.md</Value></MustExist>
+      <MustExist><Value>codex/skills/kafedra-document-workspace/SKILL.md</Value></MustExist>
+      <MustExist><Value>codex/skills/kafedra-document-intake/SKILL.md</Value></MustExist>
+      <MustExist><Value>codex/skills/kafedra-provenance-and-inspector/SKILL.md</Value></MustExist>
+      <MustExist><Value>codex/skills/kafedra-action-recomposition/SKILL.md</Value></MustExist>
+      <MustExist><Value>codex/skills/kafedra-review-by-exception/SKILL.md</Value></MustExist>
+      <MustExist><Value>codex/skills/kafedra-search-and-navigation/SKILL.md</Value></MustExist>
+      <MustExist><Value>codex/skills/kafedra-responsive-inspector/SKILL.md</Value></MustExist>
+      <MustExist><Value>codex/skills/kafedra-motion-continuity/SKILL.md</Value></MustExist>
+      <MustExist><Value>codex/skills/kafedra-states-and-recovery/SKILL.md</Value></MustExist>
+      <MustExist><Value>codex/skills/kafedra-adaptive-controls/SKILL.md</Value></MustExist>
+      <MustExist><Value>codex/skills/kafedra-plan-calendar-continuity/SKILL.md</Value></MustExist>
+      <MustExist><Value>codex/skills/kafedra-template-and-structured-document-flow/SKILL.md</Value></MustExist>
+      <MustExist><Value>codex/skills/kafedra-ux-acceptance/SKILL.md</Value></MustExist>
+      <MustExist><Value>docs/KAFEDRA_SKILLS_PROFILE.md</Value></MustExist>
+      <MustExist><Value>scripts/kafedra-skills-governance.mjs</Value></MustExist>
+      <MustExist><Value>tests/kafedra-skills-governance.test.mjs</Value></MustExist>
+      <MustContain><File>codex/skills/kafedra-profile.manifest.json</File><Text>2645ab8afd34963e80397981d582ea3b141db8e3</Text></MustContain>
+      <MustContain><File>AGENTS.md</File><Text>kafedra-workspace-orchestrator</Text></MustContain>
+      <MustContain><File>AGENTS.md</File><Text>обязательный preflight</Text></MustContain>
+      <MustContain><File>docs/CODEX_AGENTS.md</File><Text>Kafedra workspace profile</Text></MustContain>
+      <MustContain><File>codex/skills/kafedra-flow-intake/SKILL.md</File><Text>kafedra-workspace-orchestrator</Text></MustContain>
+      <MustContain><File>codex/skills/kafedra-design/SKILL.md</File><Text>kafedra-workspace-orchestrator</Text></MustContain>
+      <MustContain><File>codex/skills/kafedra-motion/SKILL.md</File><Text>kafedra-motion-continuity</Text></MustContain>
+      <MustContain><File>codex/skills/kafedra-feature/SKILL.md</File><Text>kafedra-workspace-orchestrator</Text></MustContain>
+      <MustContain><File>codex/skills/kafedra-design-audit/SKILL.md</File><Text>kafedra-ux-acceptance</Text></MustContain>
+      <MustContain><File>codex/skills/kafedra-tests/SKILL.md</File><Text>kafedra-ux-acceptance</Text></MustContain>
+      <MustPassCommand><Command>node scripts/kafedra-skills-governance.mjs</Command></MustPassCommand>
+      <MustPassCommand><Command>node --test tests/kafedra-skills-governance.test.mjs</Command></MustPassCommand>
+      <MustPassCommand><Command>npm run check</Command></MustPassCommand>
+      <MustPassCommand><Command>npm run docs:check</Command></MustPassCommand>
+    </TargetAssertions>
+    <DurableScope>
+      <GraphAnchors>
+        <M-GRACE-GOVERNANCE />
+        <M-DESIGN-GOVERNANCE />
+        <M-CI-GATE />
+        <M-OFFLINE-BUNDLE />
+        <DF-GRACE-BRANCH />
+        <DF-DESIGN-CHANGE />
+      </GraphAnchors>
+      <VerificationAnchors>
+        <V-M-GRACE-GOVERNANCE />
+        <V-M-DESIGN-GOVERNANCE />
+        <V-M-CI-GATE />
+        <V-M-OFFLINE-BUNDLE />
+      </VerificationAnchors>
+    </DurableScope>
+    <ObservedWriteScope>
+      <Glob>.grace/changes/active/C-KAFEDRA-WORKSPACE-SKILLS-288/**</Glob>
+      <File>AGENTS.md</File>
+      <File>docs/CODEX_AGENTS.md</File>
+      <File>docs/KAFEDRA_SKILLS_PROFILE.md</File>
+      <File>package.json</File>
+      <File>scripts/kafedra-skills-governance.mjs</File>
+      <File>tests/kafedra-skills-governance.test.mjs</File>
+      <File>codex/skills/kafedra-profile.manifest.json</File>
+      <Glob>codex/skills/kafedra-workspace-orchestrator/**</Glob>
+      <Glob>codex/skills/kafedra-document-workspace/**</Glob>
+      <Glob>codex/skills/kafedra-document-intake/**</Glob>
+      <Glob>codex/skills/kafedra-provenance-and-inspector/**</Glob>
+      <Glob>codex/skills/kafedra-action-recomposition/**</Glob>
+      <Glob>codex/skills/kafedra-review-by-exception/**</Glob>
+      <Glob>codex/skills/kafedra-search-and-navigation/**</Glob>
+      <Glob>codex/skills/kafedra-responsive-inspector/**</Glob>
+      <Glob>codex/skills/kafedra-motion-continuity/**</Glob>
+      <Glob>codex/skills/kafedra-states-and-recovery/**</Glob>
+      <Glob>codex/skills/kafedra-adaptive-controls/**</Glob>
+      <Glob>codex/skills/kafedra-plan-calendar-continuity/**</Glob>
+      <Glob>codex/skills/kafedra-template-and-structured-document-flow/**</Glob>
+      <Glob>codex/skills/kafedra-ux-acceptance/**</Glob>
+      <File>codex/skills/kafedra-flow-intake/SKILL.md</File>
+      <File>codex/skills/kafedra-design/SKILL.md</File>
+      <File>codex/skills/kafedra-motion/SKILL.md</File>
+      <File>codex/skills/kafedra-feature/SKILL.md</File>
+      <File>codex/skills/kafedra-design-audit/SKILL.md</File>
+      <File>codex/skills/kafedra-tests/SKILL.md</File>
+    </ObservedWriteScope>
+    <ImplementationPlan>
+      <T-001>
+        <Title>kafedra-flow-intake: define project-first routing and authority boundaries</Title>
+        <DependsOn></DependsOn>
+        <AcceptanceCriteria><Criterion>Future substantial work begins with the workspace orchestrator, selects only relevant profile skills, preserves existing project-local roles and never bypasses GRACE.</Criterion></AcceptanceCriteria>
+        <Verification><Command>npm run docs:check</Command></Verification>
+      </T-001>
+      <T-002>
+        <Title>kafedra-feature: vendor the exact fourteen-skill upstream snapshot and provenance manifest</Title>
+        <DependsOn><T-001 /></DependsOn>
+        <AcceptanceCriteria><Criterion>All fourteen local SKILL.md files reproduce the verified upstream Git blobs from commit 2645ab8afd34963e80397981d582ea3b141db8e3 and the manifest records each expected blob SHA.</Criterion></AcceptanceCriteria>
+        <Verification><Command>node scripts/kafedra-skills-governance.mjs</Command></Verification>
+      </T-002>
+      <T-003>
+        <Title>kafedra-feature: integrate orchestrator handoffs into AGENTS, Codex routing and specialist skills</Title>
+        <DependsOn><T-001 /><T-002 /></DependsOn>
+        <AcceptanceCriteria><Criterion>Root instructions and existing flow/design/motion/feature/audit/tests roles selectively hand off to the profile while GRACE and local role authority remain explicit.</Criterion></AcceptanceCriteria>
+        <Verification><Command>node scripts/kafedra-skills-governance.mjs</Command><Command>npm run docs:check</Command></Verification>
+      </T-003>
+      <T-004>
+        <Title>kafedra-tests: add fail-closed profile integrity and routing regressions</Title>
+        <DependsOn><T-003 /></DependsOn>
+        <AcceptanceCriteria><Criterion>The dependency-free validator checks upstream commit metadata, all fourteen Git-blob hashes and routing markers, while tests prove missing or modified profile/routing data fails.</Criterion></AcceptanceCriteria>
+        <Verification><Command>node --test tests/kafedra-skills-governance.test.mjs</Command><Command>npm run check</Command></Verification>
+      </T-004>
+      <T-005>
+        <Title>kafedra-release: prove the integration is repository governance only</Title>
+        <DependsOn><T-004 /></DependsOn>
+        <AcceptanceCriteria><Criterion>VERSION, schema, migrations, public UI and runtime dependency graph remain unchanged; project/release/offline/database gates continue to pass on the exact PR head.</Criterion></AcceptanceCriteria>
+        <Verification><Command>npm run check</Command><Command>npm run docs:check</Command></Verification>
+      </T-005>
+    </ImplementationPlan>
+  </C-KAFEDRA-WORKSPACE-SKILLS-288>
+</GraceChangePlan>
