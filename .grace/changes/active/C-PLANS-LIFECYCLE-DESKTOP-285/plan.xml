@@ -1,0 +1,114 @@
+<GraceChangePlan graceVersion="4.0" status="approved">
+  <C-PLANS-LIFECYCLE-DESKTOP-285>
+    <IntentSummary>Deliver one desktop-only vertical that promotes the existing active/archive plan list state from a dropdown to a persistent segmented control.</IntentSummary>
+    <BaselineAssertions>
+      <MustExist><Value>public/lifecycle-safe.js</Value></MustExist>
+      <MustExist><Value>public/plans-next.js</Value></MustExist>
+      <MustExist><Value>public/plans-next.css</Value></MustExist>
+      <MustExist><Value>public/ux-next.js</Value></MustExist>
+      <MustExist><Value>docs/PLANS.md</Value></MustExist>
+      <MustContain><File>public/lifecycle-safe.js</File><Text>plans-lifecycle-status</Text></MustContain>
+      <MustContain><File>public/lifecycle-safe.js</File><Text>status</Text></MustContain>
+      <MustContain><File>docs/PLANS.md</File><Text>status: active | archived</Text></MustContain>
+      <MustVerify><Module>M-PLANS</Module></MustVerify>
+      <MustVerify><Module>M-DESIGN-GOVERNANCE</Module></MustVerify>
+      <MustVerify><Module>M-MOTION-KB</Module></MustVerify>
+      <MustVerify><Module>M-CI-GATE</Module></MustVerify>
+      <MustPassCommand><Command>node --test tests/lifecycle.test.mjs</Command></MustPassCommand>
+      <MustPassCommand><Command>npm run design:check</Command></MustPassCommand>
+      <MustPassCommand><Command>npm run check</Command></MustPassCommand>
+      <MustPassCommand><Command>npm run docs:check</Command></MustPassCommand>
+    </BaselineAssertions>
+    <TargetAssertions>
+      <MustExist><Value>public/plans-lifecycle-desktop.js</Value></MustExist>
+      <MustExist><Value>public/plans-lifecycle-desktop.css</Value></MustExist>
+      <MustExist><Value>tests/plans-lifecycle-desktop.test.mjs</Value></MustExist>
+      <MustExist><Value>tests/browser/plans-lifecycle-desktop.spec.mjs</Value></MustExist>
+      <MustExist><Value>.grace/changes/active/C-PLANS-LIFECYCLE-DESKTOP-285/design-audit.md</Value></MustExist>
+      <MustContain><File>public/plans-lifecycle-desktop.js</File><Text>(min-width: 721px)</Text></MustContain>
+      <MustContain><File>public/plans-lifecycle-desktop.js</File><Text>plans-lifecycle-status</Text></MustContain>
+      <MustContain><File>public/plans-lifecycle-desktop.js</File><Text>aria-selected</Text></MustContain>
+      <MustContain><File>public/plans-lifecycle-desktop.js</File><Text>data-lifecycle-view</Text></MustContain>
+      <MustContain><File>public/plans-lifecycle-desktop.css</File><Text>min-height: 44px</Text></MustContain>
+      <MustContain><File>public/plans-lifecycle-desktop.css</File><Text>prefers-reduced-motion</Text></MustContain>
+      <MustContain><File>public/ux-next.js</File><Text>plans-lifecycle-desktop.js</Text></MustContain>
+      <MustContain><File>docs/PLANS.md</File><Text>Текущие | Архив</Text></MustContain>
+      <MustContain><File>tests/browser/plans-lifecycle-desktop.spec.mjs</File><Text>Desktop-only</Text></MustContain>
+      <MustVerify><Module>M-PLANS</Module></MustVerify>
+      <MustVerify><Module>M-DESIGN-GOVERNANCE</Module></MustVerify>
+      <MustVerify><Module>M-MOTION-KB</Module></MustVerify>
+      <MustVerify><Module>M-CI-GATE</Module></MustVerify>
+      <MustPassCommand><Command>node --test tests/plans-lifecycle-desktop.test.mjs tests/lifecycle.test.mjs</Command></MustPassCommand>
+      <MustPassCommand><Command>npx playwright test tests/browser/plans-lifecycle-desktop.spec.mjs --project=desktop</Command></MustPassCommand>
+      <MustPassCommand><Command>npm run design:check</Command></MustPassCommand>
+      <MustPassCommand><Command>npm run check</Command></MustPassCommand>
+      <MustPassCommand><Command>npm run docs:check</Command></MustPassCommand>
+      <MustPassCommand><Command>npm test</Command></MustPassCommand>
+    </TargetAssertions>
+    <DurableScope>
+      <GraphAnchors><M-PLANS /><M-DESIGN-GOVERNANCE /><M-MOTION-KB /><M-CI-GATE /><DF-DESIGN-CHANGE /><DF-GRACE-BRANCH /></GraphAnchors>
+      <VerificationAnchors><V-M-PLANS /><V-M-DESIGN-GOVERNANCE /><V-M-MOTION-KB /><V-M-CI-GATE /></VerificationAnchors>
+      <ContextArtifacts><ContextArtifact>principles.xml</ContextArtifact><ContextArtifact>ux-guidelines.xml</ContextArtifact><ContextArtifact>technology.xml</ContextArtifact></ContextArtifacts>
+    </DurableScope>
+    <ObservedWriteScope>
+      <Glob>.grace/changes/active/C-PLANS-LIFECYCLE-DESKTOP-285/**</Glob>
+      <File>public/plans-lifecycle-desktop.js</File>
+      <File>public/plans-lifecycle-desktop.css</File>
+      <File>public/ux-next.js</File>
+      <File>docs/PLANS.md</File>
+      <File>tests/plans-lifecycle-desktop.test.mjs</File>
+      <File>tests/browser/plans-lifecycle-desktop.spec.mjs</File>
+    </ObservedWriteScope>
+    <ImplementationPlan>
+      <T-001>
+        <Title>kafedra-flow-intake: lock desktop lifecycle states and stale-detail behavior</Title>
+        <DependsOn></DependsOn>
+        <AcceptanceCriteria>
+          <Criterion>Viewing active/archive is one action and never changes persisted plan status.</Criterion>
+          <Criterion>Search and ordinary filters survive; the existing controller clears or replaces invalid selected detail.</Criterion>
+          <Criterion>Loading/error states are not rewritten as empty states.</Criterion>
+        </AcceptanceCriteria>
+        <Verification><Command>node --test tests/lifecycle.test.mjs</Command></Verification>
+      </T-001>
+      <T-002>
+        <Title>kafedra-design and kafedra-motion: define persistent desktop segment</Title>
+        <DependsOn><T-001 /></DependsOn>
+        <AcceptanceCriteria>
+          <Criterion>Selection is text-, shape- and accessibility-state-first, with 44 px targets and visible focus.</Criterion>
+          <Criterion>The control exists only from 721 px and introduces no mobile-specific state.</Criterion>
+          <Criterion>Motion is optional, restrained and fully removed under reduced motion.</Criterion>
+        </AcceptanceCriteria>
+        <Verification><Command>npm run design:check</Command></Verification>
+      </T-002>
+      <T-003>
+        <Title>kafedra-feature: bridge segmented tabs to existing lifecycle select</Title>
+        <DependsOn><T-002 /></DependsOn>
+        <AcceptanceCriteria>
+          <Criterion>The existing select remains the compatibility source and receives normal input/change events.</Criterion>
+          <Criterion>Click, Enter, Space, arrows, Home and End activate active/archive without duplicate requests.</Criterion>
+          <Criterion>The bridge and filterbar are restored when the viewport falls below 721 px.</Criterion>
+        </AcceptanceCriteria>
+        <Verification><Command>node --test tests/plans-lifecycle-desktop.test.mjs</Command></Verification>
+      </T-003>
+      <T-004>
+        <Title>kafedra-tests and kafedra-design-audit: prove exact desktop behavior</Title>
+        <DependsOn><T-003 /></DependsOn>
+        <AcceptanceCriteria>
+          <Criterion>Desktop Playwright covers real active/archive API lists, preserved search, keyboard, target size, reduced motion and restoration below the breakpoint.</Criterion>
+          <Criterion>Independent audit records no focus, contrast, geometry or state blocker.</Criterion>
+          <Criterion>Full project CI remains successful.</Criterion>
+        </AcceptanceCriteria>
+        <Verification><Command>npx playwright test tests/browser/plans-lifecycle-desktop.spec.mjs --project=desktop</Command><Command>npm test</Command></Verification>
+      </T-004>
+      <T-005>
+        <Title>kafedra-release: exact-head squash merge, post-merge and terminal archive</Title>
+        <DependsOn><T-004 /></DependsOn>
+        <AcceptanceCriteria>
+          <Criterion>Every required exact-head check succeeds with no unresolved review thread.</Criterion>
+          <Criterion>Post-merge CI succeeds before a separate archive-only applied transition.</Criterion>
+        </AcceptanceCriteria>
+        <Verification><Command>npm run check</Command><Command>npm run docs:check</Command></Verification>
+      </T-005>
+    </ImplementationPlan>
+  </C-PLANS-LIFECYCLE-DESKTOP-285>
+</GraceChangePlan>

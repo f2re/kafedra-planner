@@ -1,0 +1,43 @@
+<GraceChangeSpec graceVersion="4.0" status="approved">
+  <C-PLANS-LIFECYCLE-DESKTOP-285>
+    <Summary>Replace the desktop plans lifecycle dropdown with a persistent one-action `Текущие | Архив` segmented control.</Summary>
+    <Problem>The primary active/archive list mode is hidden among ordinary filters. Desktop users must open a select for a frequent mutually exclusive navigation state, while the selected plan can become stale after switching.</Problem>
+    <Goals>
+      <Goal>Keep `Текущие | Архив` permanently visible on desktop widths.</Goal>
+      <Goal>Reuse the existing `status=active|archived` lifecycle controller and API without client-side list merging.</Goal>
+      <Goal>Preserve search and ordinary filters, clear invalid detail deterministically and show mode-specific empty states.</Goal>
+      <Goal>Support pointer and keyboard operation with visible focus, 44 px targets and no required motion.</Goal>
+    </Goals>
+    <Constraints>
+      <Constraint>No mobile-specific mode, list/detail navigation, bottom sheet, gesture or mobile-only transition is added.</Constraint>
+      <Constraint>No API, SQLite schema, migration, plan lifecycle, archive/restore, source-row, evidence or document-intake change.</Constraint>
+      <Constraint>The original lifecycle select remains an internal compatibility bridge and is restored unchanged below 721 px.</Constraint>
+      <Constraint>Lifecycle view is never-learn: statistics cannot choose, reorder or reposition it.</Constraint>
+    </Constraints>
+    <NonGoals>
+      <NonGoal>Redesign general plan filters.</NonGoal>
+      <NonGoal>Redesign the plan detail or source-row editor.</NonGoal>
+      <NonGoal>Add adaptive ranking or a saved personal lifecycle default.</NonGoal>
+      <NonGoal>Change persisted plan status by viewing a list.</NonGoal>
+    </NonGoals>
+    <AcceptanceCriteria>
+      <Criterion>On desktop, one click or keyboard action switches between current and archived server-side lists.</Criterion>
+      <Criterion>The visible segmented control is the only accessible lifecycle selector on desktop; the bridge remains compatible with existing controllers and tests.</Criterion>
+      <Criterion>Search and ordinary filter values survive switching, while an absent selected plan cannot leave stale detail.</Criterion>
+      <Criterion>Empty states distinguish current, archive and filtered results without replacing loading or error messages.</Criterion>
+      <Criterion>Click, Enter, Space, Home, End and horizontal arrows work with role tablist/tab, aria-selected, roving tabindex, visible focus and targets at least 44 px.</Criterion>
+      <Criterion>Below 721 px the new segment is absent and the pre-existing select is restored; no new mobile interaction is introduced.</Criterion>
+      <Criterion>Focused tests, GRACE final and full project CI succeed on one exact head before squash merge and terminal archive.</Criterion>
+    </AcceptanceCriteria>
+    <AffectedAreas><M-PLANS /><M-DESIGN-GOVERNANCE /><M-MOTION-KB /><M-CI-GATE /></AffectedAreas>
+    <VerificationIntent>
+      <ExpectedCommand>node --test tests/plans-lifecycle-desktop.test.mjs</ExpectedCommand>
+      <ExpectedCommand>npx playwright test tests/browser/plans-lifecycle-desktop.spec.mjs --project=desktop</ExpectedCommand>
+      <ExpectedCommand>npm run design:check</ExpectedCommand>
+      <ExpectedCommand>npm run check</ExpectedCommand>
+      <ExpectedCommand>npm run docs:check</ExpectedCommand>
+      <ExpectedCommand>npm test</ExpectedCommand>
+      <ExpectedEvidence>The exact branch head proves a desktop-only lifecycle segment over the existing server status without data, API or mobile feature changes.</ExpectedEvidence>
+    </VerificationIntent>
+  </C-PLANS-LIFECYCLE-DESKTOP-285>
+</GraceChangeSpec>
