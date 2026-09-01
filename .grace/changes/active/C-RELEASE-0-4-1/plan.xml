@@ -1,0 +1,74 @@
+<GraceChangePlan graceVersion="4.0" status="approved">
+  <C-RELEASE-0-4-1>
+    <IntentSummary>Prepare, verify, merge, archive and publish patch release 0.4.1 without adding feature or schema scope.</IntentSummary>
+    <BaselineAssertions>
+      <MustExist><Value>VERSION</Value></MustExist>
+      <MustExist><Value>package.json</Value></MustExist>
+      <MustExist><Value>package-lock.json</Value></MustExist>
+      <MustExist><Value>README.md</Value></MustExist>
+      <MustExist><Value>docs/ROADMAP.md</Value></MustExist>
+      <MustExist><Value>docs/UX_FLOWS.md</Value></MustExist>
+      <MustExist><Value>scripts/offline/build-full-bundle.sh</Value></MustExist>
+      <MustExist><Value>scripts/github/merge-grace-pr.sh</Value></MustExist>
+      <MustExist><Value>tests/version.test.mjs</Value></MustExist>
+      <MustExist><Value>tests/release.test.mjs</Value></MustExist>
+      <MustExist><Value>tests/release-publish.test.mjs</Value></MustExist>
+      <MustContain><File>VERSION</File><Text>0.4.0</Text></MustContain>
+      <MustContain><File>package.json</File><Text>"version": "0.4.0"</Text></MustContain>
+      <MustContain><File>package-lock.json</File><Text>"version": "0.4.0"</Text></MustContain>
+      <MustContain><File>docs/ROADMAP.md</File><Text>`0.4.0`</Text></MustContain>
+      <MustVerify><Module>M-API</Module></MustVerify>
+      <MustVerify><Module>M-OFFLINE-BUNDLE</Module></MustVerify>
+      <MustVerify><Module>M-CI-GATE</Module></MustVerify>
+      <MustPassCommand><Command>node --test tests/version.test.mjs tests/release.test.mjs tests/release-publish.test.mjs</Command></MustPassCommand>
+      <MustPassCommand><Command>npm run check</Command></MustPassCommand>
+      <MustPassCommand><Command>npm run docs:check</Command></MustPassCommand>
+    </BaselineAssertions>
+    <TargetAssertions>
+      <MustExist><Value>docs/releases/0.4.1.md</Value></MustExist>
+      <MustExist><Value>.grace/changes/active/C-RELEASE-0-4-1/release-audit.md</Value></MustExist>
+      <MustContain><File>VERSION</File><Text>0.4.1</Text></MustContain>
+      <MustContain><File>package.json</File><Text>"version": "0.4.1"</Text></MustContain>
+      <MustContain><File>package-lock.json</File><Text>"version": "0.4.1"</Text></MustContain>
+      <MustContain><File>README.md</File><Text>0.4.1</Text></MustContain>
+      <MustContain><File>docs/ROADMAP.md</File><Text>`0.4.1`</Text></MustContain>
+      <MustContain><File>docs/UX_FLOWS.md</File><Text>версии `0.4.1`</Text></MustContain>
+      <MustContain><File>docs/releases/0.4.1.md</File><Text>Схема SQLite: `31`</Text></MustContain>
+      <MustContain><File>docs/releases/0.4.1.md</File><Text>v0.4.0..HEAD</Text></MustContain>
+      <MustNotExist><Value>.github/workflows/release-0.4.1-prep.yml</Value></MustNotExist>
+      <MustVerify><Module>M-API</Module></MustVerify>
+      <MustVerify><Module>M-OFFLINE-BUNDLE</Module></MustVerify>
+      <MustVerify><Module>M-CI-GATE</Module></MustVerify>
+      <MustPassCommand><Command>node --test tests/version.test.mjs tests/release.test.mjs tests/release-publish.test.mjs</Command></MustPassCommand>
+      <MustPassCommand><Command>npm run check</Command></MustPassCommand>
+      <MustPassCommand><Command>npm run docs:check</Command></MustPassCommand>
+      <MustPassCommand><Command>npm test</Command></MustPassCommand>
+      <MustPassCommand><Command>npm run release:gate</Command></MustPassCommand>
+      <MustPassCommand><Command>bash -n scripts/offline/*.sh deploy/*.sh</Command></MustPassCommand>
+    </TargetAssertions>
+    <DurableScope>
+      <GraphAnchors><M-API/><M-OFFLINE-BUNDLE/><M-CI-GATE/><DF-GRACE-BRANCH/></GraphAnchors>
+      <VerificationAnchors><V-M-API/><V-M-OFFLINE-BUNDLE/><V-M-CI-GATE/></VerificationAnchors>
+      <ContextArtifacts><ContextArtifact>principles.xml</ContextArtifact><ContextArtifact>deployment.xml</ContextArtifact><ContextArtifact>technology.xml</ContextArtifact></ContextArtifacts>
+    </DurableScope>
+    <ObservedWriteScope>
+      <Glob>.grace/changes/active/C-RELEASE-0-4-1/**</Glob>
+      <File>VERSION</File>
+      <File>package.json</File>
+      <File>package-lock.json</File>
+      <File>README.md</File>
+      <File>docs/ROADMAP.md</File>
+      <File>docs/UX_FLOWS.md</File>
+      <File>docs/releases/0.4.1.md</File>
+      <File>.github/workflows/release-0.4.1-prep.yml</File>
+    </ObservedWriteScope>
+    <ImplementationPlan>
+      <T-001><Title>kafedra-release: audit exact main and release boundaries</Title><DependsOn></DependsOn><AcceptanceCriteria><Criterion>No active change or merge-ready production PR remains outside main.</Criterion><Criterion>Current VERSION, package metadata, latest tag and latest release all identify 0.4.0 before preparation.</Criterion><Criterion>The next version is patch-only 0.4.1 because schema and dependency contracts do not change.</Criterion></AcceptanceCriteria><Verification><Command>node --test tests/version.test.mjs tests/release.test.mjs tests/release-publish.test.mjs</Command></Verification></T-001>
+      <T-002><Title>kafedra-data: preserve schema and immutable source authority</Title><DependsOn><T-001/></DependsOn><AcceptanceCriteria><Criterion>No migration or schema artifact changes.</Criterion><Criterion>Package-lock dependency graph and immutable documents/evidence are unchanged.</Criterion><Criterion>Release notes distinguish verified software gates from separate Astra target acceptance.</Criterion></AcceptanceCriteria><Verification><Command>npm run check</Command></Verification></T-002>
+      <T-003><Title>kafedra-feature: synchronize version authorities and factual release notes</Title><DependsOn><T-002/></DependsOn><AcceptanceCriteria><Criterion>VERSION, package.json and package-lock root versions are 0.4.1.</Criterion><Criterion>README, ROADMAP and UX_FLOWS current-version statements are synchronized without global historical replacement.</Criterion><Criterion>Release notes are generated from the actual v0.4.0..HEAD first-parent commit list.</Criterion></AcceptanceCriteria><Verification><Command>npm run docs:check</Command></Verification></T-003>
+      <T-004><Title>kafedra-tests: execute unit, integration, database, release and offline regressions</Title><DependsOn><T-003/></DependsOn><AcceptanceCriteria><Criterion>Version/release tests, full npm test and release gate succeed.</Criterion><Criterion>Shell syntax, database integrity, backup/restore, offline bundle and systemd CI remain successful.</Criterion><Criterion>No skipped mandatory check is accepted.</Criterion></AcceptanceCriteria><Verification><Command>npm test</Command><Command>npm run release:gate</Command></Verification></T-004>
+      <T-005><Title>kafedra-release: exact-head merge, post-merge and terminal archive</Title><DependsOn><T-004/></DependsOn><AcceptanceCriteria><Criterion>All required PR checks succeed on one unchanged head before squash merge.</Criterion><Criterion>Post-merge main CI succeeds before a separate archive-only applied transition.</Criterion></AcceptanceCriteria><Verification><Command>npm run check</Command><Command>npm run docs:check</Command><Command>npm test</Command></Verification></T-005>
+      <T-006><Title>kafedra-release: publish and verify GitHub Release v0.4.1</Title><DependsOn><T-005/></DependsOn><AcceptanceCriteria><Criterion>Tag and release point to the exact archived main commit.</Criterion><Criterion>The release is published, not draft or prerelease.</Criterion><Criterion>Install script, full offline archive and external SHA-256 are present and match release metadata.</Criterion></AcceptanceCriteria><Verification><Command>node --test tests/release-publish.test.mjs</Command></Verification></T-006>
+    </ImplementationPlan>
+  </C-RELEASE-0-4-1>
+</GraceChangePlan>
