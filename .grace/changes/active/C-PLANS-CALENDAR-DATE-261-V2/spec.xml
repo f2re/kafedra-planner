@@ -1,0 +1,40 @@
+<GraceChangeSpec graceVersion="4.0" status="approved">
+  <C-PLANS-CALENDAR-DATE-261-V2>
+    <Summary>Make the plans browser regression navigate to its fixed August 2026 fixture instead of depending on the runner current month.</Summary>
+    <Problem>`tests/browser/plans.spec.mjs` creates a calendar item on 15 August 2026 and then expects the calendar title to contain August without navigating there. The application correctly opens on the actual current month, so the test began failing on 1 September 2026 and blocks unrelated pull requests. The first planning-only change is superseded because one machine-checkable baseline literal did not match the existing source.</Problem>
+    <Goals>
+      <Goal>Navigate from the actual browser month to August 2026 through the existing previous or next period controls before asserting the fixed fixture.</Goal>
+      <Goal>Keep the regression deterministic across months, years and runner time zones.</Goal>
+      <Goal>Restore the normal plans browser gate without modifying production behavior.</Goal>
+    </Goals>
+    <Constraints>
+      <Constraint>The exact base is main e6c767949a19a9232e19d95fd8f0632d978f9e69.</Constraint>
+      <Constraint>This V2 change supersedes the unimplemented C-PLANS-CALENDAR-DATE-261 at 28dd75e878ce58908bdd8dd249bb17913d671c7b.</Constraint>
+      <Constraint>Only `tests/browser/plans.spec.mjs` and this GRACE bundle may change.</Constraint>
+      <Constraint>No production UI, API, SQLite, calendar logic, system clock, dependency, workflow or mobile scenario is changed.</Constraint>
+      <Constraint>The test uses the same visible previous and next period controls available to a user.</Constraint>
+    </Constraints>
+    <NonGoals>
+      <NonGoal>Freeze or mock the application clock.</NonGoal>
+      <NonGoal>Change the August 2026 fixture.</NonGoal>
+      <NonGoal>Change calendar navigation semantics.</NonGoal>
+      <NonGoal>Add any mobile-specific behavior or acceptance.</NonGoal>
+    </NonGoals>
+    <AcceptanceCriteria>
+      <Criterion>The test computes a signed month distance from the browser current date to August 2026 and clicks the correct visible period control exactly that many times.</Criterion>
+      <Criterion>The calendar title is verified as August 2026 before the created event is asserted.</Criterion>
+      <Criterion>The focused plans regression passes in September 2026 and remains valid before or after August 2026.</Criterion>
+      <Criterion>npm checks, unit tests, the full plans browser command and GRACE final pass on one exact head before merge.</Criterion>
+      <Criterion>After squash merge, post-merge CI succeeds and the change is moved to terminal archive in a separate PR.</Criterion>
+    </AcceptanceCriteria>
+    <AffectedAreas><M-CI-GATE /></AffectedAreas>
+    <VerificationIntent>
+      <ExpectedCommand>npm run check</ExpectedCommand>
+      <ExpectedCommand>npm run docs:check</ExpectedCommand>
+      <ExpectedCommand>npm test</ExpectedCommand>
+      <ExpectedCommand>npx playwright test tests/browser/plans.spec.mjs --project=desktop</ExpectedCommand>
+      <ExpectedCommand>npm run test:browser:plans</ExpectedCommand>
+      <ExpectedEvidence>The same fixed August fixture is reached through real calendar controls without any production or mobile-mode change.</ExpectedEvidence>
+    </VerificationIntent>
+  </C-PLANS-CALENDAR-DATE-261-V2>
+</GraceChangeSpec>
