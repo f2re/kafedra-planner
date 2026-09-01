@@ -1,0 +1,50 @@
+<GraceChangeSpec graceVersion="4.0" status="approved">
+  <C-PLANS-LIFECYCLE-DESKTOP-252-V7>
+    <Summary>Expose current and archived plans as a persistent desktop segmented control while restoring the existing lifecycle select below 721 pixels.</Summary>
+    <Problem>The primary active/archive register is hidden in a generic dropdown on desktop. The superseded V6 planning branch also mixed design artifacts into the baseline stage and therefore could not execute the required GRACE baseline lifecycle.</Problem>
+    <Goals>
+      <Goal>Show `Текущие | Архив` permanently at desktop widths from 721 pixels.</Goal>
+      <Goal>Reuse the existing select, server-side `status=active|archived` query and lifecycle controller as the only state authority.</Goal>
+      <Goal>Preserve search and ordinary filters while preventing stale plan detail after a register switch.</Goal>
+      <Goal>Remove the desktop adapter and restore the pre-existing select exactly below 721 pixels without a mobile-specific state machine.</Goal>
+      <Goal>Provide deterministic keyboard, focus and empty states without decorative motion.</Goal>
+    </Goals>
+    <Constraints>
+      <Constraint>The exact base is main `dd99c69449434b95a660b63574aad3e8b11dbf06`.</Constraint>
+      <Constraint>This change supersedes the unmerged planning branch `C-PLANS-LIFECYCLE-DESKTOP-252-V6`; V6 is not a source of release truth.</Constraint>
+      <Constraint>No API, SQLite schema, migration, plan lifecycle, archive/restore command, source-row decision, evidence or document-intake change.</Constraint>
+      <Constraint>No mobile list/detail mode, bottom sheet, gesture, mobile navigation or mobile-only transition is introduced; below 721 pixels the existing select remains the only lifecycle control.</Constraint>
+      <Constraint>Lifecycle view is `never-learn`: statistics cannot select, reorder, relocate or resize the modes.</Constraint>
+      <Constraint>No CDN, cloud, Docker, mandatory Internet or mandatory LLM dependency is added.</Constraint>
+    </Constraints>
+    <NonGoals>
+      <NonGoal>Redesign the remaining plan filters.</NonGoal>
+      <NonGoal>Redesign plan detail or source rows.</NonGoal>
+      <NonGoal>Implement reversible exclusion of extracted rows.</NonGoal>
+      <NonGoal>Create a separate narrow-screen navigation flow.</NonGoal>
+      <NonGoal>Change archive or restore semantics.</NonGoal>
+    </NonGoals>
+    <AcceptanceCriteria>
+      <Criterion>`Текущие | Архив` is permanently visible at widths from 721 pixels and changes the register with one click, Enter, Space, Home, End or a horizontal arrow key.</Criterion>
+      <Criterion>The legacy lifecycle select is hidden only while the desktop segment is active, remains the sole compatibility authority and is restored with its original hidden, aria-hidden and tabindex attributes below 721 pixels.</Criterion>
+      <Criterion>Repeated DOM rerenders and width transitions create no duplicate controls or listeners.</Criterion>
+      <Criterion>The visible control uses tablist/tab semantics, correct aria-selected state, roving tabindex, visible focus and a minimum 44 pixel target.</Criterion>
+      <Criterion>The existing server `status=active|archived` parameter remains authoritative; the adapter contains no fetch, storage or parallel client-side lifecycle model.</Criterion>
+      <Criterion>Search and ordinary filters survive switching; a selected plan absent from the returned set cannot remain as stale detail.</Criterion>
+      <Criterion>Empty active, archive and secondary-filter results use distinct operator text.</Criterion>
+      <Criterion>No mobile-specific feature is added; the existing select remains the unchanged mobile/narrow fallback.</Criterion>
+      <Criterion>State changes remain complete with no motion and under `prefers-reduced-motion`.</Criterion>
+      <Criterion>Focused tests, desktop Playwright, full project CI and GRACE final pass on one exact head before squash merge, post-merge CI and terminal archive.</Criterion>
+    </AcceptanceCriteria>
+    <AffectedAreas><M-API/><M-DESIGN-GOVERNANCE/><M-MOTION-KB/><M-CI-GATE/></AffectedAreas>
+    <VerificationIntent>
+      <ExpectedCommand>node --test tests/plans-lifecycle-desktop.test.mjs</ExpectedCommand>
+      <ExpectedCommand>npm run design:check</ExpectedCommand>
+      <ExpectedCommand>npm run check</ExpectedCommand>
+      <ExpectedCommand>npm run docs:check</ExpectedCommand>
+      <ExpectedCommand>npm test</ExpectedCommand>
+      <ExpectedCommand>npx playwright test tests/browser/plans-lifecycle-desktop.spec.mjs --project=desktop</ExpectedCommand>
+      <ExpectedEvidence>The exact branch head proves one-action desktop lifecycle navigation and exact narrow-width fallback through the existing status query without data-contract or mobile-mode changes.</ExpectedEvidence>
+    </VerificationIntent>
+  </C-PLANS-LIFECYCLE-DESKTOP-252-V7>
+</GraceChangeSpec>
