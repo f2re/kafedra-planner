@@ -1,0 +1,110 @@
+<GraceChangePlan graceVersion="4.0" status="approved">
+  <C-RELEASE-0-4-1-254>
+    <IntentSummary>Produce a version-only release vertical from the exact clean main after all selected features have completed their post-merge and archive lifecycle.</IntentSummary>
+    <BaselineAssertions>
+      <MustExist><Value>VERSION</Value></MustExist>
+      <MustExist><Value>package.json</Value></MustExist>
+      <MustExist><Value>package-lock.json</Value></MustExist>
+      <MustExist><Value>.github/workflows/release.yml</Value></MustExist>
+      <MustExist><Value>scripts/release-gate.mjs</Value></MustExist>
+      <MustExist><Value>scripts/offline/build-full-bundle.sh</Value></MustExist>
+      <MustContain><File>VERSION</File><Text>0.4.0</Text></MustContain>
+      <MustContain><File>package.json</File><Text>"version": "0.4.0"</Text></MustContain>
+      <MustContain><File>package-lock.json</File><Text>"version": "0.4.0"</Text></MustContain>
+      <MustVerify><Module>M-API</Module></MustVerify>
+      <MustVerify><Module>M-OFFLINE-BUNDLE</Module></MustVerify>
+      <MustVerify><Module>M-CI-GATE</Module></MustVerify>
+      <MustPassCommand><Command>npm run check</Command></MustPassCommand>
+      <MustPassCommand><Command>npm run docs:check</Command></MustPassCommand>
+      <MustPassCommand><Command>npm test</Command></MustPassCommand>
+    </BaselineAssertions>
+    <TargetAssertions>
+      <MustExist><Value>docs/RELEASE_0.4.1.md</Value></MustExist>
+      <MustExist><Value>tests/release-version.test.mjs</Value></MustExist>
+      <MustExist><Value>.grace/changes/active/C-RELEASE-0-4-1-254/release-audit.md</Value></MustExist>
+      <MustContain><File>VERSION</File><Text>0.4.1</Text></MustContain>
+      <MustContain><File>package.json</File><Text>"version": "0.4.1"</Text></MustContain>
+      <MustContain><File>package-lock.json</File><Text>"version": "0.4.1"</Text></MustContain>
+      <MustContain><File>docs/RELEASE_0.4.1.md</File><Text>Unicode-safe</Text></MustContain>
+      <MustContain><File>docs/RELEASE_0.4.1.md</File><Text>Оформлятора</Text></MustContain>
+      <MustContain><File>docs/RELEASE_0.4.1.md</File><Text>Текущие | Архив</Text></MustContain>
+      <MustContain><File>docs/RELEASE_0.4.1.md</File><Text>Мобильные режимы не добавлялись</Text></MustContain>
+      <MustPassCommand><Command>node --test tests/release-version.test.mjs</Command></MustPassCommand>
+      <MustPassCommand><Command>npm run check</Command></MustPassCommand>
+      <MustPassCommand><Command>npm run docs:check</Command></MustPassCommand>
+      <MustPassCommand><Command>npm test</Command></MustPassCommand>
+      <MustPassCommand><Command>npm run release:gate</Command></MustPassCommand>
+      <MustPassCommand><Command>bash -n scripts/offline/*.sh deploy/*.sh</Command></MustPassCommand>
+    </TargetAssertions>
+    <DurableScope>
+      <GraphAnchors>
+        <M-API />
+        <M-OFFLINE-BUNDLE />
+        <M-CI-GATE />
+        <DF-GRACE-BRANCH />
+      </GraphAnchors>
+      <VerificationAnchors>
+        <V-M-API />
+        <V-M-OFFLINE-BUNDLE />
+        <V-M-CI-GATE />
+      </VerificationAnchors>
+      <ContextArtifacts>
+        <ContextArtifact>principles.xml</ContextArtifact>
+        <ContextArtifact>deployment.xml</ContextArtifact>
+        <ContextArtifact>technology.xml</ContextArtifact>
+      </ContextArtifacts>
+    </DurableScope>
+    <ObservedWriteScope>
+      <Glob>.grace/changes/active/C-RELEASE-0-4-1-254/**</Glob>
+      <File>VERSION</File>
+      <File>package.json</File>
+      <File>package-lock.json</File>
+      <File>README.md</File>
+      <File>docs/ROADMAP.md</File>
+      <File>docs/RELEASE_0.4.1.md</File>
+      <File>tests/release-version.test.mjs</File>
+    </ObservedWriteScope>
+    <ImplementationPlan>
+      <T-001>
+        <Title>kafedra-release: audit merged scope and exact main release base</Title>
+        <DependsOn></DependsOn>
+        <AcceptanceCriteria>
+          <Criterion>No open product PR or active GRACE bundle remains at the release base.</Criterion>
+          <Criterion>Only commits reachable from the exact main revision after v0.4.0 are included.</Criterion>
+          <Criterion>Historical, draft and mobile-specific branches are excluded.</Criterion>
+        </AcceptanceCriteria>
+        <Verification><Command>npm run check</Command></Verification>
+      </T-001>
+      <T-002>
+        <Title>kafedra-feature: align committed version metadata and release notes</Title>
+        <DependsOn><T-001 /></DependsOn>
+        <AcceptanceCriteria>
+          <Criterion>VERSION, package.json and package-lock.json identify 0.4.1.</Criterion>
+          <Criterion>Russian release notes describe user-visible changes and compatibility without claiming unmerged work.</Criterion>
+          <Criterion>No runtime, dependency, migration or persisted-data contract is changed.</Criterion>
+        </AcceptanceCriteria>
+        <Verification><Command>node --test tests/release-version.test.mjs</Command></Verification>
+      </T-002>
+      <T-003>
+        <Title>kafedra-tests: verify version consistency and complete project regression</Title>
+        <DependsOn><T-002 /></DependsOn>
+        <AcceptanceCriteria>
+          <Criterion>Focused version test, npm test, documentation and syntax checks pass.</Criterion>
+          <Criterion>Existing desktop/browser, document, organization, science and database regressions remain green.</Criterion>
+          <Criterion>No mobile-specific release claim or test-only production bypass is introduced.</Criterion>
+        </AcceptanceCriteria>
+        <Verification><Command>npm test</Command><Command>npm run docs:check</Command></Verification>
+      </T-003>
+      <T-004>
+        <Title>kafedra-release: build, install, upgrade, publish and verify 0.4.1</Title>
+        <DependsOn><T-003 /></DependsOn>
+        <AcceptanceCriteria>
+          <Criterion>Release, offline, systemd, backup/restore and rollback gates succeed on one exact head.</Criterion>
+          <Criterion>Squash merge is followed by successful post-merge CI before tag and GitHub Release creation.</Criterion>
+          <Criterion>Published assets and SHA-256 are verified, followed by a separate archive-only applied transition.</Criterion>
+        </AcceptanceCriteria>
+        <Verification><Command>npm run release:gate</Command><Command>bash -n scripts/offline/*.sh deploy/*.sh</Command></Verification>
+      </T-004>
+    </ImplementationPlan>
+  </C-RELEASE-0-4-1-254>
+</GraceChangePlan>
