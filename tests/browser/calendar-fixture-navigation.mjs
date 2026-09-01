@@ -26,8 +26,8 @@ function parseIsoDate(value) {
   return { year, monthIndex };
 }
 
-async function readDisplayedPeriod(page) {
-  const title = page.locator('#calendar-title');
+async function readDisplayedPeriod(page, titleSelector) {
+  const title = page.locator(titleSelector);
   await expect(title).toBeVisible();
   const value = String(await title.textContent() || '').trim().toLocaleLowerCase('ru-RU');
   const yearMatch = /\b(\d{4})\b/u.exec(value);
@@ -38,11 +38,16 @@ async function readDisplayedPeriod(page) {
   return { year: Number(yearMatch[1]), monthIndex, title };
 }
 
-export async function navigateCalendarToDate(page, isoDate) {
+export async function navigateCalendarToDate(page, isoDate, selectors = {}) {
+  const {
+    title: titleSelector = '#calendar-title',
+    previous: previousSelector = '#previous-period',
+    next: nextSelector = '#next-period'
+  } = selectors;
   const target = parseIsoDate(isoDate);
-  const current = await readDisplayedPeriod(page);
+  const current = await readDisplayedPeriod(page, titleSelector);
   const monthDistance = (target.year - current.year) * 12 + target.monthIndex - current.monthIndex;
-  const periodButton = monthDistance < 0 ? '#previous-period' : '#next-period';
+  const periodButton = monthDistance < 0 ? previousSelector : nextSelector;
 
   for (let step = 0; step < Math.abs(monthDistance); step += 1) {
     await page.locator(periodButton).click();

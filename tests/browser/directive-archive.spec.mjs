@@ -60,7 +60,11 @@ test('Архив распоряжений: загрузка, материал, �
   await expect(row).toBeVisible();
 
   await page.locator('[data-directive-mode="calendar"]').click();
-  await navigateCalendarToDate(page, '2026-08-25');
+  await navigateCalendarToDate(page, '2026-08-25', {
+    title: '.directive-calendar-head h3',
+    previous: '[data-directive-month="prev"]',
+    next: '[data-directive-month="next"]'
+  });
   const calendarEntry = page.locator('.directive-calendar-entry').filter({ hasText: number }).first();
   await expect(calendarEntry).toBeVisible();
   await calendarEntry.click();
