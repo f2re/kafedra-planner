@@ -26,6 +26,13 @@ test('segmented control exposes tabs, roving focus and keyboard navigation', () 
   }
 });
 
+test('mutation reconciliation is idempotent and does not reinsert an already placed segment', () => {
+  assert.match(moduleSource, /function placeSegment/u);
+  assert.match(moduleSource, /search\.nextElementSibling !== segment/u);
+  assert.match(moduleSource, /select\.previousElementSibling !== segment/u);
+  assert.match(moduleSource, /placeSegment\(segment, filterbar, select\)/u);
+});
+
 test('empty states remain distinct without overwriting loading or errors', () => {
   assert.match(moduleSource, /Планов по этим условиям нет\./u);
   assert.match(moduleSource, /Текущих планов нет/u);

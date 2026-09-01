@@ -100,6 +100,15 @@ function segmentMarkup() {
   return segment;
 }
 
+function placeSegment(segment, filterbar, select) {
+  const search = filterbar.querySelector('.plans-search');
+  if (search) {
+    if (segment.parentElement !== filterbar || search.nextElementSibling !== segment) search.after(segment);
+    return;
+  }
+  if (segment.parentElement !== filterbar || select.previousElementSibling !== segment) select.before(segment);
+}
+
 function removeSegment() {
   document.getElementById(SEGMENT_ID)?.remove();
   restoreBridge(findBridge());
@@ -125,9 +134,7 @@ function reconcile() {
 
   let segment = document.getElementById(SEGMENT_ID);
   if (!segment) segment = segmentMarkup();
-  const search = filterbar.querySelector('.plans-search');
-  if (search) search.after(segment);
-  else select.before(segment);
+  placeSegment(segment, filterbar, select);
   syncSegment(segment, select);
 }
 
