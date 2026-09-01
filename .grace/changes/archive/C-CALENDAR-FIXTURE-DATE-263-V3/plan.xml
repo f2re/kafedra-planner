@@ -1,4 +1,4 @@
-<GraceChangePlan graceVersion="4.0" status="approved">
+<GraceChangePlan graceVersion="4.0" status="applied">
   <C-CALENDAR-FIXTURE-DATE-263-V3>
     <IntentSummary>Port the already proven date-independent calendar fixture navigation onto the current exact main without product changes.</IntentSummary>
     <BaselineAssertions>

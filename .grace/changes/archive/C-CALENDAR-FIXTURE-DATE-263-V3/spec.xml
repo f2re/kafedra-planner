@@ -1,4 +1,4 @@
-<GraceChangeSpec graceVersion="4.0" status="approved">
+<GraceChangeSpec graceVersion="4.0" status="applied">
   <C-CALENDAR-FIXTURE-DATE-263-V3>
     <Summary>Supersede the stale V2 branch and make the fixed August 2026 browser fixtures navigate their own calendar controls from the current exact main.</Summary>
     <Problem>Mandatory browser CI is date-dependent: plan and directive scenarios create August 2026 fixtures but the UI opens the real current month. V2 proved the fix on an older exact base but is now stale and non-mergeable.</Problem>
