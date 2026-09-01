@@ -1,0 +1,76 @@
+<GraceChangePlan graceVersion="4.0" status="applied">
+  <C-PLANS-LIFECYCLE-DESKTOP-252-V5>
+    <IntentSummary>Deliver one desktop-only UI vertical that replaces the visible plan lifecycle select with a persistent current/archive segment while reusing the established lifecycle controller.</IntentSummary>
+    <BaselineAssertions>
+      <MustExist><Value>public/ux-next.js</Value></MustExist>
+      <MustExist><Value>public/plans-next.js</Value></MustExist>
+      <MustExist><Value>public/lifecycle-safe.js</Value></MustExist>
+      <MustExist><Value>public/plans-next.css</Value></MustExist>
+      <MustExist><Value>tests/browser/lifecycle.spec.mjs</Value></MustExist>
+      <MustContain><File>public/ux-next.js</File><Text>await import('./lifecycle-safe.js')</Text></MustContain>
+      <MustContain><File>public/lifecycle-safe.js</File><Text>plans-lifecycle-status</Text></MustContain>
+      <MustContain><File>public/lifecycle-safe.js</File><Text>status</Text></MustContain>
+      <MustContain><File>public/plans-next.js</File><Text>selectedPlanId</Text></MustContain>
+      <MustVerify><Module>M-API</Module></MustVerify>
+      <MustVerify><Module>M-DESIGN-GOVERNANCE</Module></MustVerify>
+      <MustVerify><Module>M-MOTION-KB</Module></MustVerify>
+      <MustVerify><Module>M-CI-GATE</Module></MustVerify>
+      <MustPassCommand><Command>node --test tests/lifecycle.test.mjs</Command></MustPassCommand>
+      <MustPassCommand><Command>npm run design:check</Command></MustPassCommand>
+      <MustPassCommand><Command>npm run check</Command></MustPassCommand>
+      <MustPassCommand><Command>npm run docs:check</Command></MustPassCommand>
+    </BaselineAssertions>
+    <TargetAssertions>
+      <MustExist><Value>public/plans-lifecycle-desktop.js</Value></MustExist>
+      <MustExist><Value>public/plans-lifecycle-desktop.css</Value></MustExist>
+      <MustExist><Value>tests/plans-lifecycle-desktop.test.mjs</Value></MustExist>
+      <MustExist><Value>tests/browser/plans-lifecycle-desktop.spec.mjs</Value></MustExist>
+      <MustExist><Value>.grace/changes/active/C-PLANS-LIFECYCLE-DESKTOP-252-V5/design.md</Value></MustExist>
+      <MustExist><Value>.grace/changes/active/C-PLANS-LIFECYCLE-DESKTOP-252-V5/motion.md</Value></MustExist>
+      <MustExist><Value>.grace/changes/active/C-PLANS-LIFECYCLE-DESKTOP-252-V5/design-audit.md</Value></MustExist>
+      <MustContain><File>public/ux-next.js</File><Text>await import('./plans-lifecycle-desktop.js')</Text></MustContain>
+      <MustContain><File>public/plans-lifecycle-desktop.js</File><Text>plans-lifecycle-segment</Text></MustContain>
+      <MustContain><File>public/plans-lifecycle-desktop.js</File><Text>role', 'tablist'</Text></MustContain>
+      <MustContain><File>public/plans-lifecycle-desktop.js</File><Text>role', 'tab'</Text></MustContain>
+      <MustContain><File>public/plans-lifecycle-desktop.js</File><Text>aria-selected</Text></MustContain>
+      <MustContain><File>public/plans-lifecycle-desktop.js</File><Text>select.dispatchEvent(new Event('change', { bubbles: true }))</Text></MustContain>
+      <MustContain><File>public/plans-lifecycle-desktop.js</File><Text>Текущих планов нет</Text></MustContain>
+      <MustContain><File>public/plans-lifecycle-desktop.js</File><Text>Архив пуст</Text></MustContain>
+      <MustContain><File>public/plans-lifecycle-desktop.css</File><Text>min-height: 44px</Text></MustContain>
+      <MustContain><File>public/plans-lifecycle-desktop.css</File><Text>prefers-reduced-motion</Text></MustContain>
+      <MustContain><File>tests/browser/plans-lifecycle-desktop.spec.mjs</File><Text>width: 1440, height: 900</Text></MustContain>
+      <MustVerify><Module>M-API</Module></MustVerify>
+      <MustVerify><Module>M-DESIGN-GOVERNANCE</Module></MustVerify>
+      <MustVerify><Module>M-MOTION-KB</Module></MustVerify>
+      <MustVerify><Module>M-CI-GATE</Module></MustVerify>
+      <MustPassCommand><Command>node --test tests/plans-lifecycle-desktop.test.mjs</Command></MustPassCommand>
+      <MustPassCommand><Command>npm run design:check</Command></MustPassCommand>
+      <MustPassCommand><Command>npm run check</Command></MustPassCommand>
+      <MustPassCommand><Command>npm run docs:check</Command></MustPassCommand>
+      <MustPassCommand><Command>npm test</Command></MustPassCommand>
+      <MustPassCommand><Command>npx playwright test tests/browser/plans-lifecycle-desktop.spec.mjs --project=desktop</Command></MustPassCommand>
+    </TargetAssertions>
+    <DurableScope>
+      <GraphAnchors><M-API/><M-DESIGN-GOVERNANCE/><M-MOTION-KB/><M-CI-GATE/><DF-DESIGN-CHANGE/></GraphAnchors>
+      <VerificationAnchors><V-M-API/><V-M-DESIGN-GOVERNANCE/><V-M-MOTION-KB/><V-M-CI-GATE/></VerificationAnchors>
+      <ContextArtifacts><ContextArtifact>principles.xml</ContextArtifact><ContextArtifact>ux-guidelines.xml</ContextArtifact><ContextArtifact>technology.xml</ContextArtifact></ContextArtifacts>
+    </DurableScope>
+    <ObservedWriteScope>
+      <Glob>.grace/changes/active/C-PLANS-LIFECYCLE-DESKTOP-252-V5/**</Glob>
+      <File>public/ux-next.js</File>
+      <File>public/plans-lifecycle-desktop.js</File>
+      <File>public/plans-lifecycle-desktop.css</File>
+      <File>tests/plans-lifecycle-desktop.test.mjs</File>
+      <File>tests/browser/plans-lifecycle-desktop.spec.mjs</File>
+    </ObservedWriteScope>
+    <ImplementationPlan>
+      <T-001><Title>kafedra-flow-intake: reduce lifecycle navigation to one desktop action</Title><DependsOn></DependsOn><AcceptanceCriteria><Criterion>The register exposes current/archive as one persistent mutually exclusive desktop state.</Criterion><Criterion>Switching preserves search and ordinary filters and never changes persisted lifecycle.</Criterion><Criterion>An absent selected plan cannot leave stale detail visible.</Criterion></AcceptanceCriteria><Verification><Command>node --test tests/lifecycle.test.mjs</Command></Verification></T-001>
+      <T-002><Title>kafedra-design: specify a stable desktop segmented control</Title><DependsOn><T-001/></DependsOn><AcceptanceCriteria><Criterion>The segment is permanently visible, separate from general filters and uses existing tokens.</Criterion><Criterion>Text, shape, aria-selected and visible focus express selection independently of color.</Criterion><Criterion>Targets are at least 44 pixels; no mobile-specific mode is introduced.</Criterion></AcceptanceCriteria><Verification><Command>npm run design:check</Command></Verification></T-002>
+      <T-003><Title>kafedra-motion: choose no-motion for lifecycle switching</Title><DependsOn><T-002/></DependsOn><AcceptanceCriteria><Criterion>Semantic state, request and list replacement happen immediately without animation dependency.</Criterion><Criterion>`prefers-reduced-motion` produces the same complete static behavior and no mobile-only transition is added.</Criterion></AcceptanceCriteria><Verification><Command>npm run design:check</Command></Verification></T-003>
+      <T-004><Title>kafedra-feature: install the desktop segment over the existing lifecycle authority</Title><DependsOn><T-003/></DependsOn><AcceptanceCriteria><Criterion>The visible select is replaced by one tablist while the select remains only as an inaccessible compatibility bridge.</Criterion><Criterion>Click and keyboard actions reuse the existing status-filtered fetch path.</Criterion><Criterion>Current/archive empty states are distinct and secondary filters remain authoritative.</Criterion></AcceptanceCriteria><Verification><Command>node --test tests/plans-lifecycle-desktop.test.mjs</Command></Verification></T-004>
+      <T-005><Title>kafedra-design-audit: inspect actual desktop hierarchy, focus and empty states</Title><DependsOn><T-004/></DependsOn><AcceptanceCriteria><Criterion>The independent audit returns PASS, REVISE or BLOCK with desktop evidence.</Criterion><Criterion>No blocker remains in hierarchy, focus, selected semantics, static state or narrowed-window compatibility.</Criterion></AcceptanceCriteria><Verification><Command>npm run design:check</Command></Verification></T-005>
+      <T-006><Title>kafedra-tests: prove one-action desktop filtering and compatibility</Title><DependsOn><T-005/></DependsOn><AcceptanceCriteria><Criterion>Unit tests cover state bridge, keyboard behavior, empty copy, no persistence and target size.</Criterion><Criterion>Desktop Playwright covers current/archive server query, preserved search, stale-detail reset and visible focus.</Criterion><Criterion>Full project CI remains green.</Criterion></AcceptanceCriteria><Verification><Command>npm test</Command><Command>npx playwright test tests/browser/plans-lifecycle-desktop.spec.mjs --project=desktop</Command></Verification></T-006>
+      <T-007><Title>kafedra-release: exact-head merge, post-merge and terminal archive</Title><DependsOn><T-006/></DependsOn><AcceptanceCriteria><Criterion>Every required check succeeds on one unchanged PR head before squash merge.</Criterion><Criterion>Post-merge CI succeeds before a separate archive-only applied transition.</Criterion></AcceptanceCriteria><Verification><Command>npm run check</Command><Command>npm run docs:check</Command><Command>npm test</Command></Verification></T-007>
+    </ImplementationPlan>
+  </C-PLANS-LIFECYCLE-DESKTOP-252-V5>
+</GraceChangePlan>
