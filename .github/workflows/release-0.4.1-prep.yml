@@ -1,0 +1,166 @@
+name: Prepare release 0.4.1 once
+
+on:
+  push:
+    branches:
+      - release/0.4.1
+    paths:
+      - .github/workflows/release-0.4.1-prep.yml
+
+permissions:
+  contents: write
+  pull-requests: read
+
+concurrency:
+  group: prepare-release-0.4.1
+  cancel-in-progress: false
+
+jobs:
+  prepare:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          ref: release/0.4.1
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+
+      - name: Verify clean release base
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -Eeuo pipefail
+          git fetch --no-tags origin main:refs/remotes/origin/main
+          test "$(cat VERSION)" = "0.4.0"
+          node - <<'NODE'
+          const fs = require('fs');
+          const pkg = JSON.parse(fs.readFileSync('package.json', 'utf8'));
+          const lock = JSON.parse(fs.readFileSync('package-lock.json', 'utf8'));
+          if (pkg.version !== '0.4.0' || lock.version !== '0.4.0' || lock.packages?.['']?.version !== '0.4.0') {
+            throw new Error('Version authorities are not consistently at 0.4.0');
+          }
+          NODE
+          active_count="$(git ls-tree -r --name-only origin/main .grace/changes/active | grep -c '^.grace/changes/active/' || true)"
+          test "$active_count" -eq 0
+          blocking_prs="$(gh api --paginate 'repos/${{ github.repository }}/pulls?state=open&base=main&per_page=100' --jq '[.[] | select(.draft == false and .head.ref != "release/0.4.1")] | length')"
+          test "$blocking_prs" -eq 0
+          gh api 'repos/${{ github.repository }}/releases/latest' --jq '.tag_name' | grep -Fx 'v0.4.0'
+          git rev-parse origin/main > /tmp/release-base-sha
+
+      - name: Synchronize version authorities and release documents
+        run: |
+          set -Eeuo pipefail
+          node - <<'NODE'
+          const fs = require('fs');
+          const cp = require('child_process');
+          const path = require('path');
+          const current = '0.4.0';
+          const next = '0.4.1';
+
+          const read = file => fs.readFileSync(file, 'utf8');
+          const write = (file, value) => fs.writeFileSync(file, value.endsWith('\n') ? value : `${value}\n`);
+          const replaceOnce = (file, pattern, replacement, label) => {
+            const source = read(file);
+            const matches = source.match(pattern);
+            if (!matches || matches.length !== 1) throw new Error(`${label}: expected exactly one current-version marker in ${file}`);
+            write(file, source.replace(pattern, replacement));
+          };
+
+          write('VERSION', next);
+
+          const pkg = JSON.parse(read('package.json'));
+          pkg.version = next;
+          write('package.json', JSON.stringify(pkg, null, 2));
+
+          const lock = JSON.parse(read('package-lock.json'));
+          lock.version = next;
+          if (!lock.packages || !lock.packages['']) throw new Error('package-lock root package is missing');
+          lock.packages[''].version = next;
+          write('package-lock.json', JSON.stringify(lock, null, 2));
+
+          const readme = read('README.md');
+          if (!readme.includes(current)) throw new Error('README.md has no current version marker');
+          write('README.md', readme.replaceAll(current, next));
+
+          replaceOnce('docs/ROADMAP.md', /## Текущий рубеж — `0\.4\.0`/g, '## Текущий рубеж — `0.4.1`', 'roadmap heading');
+          replaceOnce('docs/ROADMAP.md', /`0\.4\.0` является текущим законченным релизным рубежом/g, '`0.4.1` является текущим законченным релизным рубежом', 'roadmap status');
+          replaceOnce('docs/UX_FLOWS.md', /Статус: рабочие контуры версии `0\.4\.0`, схема SQLite `31`\./g, 'Статус: рабочие контуры версии `0.4.1`, схема SQLite `31`.', 'UX status');
+
+          const commits = cp.execFileSync('git', ['log', '--first-parent', '--reverse', '--pretty=format:- `%h` %s', 'v0.4.0..HEAD'], { encoding: 'utf8' }).trim();
+          if (!commits) throw new Error('No commits found after v0.4.0');
+          const releaseDir = path.join('docs', 'releases');
+          fs.mkdirSync(releaseDir, { recursive: true });
+          const notes = `# Kafedra Planner 0.4.1
+
+Период: \`v0.4.0..HEAD\`  
+Схема SQLite: \`31\`  
+Тип выпуска: patch-релиз без новой миграции и без изменения зависимостей.
+
+## Что изменилось
+
+- Полный автономный bundle проверяет Poppler, LibreOffice, Tesseract, языки \`rus/eng\` и контрольное OCR до активации нового релиза.
+- Проверенный пакетный payload сохраняется локально и используется командой \`doctor.sh --repair\` без обязательного Интернета.
+- Русские, смешанные, emoji- и длинные имена документов безопасно проходят HTTP transport без изменения исходного имени, SHA-256, версии и evidence.
+- Ошибки подключения к Оформлятору разделены на DNS, отказ соединения, timeout, TLS, неверный сервис, неготовность и неверный код без раскрытия внутренних деталей.
+- В desktop-интерфейсе планов режимы \`Текущие | Архив\` переключаются одним действием и используют существующий серверный lifecycle.
+- GRACE/CI проверяет исполняемые assertions, точный head, database/release/offline/systemd и terminal archive.
+
+## Фактические first-parent commits
+
+${commits}
+
+## Эксплуатационная оговорка
+
+Ubuntu/Debian CI подтверждает код, автономный bundle, установку, обновление, backup/restore и systemd-сценарий. Отдельная целевая приёмка на конкретной Astra Linux остаётся обязательной и не подменяется этим релизом.
+`;
+          write(path.join(releaseDir, '0.4.1.md'), notes);
+
+          const base = fs.readFileSync('/tmp/release-base-sha', 'utf8').trim();
+          const audit = `# Release audit — 0.4.1
+
+- Exact main at preparation: \`${base}\`.
+- Previous published release: \`v0.4.0\`.
+- Open non-draft PRs to main outside this release: \`0\`.
+- Active GRACE bundles in main: \`0\`.
+- Version transition: \`0.4.0 → 0.4.1\`.
+- SQLite schema: \`31\`, unchanged.
+- Dependencies and package-lock graph: unchanged; only root package version fields changed.
+- Mobile-specific modes: not added.
+- Release notes source: \`git log --first-parent --reverse v0.4.0..HEAD\`.
+`;
+          write('.grace/changes/active/C-RELEASE-0-4-1/release-audit.md', audit);
+          NODE
+
+      - name: Verify release candidate before commit
+        run: |
+          set -Eeuo pipefail
+          npm ci --ignore-scripts --no-audit --no-fund
+          node --test tests/version.test.mjs tests/release.test.mjs tests/release-publish.test.mjs
+          npm run check
+          npm run docs:check
+          npm test
+          npm run release:gate
+          bash -n scripts/offline/*.sh deploy/*.sh
+          git diff --check
+          node - <<'NODE'
+          const fs=require('fs');
+          const before=JSON.parse(require('child_process').execFileSync('git',['show','HEAD:package-lock.json'],{encoding:'utf8'}));
+          const after=JSON.parse(fs.readFileSync('package-lock.json','utf8'));
+          before.version=after.version;
+          if (before.packages?.[''] && after.packages?.['']) before.packages[''].version=after.packages[''].version;
+          if (JSON.stringify(before)!==JSON.stringify(after)) throw new Error('package-lock changed beyond root version fields');
+          NODE
+
+      - name: Commit verified release preparation and remove one-shot workflow
+        run: |
+          set -Eeuo pipefail
+          rm -f .github/workflows/release-0.4.1-prep.yml
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add VERSION package.json package-lock.json README.md docs/ROADMAP.md docs/UX_FLOWS.md docs/releases/0.4.1.md .grace/changes/active/C-RELEASE-0-4-1/release-audit.md .github/workflows/release-0.4.1-prep.yml
+          git diff --cached --check
+          git commit -m 'release: prepare Kafedra Planner 0.4.1'
+          git push origin HEAD:release/0.4.1
