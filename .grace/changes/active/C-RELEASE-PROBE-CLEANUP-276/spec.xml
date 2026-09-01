@@ -1,0 +1,35 @@
+<GraceChangeSpec graceVersion="4.0" status="approved">
+  <C-RELEASE-PROBE-CLEANUP-276>
+    <Summary>Remove two accidental release-probe files from main without rewriting Git history or changing product behavior.</Summary>
+    <Problem>Two direct probe commits added __invalid_release_probe__ and .probe-do-not-create after the last governed merge. They are not product artifacts and must not enter the next release bundle.</Problem>
+    <Goals>
+      <Goal>Delete exactly the two accidental probe files through the normal PR lifecycle.</Goal>
+      <Goal>Preserve all commit history and avoid force-push or direct main ref rewrites.</Goal>
+      <Goal>Restore a release baseline with no active GRACE bundle after terminal archiving.</Goal>
+    </Goals>
+    <Constraints>
+      <Constraint>The exact base is main bd815c7960e4aa37fec4df258a4f827dffbe0a44.</Constraint>
+      <Constraint>No production code, tests, workflows, documentation, version metadata, dependencies, SQLite schema or migrations may change.</Constraint>
+      <Constraint>The implementation diff outside this GRACE bundle may only delete __invalid_release_probe__ and .probe-do-not-create.</Constraint>
+      <Constraint>No force-push, reset or history rewrite is permitted.</Constraint>
+    </Constraints>
+    <NonGoals>
+      <NonGoal>Prepare VERSION 0.4.1.</NonGoal>
+      <NonGoal>Merge pending feature pull requests.</NonGoal>
+      <NonGoal>Change release or CI policy.</NonGoal>
+    </NonGoals>
+    <AcceptanceCriteria>
+      <Criterion>Both probe files are absent from the implementation head.</Criterion>
+      <Criterion>VERSION remains 0.4.0 and schema remains unchanged.</Criterion>
+      <Criterion>GRACE final and all mandatory project checks, including full offline, succeed on one exact head.</Criterion>
+      <Criterion>The change is squash-merged, post-merge CI succeeds, and a separate archive-only PR records applied state.</Criterion>
+    </AcceptanceCriteria>
+    <AffectedAreas><M-CI-GATE /></AffectedAreas>
+    <VerificationIntent>
+      <ExpectedCommand>npm run check</ExpectedCommand>
+      <ExpectedCommand>npm test</ExpectedCommand>
+      <ExpectedCommand>test ! -e __invalid_release_probe__ &amp;&amp; test ! -e .probe-do-not-create</ExpectedCommand>
+      <ExpectedEvidence>The exact branch head differs from its base only by removal of the two probe files and the governing GRACE bundle.</ExpectedEvidence>
+    </VerificationIntent>
+  </C-RELEASE-PROBE-CLEANUP-276>
+</GraceChangeSpec>
