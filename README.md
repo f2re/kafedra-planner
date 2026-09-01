@@ -1,5 +1,8 @@
 # Кафедра Planner
 
+Текущая версия: `0.4.1`.
+
+
 [Русский](README.md) · [English](README.en.md)
 
 [![Проверка](https://github.com/f2re/kafedra-planner/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/f2re/kafedra-planner/actions/workflows/ci.yml)
