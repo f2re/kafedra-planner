@@ -1,0 +1,98 @@
+name: Publish exact release 0.4.1
+
+on:
+  push:
+    branches:
+      - release/0.4.1-publish
+    paths:
+      - .github/workflows/release-prepare-0.4.1.yml
+
+permissions:
+  contents: write
+  actions: write
+  checks: read
+  pull-requests: read
+
+concurrency:
+  group: publish-release-0.4.1
+  cancel-in-progress: false
+
+jobs:
+  publish:
+    runs-on: ubuntu-24.04
+    env:
+      GH_TOKEN: ${{ github.token }}
+      RELEASE_TAG: v0.4.1
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          ref: release/0.4.1-publish
+          persist-credentials: true
+
+      - name: Resolve and validate exact main release commit
+        id: release
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          main_sha="$(git ls-remote origin refs/heads/main | awk '{print $1}')"
+          [[ "$main_sha" =~ ^[0-9a-f]{40}$ ]] || { echo 'Не удалось получить exact main SHA' >&2; exit 1; }
+          git fetch --no-tags origin "$main_sha"
+          version="$(git show "$main_sha:VERSION" | tr -d '\r\n')"
+          [[ "$version" == '0.4.1' ]] || { echo "main VERSION=$version, ожидалось 0.4.1" >&2; exit 1; }
+
+          checks="$(gh api -H 'Accept: application/vnd.github+json' "/repos/$GITHUB_REPOSITORY/commits/$main_sha/check-runs?per_page=100")"
+          required=(
+            'GRACE post-merge / merge-gate'
+            'Минимальный Node 24.15'
+            'test'
+            'browser'
+            'Сборщик под host Node 25.6'
+            'Full offline Debian 12 + Project Control'
+            'release-gate'
+            'organization-browser'
+            'science-lifecycle-browser'
+            'science-import-browser'
+            'science-reports-browser'
+          )
+          for name in "${required[@]}"; do
+            result="$(jq -r --arg n "$name" '[.check_runs[] | select(.name==$n)] | sort_by(.completed_at // .started_at // "") | last | if .==null then "missing" else ((.status//"")+":"+(.conclusion//"")) end' <<<"$checks")"
+            [[ "$result" == 'completed:success' ]] || { echo "Блокирующая проверка $name: $result" >&2; exit 1; }
+          done
+
+          if git ls-remote --exit-code --tags origin "refs/tags/$RELEASE_TAG" >/dev/null 2>&1; then
+            echo "Тег $RELEASE_TAG уже существует" >&2
+            exit 1
+          fi
+          release_status="$(curl -sS -o /dev/null -w '%{http_code}' -H "Authorization: Bearer $GH_TOKEN" -H 'Accept: application/vnd.github+json' "https://api.github.com/repos/$GITHUB_REPOSITORY/releases/tags/$RELEASE_TAG")"
+          [[ "$release_status" == '404' ]] || { echo "Release $RELEASE_TAG уже существует (HTTP $release_status)" >&2; exit 1; }
+
+          printf 'main_sha=%s\n' "$main_sha" >> "$GITHUB_OUTPUT"
+          printf 'Exact release commit: %s\n' "$main_sha"
+
+      - name: Create annotated tag at the verified main commit
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git tag -a "$RELEASE_TAG" "${{ steps.release.outputs.main_sha }}" -m 'Kafedra Planner 0.4.1'
+          git push origin "refs/tags/$RELEASE_TAG"
+
+      - name: Dispatch the repository release workflow on the tag
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          gh api --method POST "/repos/$GITHUB_REPOSITORY/actions/workflows/release.yml/dispatches" -f ref="$RELEASE_TAG"
+
+      - name: Remove the one-time publisher from its branch
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          git fetch origin release/0.4.1-publish
+          git checkout -B release/0.4.1-publish origin/release/0.4.1-publish
+          git rm .github/workflows/release-prepare-0.4.1.yml
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git commit -m 'chore(release): remove one-time 0.4.1 publisher (#254)'
+          git push origin HEAD:release/0.4.1-publish
