@@ -14,6 +14,7 @@
       <Constraint>Issue 259 is authoritative and supersedes overlapping toolbar issues 249, 252, 254, 255 and 257. Parent issue 236 remains the larger plans UX program.</Constraint>
       <Constraint>No API route, SQLite schema, migration, plan lifecycle command, archive impact calculation, document intake, source-row decision or plan-detail redesign is introduced.</Constraint>
       <Constraint>The existing plans query remains the source of truth. UI controls may only form its parameters and must not create a second persisted filter or lifecycle state.</Constraint>
+      <Constraint>The durable graph has no separate M-PLANS node; this UI-only change is anchored to the existing M-API, design, motion and CI modules without modifying the durable graph.</Constraint>
       <Constraint>Lifecycle value, toolbar geometry, search text and filter values are never-learn in this change. Usage statistics may not reorder, preselect or hide controls.</Constraint>
       <Constraint>The implementation remains dependency-free, autonomous and fully functional without Internet, Docomator, LLM or external assets.</Constraint>
       <Constraint>Reference repositories are design evidence only: no source code, CSS, icons, fonts or licensed assets are copied.</Constraint>
@@ -41,7 +42,7 @@
       <Criterion>Focused unit and Playwright tests, npm check, docs check, complete project tests, GRACE final, release, offline and database gates succeed on one exact head before squash merge; post-merge CI succeeds before a separate archive-only applied transition.</Criterion>
     </AcceptanceCriteria>
     <AffectedAreas>
-      <M-PLANS />
+      <M-API />
       <M-DESIGN-GOVERNANCE />
       <M-MOTION-KB />
       <M-CI-GATE />

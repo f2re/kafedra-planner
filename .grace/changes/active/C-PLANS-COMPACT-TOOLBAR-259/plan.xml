@@ -11,7 +11,7 @@
       <MustContain><File>public/plans-next.js</File><Text>id="plans-reset"</Text></MustContain>
       <MustContain><File>public/lifecycle-safe.js</File><Text>plans-lifecycle-status</Text></MustContain>
       <MustContain><File>public/lifecycle-safe.js</File><Text>url.searchParams.set('status', lifecycleState.planMode)</Text></MustContain>
-      <MustVerify><Module>M-PLANS</Module></MustVerify>
+      <MustVerify><Module>M-API</Module></MustVerify>
       <MustVerify><Module>M-DESIGN-GOVERNANCE</Module></MustVerify>
       <MustVerify><Module>M-MOTION-KB</Module></MustVerify>
       <MustVerify><Module>M-CI-GATE</Module></MustVerify>
@@ -49,14 +49,14 @@
     </TargetAssertions>
     <DurableScope>
       <GraphAnchors>
-        <M-PLANS />
+        <M-API />
         <M-DESIGN-GOVERNANCE />
         <M-MOTION-KB />
         <M-CI-GATE />
         <DF-DESIGN-CHANGE />
       </GraphAnchors>
       <VerificationAnchors>
-        <V-M-PLANS />
+        <V-M-API />
         <V-M-DESIGN-GOVERNANCE />
         <V-M-MOTION-KB />
         <V-M-CI-GATE />
