@@ -1,4 +1,5 @@
 import { test, expect } from '@playwright/test';
+import { navigateCalendarToDate } from './calendar-fixture-navigation.mjs';
 
 test('Архив распоряжений: загрузка, материал, поиск и календарь', async ({ page }, testInfo) => {
   const mobile = testInfo.project.name.includes('mobile');
@@ -59,6 +60,11 @@ test('Архив распоряжений: загрузка, материал, �
   await expect(row).toBeVisible();
 
   await page.locator('[data-directive-mode="calendar"]').click();
+  await navigateCalendarToDate(page, '2026-08-25', {
+    title: '.directive-calendar-head h3',
+    previous: '[data-directive-month="prev"]',
+    next: '[data-directive-month="next"]'
+  });
   const calendarEntry = page.locator('.directive-calendar-entry').filter({ hasText: number }).first();
   await expect(calendarEntry).toBeVisible();
   await calendarEntry.click();
