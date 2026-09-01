@@ -1,0 +1,39 @@
+<GraceChangeSpec graceVersion="4.0" status="approved">
+  <C-CALENDAR-FIXTURE-DATE-263-V2>
+    <Summary>Make fixed-date browser fixtures navigate to their calendar month instead of depending on the runner's current month.</Summary>
+    <Problem>After September 1, 2026, the plan and directive scenarios still create August 2026 fixtures but search the calendar without navigating from the current month. This breaks mandatory browser and downstream offline gates although production behavior is unchanged.</Problem>
+    <Goals>
+      <Goal>Navigate both affected tests to the month of their explicit fixture date through existing previous/next controls.</Goal>
+      <Goal>Verify the resulting month and year before locating the calendar entry.</Goal>
+      <Goal>Restore deterministic full CI without weakening or skipping any required scenario.</Goal>
+    </Goals>
+    <Constraints>
+      <Constraint>The exact base is main e6c767949a19a9232e19d95fd8f0632d978f9e69.</Constraint>
+      <Constraint>Only the two browser scenarios, one shared test helper and this GRACE bundle may change.</Constraint>
+      <Constraint>No production UI, API, SQLite, worker, workflow, dependency or system-clock change.</Constraint>
+      <Constraint>No scenario is skipped, removed or made less specific.</Constraint>
+      <Constraint>No mobile-only product mode or interface is introduced.</Constraint>
+    </Constraints>
+    <NonGoals>
+      <NonGoal>Change calendar domain behavior.</NonGoal>
+      <NonGoal>Change the required-check set or make offline CI optional.</NonGoal>
+      <NonGoal>Refactor unrelated browser infrastructure.</NonGoal>
+    </NonGoals>
+    <AcceptanceCriteria>
+      <Criterion>The plan scenario reaches August 2026 from any real current month and then finds its August 15 event.</Criterion>
+      <Criterion>The directive scenario reaches August 2026 from any real current month and then finds its August 25 entry.</Criterion>
+      <Criterion>Both use existing previous/next period controls and assert the target calendar title.</Criterion>
+      <Criterion>Plan browser, core browser, full browser, full offline and GRACE merge gates succeed on one exact head.</Criterion>
+      <Criterion>After squash merge, post-merge CI succeeds and a separate archive-only PR records applied state.</Criterion>
+    </AcceptanceCriteria>
+    <AffectedAreas><M-CI-GATE /></AffectedAreas>
+    <VerificationIntent>
+      <ExpectedCommand>npm run test:browser:plans</ExpectedCommand>
+      <ExpectedCommand>npx playwright test tests/browser/directive-archive.spec.mjs</ExpectedCommand>
+      <ExpectedCommand>npm run test:browser:core</ExpectedCommand>
+      <ExpectedCommand>npm run check</ExpectedCommand>
+      <ExpectedCommand>npm test</ExpectedCommand>
+      <ExpectedEvidence>The exact branch head proves that both fixed August 2026 fixtures remain discoverable after the real calendar month changes.</ExpectedEvidence>
+    </VerificationIntent>
+  </C-CALENDAR-FIXTURE-DATE-263-V2>
+</GraceChangeSpec>
