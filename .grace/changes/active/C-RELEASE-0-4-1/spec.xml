@@ -1,0 +1,46 @@
+<GraceChangeSpec graceVersion="4.0" status="approved">
+  <C-RELEASE-0-4-1>
+    <Summary>Publish Kafedra Planner 0.4.1 from the clean main branch with synchronized version authorities, factual release notes and verified offline artifacts.</Summary>
+    <Problem>Main contains completed post-0.4.0 reliability and desktop-plan improvements, but users cannot install them as a named, checksummed release until version metadata, release documentation, CI, tag and GitHub assets are advanced together.</Problem>
+    <Goals>
+      <Goal>Advance VERSION, package metadata and current-version documentation from 0.4.0 to 0.4.1 without dependency or schema changes.</Goal>
+      <Goal>Generate release notes from the actual first-parent history between v0.4.0 and the release branch.</Goal>
+      <Goal>Prove the full project, database, release, offline and systemd gates on one exact release head and again on merged main.</Goal>
+      <Goal>Publish a non-draft, non-prerelease GitHub Release v0.4.1 with the install entrypoint, full offline bundle and external SHA-256 evidence.</Goal>
+    </Goals>
+    <Constraints>
+      <Constraint>The exact release base is the immutable parent of the first C-RELEASE-0-4-1 planning commit and equals refs/heads/main observed when branch release/0.4.1 was created.</Constraint>
+      <Constraint>No new feature, API behavior, SQLite schema, migration, dependency, Docker, CDN, cloud or mandatory LLM change is included.</Constraint>
+      <Constraint>No mobile-specific mode, navigation or release claim is introduced.</Constraint>
+      <Constraint>Applied migrations and immutable document/source data remain untouched.</Constraint>
+      <Constraint>Astra Linux stability is not claimed without the separate target acceptance process; this release remains a verified autonomous candidate for supported Debian/Astra profiles.</Constraint>
+      <Constraint>A temporary release-preparation workflow may write only approved release files and must delete itself before the implementation PR.</Constraint>
+    </Constraints>
+    <NonGoals>
+      <NonGoal>Merge drafts or incomplete feature branches.</NonGoal>
+      <NonGoal>Close open roadmap issues that are not implemented.</NonGoal>
+      <NonGoal>Change schema version 31 or publish a destructive installer.</NonGoal>
+      <NonGoal>Change the current user interface beyond already merged features.</NonGoal>
+    </NonGoals>
+    <AcceptanceCriteria>
+      <Criterion>No active GRACE change or merge-ready unmerged production PR exists at the release base.</Criterion>
+      <Criterion>VERSION, package.json and package-lock.json agree on 0.4.1; dependency identities and lock integrity are unchanged.</Criterion>
+      <Criterion>README, ROADMAP and UX_FLOWS describe 0.4.1 as the current release without rewriting historical feature evidence.</Criterion>
+      <Criterion>docs/releases/0.4.1.md lists only commits and user-visible changes actually present after v0.4.0 and explicitly states that schema remains 31.</Criterion>
+      <Criterion>GRACE final and all mandatory project checks succeed on one unchanged PR head; squash merge is followed by successful post-merge CI.</Criterion>
+      <Criterion>A separate archive-only PR moves the full C-RELEASE-0-4-1 bundle to applied before public release creation.</Criterion>
+      <Criterion>GitHub API confirms tag and published release v0.4.1 at the exact archived main commit, with required offline/install assets and checksum evidence.</Criterion>
+      <Criterion>The release issue closes only after release workflow completion and asset verification.</Criterion>
+    </AcceptanceCriteria>
+    <AffectedAreas><M-API/><M-OFFLINE-BUNDLE/><M-CI-GATE/></AffectedAreas>
+    <VerificationIntent>
+      <ExpectedCommand>node --test tests/version.test.mjs tests/release.test.mjs tests/release-publish.test.mjs</ExpectedCommand>
+      <ExpectedCommand>npm run check</ExpectedCommand>
+      <ExpectedCommand>npm run docs:check</ExpectedCommand>
+      <ExpectedCommand>npm test</ExpectedCommand>
+      <ExpectedCommand>npm run release:gate</ExpectedCommand>
+      <ExpectedCommand>bash -n scripts/offline/*.sh deploy/*.sh</ExpectedCommand>
+      <ExpectedEvidence>The exact release head, merged main, terminal archive, tag, release object and checksummed artifacts all identify the same 0.4.1 source.</ExpectedEvidence>
+    </VerificationIntent>
+  </C-RELEASE-0-4-1>
+</GraceChangeSpec>
