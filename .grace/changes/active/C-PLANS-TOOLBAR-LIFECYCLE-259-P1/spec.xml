@@ -1,0 +1,61 @@
+<GraceChangeSpec graceVersion="4.0" status="approved">
+  <C-PLANS-TOOLBAR-LIFECYCLE-259-P1>
+    <Summary>Deliver phase P1 of issue 259: replace the visible plan lifecycle dropdown with a persistent one-action `Текущие | Архив` segment while preserving the existing server query and desktop interface.</Summary>
+    <Problem>The active/archive register view is a primary navigation state but is currently rendered as one option in the expanded filter row. The user must open a select to reach the archive, and the control has the same visual hierarchy as rare filters. Earlier planning branches are not reusable because they either contain an explicitly rejected mobile scope or reference an undefined GRACE verifier.</Problem>
+    <Goals>
+      <Goal>Expose current and archived plans as a permanently visible two-option segment.</Goal>
+      <Goal>Delegate selection to the existing lifecycle bridge so `/api/plans` continues to receive `status=active|archived`.</Goal>
+      <Goal>Preserve search and ordinary filters and prevent stale detail from remaining when the selected plan is absent from the returned mode.</Goal>
+      <Goal>Provide mode-specific empty text, native keyboard operation, visible focus, 44 pixel targets and deterministic reduced-motion behavior.</Goal>
+    </Goals>
+    <Constraints>
+      <Constraint>The exact base is main e6c767949a19a9232e19d95fd8f0632d978f9e69 with tree c786711af18cbf8616ad624a21db4f2b147ca22d.</Constraint>
+      <Constraint>Issue 259 is the authoritative parent. This phase does not close it; later phases handle rare-filter disclosure, tokens and stale-response sequencing.</Constraint>
+      <Constraint>No separate mobile mode, list-to-detail navigation, bottom sheet, swipe gesture, mobile-only control, breakpoint-specific state machine or mobile-specific acceptance is introduced.</Constraint>
+      <Constraint>The repository may continue to run its pre-existing responsive regressions, but this phase defines and verifies only the shared desktop-first lifecycle control.</Constraint>
+      <Constraint>No API route, SQLite schema, migration, archive/restore command, source-row decision, plan card, plan detail or ordinary filter behavior changes.</Constraint>
+      <Constraint>The existing lifecycle select remains the internal compatibility bridge and single state authority; it is hidden from visual and accessibility navigation rather than duplicated.</Constraint>
+      <Constraint>Lifecycle view and geometry are never-learn. Usage statistics cannot select, reorder, resize or move the control.</Constraint>
+      <Constraint>No dependency, CDN, cloud service, Docker, Internet or LLM requirement is added.</Constraint>
+    </Constraints>
+    <NonGoals>
+      <NonGoal>Implement a separate mobile interaction mode.</NonGoal>
+      <NonGoal>Collapse kind, period, direction or responsible filters.</NonGoal>
+      <NonGoal>Add filter tokens or a filter count.</NonGoal>
+      <NonGoal>Add the broader list/detail stale-response sequence guard.</NonGoal>
+      <NonGoal>Archive or restore a plan from the segment.</NonGoal>
+      <NonGoal>Change backend or persisted lifecycle semantics.</NonGoal>
+    </NonGoals>
+    <AcceptanceCriteria>
+      <Criterion>`Текущие | Архив` is permanently visible before ordinary filters; the old lifecycle select is not visible or focusable.</Criterion>
+      <Criterion>Click, Enter, Space, ArrowLeft, ArrowRight, Home and End converge on one deterministic active/archive selection path with correct tablist/tab, aria-selected and roving tabindex semantics.</Criterion>
+      <Criterion>The adapter updates only the hidden compatibility select and emits its existing change event; it has no API route, storage or duplicate lifecycle state.</Criterion>
+      <Criterion>The existing request path produces `status=active|archived`, search and ordinary filter values survive switching, and a plan absent from the new result is not left in detail.</Criterion>
+      <Criterion>Empty active and archived results show distinct text and never retain the previous plan detail.</Criterion>
+      <Criterion>Targets are at least 44 CSS pixels, focus is visible independently of color, and the control fits desktop 1440x900 and constrained desktop 1024x768 without causing page-level horizontal overflow.</Criterion>
+      <Criterion>Selection feedback is interruptible and limited to 120–180 milliseconds; prefers-reduced-motion removes it completely and never delays state, request or focus.</Criterion>
+      <Criterion>No mobile-specific state, selector, gesture, breakpoint or focused mobile test is introduced.</Criterion>
+      <Criterion>Focused unit and desktop Playwright, npm checks, full project CI and GRACE final pass on one exact head before the P1 PR may be merged; post-merge CI and an archive-only applied transition complete before P2 begins.</Criterion>
+    </AcceptanceCriteria>
+    <AffectedAreas>
+      <M-API />
+      <M-DESIGN-GOVERNANCE />
+      <M-MOTION-KB />
+      <M-CI-GATE />
+    </AffectedAreas>
+    <VerificationIntent>
+      <ExpectedCommand>node --test tests/plans-lifecycle-segment.test.mjs</ExpectedCommand>
+      <ExpectedCommand>npm run design:check</ExpectedCommand>
+      <ExpectedCommand>npm run check</ExpectedCommand>
+      <ExpectedCommand>npm run docs:check</ExpectedCommand>
+      <ExpectedCommand>npm test</ExpectedCommand>
+      <ExpectedCommand>npx playwright test tests/browser/plans-lifecycle-segment.spec.mjs --project=desktop</ExpectedCommand>
+      <ExpectedEvidence>The exact P1 head proves the visible lifecycle segment, existing server status query, preserved context, cleared stale detail, distinct empty states, desktop geometry, keyboard/focus and reduced motion without API, database or mobile-mode changes.</ExpectedEvidence>
+    </VerificationIntent>
+    <Assumptions>
+      <Assumption>`public/lifecycle-safe.js` remains the only module that owns `planMode` and appends `status` to `/api/plans`.</Assumption>
+      <Assumption>`public/plans-next.js` remains authoritative for clearing a selected plan absent from the returned list and selecting the first available result.</Assumption>
+      <Assumption>Archive and restore operations continue to update the compatibility select and refresh the plans view.</Assumption>
+    </Assumptions>
+  </C-PLANS-TOOLBAR-LIFECYCLE-259-P1>
+</GraceChangeSpec>
