@@ -1,4 +1,4 @@
-<GraceChangeSpec graceVersion="4.0" status="approved">
+<GraceChangeSpec graceVersion="4.0" status="applied">
   <C-RELEASE-PROBE-CLEANUP-276-V2>
     <Summary>Remove two accidental release-probe files from the current exact main without changing product behavior or rewriting history.</Summary>
     <Problem>The files `__invalid_release_probe__` and `.probe-do-not-create` were created by direct connector capability probes. They are not application, test, documentation or release artifacts and must not enter version 0.4.1.</Problem>
