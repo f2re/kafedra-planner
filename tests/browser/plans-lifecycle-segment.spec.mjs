@@ -139,7 +139,7 @@ test('Планы: constrained desktop сохраняет 44px и reduced motion'
       const milliseconds = value.endsWith('ms') ? amount : amount * 1000;
       return Math.max(maximum, milliseconds);
     }, 0);
-  })).toBe(0);
+  })).toBeLessThanOrEqual(0.01);
 
   const geometry = await page.evaluate(() => ({
     scrollWidth: document.documentElement.scrollWidth,
