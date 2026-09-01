@@ -1,0 +1,65 @@
+<GraceChangeSpec graceVersion="4.0" status="approved">
+  <C-PLANS-COMPACT-TOOLBAR-259>
+    <Summary>Replace the overloaded plans filter row with one designer-led, stable toolbar: persistent current/archive navigation, always-visible search, compact progressive disclosure for rare filters, and removable human-readable filter tokens.</Summary>
+    <Problem>The plans screen gives the primary lifecycle mode the same hierarchy as secondary filters. Current/archive is hidden in a dropdown, rare fields occupy the full working row, the filter state is hard to read after interaction, and concurrent requests may render a stale list or detail. The result requires extra clicks, causes overflow on constrained screens and obscures the current user context.</Problem>
+    <Goals>
+      <Goal>Expose `Текущие | Архив` as a persistent one-action segmented control backed by the existing server `status` query.</Goal>
+      <Goal>Keep search permanently available while moving existing rare filters into one compact disclosure with `Фильтры N`, individual filter tokens and a rare-filter-only reset.</Goal>
+      <Goal>Adapt proven semantic patterns from Docomator and Planer Solving without copying their CSS, assets or architecture.</Goal>
+      <Goal>Preserve valid search, filter and selection context, clear invalid stale detail, and prevent an older response from replacing a newer user choice.</Goal>
+      <Goal>Provide stable desktop, constrained desktop and mobile geometry, keyboard operation, visible focus, 44 px targets and deterministic prefers-reduced-motion behavior.</Goal>
+    </Goals>
+    <Constraints>
+      <Constraint>The verified base is main commit e6c767949a19a9232e19d95fd8f0632d978f9e69 with tree c786711af18cbf8616ad624a21db4f2b147ca22d.</Constraint>
+      <Constraint>Issue 259 is authoritative and supersedes overlapping toolbar issues 249, 252, 254, 255 and 257. Parent issue 236 remains the larger plans UX program.</Constraint>
+      <Constraint>No API route, SQLite schema, migration, plan lifecycle command, archive impact calculation, document intake, source-row decision or plan-detail redesign is introduced.</Constraint>
+      <Constraint>The existing plans query remains the source of truth. UI controls may only form its parameters and must not create a second persisted filter or lifecycle state.</Constraint>
+      <Constraint>Lifecycle value, toolbar geometry, search text and filter values are never-learn in this change. Usage statistics may not reorder, preselect or hide controls.</Constraint>
+      <Constraint>The implementation remains dependency-free, autonomous and fully functional without Internet, Docomator, LLM or external assets.</Constraint>
+      <Constraint>Reference repositories are design evidence only: no source code, CSS, icons, fonts or licensed assets are copied.</Constraint>
+      <Constraint>The separate mobile list-to-detail navigation from issue 258 is not implemented here; the toolbar and filter disclosure must nevertheless remain usable at 390 px without horizontal spill.</Constraint>
+    </Constraints>
+    <NonGoals>
+      <NonGoal>Change the fields or semantics supported by the plans API.</NonGoal>
+      <NonGoal>Add saved filter presets, adaptive ranking, analytics or a new design-system dependency.</NonGoal>
+      <NonGoal>Archive or restore a plan from the lifecycle segment.</NonGoal>
+      <NonGoal>Implement reversible exclusion of recognized source rows; that remains a later vertical under parent issue 236.</NonGoal>
+      <NonGoal>Redesign meetings or their templates; issue 237 remains sequentially blocked until plans changes are terminally archived.</NonGoal>
+    </NonGoals>
+    <AcceptanceCriteria>
+      <Criterion>The visible plans toolbar contains search, a persistent `Текущие | Архив` tablist and one `Фильтры` button; the old visible lifecycle dropdown and always-expanded rare filter row are absent.</Criterion>
+      <Criterion>One click, tap, Enter, Space, ArrowLeft, ArrowRight, Home or End changes lifecycle view and produces the existing server query with `status=active|archived` without modifying a plan.</Criterion>
+      <Criterion>Search remains unchanged across lifecycle and rare-filter changes. A selection survives only if present in the latest result; otherwise detail clears before loading and falls back deterministically.</Criterion>
+      <Criterion>Kind, period, direction and responsible filters open in one compact panel, apply immediately, and are reflected by a correct `Фильтры N` count.</Criterion>
+      <Criterion>Every active rare filter has one human-readable token with a 44 px remove action. Removing a token clears exactly that control, while `Сбросить` clears only rare filters and preserves search and lifecycle.</Criterion>
+      <Criterion>Escape and outside click close the disclosure, focus returns to the trigger, and reopening shows the authoritative current values.</Criterion>
+      <Criterion>Request sequence guards prevent an older list or detail response from overwriting a newer lifecycle, search, filter or selection action.</Criterion>
+      <Criterion>Empty states distinguish an empty current collection, an empty archive and a non-empty filter/search that happens to match nothing.</Criterion>
+      <Criterion>The layout does not overlap the sidebar or create page-level horizontal scrolling at desktop 1440×900, constrained desktop 1024×768, mobile 390×844 and 200 percent zoom.</Criterion>
+      <Criterion>Selection and disclosure motion is interruptible, limited to 120–220 ms and never delays data. With prefers-reduced-motion the state changes instantly or with short opacity only.</Criterion>
+      <Criterion>An independent kafedra-design-audit records the actual desktop, constrained, mobile, keyboard, focus, overflow, contrast and reduced-motion result with no unresolved blocker or major finding.</Criterion>
+      <Criterion>Focused unit and Playwright tests, npm check, docs check, complete project tests, GRACE final, release, offline and database gates succeed on one exact head before squash merge; post-merge CI succeeds before a separate archive-only applied transition.</Criterion>
+    </AcceptanceCriteria>
+    <AffectedAreas>
+      <M-PLANS />
+      <M-DESIGN-GOVERNANCE />
+      <M-MOTION-KB />
+      <M-CI-GATE />
+    </AffectedAreas>
+    <VerificationIntent>
+      <ExpectedCommand>node --test tests/plans-toolbar-ui.test.mjs</ExpectedCommand>
+      <ExpectedCommand>npm run design:check</ExpectedCommand>
+      <ExpectedCommand>npm run check</ExpectedCommand>
+      <ExpectedCommand>npm run docs:check</ExpectedCommand>
+      <ExpectedCommand>npm test</ExpectedCommand>
+      <ExpectedCommand>npx playwright test tests/browser/plans-toolbar.spec.mjs</ExpectedCommand>
+      <ExpectedCommand>grace lint --path . --change C-PLANS-COMPACT-TOOLBAR-259 --assertions final --run-commands</ExpectedCommand>
+      <ExpectedEvidence>The exact implementation head demonstrates the real plans screen, not a synthetic fixture: one-action lifecycle navigation, compact progressive filtering, readable active conditions, no stale response and stable responsive geometry.</ExpectedEvidence>
+    </VerificationIntent>
+    <Assumptions>
+      <Assumption>The existing `/api/plans` endpoint already accepts `status`, `q`, `kind`, `periodKey`, `direction` and `responsible` and returns authoritative items and facets.</Assumption>
+      <Assumption>The existing archive/restore API and impact flow remain correct and can call a public plans-view setter after a successful lifecycle operation.</Assumption>
+      <Assumption>Current application CSS variables and native controls are sufficient to implement the toolbar without a new runtime dependency.</Assumption>
+    </Assumptions>
+  </C-PLANS-COMPACT-TOOLBAR-259>
+</GraceChangeSpec>

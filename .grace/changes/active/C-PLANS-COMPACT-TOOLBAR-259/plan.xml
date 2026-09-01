@@ -1,0 +1,161 @@
+<GraceChangePlan graceVersion="4.0" status="approved">
+  <C-PLANS-COMPACT-TOOLBAR-259>
+    <IntentSummary>Deliver one coherent designer-led plans toolbar vertical: persistent lifecycle navigation, progressive disclosure for rare filters, readable filter tokens and stale-response-safe list/detail updates.</IntentSummary>
+    <BaselineAssertions>
+      <MustExist><Value>public/plans-next.js</Value></MustExist>
+      <MustExist><Value>public/plans-next.css</Value></MustExist>
+      <MustExist><Value>public/lifecycle-safe.js</Value></MustExist>
+      <MustExist><Value>tests/browser/plans.spec.mjs</Value></MustExist>
+      <MustExist><Value>docs/UX_FLOWS.md</Value></MustExist>
+      <MustContain><File>public/plans-next.js</File><Text>class="plans-filterbar"</Text></MustContain>
+      <MustContain><File>public/plans-next.js</File><Text>id="plans-reset"</Text></MustContain>
+      <MustContain><File>public/lifecycle-safe.js</File><Text>plans-lifecycle-status</Text></MustContain>
+      <MustContain><File>public/lifecycle-safe.js</File><Text>url.searchParams.set('status', lifecycleState.planMode)</Text></MustContain>
+      <MustVerify><Module>M-PLANS</Module></MustVerify>
+      <MustVerify><Module>M-DESIGN-GOVERNANCE</Module></MustVerify>
+      <MustVerify><Module>M-MOTION-KB</Module></MustVerify>
+      <MustVerify><Module>M-CI-GATE</Module></MustVerify>
+      <MustPassCommand><Command>npm run design:check</Command></MustPassCommand>
+      <MustPassCommand><Command>npm run check</Command></MustPassCommand>
+      <MustPassCommand><Command>npm run docs:check</Command></MustPassCommand>
+    </BaselineAssertions>
+    <TargetAssertions>
+      <MustExist><Value>tests/plans-toolbar-ui.test.mjs</Value></MustExist>
+      <MustExist><Value>tests/browser/plans-toolbar.spec.mjs</Value></MustExist>
+      <MustExist><Value>.grace/changes/active/C-PLANS-COMPACT-TOOLBAR-259/design-audit.md</Value></MustExist>
+      <MustExist><Value>.grace/changes/active/C-PLANS-COMPACT-TOOLBAR-259/delegation-evidence.md</Value></MustExist>
+      <MustContain><File>public/plans-next.js</File><Text>plans-page-toolbar</Text></MustContain>
+      <MustContain><File>public/plans-next.js</File><Text>data-plans-status</Text></MustContain>
+      <MustContain><File>public/plans-next.js</File><Text>aria-selected</Text></MustContain>
+      <MustContain><File>public/plans-next.js</File><Text>plans-filter-toggle</Text></MustContain>
+      <MustContain><File>public/plans-next.js</File><Text>plans-filter-tokens</Text></MustContain>
+      <MustContain><File>public/plans-next.js</File><Text>plansState.listRequestId</Text></MustContain>
+      <MustContain><File>public/plans-next.js</File><Text>plansState.detailRequestId</Text></MustContain>
+      <MustContain><File>public/plans-next.js</File><Text>status: 'active'</Text></MustContain>
+      <MustContain><File>public/plans-next.css</File><Text>min-height: 44px</Text></MustContain>
+      <MustContain><File>public/plans-next.css</File><Text>prefers-reduced-motion</Text></MustContain>
+      <MustContain><File>public/lifecycle-safe.js</File><Text>kafedraSetPlanLifecycleMode</Text></MustContain>
+      <MustNotContain><File>public/lifecycle-safe.js</File><Text>plans-lifecycle-status</Text></MustNotContain>
+      <MustNotContain><File>public/lifecycle-safe.js</File><Text>url.searchParams.set('status', lifecycleState.planMode)</Text></MustNotContain>
+      <MustContain><File>docs/UX_FLOWS.md</File><Text>Фильтры N</Text></MustContain>
+      <MustContain><File>.grace/changes/active/C-PLANS-COMPACT-TOOLBAR-259/design.md</File><Text>cfccc70d29385ae7715aeb8746711c9e1df310da</Text></MustContain>
+      <MustContain><File>.grace/changes/active/C-PLANS-COMPACT-TOOLBAR-259/design.md</File><Text>15e6b943f465ca25586f0c657a137bc3bf9f2b73</Text></MustContain>
+      <MustPassCommand><Command>node --test tests/plans-toolbar-ui.test.mjs</Command></MustPassCommand>
+      <MustPassCommand><Command>npm run design:check</Command></MustPassCommand>
+      <MustPassCommand><Command>npm run check</Command></MustPassCommand>
+      <MustPassCommand><Command>npm run docs:check</Command></MustPassCommand>
+      <MustPassCommand><Command>npm test</Command></MustPassCommand>
+      <MustPassCommand><Command>npx playwright test tests/browser/plans-toolbar.spec.mjs</Command></MustPassCommand>
+    </TargetAssertions>
+    <DurableScope>
+      <GraphAnchors>
+        <M-PLANS />
+        <M-DESIGN-GOVERNANCE />
+        <M-MOTION-KB />
+        <M-CI-GATE />
+        <DF-DESIGN-CHANGE />
+      </GraphAnchors>
+      <VerificationAnchors>
+        <V-M-PLANS />
+        <V-M-DESIGN-GOVERNANCE />
+        <V-M-MOTION-KB />
+        <V-M-CI-GATE />
+      </VerificationAnchors>
+      <ContextArtifacts>
+        <ContextArtifact>principles.xml</ContextArtifact>
+        <ContextArtifact>ux-guidelines.xml</ContextArtifact>
+        <ContextArtifact>technology.xml</ContextArtifact>
+      </ContextArtifacts>
+    </DurableScope>
+    <ObservedWriteScope>
+      <Glob>.grace/changes/active/C-PLANS-COMPACT-TOOLBAR-259/**</Glob>
+      <File>public/plans-next.js</File>
+      <File>public/plans-next.css</File>
+      <File>public/lifecycle-safe.js</File>
+      <File>tests/plans-toolbar-ui.test.mjs</File>
+      <File>tests/browser/plans-toolbar.spec.mjs</File>
+      <File>docs/UX_FLOWS.md</File>
+    </ObservedWriteScope>
+    <ImplementationPlan>
+      <T-001>
+        <Title>kafedra-flow-intake: lock the real plans toolbar state model</Title>
+        <DependsOn></DependsOn>
+        <AcceptanceCriteria>
+          <Criterion>Lifecycle, search, rare filters, selection, empty, loading and stale-response states have one deterministic transition model.</Criterion>
+          <Criterion>The primary path is open plans → find or filter → select plan, with one-action current/archive navigation and no confirmation step.</Criterion>
+          <Criterion>Archive/restore commands remain separate never-learn actions and do not become list navigation.</Criterion>
+        </AcceptanceCriteria>
+        <Verification><Command>npm run docs:check</Command></Verification>
+      </T-001>
+      <T-002>
+        <Title>kafedra-design: adapt proven toolbar, segment and disclosure semantics</Title>
+        <DependsOn><T-001 /></DependsOn>
+        <AcceptanceCriteria>
+          <Criterion>Design evidence records exact Docomator and Planer Solving commits and maps only reusable interaction semantics, not copied code or assets.</Criterion>
+          <Criterion>The hierarchy is search + persistent lifecycle segment + one filter disclosure; active conditions remain legible as tokens.</Criterion>
+          <Criterion>Desktop 1440×900, constrained desktop 1024×768, mobile 390×844 and 200 percent zoom preserve stable geometry, 44 px targets and no horizontal spill.</Criterion>
+        </AcceptanceCriteria>
+        <Verification><Command>npm run design:check</Command></Verification>
+      </T-002>
+      <T-003>
+        <Title>kafedra-motion: define restrained segment, disclosure and token feedback</Title>
+        <DependsOn><T-002 /></DependsOn>
+        <AcceptanceCriteria>
+          <Criterion>Selection and disclosure use only interruptible 120–220 ms state transitions; no data operation waits for animation.</Criterion>
+          <Criterion>Token removal uses local opacity feedback only and does not animate list geometry.</Criterion>
+          <Criterion>prefers-reduced-motion makes selection and disclosure immediate while preserving focus and state semantics.</Criterion>
+        </AcceptanceCriteria>
+        <Verification><Command>npm run design:check</Command></Verification>
+      </T-003>
+      <T-004>
+        <Title>kafedra-data: preserve the existing query and lifecycle authority</Title>
+        <DependsOn><T-003 /></DependsOn>
+        <AcceptanceCriteria>
+          <Criterion>No schema or migration changes occur; the plans API query remains authoritative.</Criterion>
+          <Criterion>Lifecycle-safe archive/restore hands navigation back to the plans controller rather than rewriting GET requests in a second layer.</Criterion>
+          <Criterion>Repeated control changes are idempotent, and request sequence ids prevent stale projection replacement.</Criterion>
+        </AcceptanceCriteria>
+        <Verification><Command>node --test tests/plans-toolbar-ui.test.mjs</Command></Verification>
+      </T-004>
+      <T-005>
+        <Title>kafedra-feature: implement the coherent toolbar vertical in the real plans screen</Title>
+        <DependsOn><T-004 /></DependsOn>
+        <AcceptanceCriteria>
+          <Criterion>The existing plans UI renders the segment, search, compact panel, counter, tokens and precise reset without a heuristic DOM enhancer.</Criterion>
+          <Criterion>Existing kind, period, direction, responsible and status parameters drive one server request path and valid context survives.</Criterion>
+          <Criterion>Keyboard, focus return, outside click, Escape, empty states and stale list/detail handling are complete.</Criterion>
+        </AcceptanceCriteria>
+        <Verification><Command>node --test tests/plans-toolbar-ui.test.mjs</Command></Verification>
+      </T-005>
+      <T-006>
+        <Title>kafedra-design-audit: independently inspect actual desktop, constrained and mobile behavior</Title>
+        <DependsOn><T-005 /></DependsOn>
+        <AcceptanceCriteria>
+          <Criterion>The audit uses the actual plans screen and records pass or actionable findings for hierarchy, overflow, keyboard, focus, contrast, 200 percent zoom and prefers-reduced-motion.</Criterion>
+          <Criterion>No blocker or major finding remains unresolved; the audit confirms reference patterns were adapted rather than copied.</Criterion>
+        </AcceptanceCriteria>
+        <Verification><Command>npm run design:check</Command></Verification>
+      </T-006>
+      <T-007>
+        <Title>kafedra-tests: prove the real toolbar user flow and regression boundaries</Title>
+        <DependsOn><T-006 /></DependsOn>
+        <AcceptanceCriteria>
+          <Criterion>Unit tests prove one lifecycle authority, rare-filter-only reset, tokens, accessibility semantics, no persistence and stale-response guards.</Criterion>
+          <Criterion>Playwright exercises the actual plans view for lifecycle, search, disclosure, tokens, Escape/focus, precise empty states, constrained/mobile overflow and reduced motion.</Criterion>
+          <Criterion>Existing plans, lifecycle and full project tests remain green.</Criterion>
+        </AcceptanceCriteria>
+        <Verification><Command>npm test</Command><Command>npx playwright test tests/browser/plans-toolbar.spec.mjs</Command></Verification>
+      </T-007>
+      <T-008>
+        <Title>kafedra-release: complete exact-head CI, squash merge and terminal archive</Title>
+        <DependsOn><T-007 /></DependsOn>
+        <AcceptanceCriteria>
+          <Criterion>GRACE final, project, browser, release, offline and database gates succeed on one unchanged PR head.</Criterion>
+          <Criterion>The implementation is squash-merged only after exact-head, mergeability and review-thread checks.</Criterion>
+          <Criterion>Successful post-merge CI precedes a separate archive-only PR that moves this complete bundle to status applied.</Criterion>
+        </AcceptanceCriteria>
+        <Verification><Command>npm run check</Command><Command>npm run docs:check</Command><Command>npm test</Command></Verification>
+      </T-008>
+    </ImplementationPlan>
+  </C-PLANS-COMPACT-TOOLBAR-259>
+</GraceChangePlan>
