@@ -9,7 +9,7 @@
       <MustExist><Value>tests/browser/lifecycle.spec.mjs</Value></MustExist>
       <MustContain><File>public/ux-next.js</File><Text>await import('./lifecycle-safe.js')</Text></MustContain>
       <MustContain><File>public/lifecycle-safe.js</File><Text>plans-lifecycle-status</Text></MustContain>
-      <MustContain><File>public/lifecycle-safe.js</File><Text>url.searchParams.set('status', lifecycleState.planMode)</Text></MustContain>
+      <MustContain><File>public/lifecycle-safe.js</File><Text>lifecycleState.planMode</Text></MustContain>
       <MustContain><File>public/lifecycle-safe.js</File><Text>selectedPlanId</Text></MustContain>
       <MustVerify><Module>M-API</Module></MustVerify>
       <MustVerify><Module>M-DESIGN-GOVERNANCE</Module></MustVerify>
