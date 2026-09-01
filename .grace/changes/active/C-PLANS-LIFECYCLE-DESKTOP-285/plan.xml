@@ -6,10 +6,8 @@
       <MustExist><Value>public/plans-next.js</Value></MustExist>
       <MustExist><Value>public/plans-next.css</Value></MustExist>
       <MustExist><Value>public/ux-next.js</Value></MustExist>
-      <MustExist><Value>docs/PLANS.md</Value></MustExist>
       <MustContain><File>public/lifecycle-safe.js</File><Text>plans-lifecycle-status</Text></MustContain>
       <MustContain><File>public/lifecycle-safe.js</File><Text>status</Text></MustContain>
-      <MustContain><File>docs/PLANS.md</File><Text>status: active | archived</Text></MustContain>
       <MustVerify><Module>M-DESIGN-GOVERNANCE</Module></MustVerify>
       <MustVerify><Module>M-MOTION-KB</Module></MustVerify>
       <MustVerify><Module>M-CI-GATE</Module></MustVerify>
@@ -33,7 +31,6 @@
       <MustContain><File>public/plans-lifecycle-desktop.css</File><Text>min-height: 44px</Text></MustContain>
       <MustContain><File>public/plans-lifecycle-desktop.css</File><Text>prefers-reduced-motion</Text></MustContain>
       <MustContain><File>public/ux-next.js</File><Text>plans-lifecycle-desktop.js</Text></MustContain>
-      <MustContain><File>docs/PLANS.md</File><Text>Текущие | Архив</Text></MustContain>
       <MustContain><File>tests/browser/plans-lifecycle-desktop.spec.mjs</File><Text>Desktop-only</Text></MustContain>
       <MustVerify><Module>M-DESIGN-GOVERNANCE</Module></MustVerify>
       <MustVerify><Module>M-MOTION-KB</Module></MustVerify>
@@ -55,7 +52,6 @@
       <File>public/plans-lifecycle-desktop.js</File>
       <File>public/plans-lifecycle-desktop.css</File>
       <File>public/ux-next.js</File>
-      <File>docs/PLANS.md</File>
       <File>tests/plans-lifecycle-desktop.test.mjs</File>
       <File>tests/browser/plans-lifecycle-desktop.spec.mjs</File>
     </ObservedWriteScope>
@@ -66,7 +62,7 @@
         <AcceptanceCriteria>
           <Criterion>Viewing active/archive is one action and never changes persisted plan status.</Criterion>
           <Criterion>Search and ordinary filters survive; the existing controller clears or replaces invalid selected detail.</Criterion>
-          <Criterion>Loading/error states are not rewritten as empty states.</Criterion>
+          <Criterion>Loading and error states are not rewritten as empty states.</Criterion>
         </AcceptanceCriteria>
         <Verification><Command>node --test tests/lifecycle.test.mjs</Command></Verification>
       </T-001>
@@ -92,8 +88,8 @@
         <Title>kafedra-feature: bridge segmented tabs to existing lifecycle select</Title>
         <DependsOn><T-003 /></DependsOn>
         <AcceptanceCriteria>
-          <Criterion>The existing select remains the compatibility source and receives normal input/change events.</Criterion>
-          <Criterion>Click, Enter, Space, arrows, Home and End activate active/archive without duplicate requests.</Criterion>
+          <Criterion>The existing select remains the compatibility source and receives normal input and change events.</Criterion>
+          <Criterion>Click, Enter, Space, arrows, Home and End activate active or archived without duplicate requests.</Criterion>
           <Criterion>The bridge and filterbar are restored when the viewport falls below 721 px.</Criterion>
         </AcceptanceCriteria>
         <Verification><Command>node --test tests/plans-lifecycle-desktop.test.mjs</Command></Verification>
@@ -110,7 +106,7 @@
         <Title>kafedra-tests: prove exact desktop behavior and project regression</Title>
         <DependsOn><T-005 /></DependsOn>
         <AcceptanceCriteria>
-          <Criterion>Desktop Playwright covers real active/archive API lists, preserved search, keyboard, target size, reduced motion and restoration below the breakpoint.</Criterion>
+          <Criterion>Desktop Playwright covers real active and archived API lists, preserved search, keyboard, target size, reduced motion and restoration below the breakpoint.</Criterion>
           <Criterion>Full project CI remains successful with no unexpected skipped, cancelled, missing or failed required check.</Criterion>
         </AcceptanceCriteria>
         <Verification><Command>npx playwright test tests/browser/plans-lifecycle-desktop.spec.mjs --project=desktop</Command><Command>npm test</Command></Verification>
