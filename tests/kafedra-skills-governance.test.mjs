@@ -64,7 +64,7 @@ test('removing mandatory orchestrator preflight marker fails routing', async (t)
   const fixture = await buildFixture(t);
   const path = join(fixture, 'AGENTS.md');
   const original = await readFile(path, 'utf8');
-  const modified = original.replace('обязательный preflight', 'profile preflight');
+  const modified = original.replaceAll('обязательный preflight', 'profile preflight');
   assert.notEqual(modified, original);
   await writeFile(path, modified);
   const errors = await validateKafedraSkillsProfile(fixture);
