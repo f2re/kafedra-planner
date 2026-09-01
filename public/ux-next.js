@@ -9,6 +9,7 @@ await import('./manual-plans-next.js');
 await import('./manual-plans-bootstrap.js');
 await import('./plan-source-rows-next.js');
 await import('./lifecycle-safe.js');
+await import('./plans-lifecycle-segment.js');
 await import('./meetings-next.js');
 await import('./search-next.js');
 await import('./view-bridge.js');
