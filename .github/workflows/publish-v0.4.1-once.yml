@@ -1,0 +1,201 @@
+name: Publish v0.4.1 once
+
+on:
+  push:
+    branches:
+      - ops/publish-v0.4.1
+    paths:
+      - .github/workflows/publish-v0.4.1-once.yml
+
+permissions:
+  actions: read
+  contents: write
+  issues: write
+
+concurrency:
+  group: publish-v0.4.1
+  cancel-in-progress: false
+
+jobs:
+  publish:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          ref: ops/publish-v0.4.1
+
+      - name: Verify exact archived main and mandatory checks
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPOSITORY: ${{ github.repository }}
+        run: |
+          set -Eeuo pipefail
+          git fetch --no-tags origin main:refs/remotes/origin/main
+          HEAD_SHA="$(git rev-parse HEAD^)"
+          MAIN_SHA="$(git rev-parse origin/main)"
+          test "$HEAD_SHA" = "$MAIN_SHA"
+          test "$(git show "$MAIN_SHA:VERSION")" = "0.4.1"
+          active_count="$(git ls-tree -r --name-only "$MAIN_SHA" .grace/changes/active | grep -c '^.grace/changes/active/' || true)"
+          test "$active_count" -eq 0
+          git ls-tree -r --name-only "$MAIN_SHA" .grace/changes/archive/C-RELEASE-0-4-1 | grep -Fx '.grace/changes/archive/C-RELEASE-0-4-1/spec.xml'
+          git show "$MAIN_SHA:.grace/changes/archive/C-RELEASE-0-4-1/spec.xml" | grep -F 'status="applied"'
+          test -z "$(git ls-remote --tags origin refs/tags/v0.4.1)"
+          if gh release view v0.4.1 --repo "$REPOSITORY" >/dev/null 2>&1; then
+            echo 'Release v0.4.1 already exists' >&2
+            exit 1
+          fi
+          required=(
+            'GRACE post-merge / merge-gate'
+            'Минимальный Node 24.15'
+            'test'
+            'browser'
+            'Сборщик под host Node 25.6'
+            'Full offline Debian 12 + Project Control'
+            'release-gate'
+            'organization-browser'
+            'science-lifecycle-browser'
+            'science-import-browser'
+            'science-reports-browser'
+          )
+          checks="$(gh api "repos/$REPOSITORY/commits/$MAIN_SHA/check-runs?per_page=100")"
+          for name in "${required[@]}"; do
+            conclusion="$(jq -r --arg name "$name" '[.check_runs[] | select(.name == $name)] | sort_by(.completed_at) | last | .conclusion // "missing"' <<<"$checks")"
+            test "$conclusion" = success || { echo "Required check $name: $conclusion" >&2; exit 1; }
+          done
+          printf '%s\n' "$MAIN_SHA" > /tmp/release-main-sha
+
+      - name: Download exact-main CI artifacts
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPOSITORY: ${{ github.repository }}
+        run: |
+          set -Eeuo pipefail
+          MAIN_SHA="$(cat /tmp/release-main-sha)"
+          mkdir -p /tmp/ci-artifacts /tmp/publish-assets
+          mapfile -t run_ids < <(gh api --paginate "repos/$REPOSITORY/actions/runs?head_sha=$MAIN_SHA&status=success&per_page=100" --jq '.workflow_runs[].id' | awk '!seen[$0]++')
+          test "${#run_ids[@]}" -gt 0
+          downloaded=0
+          for run_id in "${run_ids[@]}"; do
+            while IFS=$'\t' read -r artifact_id artifact_name expired; do
+              [[ -n "$artifact_id" && "$expired" = false ]] || continue
+              target="/tmp/ci-artifacts/${run_id}-${artifact_id}-${artifact_name}.zip"
+              if gh api "repos/$REPOSITORY/actions/artifacts/$artifact_id/zip" > "$target"; then
+                mkdir -p "/tmp/ci-artifacts/unpacked/$artifact_id"
+                unzip -q "$target" -d "/tmp/ci-artifacts/unpacked/$artifact_id"
+                downloaded=$((downloaded + 1))
+              fi
+            done < <(gh api "repos/$REPOSITORY/actions/runs/$run_id/artifacts?per_page=100" --jq '.artifacts[] | [.id,.name,.expired] | @tsv')
+          done
+          test "$downloaded" -gt 0
+
+      - name: Select and verify full offline release assets
+        run: |
+          set -Eeuo pipefail
+          source_root=/tmp/ci-artifacts/unpacked
+          assets=/tmp/publish-assets
+          copy_unique() {
+            local source="$1" basename target
+            basename="$(basename "$source")"
+            target="$assets/$basename"
+            if [[ -e "$target" ]]; then
+              cmp -s "$source" "$target" || { echo "Conflicting artifact basename: $basename" >&2; exit 1; }
+            else
+              cp "$source" "$target"
+            fi
+          }
+          while IFS= read -r -d '' file; do copy_unique "$file"; done < <(find "$source_root" -type f \( -name 'kafedra-planner-0.4.1-*.tar.gz' -o -name 'kafedra-planner-0.4.1-*.tar.gz.sha256' -o -name 'install-kafedra-planner.sh' -o -name 'README-INSTALL.txt' \) -print0)
+          mapfile -t archives < <(find "$assets" -maxdepth 1 -type f -name 'kafedra-planner-0.4.1-*.tar.gz' | LC_ALL=C sort)
+          test "${#archives[@]}" -gt 0
+          test -f "$assets/install-kafedra-planner.sh"
+          test -f "$assets/README-INSTALL.txt"
+          test -s "$assets/install-kafedra-planner.sh"
+          test -s "$assets/README-INSTALL.txt"
+          chmod 0755 "$assets/install-kafedra-planner.sh"
+          for archive in "${archives[@]}"; do
+            checksum="$archive.sha256"
+            test -f "$checksum"
+            (
+              cd "$assets"
+              sha256sum -c --strict "$(basename "$checksum")"
+            )
+            tar -tzf "$archive" | grep -E '/deployment\.json$' >/dev/null
+            tar -tzf "$archive" | grep -E '/release\.json$' >/dev/null
+            tar -tzf "$archive" | grep -E '/install\.sh$' >/dev/null
+          done
+          find "$assets" -maxdepth 1 -type f -printf '%f\n' | LC_ALL=C sort > /tmp/release-asset-names
+          grep -Fx install-kafedra-planner.sh /tmp/release-asset-names
+          grep -Fx README-INSTALL.txt /tmp/release-asset-names
+          grep -E '^kafedra-planner-0\.4\.1-.*\.tar\.gz$' /tmp/release-asset-names
+          grep -E '^kafedra-planner-0\.4\.1-.*\.tar\.gz\.sha256$' /tmp/release-asset-names
+
+      - name: Publish GitHub Release at the exact main SHA
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPOSITORY: ${{ github.repository }}
+        run: |
+          set -Eeuo pipefail
+          MAIN_SHA="$(cat /tmp/release-main-sha)"
+          mapfile -t files < <(find /tmp/publish-assets -maxdepth 1 -type f | LC_ALL=C sort)
+          test "${#files[@]}" -ge 4
+          gh release create v0.4.1 "${files[@]}" \
+            --repo "$REPOSITORY" \
+            --target "$MAIN_SHA" \
+            --title 'Kafedra Planner 0.4.1' \
+            --notes-file docs/releases/0.4.1.md \
+            --verify-tag=false
+
+      - name: Re-download and verify the published release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPOSITORY: ${{ github.repository }}
+        run: |
+          set -Eeuo pipefail
+          MAIN_SHA="$(cat /tmp/release-main-sha)"
+          release_json="$(gh release view v0.4.1 --repo "$REPOSITORY" --json tagName,isDraft,isPrerelease,publishedAt,targetCommitish,url,assets)"
+          test "$(jq -r '.tagName' <<<"$release_json")" = v0.4.1
+          test "$(jq -r '.isDraft' <<<"$release_json")" = false
+          test "$(jq -r '.isPrerelease' <<<"$release_json")" = false
+          test -n "$(jq -r '.publishedAt' <<<"$release_json")"
+          tag_sha="$(git ls-remote origin refs/tags/v0.4.1 | awk '{print $1}')"
+          test "$tag_sha" = "$MAIN_SHA"
+          asset_names="$(jq -r '.assets[].name' <<<"$release_json")"
+          grep -Fx install-kafedra-planner.sh <<<"$asset_names"
+          grep -Fx README-INSTALL.txt <<<"$asset_names"
+          grep -E '^kafedra-planner-0\.4\.1-.*\.tar\.gz$' <<<"$asset_names"
+          grep -E '^kafedra-planner-0\.4\.1-.*\.tar\.gz\.sha256$' <<<"$asset_names"
+          rm -rf /tmp/release-verify
+          mkdir -p /tmp/release-verify
+          gh release download v0.4.1 --repo "$REPOSITORY" --dir /tmp/release-verify
+          for checksum in /tmp/release-verify/*.tar.gz.sha256; do
+            (
+              cd /tmp/release-verify
+              sha256sum -c --strict "$(basename "$checksum")"
+            )
+          done
+          jq . <<<"$release_json" > /tmp/release-verified.json
+          {
+            echo '## Published and verified Kafedra Planner 0.4.1'
+            echo
+            echo "- exact main: \`$MAIN_SHA\`"
+            echo '- tag: `v0.4.1`'
+            echo '- draft: `false`'
+            echo '- prerelease: `false`'
+            echo '- assets:'
+            sed 's/^/  - `/' /tmp/release-asset-names | sed 's/$/`/'
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Close the release issue and remove the operational branch
+        if: success()
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPOSITORY: ${{ github.repository }}
+        run: |
+          set -Eeuo pipefail
+          issue="$(gh issue list --repo "$REPOSITORY" --state open --search 'Выпустить Kafedra Planner 0.4.1 in:title' --json number,title --jq '[.[] | select(.title == "Выпустить Kafedra Planner 0.4.1")][0].number // empty')"
+          if [[ -n "$issue" ]]; then
+            gh issue close "$issue" --repo "$REPOSITORY" --comment 'Релиз v0.4.1 опубликован на exact archived main; offline bundle, installer и SHA-256 повторно скачаны и проверены.'
+          fi
+          ref='heads/ops/publish-v0.4.1'
+          encoded="$(jq -rn --arg value "$ref" '$value|@uri')"
+          gh api -X DELETE "repos/$REPOSITORY/git/refs/$encoded" || true
