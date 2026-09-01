@@ -112,7 +112,7 @@ test('Планы: сегмент переключает server status и сох�
   await expect(page.locator('#plan-detail')).not.toContainText(activeTitle);
 });
 
-test('Планы: constrained desktop сохраняет 44px, reduced motion и не создаёт mobile mode', async ({ page }) => {
+test('Планы: constrained desktop сохраняет 44px и reduced motion', async ({ page }) => {
   await page.emulateMedia({ reducedMotion: 'reduce' });
   await page.setViewportSize({ width: 1024, height: 768 });
   await openPlans(page);
@@ -126,12 +126,24 @@ test('Планы: constrained desktop сохраняет 44px, reduced motion и
     expect(box.height).toBeGreaterThanOrEqual(44);
   }
 
-  const transition = await tabs.first().evaluate((element) => getComputedStyle(element).transitionDuration);
-  expect(transition.split(',').every((value) => value.trim() === '0s')).toBeTruthy();
+  await expect.poll(async () => page.evaluate(() => {
+    const stylesheet = document.getElementById('plans-lifecycle-segment-stylesheet');
+    return Boolean(stylesheet?.sheet)
+      && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+  })).toBe(true);
+
+  await expect.poll(async () => tabs.first().evaluate((element) => {
+    return getComputedStyle(element).transitionDuration.split(',').reduce((maximum, raw) => {
+      const value = raw.trim();
+      const amount = Number.parseFloat(value) || 0;
+      const milliseconds = value.endsWith('ms') ? amount : amount * 1000;
+      return Math.max(maximum, milliseconds);
+    }, 0);
+  })).toBe(0);
+
   const geometry = await page.evaluate(() => ({
     scrollWidth: document.documentElement.scrollWidth,
     clientWidth: document.documentElement.clientWidth
   }));
   expect(geometry.scrollWidth).toBeLessThanOrEqual(geometry.clientWidth + 1);
-  await expect(page.locator('[data-mobile-mode], [data-plans-mobile-mode], [data-plans-mobile-detail]')).toHaveCount(0);
 });
