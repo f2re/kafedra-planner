@@ -1,4 +1,4 @@
-<GraceChangeSpec graceVersion="4.0" status="approved">
+<GraceChangeSpec graceVersion="4.0" status="applied">
   <C-PLANS-LIFECYCLE-DESKTOP-285>
     <Summary>Replace the desktop plans lifecycle dropdown with a persistent one-action `Текущие | Архив` segmented control.</Summary>
     <Problem>The primary active/archive list mode is hidden among ordinary filters. Desktop users must open a select for a frequent mutually exclusive navigation state, while the selected plan can become stale after switching.</Problem>
