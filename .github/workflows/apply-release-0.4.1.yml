@@ -58,9 +58,6 @@ jobs:
           import subprocess
 
           expected = {
-              '.grace/changes/active/C-RELEASE-0-4-1-280/plan.xml',
-              '.grace/changes/active/C-RELEASE-0-4-1-280/release-audit.md',
-              '.grace/changes/active/C-RELEASE-0-4-1-280/spec.xml',
               '.grace/changes/archive/C-RELEASE-0-4-1-280/plan.xml',
               '.grace/changes/archive/C-RELEASE-0-4-1-280/release-audit.md',
               '.grace/changes/archive/C-RELEASE-0-4-1-280/spec.xml',
