@@ -26,3 +26,5 @@ For direct manipulation, visual progress follows the pointer/finger 1:1 during t
 Motion may never be the sole carrier of selection, error, completion, hierarchy or permission state. A static before/after frame must remain understandable. Do not introduce a runtime dependency merely to reproduce an inspiration demo; translate the motion principle into the project’s existing web stack unless an approved change explicitly proves a new dependency is necessary.
 
 Hand the brief to `kafedra-feature`. After implementation, `kafedra-design-audit` must independently review the result before `kafedra-tests`/release handoff.
+
+Kafedra profile handoff: after `kafedra-workspace-orchestrator` selects motion as relevant, read `kafedra-motion-continuity` in addition to the project motion sources above. It supplies document/list/inspector continuity, local async feedback and interruption/reduced-motion constraints; this project-local role remains responsible for the measurable motion brief or explicit `no-motion` decision.

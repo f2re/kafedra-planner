@@ -1,0 +1,116 @@
+<GraceChangePlan graceVersion="4.0" status="applied">
+  <C-KAFEDRA-AI-SKILLS-PROFILE-288>
+    <IntentSummary>Make the verified Kafedra document-workspace profile a pinned, offline, repository-local routing layer while preserving GRACE and existing project-role authority.</IntentSummary>
+    <BaselineAssertions>
+      <MustExist><Value>AGENTS.md</Value></MustExist>
+      <MustExist><Value>docs/CODEX_AGENTS.md</Value></MustExist>
+      <MustExist><Value>codex/skills/kafedra-flow-intake/SKILL.md</Value></MustExist>
+      <MustVerify><Module>M-CI-GATE</Module></MustVerify>
+      <MustVerify><Module>M-DESIGN-GOVERNANCE</Module></MustVerify>
+      <MustPassCommand><Command>test ! -e codex/skills/kafedra-workspace-orchestrator/SKILL.md</Command></MustPassCommand>
+      <MustPassCommand><Command>npm run check</Command></MustPassCommand>
+    </BaselineAssertions>
+    <TargetAssertions>
+      <MustExist><Value>codex/skills/kafedra-workspace-orchestrator/SKILL.md</Value></MustExist>
+      <MustExist><Value>codex/skills/kafedra-profile.json</Value></MustExist>
+      <MustExist><Value>docs/AI_SKILLS_PROFILE.md</Value></MustExist>
+      <MustExist><Value>scripts/ai-skills-profile-check.mjs</Value></MustExist>
+      <MustContain><File>AGENTS.md</File><Text>Обязательный Kafedra workspace preflight</Text></MustContain>
+      <MustContain><File>docs/CODEX_AGENTS.md</File><Text>Автоматический Kafedra profile preflight</Text></MustContain>
+      <MustVerify><Module>M-CI-GATE</Module></MustVerify>
+      <MustVerify><Module>M-DESIGN-GOVERNANCE</Module></MustVerify>
+      <MustPassCommand><Command>node scripts/ai-skills-profile-check.mjs</Command></MustPassCommand>
+      <MustPassCommand><Command>node --test tests/ai-skills-profile.test.mjs</Command></MustPassCommand>
+      <MustPassCommand><Command>npm run check</Command></MustPassCommand>
+      <MustPassCommand><Command>npm run docs:check</Command></MustPassCommand>
+      <MustPassCommand><Command>npm test</Command></MustPassCommand>
+    </TargetAssertions>
+    <DurableScope>
+      <GraphAnchors><M-CI-GATE /><M-DESIGN-GOVERNANCE /><DF-GRACE-BRANCH /></GraphAnchors>
+      <VerificationAnchors><V-M-CI-GATE /><V-M-DESIGN-GOVERNANCE /></VerificationAnchors>
+      <ContextArtifacts><ContextArtifact>principles.xml</ContextArtifact><ContextArtifact>technology.xml</ContextArtifact></ContextArtifacts>
+    </DurableScope>
+    <ObservedWriteScope>
+      <Glob>.grace/changes/active/C-KAFEDRA-AI-SKILLS-PROFILE-288/**</Glob>
+      <File>AGENTS.md</File>
+      <File>docs/CODEX_AGENTS.md</File>
+      <File>docs/AI_SKILLS_PROFILE.md</File>
+      <File>codex/skills/kafedra-profile.json</File>
+      <Glob>codex/skills/kafedra-workspace-orchestrator/**</Glob>
+      <Glob>codex/skills/kafedra-document-workspace/**</Glob>
+      <Glob>codex/skills/kafedra-document-intake/**</Glob>
+      <Glob>codex/skills/kafedra-provenance-and-inspector/**</Glob>
+      <Glob>codex/skills/kafedra-action-recomposition/**</Glob>
+      <Glob>codex/skills/kafedra-review-by-exception/**</Glob>
+      <Glob>codex/skills/kafedra-search-and-navigation/**</Glob>
+      <Glob>codex/skills/kafedra-responsive-inspector/**</Glob>
+      <Glob>codex/skills/kafedra-motion-continuity/**</Glob>
+      <Glob>codex/skills/kafedra-states-and-recovery/**</Glob>
+      <Glob>codex/skills/kafedra-adaptive-controls/**</Glob>
+      <Glob>codex/skills/kafedra-plan-calendar-continuity/**</Glob>
+      <Glob>codex/skills/kafedra-template-and-structured-document-flow/**</Glob>
+      <Glob>codex/skills/kafedra-ux-acceptance/**</Glob>
+      <File>codex/skills/kafedra-flow-intake/SKILL.md</File>
+      <File>codex/skills/kafedra-design/SKILL.md</File>
+      <File>codex/skills/kafedra-motion/SKILL.md</File>
+      <File>codex/skills/kafedra-data/SKILL.md</File>
+      <File>codex/skills/kafedra-feature/SKILL.md</File>
+      <File>codex/skills/kafedra-design-audit/SKILL.md</File>
+      <File>codex/skills/kafedra-tests/SKILL.md</File>
+      <File>codex/skills/kafedra-release/SKILL.md</File>
+      <File>scripts/ai-skills-profile-check.mjs</File>
+      <File>scripts/check.mjs</File>
+      <File>tests/ai-skills-profile.test.mjs</File>
+    </ObservedWriteScope>
+    <ImplementationPlan>
+      <T-001>
+        <Title>kafedra-flow-intake: define automatic workspace routing and authority</Title>
+        <DependsOn></DependsOn>
+        <AcceptanceCriteria>
+          <Criterion>Every substantial development request enters through repository-local kafedra-workspace-orchestrator after repository/GRACE preflight.</Criterion>
+          <Criterion>Backend/infrastructure work without document/UI concerns can explicitly route to no focused profile skill.</Criterion>
+          <Criterion>GRACE and existing project-local specialist roles remain authoritative.</Criterion>
+        </AcceptanceCriteria>
+        <Verification><Command>node scripts/ai-skills-profile-check.mjs</Command></Verification>
+      </T-001>
+      <T-002>
+        <Title>kafedra-design: map focused profile skills into the existing specialist lifecycle</Title>
+        <DependsOn><T-001 /></DependsOn>
+        <AcceptanceCriteria>
+          <Criterion>Flow, design, motion, data, feature, audit, tests and release roles have explicit profile handoff points.</Criterion>
+          <Criterion>No second competing agent authority chain is introduced.</Criterion>
+        </AcceptanceCriteria>
+        <Verification><Command>node scripts/ai-skills-profile-check.mjs</Command></Verification>
+      </T-002>
+      <T-003>
+        <Title>kafedra-feature: vendor pinned profile snapshot and repository routing</Title>
+        <DependsOn><T-002 /></DependsOn>
+        <AcceptanceCriteria>
+          <Criterion>All 14 vendored SKILL.md files match the pinned upstream Git blob SHAs.</Criterion>
+          <Criterion>AGENTS.md and CODEX_AGENTS.md automatically route substantial future work through the orchestrator.</Criterion>
+          <Criterion>The integration does not modify production runtime, UI, API, storage or dependencies.</Criterion>
+        </AcceptanceCriteria>
+        <Verification><Command>node scripts/ai-skills-profile-check.mjs</Command></Verification>
+      </T-003>
+      <T-004>
+        <Title>kafedra-tests: add fail-closed snapshot and routing regression checks</Title>
+        <DependsOn><T-003 /></DependsOn>
+        <AcceptanceCriteria>
+          <Criterion>npm run check fails on snapshot byte drift, wrong source SHA, missing profile skill, missing preflight marker or missing role handoff.</Criterion>
+          <Criterion>A Node test independently exercises the profile validator.</Criterion>
+        </AcceptanceCriteria>
+        <Verification><Command>node --test tests/ai-skills-profile.test.mjs</Command><Command>npm run check</Command><Command>npm test</Command></Verification>
+      </T-004>
+      <T-005>
+        <Title>kafedra-release: prove dev-only offline-safe integration</Title>
+        <DependsOn><T-004 /></DependsOn>
+        <AcceptanceCriteria>
+          <Criterion>No runtime package, service, network, LLM, database or offline bundle dependency is added.</Criterion>
+          <Criterion>Project docs explain pinned provenance and governed update procedure.</Criterion>
+          <Criterion>All final project/release/offline/database gates remain green.</Criterion>
+        </AcceptanceCriteria>
+        <Verification><Command>npm run docs:check</Command><Command>npm run check</Command></Verification>
+      </T-005>
+    </ImplementationPlan>
+  </C-KAFEDRA-AI-SKILLS-PROFILE-288>
+</GraceChangePlan>

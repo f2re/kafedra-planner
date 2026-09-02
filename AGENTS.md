@@ -10,6 +10,16 @@
 4. Существенную работу зафиксировать в GitHub Issue с критериями приёмки.
 5. Создать короткую рабочую ветку от точного проверенного SHA `main`.
 
+## Обязательный Kafedra workspace preflight
+
+После репозиторного и GRACE preflight, но до проектирования или реализации любого существенного изменения обязательно прочитать `codex/skills/kafedra-workspace-orchestrator/SKILL.md`. Он классифицирует задачу и выбирает минимальный набор профильных skills из pinned snapshot `codex/skills/kafedra-profile.json`; все 14 профильных skills доступны локально и не требуют сети.
+
+Приоритет неизменен: `AGENTS.md` → approved GRACE change → проектные архитектурные/UX-контракты → существующие repository-local роли `kafedra-*` → выбранные профильные skills. Orchestrator не заменяет GRACE и не создаёт второй контур полномочий. Для чистого backend/infrastructure/release изменения без document-workspace или UX-составляющей допустим результат `focused profile skills: none`, но сам orchestrator preflight всё равно выполняется.
+
+Для document/workspace задач выбирать только относящиеся к сценарию skills: intake/processing → `kafedra-document-intake` + `kafedra-states-and-recovery`; source/evidence/detail → `kafedra-provenance-and-inspector`; clutter/click tax → `kafedra-action-recomposition`; ambiguity → `kafedra-review-by-exception`; search/navigation → `kafedra-search-and-navigation`; responsive detail → `kafedra-responsive-inspector`; adaptive defaults → `kafedra-adaptive-controls`; plan/calendar → `kafedra-plan-calendar-continuity`; templates → `kafedra-template-and-structured-document-flow`; motion → `kafedra-motion-continuity`; итоговая UX-проверка → `kafedra-ux-acceptance`.
+
+Ссылки внутри vendored upstream skills на общие library helpers (`anti-slop-ui-direction`, `dense-controls-and-selection` и подобные) являются необязательными подсказками исходной библиотеки. Kafedra Planner не зависит от их установки: при их отсутствии используются локальные `kafedra-flow-intake`, `kafedra-design`, `kafedra-motion`, `kafedra-feature`, `kafedra-design-audit` и `kafedra-tests`. Происхождение snapshot и процедура обновления описаны в `docs/AI_SKILLS_PROFILE.md`.
+
 ## Запись в GitHub из ChatGPT
 
 При команде пользователя «сделай коммит», «слей в main» или аналогичной сначала нужно обнаружить полный набор GitHub actions. Нельзя делать вывод о read-only доступе только потому, что отсутствуют `gh`, локальный `.git`, shell credentials или OAuth-токен в окружении.

@@ -13,6 +13,26 @@ These roles are implemented as repository-local skills in `codex/skills/`. Invok
 | Test engineer / `kafedra-tests` | Risk-based unit, integration, browser, and release regression coverage | Executable test plan and test changes | Feature delivery for gaps; release operator for release-surface changes |
 | Release operator / `kafedra-release` | Versioning, artifact, migration rollout, backup/restore, deployment and rollback gates | Go / no-go evidence and an operator runbook delta | Test engineer and data steward before a release-impacting merge |
 
+## Автоматический Kafedra profile preflight
+
+Every substantial change first passes the repository/GRACE preflight and then reads `kafedra-workspace-orchestrator`. The orchestrator is a classifier, not a new authority: it chooses the minimum relevant focused skills from `codex/skills/kafedra-profile.json`, while the eight project-local roles in the table above continue to own decisions and implementation inside the approved GRACE scope.
+
+```text
+repository + GRACE preflight
+        ↓
+kafedra-workspace-orchestrator
+        ↓
+select minimum focused profile skills (or none)
+        ↓
+existing project-local role handoff
+        ↓
+implementation / independent audit / tests / release gates
+```
+
+Typical focused routes are: upload/import → `kafedra-document-intake` + `kafedra-states-and-recovery`; workspace/detail → `kafedra-document-workspace` + `kafedra-provenance-and-inspector`; clutter → `kafedra-action-recomposition`; ambiguity → `kafedra-review-by-exception`; search → `kafedra-search-and-navigation`; responsive inspector → `kafedra-responsive-inspector`; adaptive values → `kafedra-adaptive-controls`; plan/calendar → `kafedra-plan-calendar-continuity`; templates → `kafedra-template-and-structured-document-flow`; motion → `kafedra-motion-continuity`; final document-workspace UX audit → `kafedra-ux-acceptance`.
+
+A backend/infrastructure/release change with no document-workspace or UX concern may route to no focused profile skill after classification. Generic helper names referenced by the upstream snapshot are optional library hints, not Kafedra Planner dependencies. The pinned source, exact blob hashes and governed update procedure are documented in `docs/AI_SKILLS_PROFILE.md`.
+
 ## Default handoff
 
 For a non-UI change:

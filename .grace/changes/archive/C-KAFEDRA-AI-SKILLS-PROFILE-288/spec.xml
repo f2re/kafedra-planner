@@ -1,0 +1,43 @@
+<GraceChangeSpec graceVersion="4.0" status="applied">
+  <C-KAFEDRA-AI-SKILLS-PROFILE-288>
+    <Summary>Vendor the verified Kafedra Planner document-workspace skills profile and make its orchestrator the mandatory project-local routing preflight for future development.</Summary>
+    <Problem>The reusable Kafedra document-workspace profile exists in ai-agents-skills but kafedra-planner does not yet pin, validate, or automatically route future work through it. Agents can therefore miss document-workspace invariants or depend on external/global installation state.</Problem>
+    <Goals>
+      <Goal>Vendor the exact verified profile snapshot from f2re/ai-agents-skills at 2645ab8afd34963e80397981d582ea3b141db8e3.</Goal>
+      <Goal>Make kafedra-workspace-orchestrator an explicit mandatory routing preflight in repository-local AGENTS.md for substantial development.</Goal>
+      <Goal>Integrate focused profile handoffs into the existing kafedra-* specialist chain without creating a competing authority hierarchy.</Goal>
+      <Goal>Fail closed in npm run check when pinned profile files, source provenance, routing markers, or role handoffs drift.</Goal>
+      <Goal>Keep the integration development-only and fully usable without Internet, LLM, Docker, or runtime package changes.</Goal>
+    </Goals>
+    <Constraints>
+      <Constraint>The exact base is main 67c2506ae03ac3543589b4f500a519eb808f90a6.</Constraint>
+      <Constraint>Project-local AGENTS.md, GRACE contracts, architecture/design/UX documents and existing kafedra-* roles remain authoritative over reusable profile guidance.</Constraint>
+      <Constraint>No production UI, API, worker, storage, SQLite schema, migration, VERSION, package dependency or runtime/offline service behavior may change.</Constraint>
+      <Constraint>The vendored SKILL.md files must remain byte-identical to their pinned upstream Git blobs.</Constraint>
+      <Constraint>The orchestrator selects only relevant focused skills; future backend/infrastructure work may explicitly route to no focused profile skill.</Constraint>
+    </Constraints>
+    <NonGoals>
+      <NonGoal>Redesign any current product screen.</NonGoal>
+      <NonGoal>Introduce a runtime dependency on ai-agents-skills or automatically pull upstream changes.</NonGoal>
+      <NonGoal>Replace GRACE or the existing project-local specialist roles.</NonGoal>
+      <NonGoal>Change database, release version, permissions, or user-visible domain behavior.</NonGoal>
+    </NonGoals>
+    <AcceptanceCriteria>
+      <Criterion>All 14 required Kafedra profile skills are present repository-locally and match the pinned upstream Git blob SHAs.</Criterion>
+      <Criterion>AGENTS.md requires kafedra-workspace-orchestrator after repository inspection and before substantial design/implementation.</Criterion>
+      <Criterion>docs/CODEX_AGENTS.md and existing specialist roles define project-first handoffs to focused profile skills without changing authority.</Criterion>
+      <Criterion>A deterministic validator runs through npm run check and fails on missing skills, changed snapshot bytes, wrong upstream metadata, missing routing markers, or missing role handoffs.</Criterion>
+      <Criterion>Profile provenance and a governed snapshot update procedure are documented.</Criterion>
+      <Criterion>Full GRACE, project CI, release/offline/database gates succeed on one exact PR head and post-merge main.</Criterion>
+    </AcceptanceCriteria>
+    <AffectedAreas><M-CI-GATE /><M-DESIGN-GOVERNANCE /></AffectedAreas>
+    <VerificationIntent>
+      <ExpectedCommand>node scripts/ai-skills-profile-check.mjs</ExpectedCommand>
+      <ExpectedCommand>node --test tests/ai-skills-profile.test.mjs</ExpectedCommand>
+      <ExpectedCommand>npm run check</ExpectedCommand>
+      <ExpectedCommand>npm run docs:check</ExpectedCommand>
+      <ExpectedCommand>npm test</ExpectedCommand>
+      <ExpectedEvidence>The repository carries an exact pinned profile snapshot and all substantial future work enters through project-local Kafedra routing without a runtime/network dependency.</ExpectedEvidence>
+    </VerificationIntent>
+  </C-KAFEDRA-AI-SKILLS-PROFILE-288>
+</GraceChangeSpec>
