@@ -1,0 +1,42 @@
+<GraceChangeSpec graceVersion="4.0" status="approved">
+  <C-RELEASE-0-4-1-280>
+    <Summary>Prepare and publish Kafedra Planner 0.4.1 from the exact verified main without changing product or database behavior.</Summary>
+    <Problem>Main contains completed reliability and desktop-plan improvements after v0.4.0, but release metadata, validation contracts and publisher wiring still identify 0.4.0, so these verified changes are not yet available as an immutable installable release.</Problem>
+    <Goals>
+      <Goal>Synchronize all authoritative version markers and release documentation to 0.4.1.</Goal>
+      <Goal>Retarget the release gate and publisher to Release gate 0.4.1 while preserving exact-main, no-op and immutable-tag safeguards.</Goal>
+      <Goal>Publish only changes already reachable from exact main and preserve SQLite schema 31, immutable sources, offline operation and optional LLM behavior.</Goal>
+      <Goal>Prove the full release, offline bundle, systemd, backup/restore, browser, database and Project Control contracts before publication.</Goal>
+    </Goals>
+    <Constraints>
+      <Constraint>The exact base is main `229971701e2aeec670a37a36ff8c0ea8ec8451a8`.</Constraint>
+      <Constraint>No application runtime code, public UI, SQLite schema, migration, dependency version, immutable source/evidence or stored data semantics may change.</Constraint>
+      <Constraint>Tag and release v0.4.0 and all of its assets remain unchanged.</Constraint>
+      <Constraint>Version 0.4.1 remains a release candidate until real Astra Linux/Debian target acceptance is completed under issue 27.</Constraint>
+      <Constraint>No Docker, CDN, cloud service, Internet connection or LLM becomes a production runtime requirement.</Constraint>
+    </Constraints>
+    <NonGoals>
+      <NonGoal>Implement issue 254 or any new mobile plan interaction.</NonGoal>
+      <NonGoal>Add a schema migration or normalize historical data.</NonGoal>
+      <NonGoal>Modify product code already completed by the changes included in 0.4.1.</NonGoal>
+      <NonGoal>Declare stable production acceptance for Astra Linux/Debian.</NonGoal>
+    </NonGoals>
+    <AcceptanceCriteria>
+      <Criterion>VERSION, package metadata, README RU/EN, ROADMAP, UX_FLOWS, VALIDATION, RELEASE_CANDIDATE and TARGET_ACCEPTANCE consistently identify 0.4.1 with schema 31.</Criterion>
+      <Criterion>Release gate workflow and publisher both use `Release gate 0.4.1`; regression tests enforce that exact contract.</Criterion>
+      <Criterion>`docs/releases/0.4.1.md` accurately summarizes only completed changes reachable from the exact base.</Criterion>
+      <Criterion>GRACE final and every mandatory exact-head project check succeed, including unit/browser, database, release gate, full offline Debian 12, systemd, offline LLM/GGUF and Project Control.</Criterion>
+      <Criterion>The release PR is squash-merged only from its unchanged verified head and the new exact main passes post-merge CI.</Criterion>
+      <Criterion>GitHub Release v0.4.1 is public, non-prerelease, points to the verified release main commit and contains exactly the required seven assets with valid SHA-256 checksums.</Criterion>
+      <Criterion>The completed change is moved to terminal `applied` state by a separate archive-only PR after publication verification.</Criterion>
+    </AcceptanceCriteria>
+    <AffectedAreas><M-CI-GATE /><M-OFFLINE-BUNDLE /></AffectedAreas>
+    <VerificationIntent>
+      <ExpectedCommand>npm run check</ExpectedCommand>
+      <ExpectedCommand>npm run docs:check</ExpectedCommand>
+      <ExpectedCommand>node --test tests/release-recovery-workflow.test.mjs tests/release-assets-contract.test.mjs</ExpectedCommand>
+      <ExpectedCommand>npm test</ExpectedCommand>
+      <ExpectedEvidence>The unchanged release head contains only version, release documentation/workflow/test changes plus the approved GRACE bundle; GitHub then proves exact-head CI and published v0.4.1 assets.</ExpectedEvidence>
+    </VerificationIntent>
+  </C-RELEASE-0-4-1-280>
+</GraceChangeSpec>
