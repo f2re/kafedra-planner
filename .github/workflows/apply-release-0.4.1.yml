@@ -23,6 +23,8 @@ jobs:
           set -Eeuo pipefail
           SOURCE_REF=f6ec17cd88ab2ec5aaea7548da871fb5588b30a4
           git cat-file -e "${SOURCE_REF}:.github/workflows/apply-release-0.4.1.yml"
+          test ! -e tests/release-workflow.test.mjs
+          cp tests/release-recovery-workflow.test.mjs tests/release-workflow.test.mjs
           python3 - "$SOURCE_REF" <<'PY'
           from pathlib import Path
           import subprocess
