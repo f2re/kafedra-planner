@@ -1,0 +1,49 @@
+<GraceChangeSpec graceVersion="4.0" status="approved">
+  <C-RELEASE-0-4-1-280>
+    <Summary>Prepare, publish and independently verify Kafedra Planner 0.4.1 from the completed changes reachable from the clean exact main.</Summary>
+    <Problem>The completed document-runtime, calendar-fixture and desktop plan-lifecycle changes are present in main, but product version markers, release gates, publisher contract, release documentation and release regression evidence still describe 0.4.0. Without one governed release change, GitHub cannot publish an immutable and auditable 0.4.1 bundle.</Problem>
+    <Goals>
+      <Goal>Synchronize VERSION, package metadata, operator documentation, release candidate documentation, release gate and publisher on 0.4.1.</Goal>
+      <Goal>Publish only completed functionality already reachable from the exact clean main, without importing stale or unmerged branches.</Goal>
+      <Goal>Retain SQLite schema 31 and all immutable source, document_version, blob, evidence and migration contracts.</Goal>
+      <Goal>Require exact-head project CI, post-merge CI and an independently verified GitHub Release with the full offline and Project Control assets.</Goal>
+      <Goal>Finish with a separate terminal archive-only transition and close issue 280 only after release verification.</Goal>
+    </Goals>
+    <Constraints>
+      <Constraint>The exact base is the immutable main commit captured when branch release/0.4.1-280-final was created after terminal archive of C-DUMMY-PROBE-CLEANUP-293; GitHub PR base SHA is authoritative evidence.</Constraint>
+      <Constraint>No production domain logic, SQLite schema or migration is changed by this release-only change.</Constraint>
+      <Constraint>Release v0.4.0, its tag and assets remain immutable and are never replaced or moved.</Constraint>
+      <Constraint>Docker, CDN, mandatory Internet, cloud services and mandatory LLM dependencies are not introduced.</Constraint>
+      <Constraint>The full-airgap-v2 and additive-only-v2 installation, backup, restore, rollback, systemd, offline LLM and Project Control contracts remain mandatory.</Constraint>
+      <Constraint>The release branch and pull request must use one unchanged exact head for final GRACE and complete project CI.</Constraint>
+    </Constraints>
+    <NonGoals>
+      <NonGoal>Add mobile plan navigation, bottom sheets, gestures or mobile-only lifecycle modes.</NonGoal>
+      <NonGoal>Implement issue 254 or any other future interface redesign.</NonGoal>
+      <NonGoal>Change the database schema, edit an applied migration or reset an existing installation.</NonGoal>
+      <NonGoal>Import code from stale release branches or connector probe branches.</NonGoal>
+      <NonGoal>Declare stable Astra acceptance; target acceptance issue 27 remains independent.</NonGoal>
+    </NonGoals>
+    <AcceptanceCriteria>
+      <Criterion>VERSION, package.json and both root package-lock.json version markers equal 0.4.1.</Criterion>
+      <Criterion>README RU/EN, ROADMAP, UX_FLOWS, VALIDATION, RELEASE_CANDIDATE and TARGET_ACCEPTANCE consistently identify 0.4.1 with schema 31 and accurately describe the completed patch scope.</Criterion>
+      <Criterion>Release gate and publisher use the exact workflow name Release gate 0.4.1; regression tests reject stale 0.4.0 release wiring.</Criterion>
+      <Criterion>Release notes docs/releases/0.4.1.md describe Unicode-safe document names, strict OCR/offline validation and repair, classified Docomator errors, deterministic calendar fixtures and the desktop Current/Archive plans segment.</Criterion>
+      <Criterion>GRACE final and all mandatory project checks succeed on one exact PR head, including browser, Node 24/25, database, organization, science, release, full offline Debian/systemd/LLM and Project Control.</Criterion>
+      <Criterion>The exact release PR head is squash-merged and the resulting main commit passes complete post-merge CI.</Criterion>
+      <Criterion>Tag v0.4.1 points to the verified release commit; the GitHub Release is neither draft nor prerelease and contains exactly the seven required uploaded assets.</Criterion>
+      <Criterion>SHA256SUMS, standalone digests, embedded VERSION, installer and Project Control metadata are independently verified after publication.</Criterion>
+      <Criterion>A separate archive-only PR records C-RELEASE-0-4-1-280 as applied and issue 280 closes only after its post-merge verification.</Criterion>
+    </AcceptanceCriteria>
+    <AffectedAreas><M-CI-GATE /><M-OFFLINE-BUNDLE /></AffectedAreas>
+    <VerificationIntent>
+      <ExpectedCommand>npm run check</ExpectedCommand>
+      <ExpectedCommand>npm run docs:check</ExpectedCommand>
+      <ExpectedCommand>npm test</ExpectedCommand>
+      <ExpectedCommand>npm run smoke</ExpectedCommand>
+      <ExpectedCommand>node --test tests/release-workflow.test.mjs tests/release-assets-contract.test.mjs tests/release-0.4.1.test.mjs</ExpectedCommand>
+      <ExpectedCommand>bash -n scripts/offline/*.sh deploy/install.sh</ExpectedCommand>
+      <ExpectedEvidence>One exact-head release PR, green post-merge main, immutable v0.4.1 tag and seven digest-verified release assets.</ExpectedEvidence>
+    </VerificationIntent>
+  </C-RELEASE-0-4-1-280>
+</GraceChangeSpec>
