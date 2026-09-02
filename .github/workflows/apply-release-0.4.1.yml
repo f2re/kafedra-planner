@@ -53,6 +53,7 @@ jobs:
           PY
           rm -rf "$SRC"
           git checkout "$MAIN_SHA" -- .github/workflows/apply-release-0.4.1.yml
+          git add -A
           python3 - <<'PY'
           import subprocess
 
@@ -65,15 +66,14 @@ jobs:
               '.grace/changes/archive/C-RELEASE-0-4-1-280/spec.xml',
           }
           actual = set(filter(None, subprocess.check_output(
-              ['git', 'diff', '--name-only', 'f6ec17cd88ab2ec5aaea7548da871fb5588b30a4'],
+              ['git', 'diff', '--cached', '--name-only', 'f6ec17cd88ab2ec5aaea7548da871fb5588b30a4'],
               text=True,
           ).splitlines()))
           if actual != expected:
               raise SystemExit(f'archive-only diff mismatch: {sorted(actual)}')
           PY
-          git diff --check
+          git diff --cached --check
           git config user.name 'github-actions[bot]'
           git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
-          git add -A
           git commit -m 'GRACE: supersede broken release 0.4.1 change'
           git push origin HEAD:"$BRANCH"
