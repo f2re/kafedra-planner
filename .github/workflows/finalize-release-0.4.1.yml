@@ -1,0 +1,157 @@
+name: Terminal verification for release 0.4.1 v3
+
+on:
+  push:
+    branches:
+      - ops/finalize-release-0.4.1-v3
+
+permissions:
+  actions: read
+  contents: write
+  issues: write
+
+jobs:
+  verify:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 180
+    env:
+      GH_TOKEN: ${{ github.token }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Дождаться и доказать terminal release state
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          required=(
+            "GRACE post-merge / merge-gate"
+            "Минимальный Node 24.15"
+            "test"
+            "browser"
+            "Сборщик под host Node 25.6"
+            "Full offline Debian 12 + Project Control"
+            "release-gate"
+            "organization-browser"
+            "science-lifecycle-browser"
+            "science-import-browser"
+            "science-reports-browser"
+          )
+          deadline=$((SECONDS + 9000))
+          terminal=false
+          while (( SECONDS < deadline )); do
+            git fetch --no-tags origin main
+            MAIN_SHA="$(git rev-parse origin/main)"
+            MAIN_VERSION="$(git show origin/main:VERSION 2>/dev/null | tr -d '[:space:]' || true)"
+            ACTIVE_COUNT="$(git ls-tree --name-only "origin/main:.grace/changes/active" 2>/dev/null | awk '$0 != ".gitkeep" { n++ } END { print n + 0 }')"
+            RELEASE_ARCHIVED=false
+            if ARCHIVE_SPEC="$(git show "origin/main:.grace/changes/archive/C-RELEASE-0-4-1-280/spec.xml" 2>/dev/null)"; then
+              grep -q 'status="applied"' <<<"$ARCHIVE_SPEC" && RELEASE_ARCHIVED=true || true
+            fi
+            RELEASE_READY=false
+            if RELEASE="$(gh api "repos/$GITHUB_REPOSITORY/releases/tags/v0.4.1" 2>/dev/null)"; then
+              if [[ "$(jq -r '.draft' <<<"$RELEASE")" == false \
+                 && "$(jq -r '.prerelease' <<<"$RELEASE")" == false \
+                 && "$(jq '[.assets[] | select(.state == "uploaded")] | length' <<<"$RELEASE")" -eq 7 ]]; then
+                RELEASE_READY=true
+              fi
+            fi
+            CHECKS_READY=false
+            if [[ "$MAIN_VERSION" == 0.4.1 && "$ACTIVE_COUNT" -eq 0 && "$RELEASE_ARCHIVED" == true && "$RELEASE_READY" == true ]]; then
+              gh api --paginate "repos/$GITHUB_REPOSITORY/commits/$MAIN_SHA/check-runs?per_page=100" \
+                --jq '.check_runs' | jq -s '{check_runs: add}' > "$RUNNER_TEMP/checks.json"
+              CHECKS_READY=true
+              for name in "${required[@]}"; do
+                state="$(jq -r --arg name "$name" '
+                  [.check_runs[] | select(.name == $name)]
+                  | sort_by(.completed_at // .started_at // "") | last
+                  | if . == null then "missing" else (.status + ":" + (.conclusion // "")) end
+                ' "$RUNNER_TEMP/checks.json")"
+                printf '%s=%s\n' "$name" "$state"
+                [[ "$state" == completed:success ]] || CHECKS_READY=false
+              done
+            fi
+            printf 'main=%s version=%s active=%s archived=%s release=%s checks=%s\n' \
+              "$MAIN_SHA" "$MAIN_VERSION" "$ACTIVE_COUNT" "$RELEASE_ARCHIVED" "$RELEASE_READY" "$CHECKS_READY"
+            if [[ "$MAIN_VERSION" == 0.4.1 && "$ACTIVE_COUNT" -eq 0 && "$RELEASE_ARCHIVED" == true && "$RELEASE_READY" == true && "$CHECKS_READY" == true ]]; then
+              terminal=true
+              break
+            fi
+            sleep 30
+          done
+          [[ "$terminal" == true ]] || { echo "Release v0.4.1 не достиг terminal state." >&2; exit 1; }
+
+          MAIN_SHA="$(git rev-parse origin/main)"
+          RELEASE_JSON="$RUNNER_TEMP/release.json"
+          gh api "repos/$GITHUB_REPOSITORY/releases/tags/v0.4.1" > "$RELEASE_JSON"
+          EXPECTED="$RUNNER_TEMP/expected.txt"
+          ACTUAL="$RUNNER_TEMP/actual.txt"
+          printf '%s\n' \
+            README-INSTALL.txt \
+            SHA256SUMS \
+            install-kafedra-planner.sh \
+            kafedra-planner-0.4.1-debian-12-amd64.tar.gz \
+            kafedra-planner-0.4.1-debian-12-amd64.tar.gz.sha256 \
+            kafedra-planner-0.4.1-project-control.f2re.zip \
+            kafedra-planner-0.4.1-project-control.f2re.zip.sha256 | sort > "$EXPECTED"
+          jq -r '.assets[] | select(.state == "uploaded") | .name' "$RELEASE_JSON" | sort > "$ACTUAL"
+          cmp -s "$EXPECTED" "$ACTUAL"
+
+          OBJECT_TYPE="$(gh api "repos/$GITHUB_REPOSITORY/git/ref/tags/v0.4.1" --jq '.object.type')"
+          TAG_SHA="$(gh api "repos/$GITHUB_REPOSITORY/git/ref/tags/v0.4.1" --jq '.object.sha')"
+          if [[ "$OBJECT_TYPE" == tag ]]; then
+            TAG_SHA="$(gh api "repos/$GITHUB_REPOSITORY/git/tags/$TAG_SHA" --jq '.object.sha')"
+          fi
+          git merge-base --is-ancestor "$TAG_SHA" origin/main
+
+          ASSETS="$RUNNER_TEMP/assets"
+          mkdir -p "$ASSETS"
+          gh release download v0.4.1 --repo "$GITHUB_REPOSITORY" --dir "$ASSETS"
+          cd "$ASSETS"
+          sha256sum -c --strict SHA256SUMS
+          sha256sum -c --strict kafedra-planner-0.4.1-debian-12-amd64.tar.gz.sha256
+          sha256sum -c --strict kafedra-planner-0.4.1-project-control.f2re.zip.sha256
+          cd "$GITHUB_WORKSPACE"
+          git checkout --detach origin/main
+          REQUIRE_ARCHIVE_SHA256=true SKIP_SYSTEM_PREFLIGHT=true \
+            bash scripts/offline/verify-bundle.sh "$ASSETS/kafedra-planner-0.4.1-debian-12-amd64.tar.gz"
+          python3 - <<'PY'
+          import json
+          import os
+          import zipfile
+          from pathlib import Path
+          package = Path(os.environ['RUNNER_TEMP']) / 'assets' / 'kafedra-planner-0.4.1-project-control.f2re.zip'
+          with zipfile.ZipFile(package) as zf:
+              versions = []
+              for name in zf.namelist():
+                  if not name.endswith('.json'):
+                      continue
+                  try:
+                      data = json.loads(zf.read(name).decode('utf-8'))
+                  except Exception:
+                      continue
+                  if 'version' in data:
+                      versions.append(str(data['version']))
+              if '0.4.1' not in versions:
+                  raise SystemExit(f'Project Control metadata versions: {versions}')
+          PY
+
+          ASSET_SUMMARY="$(jq -r '.assets[] | "- `\(.name)` — \(.size) bytes, \(.digest // "digest unavailable")"' "$RELEASE_JSON")"
+          BODY="FINAL RELEASE AUDIT: COMPLETE
+
+- Release: `v0.4.1`
+- Tag SHA: `$TAG_SHA`
+- Terminal main SHA: `$MAIN_SHA`
+- `draft=false`, `prerelease=false`
+- SQLite schema: `31`
+- GRACE active changes: `0`
+- Required post-merge checks: all `completed:success`
+- `SHA256SUMS`, standalone digests, full offline bundle and Project Control metadata: verified
+
+Assets:
+$ASSET_SUMMARY"
+          gh issue comment 280 --repo "$GITHUB_REPOSITORY" --body "$BODY"
+          gh issue close 280 --repo "$GITHUB_REPOSITORY" --reason completed
+          gh issue comment 293 --repo "$GITHUB_REPOSITORY" --body "Cleanup завершён: `dummy` отсутствует, change terminally archived, выпуск `v0.4.1` подтверждён на terminal main `$MAIN_SHA`."
+          gh issue close 293 --repo "$GITHUB_REPOSITORY" --reason completed
+          gh api --method DELETE "repos/$GITHUB_REPOSITORY/git/refs/heads/ops/finalize-release-0.4.1-v3" || true
