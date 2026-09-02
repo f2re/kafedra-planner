@@ -1,0 +1,49 @@
+name: Terminal archive C-DUMMY-PROBE-CLEANUP-293
+
+on:
+  push:
+    branches:
+      - grace/archive-dummy-probe-293-auto
+
+permissions:
+  contents: write
+
+jobs:
+  archive:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Перенести approved change в terminal archive
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          CHANGE=C-DUMMY-PROBE-CLEANUP-293
+          ACTIVE=".grace/changes/active/$CHANGE"
+          ARCHIVE=".grace/changes/archive/$CHANGE"
+          test -f "$ACTIVE/spec.xml"
+          test -f "$ACTIVE/plan.xml"
+          test ! -e dummy
+          test ! -e "$ARCHIVE"
+          mkdir -p "$ARCHIVE"
+          cp "$ACTIVE/spec.xml" "$ARCHIVE/spec.xml"
+          cp "$ACTIVE/plan.xml" "$ARCHIVE/plan.xml"
+          python3 - <<'PY'
+          from pathlib import Path
+          for name in ("spec.xml", "plan.xml"):
+              path = Path(".grace/changes/archive/C-DUMMY-PROBE-CLEANUP-293") / name
+              text = path.read_text(encoding="utf-8")
+              old = 'status="approved"'
+              if text.count(old) != 1:
+                  raise SystemExit(f"{path}: expected exactly one approved status")
+              path.write_text(text.replace(old, 'status="applied"', 1), encoding="utf-8")
+          PY
+          rm -rf "$ACTIVE"
+          rm -- .github/workflows/archive-dummy-probe-293-auto.yml
+          test "$(git status --short | wc -l)" -eq 5
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -A
+          git commit -m "GRACE: архивировать cleanup dummy probe 293"
+          git push origin HEAD:grace/archive-dummy-probe-293-auto
