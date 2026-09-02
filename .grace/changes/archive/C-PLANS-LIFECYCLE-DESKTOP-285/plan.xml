@@ -1,4 +1,4 @@
-<GraceChangePlan graceVersion="4.0" status="approved">
+<GraceChangePlan graceVersion="4.0" status="applied">
   <C-PLANS-LIFECYCLE-DESKTOP-285>
     <IntentSummary>Deliver one desktop-only vertical that promotes the existing active/archive plan list state from a dropdown to a persistent segmented control.</IntentSummary>
     <BaselineAssertions>
