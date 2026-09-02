@@ -1,0 +1,119 @@
+<GraceChangePlan graceVersion="4.0" status="approved">
+  <C-RELEASE-0-4-1-280>
+    <IntentSummary>Synchronize and publish release 0.4.1 from the clean exact main without changing runtime behavior, schema 31 or immutable historical evidence.</IntentSummary>
+    <BaselineAssertions>
+      <MustExist><Value>VERSION</Value></MustExist>
+      <MustContain><File>VERSION</File><Text>0.4.0</Text></MustContain>
+      <MustContain><File>package.json</File><Text>"version": "0.4.0"</Text></MustContain>
+      <MustContain><File>.github/workflows/release-gate.yml</File><Text>Release gate 0.4.0</Text></MustContain>
+      <MustContain><File>.github/workflows/release.yml</File><Text>Release gate 0.4.0</Text></MustContain>
+      <MustVerify><Module>M-CI-GATE</Module></MustVerify>
+      <MustVerify><Module>M-OFFLINE-BUNDLE</Module></MustVerify>
+      <MustPassCommand><Command>test ! -e dummy</Command></MustPassCommand>
+      <MustPassCommand><Command>test "$(find .grace/changes/active -mindepth 1 -maxdepth 1 ! -name .gitkeep | wc -l)" -eq 1</Command></MustPassCommand>
+      <MustPassCommand><Command>npm run check</Command></MustPassCommand>
+      <MustPassCommand><Command>npm run docs:check</Command></MustPassCommand>
+    </BaselineAssertions>
+    <TargetAssertions>
+      <MustExist><Value>VERSION</Value></MustExist>
+      <MustExist><Value>docs/releases/0.4.1.md</Value></MustExist>
+      <MustExist><Value>tests/release-0.4.1.test.mjs</Value></MustExist>
+      <MustContain><File>VERSION</File><Text>0.4.1</Text></MustContain>
+      <MustContain><File>package.json</File><Text>"version": "0.4.1"</Text></MustContain>
+      <MustContain><File>package-lock.json</File><Text>"version": "0.4.1"</Text></MustContain>
+      <MustContain><File>.github/workflows/release-gate.yml</File><Text>Release gate 0.4.1</Text></MustContain>
+      <MustContain><File>.github/workflows/release.yml</File><Text>Release gate 0.4.1</Text></MustContain>
+      <MustContain><File>README.md</File><Text>0.4.1</Text></MustContain>
+      <MustContain><File>README.en.md</File><Text>0.4.1</Text></MustContain>
+      <MustContain><File>docs/ROADMAP.md</File><Text>0.4.1</Text></MustContain>
+      <MustContain><File>docs/UX_FLOWS.md</File><Text>Текущие</Text></MustContain>
+      <MustContain><File>docs/UX_FLOWS.md</File><Text>Архив</Text></MustContain>
+      <MustContain><File>docs/VALIDATION.md</File><Text>0.4.1</Text></MustContain>
+      <MustContain><File>docs/RELEASE_CANDIDATE.md</File><Text>0.4.1</Text></MustContain>
+      <MustVerify><Module>M-CI-GATE</Module></MustVerify>
+      <MustVerify><Module>M-OFFLINE-BUNDLE</Module></MustVerify>
+      <MustPassCommand><Command>npm run check</Command></MustPassCommand>
+      <MustPassCommand><Command>npm run docs:check</Command></MustPassCommand>
+      <MustPassCommand><Command>npm test</Command></MustPassCommand>
+      <MustPassCommand><Command>npm run smoke</Command></MustPassCommand>
+      <MustPassCommand><Command>node --test tests/release-workflow.test.mjs tests/release-assets-contract.test.mjs tests/release-0.4.1.test.mjs</Command></MustPassCommand>
+      <MustPassCommand><Command>bash -n scripts/offline/*.sh deploy/install.sh</Command></MustPassCommand>
+    </TargetAssertions>
+    <DurableScope>
+      <GraphAnchors><M-CI-GATE /><M-OFFLINE-BUNDLE /><DF-GRACE-BRANCH /></GraphAnchors>
+      <VerificationAnchors><V-M-CI-GATE /><V-M-OFFLINE-BUNDLE /></VerificationAnchors>
+      <ContextArtifacts><ContextArtifact>principles.xml</ContextArtifact><ContextArtifact>technology.xml</ContextArtifact></ContextArtifacts>
+    </DurableScope>
+    <ObservedWriteScope>
+      <Glob>.grace/changes/active/C-RELEASE-0-4-1-280/**</Glob>
+      <File>VERSION</File>
+      <File>package.json</File>
+      <File>package-lock.json</File>
+      <File>README.md</File>
+      <File>README.en.md</File>
+      <File>docs/ROADMAP.md</File>
+      <File>docs/UX_FLOWS.md</File>
+      <File>docs/VALIDATION.md</File>
+      <File>docs/RELEASE_CANDIDATE.md</File>
+      <File>docs/TARGET_ACCEPTANCE.md</File>
+      <File>docs/releases/0.4.1.md</File>
+      <File>.github/workflows/release-gate.yml</File>
+      <File>.github/workflows/release.yml</File>
+      <File>.github/workflows/apply-release-0.4.1.yml</File>
+      <File>tests/release-workflow.test.mjs</File>
+      <File>tests/release-assets-contract.test.mjs</File>
+      <File>tests/release-0.4.1.test.mjs</File>
+    </ObservedWriteScope>
+    <ImplementationPlan>
+      <T-001>
+        <Title>kafedra-release: confirm the exact clean release base</Title>
+        <DependsOn></DependsOn>
+        <AcceptanceCriteria>
+          <Criterion>The branch is based on the post-archive main and contains no active change other than C-RELEASE-0-4-1-280.</Criterion>
+          <Criterion>The accidental dummy probe and stale release branch artifacts are absent.</Criterion>
+          <Criterion>VERSION is 0.4.0 and SQLite schema remains 31 before the release write.</Criterion>
+        </AcceptanceCriteria>
+        <Verification><Command>test ! -e dummy</Command><Command>npm run check</Command><Command>npm run docs:check</Command></Verification>
+      </T-001>
+      <T-002>
+        <Title>kafedra-release: synchronize 0.4.1 version and publication contracts</Title>
+        <DependsOn><T-001 /></DependsOn>
+        <AcceptanceCriteria>
+          <Criterion>VERSION, package metadata, lockfile, release gate and publisher agree on 0.4.1.</Criterion>
+          <Criterion>The publisher still creates a draft first, validates seven assets and exact tag SHA, and only then publishes a non-prerelease release.</Criterion>
+          <Criterion>Release v0.4.0 is not modified.</Criterion>
+        </AcceptanceCriteria>
+        <Verification><Command>node --test tests/release-workflow.test.mjs tests/release-assets-contract.test.mjs tests/release-0.4.1.test.mjs</Command></Verification>
+      </T-002>
+      <T-003>
+        <Title>kafedra-release: document the exact patch scope and operator path</Title>
+        <DependsOn><T-002 /></DependsOn>
+        <AcceptanceCriteria>
+          <Criterion>RU/EN entry points and release documents identify 0.4.1, schema 31 and only completed functionality.</Criterion>
+          <Criterion>The desktop plans segment, mobile compatibility behavior, document-runtime reliability and offline repair are described without claiming issue 254 or stable target acceptance.</Criterion>
+          <Criterion>Release notes list installation and verification assets.</Criterion>
+        </AcceptanceCriteria>
+        <Verification><Command>npm run docs:check</Command></Verification>
+      </T-003>
+      <T-004>
+        <Title>kafedra-tests: prove exact-head release readiness</Title>
+        <DependsOn><T-003 /></DependsOn>
+        <AcceptanceCriteria>
+          <Criterion>GRACE final, check, docs, unit, smoke, browser, database, organization, science, release, full offline, systemd, LLM and Project Control checks succeed on one unchanged head.</Criterion>
+          <Criterion>No pending, failure, cancelled, missing or unexpected skipped required check is accepted.</Criterion>
+        </AcceptanceCriteria>
+        <Verification><Command>npm run check</Command><Command>npm run docs:check</Command><Command>npm test</Command><Command>npm run smoke</Command></Verification>
+      </T-004>
+      <T-005>
+        <Title>kafedra-release: merge, publish, verify and terminally archive</Title>
+        <DependsOn><T-004 /></DependsOn>
+        <AcceptanceCriteria>
+          <Criterion>The unchanged release head is squash-merged and post-merge CI succeeds.</Criterion>
+          <Criterion>v0.4.1 is published with the exact tag and seven independently verified assets.</Criterion>
+          <Criterion>A separate archive-only PR records applied state before issue 280 closes.</Criterion>
+        </AcceptanceCriteria>
+        <Verification><Command>npm run check</Command></Verification>
+      </T-005>
+    </ImplementationPlan>
+  </C-RELEASE-0-4-1-280>
+</GraceChangePlan>
