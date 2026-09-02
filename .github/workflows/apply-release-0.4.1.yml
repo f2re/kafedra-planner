@@ -1,4 +1,4 @@
-name: Apply release 0.4.1 recovery
+name: Supersede release 0.4.1 change
 
 on:
   push:
@@ -9,61 +9,71 @@ permissions:
   contents: write
 
 jobs:
-  apply:
+  supersede:
     if: github.actor != 'github-actions[bot]'
     runs-on: ubuntu-24.04
-    timeout-minutes: 90
+    timeout-minutes: 15
     steps:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
-      - name: Выполнить утверждённую подготовку выпуска
+      - name: Сформировать terminal superseded archive
         shell: bash
         run: |
           set -Eeuo pipefail
-          SOURCE_REF=f6ec17cd88ab2ec5aaea7548da871fb5588b30a4
-          git cat-file -e "${SOURCE_REF}:.github/workflows/apply-release-0.4.1.yml"
-          test ! -e tests/release-workflow.test.mjs
-          cp tests/release-recovery-workflow.test.mjs tests/release-workflow.test.mjs
-          python3 - "$SOURCE_REF" <<'PY'
+          MAIN_SHA=f6ec17cd88ab2ec5aaea7548da871fb5588b30a4
+          BRANCH=release/0.4.1-280-recovery
+          CHANGE=C-RELEASE-0-4-1-280
+          git fetch --no-tags origin main:refs/remotes/origin/main
+          test "$(git rev-parse origin/main)" = "$MAIN_SHA"
+          SRC=".grace/changes/active/$CHANGE"
+          DST=".grace/changes/archive/$CHANGE"
+          test -f "$SRC/spec.xml"
+          test -f "$SRC/plan.xml"
+          test -f "$SRC/release-audit.md"
+          test ! -e "$DST"
+          mkdir -p "$DST"
+          python3 - "$SRC" "$DST" <<'PY'
           from pathlib import Path
-          import subprocess
+          import shutil
           import sys
 
-          source_ref = sys.argv[1]
-          source = subprocess.check_output(
-              ["git", "show", f"{source_ref}:.github/workflows/apply-release-0.4.1.yml"],
-              text=True,
-          )
-          marker = "        run: |\n"
-          if source.count(marker) != 1:
-              raise SystemExit("approved preparation workflow must contain exactly one run block")
-          raw = source.split(marker, 1)[1]
-          body = "\n".join(
-              line[10:] if line.startswith("          ") else line
-              for line in raw.splitlines()
-          ) + "\n"
-
-          old_push = "git push origin HEAD:release/0.4.1-280-final"
-          new_push = "git push origin HEAD:release/0.4.1-280-recovery"
-          if body.count(old_push) != 1:
-              raise SystemExit("approved preparation push target was not found exactly once")
-          body = body.replace(old_push, new_push, 1)
-
-          needle = 'git config user.name "github-actions[bot]"'
-          if body.count(needle) != 1:
-              raise SystemExit("commit configuration marker was not found exactly once")
-          verification = """python3 -c \"from pathlib import Path; p=Path('tests/release-workflow.test.mjs'); s=p.read_text(encoding='utf-8'); b=chr(92); old='0'+b+'.4'+b+'.0'; new='0'+b+'.4'+b+'.1'; assert old in s; p.write_text(s.replace(old,new),encoding='utf-8')\"
-          npm ci --ignore-scripts --no-audit --no-fund
-          npm run check
-          npm run docs:check
-          node --test tests/release-workflow.test.mjs tests/release-assets-contract.test.mjs tests/release-0.4.1.test.mjs
-          npm test
-          npm run smoke
-          bash -n scripts/offline/*.sh deploy/install.sh
-          git diff --check
-          """
-          body = body.replace(needle, verification + needle, 1)
-          Path("/tmp/apply-release-0.4.1.sh").write_text(body, encoding="utf-8")
+          src = Path(sys.argv[1])
+          dst = Path(sys.argv[2])
+          for name in ('spec.xml', 'plan.xml'):
+              raw = (src / name).read_bytes()
+              old = b'status="approved"'
+              new = b'status="superseded"'
+              if raw.count(old) != 1:
+                  raise SystemExit(f'{name}: expected exactly one approved root status')
+              (dst / name).write_bytes(raw.replace(old, new, 1))
+          shutil.copyfile(src / 'release-audit.md', dst / 'release-audit.md')
+          if (src / 'release-audit.md').read_bytes() != (dst / 'release-audit.md').read_bytes():
+              raise SystemExit('release-audit.md byte drift')
           PY
-          bash /tmp/apply-release-0.4.1.sh
+          rm -rf "$SRC"
+          git checkout "$MAIN_SHA" -- .github/workflows/apply-release-0.4.1.yml
+          python3 - <<'PY'
+          import subprocess
+
+          expected = {
+              '.grace/changes/active/C-RELEASE-0-4-1-280/plan.xml',
+              '.grace/changes/active/C-RELEASE-0-4-1-280/release-audit.md',
+              '.grace/changes/active/C-RELEASE-0-4-1-280/spec.xml',
+              '.grace/changes/archive/C-RELEASE-0-4-1-280/plan.xml',
+              '.grace/changes/archive/C-RELEASE-0-4-1-280/release-audit.md',
+              '.grace/changes/archive/C-RELEASE-0-4-1-280/spec.xml',
+          }
+          actual = set(filter(None, subprocess.check_output(
+              ['git', 'diff', '--name-only', 'f6ec17cd88ab2ec5aaea7548da871fb5588b30a4'],
+              text=True,
+          ).splitlines()))
+          if actual != expected:
+              raise SystemExit(f'archive-only diff mismatch: {sorted(actual)}')
+          PY
+          git diff --check
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add -A
+          git commit -m 'GRACE: supersede broken release 0.4.1 change'
+          git push origin HEAD:"$BRANCH"
