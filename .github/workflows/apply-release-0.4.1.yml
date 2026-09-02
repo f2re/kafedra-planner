@@ -21,23 +21,27 @@ jobs:
         shell: bash
         run: |
           set -Eeuo pipefail
-          PARENT="${GITHUB_SHA}^"
-          git cat-file -e "${PARENT}:.github/workflows/apply-release-0.4.1.yml"
-          python3 - "$PARENT" <<'PY'
+          SOURCE_REF=f6ec17cd88ab2ec5aaea7548da871fb5588b30a4
+          git cat-file -e "${SOURCE_REF}:.github/workflows/apply-release-0.4.1.yml"
+          python3 - "$SOURCE_REF" <<'PY'
           from pathlib import Path
           import subprocess
           import sys
-          import textwrap
 
-          parent = sys.argv[1]
+          source_ref = sys.argv[1]
           source = subprocess.check_output(
-              ["git", "show", f"{parent}:.github/workflows/apply-release-0.4.1.yml"],
+              ["git", "show", f"{source_ref}:.github/workflows/apply-release-0.4.1.yml"],
               text=True,
           )
           marker = "        run: |\n"
           if source.count(marker) != 1:
               raise SystemExit("approved preparation workflow must contain exactly one run block")
-          body = textwrap.dedent(source.split(marker, 1)[1])
+          raw = source.split(marker, 1)[1]
+          body = "\n".join(
+              line[10:] if line.startswith("          ") else line
+              for line in raw.splitlines()
+          ) + "\n"
+
           old_push = "git push origin HEAD:release/0.4.1-280-final"
           new_push = "git push origin HEAD:release/0.4.1-280-recovery"
           if body.count(old_push) != 1:
