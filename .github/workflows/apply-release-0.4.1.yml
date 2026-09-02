@@ -50,6 +50,12 @@ jobs:
               raise SystemExit("approved preparation push target was not found exactly once")
           body = body.replace(old_push, new_push, 1)
 
+          old_test_update = "write(test_path, source.replace('0.4.0', '0.4.1'))"
+          new_test_update = "write(test_path, source.replace('0.4.0', '0.4.1').replace(r'0\\\\.4\\\\.0', r'0\\\\.4\\\\.1'))"
+          if body.count(old_test_update) != 1:
+              raise SystemExit("release test update marker was not found exactly once")
+          body = body.replace(old_test_update, new_test_update, 1)
+
           needle = 'git config user.name "github-actions[bot]"'
           if body.count(needle) != 1:
               raise SystemExit("commit configuration marker was not found exactly once")
