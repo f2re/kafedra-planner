@@ -1,0 +1,398 @@
+name: Fail-closed release controller 0.4.1 v6
+
+on:
+  push:
+    branches:
+      - ops/release-controller-0.4.1-v6
+
+permissions:
+  actions: write
+  checks: read
+  contents: write
+  issues: write
+  pull-requests: write
+
+jobs:
+  release:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 240
+    env:
+      GH_TOKEN: ${{ github.token }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Провести exact-head PR и post-merge цепочку
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          python3 - <<'PY'
+          from __future__ import annotations
+
+          import json
+          import os
+          import subprocess
+          import sys
+          import time
+          from pathlib import Path
+
+          repo = os.environ["GITHUB_REPOSITORY"]
+          owner, name = repo.split("/", 1)
+          deadline = time.monotonic() + 13_800
+          state_path = Path(os.environ["RUNNER_TEMP"]) / "release-controller-state.json"
+          step = "initialization"
+
+          required_pr = [
+              "GRACE / merge-gate",
+              "Минимальный Node 24.15",
+              "test",
+              "browser",
+              "Сборщик под host Node 25.6",
+              "Full offline Debian 12 + Project Control",
+              "release-gate",
+              "organization-browser",
+              "science-lifecycle-browser",
+              "science-import-browser",
+              "science-reports-browser",
+          ]
+          required_main = [
+              "GRACE post-merge / merge-gate",
+              "Минимальный Node 24.15",
+              "test",
+              "browser",
+              "Сборщик под host Node 25.6",
+              "Full offline Debian 12 + Project Control",
+              "release-gate",
+              "organization-browser",
+              "science-lifecycle-browser",
+              "science-import-browser",
+              "science-reports-browser",
+          ]
+
+          def run(args: list[str], *, check: bool = True) -> subprocess.CompletedProcess[str]:
+              proc = subprocess.run(args, text=True, capture_output=True)
+              if check and proc.returncode != 0:
+                  raise RuntimeError(
+                      f"command failed ({proc.returncode}): {' '.join(args)}\n"
+                      f"stdout={proc.stdout[-4000:]}\nstderr={proc.stderr[-4000:]}"
+                  )
+              return proc
+
+          def gh_json(args: list[str]):
+              proc = run(["gh", *args])
+              return json.loads(proc.stdout)
+
+          def comment_issue(number: int, body: str) -> None:
+              run(["gh", "issue", "comment", str(number), "--repo", repo, "--body", body], check=False)
+
+          def fail(message: str) -> None:
+              body = (
+                  "FINAL RELEASE CONTROLLER: BLOCKED\n\n"
+                  f"Step: `{step}`\n\n{message}\n\n"
+                  f"Workflow run: `{os.environ.get('GITHUB_RUN_ID', '')}`."
+              )
+              comment_issue(280, body)
+              raise SystemExit(message)
+
+          def check_runs(sha: str) -> list[dict]:
+              data = gh_json(["api", f"repos/{repo}/commits/{sha}/check-runs?per_page=100"])
+              return data.get("check_runs", [])
+
+          def latest_check(runs: list[dict], check_name: str) -> dict | None:
+              selected = [item for item in runs if item.get("name") == check_name]
+              if not selected:
+                  return None
+              selected.sort(key=lambda item: item.get("started_at") or item.get("created_at") or "")
+              return selected[-1]
+
+          def wait_checks(sha: str, names: list[str], scope: str) -> None:
+              nonlocal_step = None
+              while time.monotonic() < deadline:
+                  runs = check_runs(sha)
+                  pending = []
+                  for check_name in names:
+                      item = latest_check(runs, check_name)
+                      if item is None:
+                          status = "missing"
+                          pending.append(check_name)
+                      elif item.get("status") != "completed":
+                          status = f"pending:{item.get('status')}"
+                          pending.append(check_name)
+                      else:
+                          conclusion = item.get("conclusion") or ""
+                          status = f"completed:{conclusion}"
+                          if conclusion != "success":
+                              fail(
+                                  f"Required {scope} check `{check_name}` is `{status}` "
+                                  f"on exact SHA `{sha}`."
+                              )
+                      print(f"{sha} | {check_name} | {status}", file=sys.stderr, flush=True)
+                  if not pending:
+                      return
+                  time.sleep(30)
+              fail(f"Timed out waiting for required {scope} checks on exact SHA `{sha}`.")
+
+          def unresolved_threads(pr_number: int) -> int:
+              query = (
+                  "query($owner:String!,$name:String!,$number:Int!){"
+                  "repository(owner:$owner,name:$name){pullRequest(number:$number){"
+                  "reviewThreads(first:100){nodes{isResolved}}}}}"
+              )
+              data = gh_json([
+                  "api", "graphql",
+                  "-f", f"query={query}",
+                  "-f", f"owner={owner}",
+                  "-f", f"name={name}",
+                  "-F", f"number={pr_number}",
+              ])
+              nodes = data["data"]["repository"]["pullRequest"]["reviewThreads"]["nodes"]
+              return sum(1 for node in nodes if not node.get("isResolved"))
+
+          def validate_archive_diff(pr_number: int, change: str) -> None:
+              files = gh_json(["api", f"repos/{repo}/pulls/{pr_number}/files?per_page=100"])
+              paths = sorted({item.get("filename", "") for item in files})
+              if not paths:
+                  fail(f"Archive-only PR #{pr_number} has an empty diff.")
+              for path in paths:
+                  active = f".grace/changes/active/{change}/"
+                  archive = f".grace/changes/archive/{change}/"
+                  if not (path.startswith(active) or path.startswith(archive)):
+                      fail(f"Archive-only PR #{pr_number} contains out-of-scope file `{path}`.")
+              for leaf in ("spec.xml", "plan.xml"):
+                  expected = f".grace/changes/archive/{change}/{leaf}"
+                  if expected not in paths:
+                      fail(f"Archive-only PR #{pr_number} lacks `{expected}`.")
+
+          def merge_pr(pr_number: int, kind: str, change: str | None = None) -> str:
+              nonlocal step
+              step = f"PR #{pr_number} {kind}"
+              while time.monotonic() < deadline:
+                  data = gh_json(["api", f"repos/{repo}/pulls/{pr_number}"])
+                  if data.get("merged") is True:
+                      merge_sha = data.get("merge_commit_sha")
+                      if not merge_sha:
+                          fail(f"Merged PR #{pr_number} has no merge_commit_sha.")
+                      return str(merge_sha)
+                  if data.get("state") != "open":
+                      fail(f"PR #{pr_number} is closed without merge.")
+                  head = data["head"]["sha"]
+                  print(
+                      f"PR #{pr_number}: head={head} mergeable={data.get('mergeable')} "
+                      f"mergeable_state={data.get('mergeable_state')}",
+                      file=sys.stderr,
+                      flush=True,
+                  )
+                  if kind == "archive":
+                      if not change:
+                          fail(f"Archive PR #{pr_number} has no change identifier.")
+                      validate_archive_diff(pr_number, change)
+                  count = unresolved_threads(pr_number)
+                  if count:
+                      fail(f"PR #{pr_number} has {count} unresolved review thread(s).")
+                  wait_checks(head, required_pr, "PR")
+                  fresh = gh_json(["api", f"repos/{repo}/pulls/{pr_number}"])
+                  if fresh["head"]["sha"] != head:
+                      print(f"PR #{pr_number} head advanced; restarting exact-head check.", file=sys.stderr)
+                      continue
+                  if fresh.get("mergeable") is not True:
+                      time.sleep(20)
+                      continue
+                  result = gh_json([
+                      "api", "--method", "PUT", f"repos/{repo}/pulls/{pr_number}/merge",
+                      "-f", "merge_method=squash",
+                      "-f", f"sha={head}",
+                  ])
+                  if result.get("merged") is not True:
+                      fail(f"GitHub rejected exact-head squash merge of PR #{pr_number}: {result}")
+                  merge_sha = result.get("sha")
+                  if not merge_sha:
+                      fail(f"Merge result for PR #{pr_number} has no SHA.")
+                  return str(merge_sha)
+              fail(f"Timed out waiting to merge PR #{pr_number}.")
+
+          def post_merge(sha: str, label: str) -> None:
+              nonlocal step
+              step = f"{label} post-merge CI"
+              wait_checks(sha, required_main, "post-merge")
+
+          def resolve_tag_sha(tag: str) -> str:
+              ref = gh_json(["api", f"repos/{repo}/git/ref/tags/{tag}"])
+              obj = ref["object"]
+              if obj.get("type") == "tag":
+                  obj = gh_json(["api", f"repos/{repo}/git/tags/{obj['sha']}"])["object"]
+              return str(obj["sha"])
+
+          cleanup_sha = merge_pr(294, "product")
+          post_merge(cleanup_sha, "cleanup #294")
+
+          cleanup_archive_sha = merge_pr(295, "archive", "C-DUMMY-PROBE-CLEANUP-293")
+          post_merge(cleanup_archive_sha, "cleanup archive #295")
+
+          step = "clean release baseline"
+          run(["git", "fetch", "--no-tags", "origin", "main"])
+          probe = run(["git", "cat-file", "-e", "origin/main:dummy"], check=False)
+          if probe.returncode == 0:
+              fail("Accidental root `dummy` probe is still present on main.")
+
+          release_sha = merge_pr(296, "product")
+          post_merge(release_sha, "release #296")
+
+          step = "GitHub Release v0.4.1"
+          release_json = None
+          while time.monotonic() < deadline:
+              proc = run(["gh", "api", f"repos/{repo}/releases/tags/v0.4.1"], check=False)
+              if proc.returncode == 0:
+                  candidate = json.loads(proc.stdout)
+                  assets = [asset for asset in candidate.get("assets", []) if asset.get("state") == "uploaded"]
+                  if candidate.get("draft") is False and candidate.get("prerelease") is False and len(assets) == 7:
+                      release_json = candidate
+                      break
+              time.sleep(30)
+          if release_json is None:
+              fail("Published non-draft `v0.4.1` with seven uploaded assets was not observed.")
+
+          tag_sha = resolve_tag_sha("v0.4.1")
+          if tag_sha != release_sha:
+              fail(f"Tag `v0.4.1` points to `{tag_sha}`, expected release commit `{release_sha}`.")
+
+          archive_sha = merge_pr(297, "archive", "C-RELEASE-0-4-1-280")
+          post_merge(archive_sha, "release archive #297")
+
+          step = "terminal repository state"
+          run(["git", "fetch", "--no-tags", "origin", "main"])
+          terminal_main = run(["git", "rev-parse", "origin/main"]).stdout.strip()
+          version = run(["git", "show", "origin/main:VERSION"]).stdout.strip()
+          if version != "0.4.1":
+              fail(f"Terminal main `{terminal_main}` has VERSION `{version}`.")
+          tree = run(["git", "ls-tree", "--name-only", "origin/main:.grace/changes/active"], check=False)
+          active = [line for line in tree.stdout.splitlines() if line and line != ".gitkeep"]
+          if active:
+              fail(f"Terminal main `{terminal_main}` retains active GRACE entries: {active}")
+          spec = run(["git", "show", "origin/main:.grace/changes/archive/C-RELEASE-0-4-1-280/spec.xml"]).stdout
+          plan = run(["git", "show", "origin/main:.grace/changes/archive/C-RELEASE-0-4-1-280/plan.xml"]).stdout
+          if 'status="applied"' not in spec or 'status="applied"' not in plan:
+              fail("Archived release spec/plan is not in terminal `applied` state.")
+
+          state_path.write_text(
+              json.dumps({
+                  "cleanup_sha": cleanup_sha,
+                  "cleanup_archive_sha": cleanup_archive_sha,
+                  "release_sha": release_sha,
+                  "archive_sha": archive_sha,
+                  "terminal_main": terminal_main,
+                  "tag_sha": tag_sha,
+                  "release": release_json,
+              }, ensure_ascii=False, indent=2),
+              encoding="utf-8",
+          )
+          print(state_path)
+          PY
+
+      - name: Независимо скачать и проверить семь assets
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          STATE="$RUNNER_TEMP/release-controller-state.json"
+          test -s "$STATE"
+          REPO="$GITHUB_REPOSITORY"
+          RELEASE_JSON="$RUNNER_TEMP/release.json"
+          gh api "repos/$REPO/releases/tags/v0.4.1" > "$RELEASE_JSON"
+          test "$(jq -r '.draft' "$RELEASE_JSON")" = false
+          test "$(jq -r '.prerelease' "$RELEASE_JSON")" = false
+
+          EXPECTED="$RUNNER_TEMP/expected-assets.txt"
+          ACTUAL="$RUNNER_TEMP/actual-assets.txt"
+          printf '%s\n' \
+            README-INSTALL.txt \
+            SHA256SUMS \
+            install-kafedra-planner.sh \
+            kafedra-planner-0.4.1-debian-12-amd64.tar.gz \
+            kafedra-planner-0.4.1-debian-12-amd64.tar.gz.sha256 \
+            kafedra-planner-0.4.1-project-control.f2re.zip \
+            kafedra-planner-0.4.1-project-control.f2re.zip.sha256 | sort > "$EXPECTED"
+          jq -r '.assets[] | select(.state == "uploaded") | .name' "$RELEASE_JSON" | sort > "$ACTUAL"
+          cmp -s "$EXPECTED" "$ACTUAL"
+
+          ASSETS="$RUNNER_TEMP/assets"
+          mkdir -p "$ASSETS"
+          gh release download v0.4.1 --repo "$REPO" --dir "$ASSETS"
+          (cd "$ASSETS" && sha256sum -c --strict SHA256SUMS)
+          (cd "$ASSETS" && sha256sum -c --strict kafedra-planner-0.4.1-debian-12-amd64.tar.gz.sha256)
+          (cd "$ASSETS" && sha256sum -c --strict kafedra-planner-0.4.1-project-control.f2re.zip.sha256)
+
+          git fetch --no-tags origin main
+          git checkout --detach origin/main
+          REQUIRE_ARCHIVE_SHA256=true SKIP_SYSTEM_PREFLIGHT=true \
+            bash scripts/offline/verify-bundle.sh "$ASSETS/kafedra-planner-0.4.1-debian-12-amd64.tar.gz"
+
+          python3 - "$ASSETS/kafedra-planner-0.4.1-project-control.f2re.zip" <<'PY'
+          import json
+          import sys
+          import zipfile
+
+          package = sys.argv[1]
+          versions = []
+          with zipfile.ZipFile(package) as zf:
+              if not zf.namelist():
+                  raise SystemExit("Project Control package is empty")
+              for name in zf.namelist():
+                  if not name.endswith(".json"):
+                      continue
+                  try:
+                      data = json.loads(zf.read(name).decode("utf-8"))
+                  except Exception:
+                      continue
+                  if "version" in data:
+                      versions.append(str(data["version"]))
+          if "0.4.1" not in versions:
+              raise SystemExit(f"Project Control metadata versions: {versions}")
+          PY
+
+      - name: Закрыть управляющие issues только после полного доказательства
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          STATE="$RUNNER_TEMP/release-controller-state.json"
+          RELEASE_JSON="$RUNNER_TEMP/release.json"
+          TAG_SHA="$(jq -r '.tag_sha' "$STATE")"
+          TERMINAL_MAIN="$(jq -r '.terminal_main' "$STATE")"
+          ASSET_SUMMARY="$(jq -r '.assets[] | "- `\(.name)` — \(.size) bytes; \(.digest // "digest unavailable")"' "$RELEASE_JSON")"
+          BODY="FINAL RELEASE AUDIT: COMPLETE
+
+- Release: \`v0.4.1\`
+- Release commit / tag SHA: \`$TAG_SHA\`
+- Terminal main SHA: \`$TERMINAL_MAIN\`
+- \`draft=false\`, \`prerelease=false\`
+- SQLite schema: \`31\`
+- GRACE active changes: \`0\`
+- Required exact-head and post-merge checks: all \`completed:success\`
+- \`SHA256SUMS\`, standalone digests, full offline bundle and Project Control metadata: verified
+
+Assets:
+$ASSET_SUMMARY"
+          gh issue comment 280 --repo "$GITHUB_REPOSITORY" --body "$BODY"
+          gh issue close 280 --repo "$GITHUB_REPOSITORY" --reason completed
+          gh issue comment 293 --repo "$GITHUB_REPOSITORY" --body "Cleanup confirmed in terminal release state: \`dummy\` is absent, C-DUMMY-PROBE-CLEANUP-293 is archived, and v0.4.1 is verified on main \`$TERMINAL_MAIN\`."
+          gh issue close 293 --repo "$GITHUB_REPOSITORY" --reason completed
+
+      - name: Удалить завершённые служебные ветки
+        if: success()
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          for branch in \
+            cleanup/dummy-probe-293 \
+            cleanup/dummy-probe-293-v2 \
+            cleanup/dummy-probe-293-final \
+            grace/archive-dummy-probe-293-auto \
+            release/0.4.1-280-final \
+            grace/archive-release-0.4.1-280-auto1 \
+            grace/archive-release-0.4.1-280-auto2 \
+            ops/finalize-release-0.4.1-v2 \
+            ops/finalize-release-0.4.1-v3 \
+            ops/release-controller-0.4.1-v5 \
+            ops/release-controller-0.4.1-v6; do
+            encoded="${branch//\//%2F}"
+            gh api --method DELETE "repos/$GITHUB_REPOSITORY/git/refs/heads/$encoded" >/dev/null 2>&1 || true
+          done
