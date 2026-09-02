@@ -1,4 +1,4 @@
-<GraceChangeSpec graceVersion="4.0" status="approved">
+<GraceChangeSpec graceVersion="4.0" status="applied">
   <C-DUMMY-PROBE-CLEANUP-293>
     <Summary>Remove the accidental root `dummy` probe file from exact main before the 0.4.1 release.</Summary>
     <Problem>A connector capability check wrote `dummy` directly to main in commit e6444aa3e5729ab6551676a19c8dbc826c2dd0da. The file has no product purpose and must not enter the release.</Problem>
