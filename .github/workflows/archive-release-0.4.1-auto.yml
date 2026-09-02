@@ -1,0 +1,112 @@
+name: Verify and archive release 0.4.1
+
+on:
+  push:
+    branches:
+      - grace/archive-release-0.4.1-280-auto1
+
+permissions:
+  contents: write
+
+jobs:
+  archive:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 120
+    env:
+      GH_TOKEN: ${{ github.token }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Проверить опубликованный Release и terminal archive
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          VERSION_VALUE="$(tr -d '[:space:]' < VERSION)"
+          test "$VERSION_VALUE" = 0.4.1
+          CHANGE=C-RELEASE-0-4-1-280
+          ACTIVE=".grace/changes/active/$CHANGE"
+          ARCHIVE_DIR=".grace/changes/archive/$CHANGE"
+          test -f "$ACTIVE/spec.xml"
+          test -f "$ACTIVE/plan.xml"
+          test ! -e "$ARCHIVE_DIR"
+
+          RELEASE_JSON="$RUNNER_TEMP/release.json"
+          gh api "repos/$GITHUB_REPOSITORY/releases/tags/v0.4.1" > "$RELEASE_JSON"
+          test "$(jq -r '.draft' "$RELEASE_JSON")" = false
+          test "$(jq -r '.prerelease' "$RELEASE_JSON")" = false
+          test "$(jq '[.assets[] | select(.state == "uploaded")] | length' "$RELEASE_JSON")" -eq 7
+          EXPECTED="$RUNNER_TEMP/expected.txt"
+          ACTUAL="$RUNNER_TEMP/actual.txt"
+          printf '%s\n' \
+            README-INSTALL.txt \
+            SHA256SUMS \
+            install-kafedra-planner.sh \
+            kafedra-planner-0.4.1-debian-12-amd64.tar.gz \
+            kafedra-planner-0.4.1-debian-12-amd64.tar.gz.sha256 \
+            kafedra-planner-0.4.1-project-control.f2re.zip \
+            kafedra-planner-0.4.1-project-control.f2re.zip.sha256 | sort > "$EXPECTED"
+          jq -r '.assets[] | select(.state == "uploaded") | .name' "$RELEASE_JSON" | sort > "$ACTUAL"
+          cmp -s "$EXPECTED" "$ACTUAL"
+
+          OBJECT_TYPE="$(gh api "repos/$GITHUB_REPOSITORY/git/ref/tags/v0.4.1" --jq '.object.type')"
+          OBJECT_SHA="$(gh api "repos/$GITHUB_REPOSITORY/git/ref/tags/v0.4.1" --jq '.object.sha')"
+          if test "$OBJECT_TYPE" = tag; then
+            OBJECT_SHA="$(gh api "repos/$GITHUB_REPOSITORY/git/tags/$OBJECT_SHA" --jq '.object.sha')"
+          fi
+          test "$OBJECT_SHA" = "$(git rev-parse HEAD)"
+
+          ASSETS="$RUNNER_TEMP/assets"
+          mkdir -p "$ASSETS"
+          gh release download v0.4.1 --repo "$GITHUB_REPOSITORY" --dir "$ASSETS"
+          cd "$ASSETS"
+          sha256sum -c --strict SHA256SUMS
+          sha256sum -c --strict kafedra-planner-0.4.1-debian-12-amd64.tar.gz.sha256
+          sha256sum -c --strict kafedra-planner-0.4.1-project-control.f2re.zip.sha256
+          cd "$GITHUB_WORKSPACE"
+          REQUIRE_ARCHIVE_SHA256=true SKIP_SYSTEM_PREFLIGHT=true \
+            bash scripts/offline/verify-bundle.sh "$ASSETS/kafedra-planner-0.4.1-debian-12-amd64.tar.gz"
+          python3 - <<'PY'
+          import json
+          import zipfile
+          from pathlib import Path
+          package = Path(__import__('os').environ['RUNNER_TEMP']) / 'assets' / 'kafedra-planner-0.4.1-project-control.f2re.zip'
+          with zipfile.ZipFile(package) as zf:
+              names = zf.namelist()
+              if not names:
+                  raise SystemExit('Project Control package is empty')
+              json_candidates = [name for name in names if name.endswith('.json')]
+              found_version = False
+              for name in json_candidates:
+                  try:
+                      data = json.loads(zf.read(name).decode('utf-8'))
+                  except Exception:
+                      continue
+                  if str(data.get('version', '')) == '0.4.1':
+                      found_version = True
+                      break
+              if not found_version:
+                  raise SystemExit('Project Control metadata does not identify 0.4.1')
+          PY
+
+          mkdir -p "$ARCHIVE_DIR"
+          cp "$ACTIVE/spec.xml" "$ARCHIVE_DIR/spec.xml"
+          cp "$ACTIVE/plan.xml" "$ARCHIVE_DIR/plan.xml"
+          cp "$ACTIVE/release-audit.md" "$ARCHIVE_DIR/release-audit.md"
+          python3 - <<'PY'
+          from pathlib import Path
+          root = Path('.grace/changes/archive/C-RELEASE-0-4-1-280')
+          for name in ('spec.xml', 'plan.xml'):
+              path = root / name
+              text = path.read_text(encoding='utf-8')
+              if text.count('status="approved"') != 1:
+                  raise SystemExit(f'{path}: approved root status mismatch')
+              path.write_text(text.replace('status="approved"', 'status="applied"', 1), encoding='utf-8')
+          PY
+          rm -rf "$ACTIVE"
+          rm -- .github/workflows/archive-release-0.4.1-auto.yml
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -A
+          git commit -m "GRACE: архивировать выпуск 0.4.1"
+          git push origin HEAD:grace/archive-release-0.4.1-280-auto1
