@@ -1,0 +1,36 @@
+<GraceChangeSpec graceVersion="4.0" status="approved">
+  <C-DUMMY-PROBE-CLEANUP-293>
+    <Summary>Remove the accidental root `dummy` probe file from exact main before the 0.4.1 release.</Summary>
+    <Problem>A connector capability check wrote `dummy` directly to main in commit e6444aa3e5729ab6551676a19c8dbc826c2dd0da. The file has no product purpose and must not enter the release.</Problem>
+    <Goals>
+      <Goal>Delete exactly the accidental `dummy` file through the normal governed pull-request lifecycle.</Goal>
+      <Goal>Preserve Git history, application behavior, release version, database schema and all durable data.</Goal>
+      <Goal>Restore a clean release baseline before continuing issue 280.</Goal>
+    </Goals>
+    <Constraints>
+      <Constraint>The exact base is main `e6444aa3e5729ab6551676a19c8dbc826c2dd0da`.</Constraint>
+      <Constraint>No file outside `dummy` and this GRACE bundle may change.</Constraint>
+      <Constraint>No force-push, reset, tag movement or history rewrite is allowed.</Constraint>
+      <Constraint>VERSION remains 0.4.0 and SQLite schema remains 31.</Constraint>
+    </Constraints>
+    <NonGoals>
+      <NonGoal>Prepare or publish 0.4.1 in this cleanup change.</NonGoal>
+      <NonGoal>Change application, workflow, test or documentation behavior.</NonGoal>
+      <NonGoal>Remove the historical commit that introduced the probe.</NonGoal>
+    </NonGoals>
+    <AcceptanceCriteria>
+      <Criterion>`dummy` is absent from the implementation head.</Criterion>
+      <Criterion>The implementation diff outside this GRACE bundle consists only of deleting `dummy`.</Criterion>
+      <Criterion>GRACE final and every mandatory project check succeed on one unchanged head.</Criterion>
+      <Criterion>The cleanup is squash-merged, post-merge CI succeeds, and a separate archive-only PR records terminal `applied` state.</Criterion>
+    </AcceptanceCriteria>
+    <AffectedAreas><M-CI-GATE /></AffectedAreas>
+    <VerificationIntent>
+      <ExpectedCommand>test ! -e dummy</ExpectedCommand>
+      <ExpectedCommand>npm run check</ExpectedCommand>
+      <ExpectedCommand>npm run docs:check</ExpectedCommand>
+      <ExpectedCommand>npm test</ExpectedCommand>
+      <ExpectedEvidence>The branch differs from exact main only by deleting `dummy` and adding the approved cleanup change.</ExpectedEvidence>
+    </VerificationIntent>
+  </C-DUMMY-PROBE-CLEANUP-293>
+</GraceChangeSpec>
