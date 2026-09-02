@@ -1,0 +1,145 @@
+name: Await, verify and archive release 0.4.1
+
+on:
+  push:
+    branches:
+      - grace/archive-release-0.4.1-280-auto2
+
+permissions:
+  contents: write
+
+jobs:
+  archive:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 180
+    env:
+      GH_TOKEN: ${{ github.token }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Дождаться exact main и опубликованного Release
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          CHANGE=C-RELEASE-0-4-1-280
+          deadline=$((SECONDS + 9000))
+          ready=false
+          while (( SECONDS < deadline )); do
+            git fetch --no-tags origin main
+            MAIN_SHA="$(git rev-parse origin/main)"
+            MAIN_VERSION="$(git show origin/main:VERSION 2>/dev/null | tr -d '[:space:]' || true)"
+            ACTIVE=false
+            ARCHIVED=false
+            git cat-file -e "origin/main:.grace/changes/active/$CHANGE/spec.xml" 2>/dev/null && ACTIVE=true || true
+            git cat-file -e "origin/main:.grace/changes/archive/$CHANGE/spec.xml" 2>/dev/null && ARCHIVED=true || true
+            if [[ "$MAIN_VERSION" == 0.4.1 && "$ARCHIVED" == true ]]; then
+              echo "Release change уже terminally archived на main $MAIN_SHA."
+              exit 0
+            fi
+            if [[ "$MAIN_VERSION" == 0.4.1 && "$ACTIVE" == true ]]; then
+              if RELEASE="$(gh api "repos/$GITHUB_REPOSITORY/releases/tags/v0.4.1" 2>/dev/null)"; then
+                if [[ "$(jq -r '.draft' <<<"$RELEASE")" == false \
+                   && "$(jq -r '.prerelease' <<<"$RELEASE")" == false \
+                   && "$(jq '[.assets[] | select(.state == "uploaded")] | length' <<<"$RELEASE")" -eq 7 ]]; then
+                  ready=true
+                  break
+                fi
+              fi
+            fi
+            printf 'main=%s version=%s active=%s archived=%s release_ready=%s\n' \
+              "$MAIN_SHA" "$MAIN_VERSION" "$ACTIVE" "$ARCHIVED" "$ready"
+            sleep 30
+          done
+          [[ "$ready" == true ]] || { echo "Release v0.4.1 не достиг terminal-ready состояния." >&2; exit 1; }
+
+          git merge --no-edit origin/main
+          MAIN_SHA="$(git rev-parse origin/main)"
+          test "$(tr -d '[:space:]' < VERSION)" = 0.4.1
+          ACTIVE_DIR=".grace/changes/active/$CHANGE"
+          ARCHIVE_DIR=".grace/changes/archive/$CHANGE"
+          test -f "$ACTIVE_DIR/spec.xml"
+          test -f "$ACTIVE_DIR/plan.xml"
+          test -f "$ACTIVE_DIR/release-audit.md"
+          test ! -e "$ARCHIVE_DIR"
+
+          RELEASE_JSON="$RUNNER_TEMP/release.json"
+          gh api "repos/$GITHUB_REPOSITORY/releases/tags/v0.4.1" > "$RELEASE_JSON"
+          test "$(jq -r '.draft' "$RELEASE_JSON")" = false
+          test "$(jq -r '.prerelease' "$RELEASE_JSON")" = false
+          test "$(jq '[.assets[] | select(.state == "uploaded")] | length' "$RELEASE_JSON")" -eq 7
+          EXPECTED="$RUNNER_TEMP/expected.txt"
+          ACTUAL="$RUNNER_TEMP/actual.txt"
+          printf '%s\n' \
+            README-INSTALL.txt \
+            SHA256SUMS \
+            install-kafedra-planner.sh \
+            kafedra-planner-0.4.1-debian-12-amd64.tar.gz \
+            kafedra-planner-0.4.1-debian-12-amd64.tar.gz.sha256 \
+            kafedra-planner-0.4.1-project-control.f2re.zip \
+            kafedra-planner-0.4.1-project-control.f2re.zip.sha256 | sort > "$EXPECTED"
+          jq -r '.assets[] | select(.state == "uploaded") | .name' "$RELEASE_JSON" | sort > "$ACTUAL"
+          cmp -s "$EXPECTED" "$ACTUAL"
+
+          OBJECT_TYPE="$(gh api "repos/$GITHUB_REPOSITORY/git/ref/tags/v0.4.1" --jq '.object.type')"
+          OBJECT_SHA="$(gh api "repos/$GITHUB_REPOSITORY/git/ref/tags/v0.4.1" --jq '.object.sha')"
+          if [[ "$OBJECT_TYPE" == tag ]]; then
+            OBJECT_SHA="$(gh api "repos/$GITHUB_REPOSITORY/git/tags/$OBJECT_SHA" --jq '.object.sha')"
+          fi
+          test "$OBJECT_SHA" = "$MAIN_SHA"
+
+          ASSETS="$RUNNER_TEMP/assets"
+          mkdir -p "$ASSETS"
+          gh release download v0.4.1 --repo "$GITHUB_REPOSITORY" --dir "$ASSETS"
+          cd "$ASSETS"
+          sha256sum -c --strict SHA256SUMS
+          sha256sum -c --strict kafedra-planner-0.4.1-debian-12-amd64.tar.gz.sha256
+          sha256sum -c --strict kafedra-planner-0.4.1-project-control.f2re.zip.sha256
+          cd "$GITHUB_WORKSPACE"
+          REQUIRE_ARCHIVE_SHA256=true SKIP_SYSTEM_PREFLIGHT=true \
+            bash scripts/offline/verify-bundle.sh "$ASSETS/kafedra-planner-0.4.1-debian-12-amd64.tar.gz"
+          python3 - <<'PY'
+          import json
+          import os
+          import zipfile
+          from pathlib import Path
+          package = Path(os.environ['RUNNER_TEMP']) / 'assets' / 'kafedra-planner-0.4.1-project-control.f2re.zip'
+          with zipfile.ZipFile(package) as zf:
+              if not zf.namelist():
+                  raise SystemExit('Project Control package is empty')
+              found = False
+              for name in zf.namelist():
+                  if not name.endswith('.json'):
+                      continue
+                  try:
+                      data = json.loads(zf.read(name).decode('utf-8'))
+                  except Exception:
+                      continue
+                  if str(data.get('version', '')) == '0.4.1':
+                      found = True
+                      break
+              if not found:
+                  raise SystemExit('Project Control metadata does not identify 0.4.1')
+          PY
+
+          mkdir -p "$ARCHIVE_DIR"
+          cp "$ACTIVE_DIR/spec.xml" "$ARCHIVE_DIR/spec.xml"
+          cp "$ACTIVE_DIR/plan.xml" "$ARCHIVE_DIR/plan.xml"
+          cp "$ACTIVE_DIR/release-audit.md" "$ARCHIVE_DIR/release-audit.md"
+          python3 - <<'PY'
+          from pathlib import Path
+          root = Path('.grace/changes/archive/C-RELEASE-0-4-1-280')
+          for name in ('spec.xml', 'plan.xml'):
+              path = root / name
+              text = path.read_text(encoding='utf-8')
+              if text.count('status="approved"') != 1:
+                  raise SystemExit(f'{path}: approved root status mismatch')
+              path.write_text(text.replace('status="approved"', 'status="applied"', 1), encoding='utf-8')
+          PY
+          rm -rf "$ACTIVE_DIR"
+          rm -- .github/workflows/archive-release-0.4.1-auto.yml
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -A
+          git commit -m "GRACE: архивировать выпуск 0.4.1"
+          git push origin HEAD:grace/archive-release-0.4.1-280-auto2
