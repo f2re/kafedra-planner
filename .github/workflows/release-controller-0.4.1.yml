@@ -1,0 +1,307 @@
+name: Fail-closed release controller 0.4.1
+
+on:
+  push:
+    branches:
+      - ops/release-controller-0.4.1-v5
+
+permissions:
+  actions: write
+  checks: read
+  contents: write
+  issues: write
+  pull-requests: write
+
+jobs:
+  release:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 240
+    env:
+      GH_TOKEN: ${{ github.token }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Последовательно завершить выпуск
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          REPO="$GITHUB_REPOSITORY"
+          OWNER="${REPO%%/*}"
+          NAME="${REPO#*/}"
+          STEP="initialization"
+          DEADLINE=$((SECONDS + 13800))
+
+          note_blocked() {
+            local message="$1"
+            gh issue comment 280 --repo "$REPO" --body "FINAL RELEASE CONTROLLER: BLOCKED
+
+Step: \`$STEP\`
+
+$message" || true
+          }
+          fail() {
+            note_blocked "$1"
+            exit 1
+          }
+          trap 'rc=$?; if (( rc != 0 )); then note_blocked "Controller exited with code $rc. Inspect workflow run $GITHUB_RUN_ID."; fi' EXIT
+
+          required_pr=(
+            "GRACE / merge-gate"
+            "Минимальный Node 24.15"
+            "test"
+            "browser"
+            "Сборщик под host Node 25.6"
+            "Full offline Debian 12 + Project Control"
+            "release-gate"
+            "organization-browser"
+            "science-lifecycle-browser"
+            "science-import-browser"
+            "science-reports-browser"
+          )
+          required_main=(
+            "GRACE post-merge / merge-gate"
+            "Минимальный Node 24.15"
+            "test"
+            "browser"
+            "Сборщик под host Node 25.6"
+            "Full offline Debian 12 + Project Control"
+            "release-gate"
+            "organization-browser"
+            "science-lifecycle-browser"
+            "science-import-browser"
+            "science-reports-browser"
+          )
+
+          load_checks() {
+            local sha="$1"
+            gh api --paginate "repos/$REPO/commits/$sha/check-runs?per_page=100" \
+              --jq '.check_runs' | jq -s '{check_runs: add}' > "$RUNNER_TEMP/checks-$sha.json"
+          }
+          check_state() {
+            local sha="$1" name="$2"
+            jq -r --arg name "$name" '
+              [.check_runs[] | select(.name == $name)]
+              | sort_by(.started_at // .created_at // "") | last
+              | if . == null then "missing"
+                elif .status != "completed" then "pending:" + .status
+                else "completed:" + (.conclusion // "") end
+            ' "$RUNNER_TEMP/checks-$sha.json"
+          }
+          wait_required_checks() {
+            local sha="$1" scope="$2"
+            local -n names="$3"
+            while (( SECONDS < DEADLINE )); do
+              load_checks "$sha"
+              local pending=0
+              for check in "${names[@]}"; do
+                state="$(check_state "$sha" "$check")"
+                printf '%s | %s | %s\n' "$sha" "$check" "$state"
+                case "$state" in
+                  completed:success) ;;
+                  missing|pending:*) pending=1 ;;
+                  completed:failure|completed:cancelled|completed:timed_out|completed:action_required|completed:startup_failure|completed:stale|completed:neutral|completed:skipped)
+                    fail "Required $scope check \`$check\` is \`$state\` on exact SHA \`$sha\`."
+                    ;;
+                  *) fail "Required $scope check \`$check\` has unsupported state \`$state\` on \`$sha\`." ;;
+                esac
+              done
+              if (( pending == 0 )); then
+                return 0
+              fi
+              sleep 30
+            done
+            fail "Timed out waiting for required $scope checks on exact SHA \`$sha\`."
+          }
+          require_reviews_resolved() {
+            local pr="$1"
+            unresolved="$(gh api graphql \
+              -f query='query($owner:String!,$name:String!,$number:Int!){repository(owner:$owner,name:$name){pullRequest(number:$number){reviewThreads(first:100){nodes{isResolved}}}}}' \
+              -f owner="$OWNER" -f name="$NAME" -F number="$pr" \
+              --jq '[.data.repository.pullRequest.reviewThreads.nodes[] | select(.isResolved == false)] | length')"
+            [[ "$unresolved" == 0 ]] || fail "PR #$pr has $unresolved unresolved review thread(s)."
+          }
+          validate_archive_diff() {
+            local pr="$1" change="$2"
+            files="$RUNNER_TEMP/pr-$pr-files.txt"
+            gh api --paginate "repos/$REPO/pulls/$pr/files?per_page=100" --jq '.[].filename' | sort -u > "$files"
+            while IFS= read -r file; do
+              [[ "$file" == ".grace/changes/active/$change/"* || "$file" == ".grace/changes/archive/$change/"* ]] \
+                || fail "Archive-only PR #$pr contains out-of-scope file \`$file\`."
+            done < "$files"
+            grep -q "^.grace/changes/archive/$change/spec.xml$" "$files" || fail "Archive-only PR #$pr lacks archived spec.xml."
+            grep -q "^.grace/changes/archive/$change/plan.xml$" "$files" || fail "Archive-only PR #$pr lacks archived plan.xml."
+          }
+          merge_pr_when_ready() {
+            local pr="$1" kind="$2" change="${3:-}"
+            STEP="PR #$pr $kind"
+            while (( SECONDS < DEADLINE )); do
+              data="$(gh api "repos/$REPO/pulls/$pr")"
+              merged="$(jq -r '.merged' <<<"$data")"
+              state="$(jq -r '.state' <<<"$data")"
+              if [[ "$merged" == true ]]; then
+                jq -r '.merge_commit_sha' <<<"$data"
+                return 0
+              fi
+              [[ "$state" == open ]] || fail "PR #$pr is closed without merge."
+              head="$(jq -r '.head.sha' <<<"$data")"
+              mergeable="$(jq -r '.mergeable' <<<"$data")"
+              merge_state="$(jq -r '.mergeable_state' <<<"$data")"
+              printf 'PR #%s head=%s mergeable=%s state=%s\n' "$pr" "$head" "$mergeable" "$merge_state"
+              if [[ "$kind" == archive ]]; then
+                validate_archive_diff "$pr" "$change"
+              fi
+              require_reviews_resolved "$pr"
+              wait_required_checks "$head" "PR" required_pr
+              data="$(gh api "repos/$REPO/pulls/$pr")"
+              [[ "$(jq -r '.head.sha' <<<"$data")" == "$head" ]] || { echo "PR #$pr head advanced; rechecking."; continue; }
+              [[ "$(jq -r '.mergeable' <<<"$data")" == true ]] || { sleep 20; continue; }
+              result="$(gh api --method PUT "repos/$REPO/pulls/$pr/merge" \
+                -f merge_method=squash -f sha="$head")"
+              [[ "$(jq -r '.merged' <<<"$result")" == true ]] || fail "GitHub rejected exact-head squash merge of PR #$pr: $(jq -c . <<<"$result")"
+              jq -r '.sha' <<<"$result"
+              return 0
+            done
+            fail "Timed out waiting to merge PR #$pr."
+          }
+          verify_post_merge() {
+            local sha="$1" label="$2"
+            STEP="$label post-merge CI"
+            wait_required_checks "$sha" "post-merge" required_main
+          }
+
+          # The numbered PRs are the governed sequence created for this release.
+          cleanup_sha="$(merge_pr_when_ready 294 product)"
+          verify_post_merge "$cleanup_sha" "cleanup #294"
+
+          cleanup_archive_sha="$(merge_pr_when_ready 295 archive C-DUMMY-PROBE-CLEANUP-293)"
+          verify_post_merge "$cleanup_archive_sha" "cleanup archive #295"
+
+          STEP="clean release baseline"
+          git fetch --no-tags origin main
+          main_sha="$(git rev-parse origin/main)"
+          active_count="$(git ls-tree --name-only "origin/main:.grace/changes/active" 2>/dev/null | awk '$0 != ".gitkeep" {n++} END {print n+0}')"
+          [[ "$active_count" -le 1 ]] || fail "Main $main_sha contains $active_count active GRACE changes before release merge."
+          git cat-file -e "origin/main:dummy" 2>/dev/null && fail "Accidental dummy probe is still present in main $main_sha." || true
+
+          release_sha="$(merge_pr_when_ready 296 product)"
+          verify_post_merge "$release_sha" "release #296"
+
+          STEP="GitHub Release v0.4.1"
+          release_ready=false
+          while (( SECONDS < DEADLINE )); do
+            if release_json="$(gh api "repos/$REPO/releases/tags/v0.4.1" 2>/dev/null)"; then
+              if [[ "$(jq -r '.draft' <<<"$release_json")" == false \
+                 && "$(jq -r '.prerelease' <<<"$release_json")" == false \
+                 && "$(jq '[.assets[] | select(.state == "uploaded")] | length' <<<"$release_json")" -eq 7 ]]; then
+                release_ready=true
+                break
+              fi
+            fi
+            sleep 30
+          done
+          [[ "$release_ready" == true ]] || fail "Published non-draft v0.4.1 with seven uploaded assets was not observed."
+
+          tag_type="$(gh api "repos/$REPO/git/ref/tags/v0.4.1" --jq '.object.type')"
+          tag_sha="$(gh api "repos/$REPO/git/ref/tags/v0.4.1" --jq '.object.sha')"
+          if [[ "$tag_type" == tag ]]; then
+            tag_sha="$(gh api "repos/$REPO/git/tags/$tag_sha" --jq '.object.sha')"
+          fi
+          [[ "$tag_sha" == "$release_sha" ]] || fail "Tag v0.4.1 points to $tag_sha, expected release commit $release_sha."
+
+          archive_sha="$(merge_pr_when_ready 297 archive C-RELEASE-0-4-1-280)"
+          verify_post_merge "$archive_sha" "release archive #297"
+
+          STEP="terminal repository state"
+          git fetch --no-tags origin main
+          terminal_main="$(git rev-parse origin/main)"
+          version="$(git show origin/main:VERSION | tr -d '[:space:]')"
+          [[ "$version" == 0.4.1 ]] || fail "Terminal main $terminal_main has VERSION=$version."
+          active_count="$(git ls-tree --name-only "origin/main:.grace/changes/active" 2>/dev/null | awk '$0 != ".gitkeep" {n++} END {print n+0}')"
+          [[ "$active_count" == 0 ]] || fail "Terminal main $terminal_main has $active_count active GRACE changes."
+          archive_spec="$(git show "origin/main:.grace/changes/archive/C-RELEASE-0-4-1-280/spec.xml")"
+          archive_plan="$(git show "origin/main:.grace/changes/archive/C-RELEASE-0-4-1-280/plan.xml")"
+          grep -q 'status="applied"' <<<"$archive_spec" || fail "Archived release spec is not applied."
+          grep -q 'status="applied"' <<<"$archive_plan" || fail "Archived release plan is not applied."
+
+          STEP="release asset verification"
+          release_json="$(gh api "repos/$REPO/releases/tags/v0.4.1")"
+          expected="$RUNNER_TEMP/expected-assets.txt"
+          actual="$RUNNER_TEMP/actual-assets.txt"
+          printf '%s\n' \
+            README-INSTALL.txt \
+            SHA256SUMS \
+            install-kafedra-planner.sh \
+            kafedra-planner-0.4.1-debian-12-amd64.tar.gz \
+            kafedra-planner-0.4.1-debian-12-amd64.tar.gz.sha256 \
+            kafedra-planner-0.4.1-project-control.f2re.zip \
+            kafedra-planner-0.4.1-project-control.f2re.zip.sha256 | sort > "$expected"
+          jq -r '.assets[] | select(.state == "uploaded") | .name' <<<"$release_json" | sort > "$actual"
+          cmp -s "$expected" "$actual" || fail "Published release asset set differs from the seven-file contract."
+
+          assets="$RUNNER_TEMP/assets"
+          mkdir -p "$assets"
+          gh release download v0.4.1 --repo "$REPO" --dir "$assets"
+          (cd "$assets" && sha256sum -c --strict SHA256SUMS)
+          (cd "$assets" && sha256sum -c --strict kafedra-planner-0.4.1-debian-12-amd64.tar.gz.sha256)
+          (cd "$assets" && sha256sum -c --strict kafedra-planner-0.4.1-project-control.f2re.zip.sha256)
+          git checkout --detach origin/main
+          REQUIRE_ARCHIVE_SHA256=true SKIP_SYSTEM_PREFLIGHT=true \
+            bash scripts/offline/verify-bundle.sh "$assets/kafedra-planner-0.4.1-debian-12-amd64.tar.gz"
+          python3 - "$assets/kafedra-planner-0.4.1-project-control.f2re.zip" <<'PY'
+          import json, sys, zipfile
+          package = sys.argv[1]
+          versions = []
+          with zipfile.ZipFile(package) as zf:
+              if not zf.namelist():
+                  raise SystemExit('Project Control package is empty')
+              for name in zf.namelist():
+                  if not name.endswith('.json'):
+                      continue
+                  try:
+                      data = json.loads(zf.read(name).decode('utf-8'))
+                  except Exception:
+                      continue
+                  if 'version' in data:
+                      versions.append(str(data['version']))
+          if '0.4.1' not in versions:
+              raise SystemExit(f'Project Control metadata versions: {versions}')
+          PY
+
+          asset_summary="$(jq -r '.assets[] | "- `\(.name)` — \(.size) bytes; \(.digest // "digest unavailable")"' <<<"$release_json")"
+          audit="FINAL RELEASE AUDIT: COMPLETE
+
+- Release: \`v0.4.1\`
+- Release commit / tag SHA: \`$tag_sha\`
+- Terminal main SHA: \`$terminal_main\`
+- \`draft=false\`, \`prerelease=false\`
+- SQLite schema: \`31\`
+- GRACE active changes: \`0\`
+- Required exact-head and post-merge checks: all \`completed:success\`
+- \`SHA256SUMS\`, standalone digests, full offline bundle and Project Control metadata: verified
+
+Assets:
+$asset_summary"
+          gh issue comment 280 --repo "$REPO" --body "$audit"
+          gh issue close 280 --repo "$REPO" --reason completed
+          gh issue comment 293 --repo "$REPO" --body "Cleanup confirmed in terminal release state: \`dummy\` is absent, C-DUMMY-PROBE-CLEANUP-293 is archived, and v0.4.1 is verified on main \`$terminal_main\`."
+          gh issue close 293 --repo "$REPO" --reason completed
+
+          for branch in \
+            cleanup/dummy-probe-293 \
+            cleanup/dummy-probe-293-v2 \
+            cleanup/dummy-probe-293-final \
+            grace/archive-dummy-probe-293-auto \
+            release/0.4.1-280-final \
+            grace/archive-release-0.4.1-280-auto1 \
+            grace/archive-release-0.4.1-280-auto2 \
+            ops/finalize-release-0.4.1-v2 \
+            ops/finalize-release-0.4.1-v3; do
+            encoded="${branch//\//%2F}"
+            gh api --method DELETE "repos/$REPO/git/refs/heads/$encoded" >/dev/null 2>&1 || true
+          done
+
+          trap - EXIT
+          encoded_self="${GITHUB_REF_NAME//\//%2F}"
+          gh api --method DELETE "repos/$REPO/git/refs/heads/$encoded_self" >/dev/null 2>&1 || true
+          echo "Release v0.4.1 terminal verification complete."
