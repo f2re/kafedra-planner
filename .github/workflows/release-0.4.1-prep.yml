@@ -1,0 +1,66 @@
+name: Архивировать release change 0.4.1
+
+on:
+  push:
+    branches:
+      - grace/archive-release-0.4.1-280
+
+concurrency:
+  group: archive-release-0.4.1-280
+  cancel-in-progress: false
+
+permissions:
+  contents: write
+
+jobs:
+  archive:
+    if: ${{ github.actor != 'github-actions[bot]' }}
+    runs-on: ubuntu-24.04
+    env:
+      GH_TOKEN: ${{ github.token }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          ref: grace/archive-release-0.4.1-280
+          token: ${{ github.token }}
+      - name: Проверить опубликованный release и выполнить terminal archive
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          test "$(tr -d '[:space:]' < VERSION)" = "0.4.1"
+          test -d .grace/changes/active/C-RELEASE-0-4-1-280
+          test ! -e .grace/changes/archive/C-RELEASE-0-4-1-280
+          git fetch --no-tags origin main
+          BASE_SHA="$(git rev-parse HEAD^)"
+          test "$(git rev-parse origin/main)" = "$BASE_SHA"
+          RELEASE="$(gh api "repos/$GITHUB_REPOSITORY/releases/tags/v0.4.1")"
+          test "$(jq -r '.draft' <<<"$RELEASE")" = false
+          test "$(jq -r '.prerelease' <<<"$RELEASE")" = false
+          test "$(jq '[.assets[] | select(.state == "uploaded")] | length' <<<"$RELEASE")" -eq 7
+          OBJECT_TYPE="$(gh api "repos/$GITHUB_REPOSITORY/git/ref/tags/v0.4.1" --jq '.object.type')"
+          OBJECT_SHA="$(gh api "repos/$GITHUB_REPOSITORY/git/ref/tags/v0.4.1" --jq '.object.sha')"
+          if [[ "$OBJECT_TYPE" == tag ]]; then
+            OBJECT_SHA="$(gh api "repos/$GITHUB_REPOSITORY/git/tags/$OBJECT_SHA" --jq '.object.sha')"
+          fi
+          test "$OBJECT_SHA" = "$BASE_SHA"
+          mkdir -p .grace/changes/archive
+          cp -a .grace/changes/active/C-RELEASE-0-4-1-280 .grace/changes/archive/C-RELEASE-0-4-1-280
+          python3 <<'PY'
+          from pathlib import Path
+          for name in ('spec.xml', 'plan.xml'):
+              path = Path('.grace/changes/archive/C-RELEASE-0-4-1-280') / name
+              text = path.read_text(encoding='utf-8')
+              if not text.startswith(('<GraceChangeSpec graceVersion="4.0" status="approved">', '<GraceChangePlan graceVersion="4.0" status="approved">')):
+                  raise SystemExit(f'unexpected root status in {name}')
+              text = text.replace('status="approved"', 'status="applied"', 1)
+              path.write_text(text, encoding='utf-8')
+          PY
+          git rm -r .grace/changes/active/C-RELEASE-0-4-1-280
+          git rm .github/workflows/release-0.4.1-prep.yml
+          git config user.name github-actions[bot]
+          git config user.email 41898282+github-actions[bot]@users.noreply.github.com
+          git add .grace/changes/archive/C-RELEASE-0-4-1-280
+          git diff --cached --check
+          git commit -m "GRACE: архивировать выпуск 0.4.1 (#280)"
+          git push origin HEAD:grace/archive-release-0.4.1-280
