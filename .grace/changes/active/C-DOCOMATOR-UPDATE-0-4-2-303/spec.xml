@@ -1,0 +1,58 @@
+<GraceChangeSpec graceVersion="4.0" status="approved">
+  <C-DOCOMATOR-UPDATE-0-4-2-303>
+    <Summary>Deliver Kafedra Planner 0.4.2 with a one-address Docomator people integration, current Docomator API compatibility, immediately refreshed static UI and a simpler secure offline updater.</Summary>
+    <Problem>Kafedra Planner 0.4.1 exposes Docomator connection as separate scheme, host and port fields, rejects pasted URLs and treats the current Docomator ready payload status ok as not ready. Users therefore see avoidable DNS or readiness failures. Static assets use stable URLs with a one-hour cache, so a correctly replaced release can still display the previous UI. The archive launcher recursively changes extracted ownership and its root boundary is easily mistaken for a requirement that the user's source folder belong to root. A governed 0.4.2 release is required to close the whole install-to-import path.</Problem>
+    <Goals>
+      <Goal>Let an administrator paste one HTTP or HTTPS Docomator address, including a bare host or a copied URL containing a known health or API path, and normalize it to one safe canonical endpoint.</Goal>
+      <Goal>Remain compatible with stored 0.4.1 scheme, host and port rows without changing SQLite schema 31.</Goal>
+      <Goal>Accept the current Docomator readiness contract of HTTP 2xx plus status ok while retaining legacy status ready compatibility.</Goal>
+      <Goal>Keep people discovery and import server-side, optional, idempotent and non-blocking for the local department directory.</Goal>
+      <Goal>Make a new release UI visible immediately after upgrade and independently verify that the active release contains the expected static integration files.</Goal>
+      <Goal>Allow the release archive and launcher to remain in an ordinary user-owned readable directory while extracting into a root-owned private staging directory without recursive ownership mutation of user files.</Goal>
+      <Goal>Publish and verify immutable v0.4.2 assets, then finish with a separate terminal archive-only transition.</Goal>
+    </Goals>
+    <Constraints>
+      <Constraint>The exact base is main commit dfd86da67c789cfc1b9410d3afb6501425a7845d and issue 303 is the governing user request.</Constraint>
+      <Constraint>Applied migrations are not edited and no migration is added; schema version remains 31.</Constraint>
+      <Constraint>Installed executable releases remain root-owned and non-writable by the kafedra-planner service user; mutable data remains owned by kafedra-planner.</Constraint>
+      <Constraint>Manifest, SHA-256, archive path, backup, restore, rollback, health, full offline and systemd checks remain fail-closed; only redundant ownership mutation and misleading UI complexity may be removed.</Constraint>
+      <Constraint>No Docker, CDN, mandatory Internet, mandatory cloud service or mandatory LLM dependency is introduced.</Constraint>
+      <Constraint>The access code is never persisted by Planner and no redirects, embedded credentials, query strings or fragments are accepted in the saved Docomator endpoint.</Constraint>
+      <Constraint>The Docomator failure of one request must not block local people, tasks, plans, documents or history.</Constraint>
+    </Constraints>
+    <NonGoals>
+      <NonGoal>Read or write the Docomator SQLite database directly.</NonGoal>
+      <NonGoal>Implement bidirectional people synchronization, deletion propagation or background polling.</NonGoal>
+      <NonGoal>Support arbitrary reverse-proxy subpaths outside the known copied Docomator API and health paths.</NonGoal>
+      <NonGoal>Disable checksum, backup, rollback, service health or release identity checks.</NonGoal>
+      <NonGoal>Change document blobs, immutable sources, document_version, extraction evidence or existing people identifiers.</NonGoal>
+    </NonGoals>
+    <AcceptanceCriteria>
+      <Criterion>The public form contains one Адрес Оформлятора control and an optional four-digit access-code control, followed by Подключить, source selection and Импортировать сотрудников.</Criterion>
+      <Criterion>Full URLs, bare DNS names, IPv4 and bracketed IPv6 endpoints normalize deterministically; known /api/v1, /api/v1/system/*, /healthz and /readyz suffixes are removed before requests are built.</Criterion>
+      <Criterion>Saved legacy scheme, host and port values remain readable and the settings API also returns the canonical url.</Criterion>
+      <Criterion>Current Docomator health and readiness payloads with service api and status ok pass; legacy readiness status ready also passes; degraded and non-2xx responses fail with classified diagnostics.</Criterion>
+      <Criterion>DNS, refused connection, timeout, TLS, wrong service, unavailable data and access-code errors remain distinguishable and disclose no secret.</Criterion>
+      <Criterion>Repeated import links the same remote employee without duplicates and one failed remote row does not erase existing local records.</Criterion>
+      <Criterion>Desktop and mobile browser tests cover paste, normalization, auto-selection, access-code non-persistence, preview, import and recovery; prefers-reduced-motion is unaffected because the change intentionally adds no motion.</Criterion>
+      <Criterion>All non-fingerprinted application static responses use a revalidation policy that cannot retain the previous release UI after a successful upgrade.</Criterion>
+      <Criterion>The archive launcher uses a private root staging directory and extraction options that ignore archived ownership and write permissions, without changing ownership of the source archive directory.</Criterion>
+      <Criterion>The transactional installer compares required active static files with the selected bundle before declaring success and preserves backup, rollback, config, PIN, data and service ownership.</Criterion>
+      <Criterion>README and operator documentation state why root privileges are needed, why the source directory need not be root-owned, and give one command to restart API and worker plus status and logs commands.</Criterion>
+      <Criterion>VERSION, package metadata, release docs, release gate and publisher agree on 0.4.2 while schema remains 31.</Criterion>
+      <Criterion>GRACE final and all required project, browser, database, release, full offline Debian/systemd/LLM and Project Control checks succeed on one unchanged PR head.</Criterion>
+      <Criterion>The exact head is squash-merged, post-merge CI succeeds, v0.4.2 is published with the required verified assets, and a separate archive-only PR records terminal applied state before issue 303 closes.</Criterion>
+    </AcceptanceCriteria>
+    <AffectedAreas><M-API /><M-DATABASE /><M-DESIGN-GOVERNANCE /><M-CI-GATE /><M-OFFLINE-BUNDLE /></AffectedAreas>
+    <VerificationIntent>
+      <ExpectedCommand>npm run check</ExpectedCommand>
+      <ExpectedCommand>npm run docs:check</ExpectedCommand>
+      <ExpectedCommand>npm test</ExpectedCommand>
+      <ExpectedCommand>npm run smoke</ExpectedCommand>
+      <ExpectedCommand>node --test tests/docomator-integration.test.mjs tests/deploy-install-contract.test.mjs tests/deployment-flow.test.mjs tests/static-cache.test.mjs</ExpectedCommand>
+      <ExpectedCommand>playwright test tests/browser/docomator-integration.spec.mjs</ExpectedCommand>
+      <ExpectedCommand>bash -n scripts/offline/install-from-archive.sh deploy/install.sh deploy/install-core.sh</ExpectedCommand>
+      <ExpectedEvidence>Exact-head API and browser evidence for direct Docomator import, successful 0.4.1 to 0.4.2 upgrade and rollback, green full offline/release CI, immutable v0.4.2 tag and independently verified release assets.</ExpectedEvidence>
+    </VerificationIntent>
+  </C-DOCOMATOR-UPDATE-0-4-2-303>
+</GraceChangeSpec>
