@@ -189,7 +189,7 @@ export async function serveStatic(response, publicDir, pathname) {
     response.writeHead(200, {
       'content-type': staticTypes.get(extname(path).toLowerCase()) || 'application/octet-stream',
       'content-length': content.length,
-      'cache-control': relative === 'index.html' ? 'no-cache' : 'public, max-age=3600',
+      'cache-control': 'no-store',
       'x-content-type-options': 'nosniff'
     });
     response.end(content);

@@ -6,6 +6,7 @@ const entrypoint = await readFile(new URL('../deploy/install.sh', import.meta.ur
 const core = await readFile(new URL('../deploy/install-core.sh', import.meta.url), 'utf8');
 const builder = await readFile(new URL('../scripts/offline/build-bundle.sh', import.meta.url), 'utf8');
 const doctor = await readFile(new URL('../scripts/offline/doctor.sh', import.meta.url), 'utf8');
+const archiveLauncher = await readFile(new URL('../scripts/offline/install-from-archive.sh', import.meta.url), 'utf8');
 
 test('transactional entrypoint serializes updates and can recover an interrupted transaction', () => {
   assert.match(entrypoint, /flock -n 9/u);
@@ -34,6 +35,17 @@ test('transactional entrypoint converts a legacy current directory only after ve
   assert.match(entrypoint, /Данные восстановлены из проверенной точки отката/u);
 });
 
+test('archive launcher keeps the source folder user-owned and extracts into private root staging', () => {
+  assert.match(archiveLauncher, /absolute_file/u);
+  assert.match(archiveLauncher, /exec sudo -- "\$0" "\$ARCHIVE"/u);
+  assert.match(archiveLauncher, /mktemp -d \/tmp\/kafedra-install\.XXXXXX/u);
+  assert.match(archiveLauncher, /chmod 0700 "\$WORK"/u);
+  assert.match(archiveLauncher, /tar --no-same-owner --no-same-permissions -xzf/u);
+  assert.match(archiveLauncher, /владелец исходной папки не меняется/u);
+  assert.doesNotMatch(archiveLauncher, /chown -R root:root/u);
+  assert.doesNotMatch(archiveLauncher, /for command in[^\n]*chown/u);
+});
+
 test('bundle stages both the transactional entrypoint and immutable core installer', () => {
   assert.match(builder, /install -m 0755 "\$ROOT\/deploy\/install\.sh" "\$BUNDLE_ROOT\/install\.sh"/u);
   assert.match(builder, /install -m 0755 "\$ROOT\/deploy\/install-core\.sh" "\$BUNDLE_ROOT\/install-core\.sh"/u);
@@ -44,6 +56,22 @@ test('core installer identifies releases by version plus build identity and stag
   assert.match(core, /node\$\{RELEASE_NODE_VERSION#v\}/u);
   assert.match(core, /\.staging\.\$\$/u);
   assert.doesNotMatch(core, /RELEASE_DIR="\$APP_ROOT\/releases\/\$VERSION"/u);
+});
+
+test('transactional verification proves that the active document UI came from the selected bundle', () => {
+  const verifyStart = entrypoint.indexOf('verify_active_ui_files()');
+  const successStart = entrypoint.indexOf('verify_success()');
+  const serviceCheck = entrypoint.indexOf('systemctl is-active --quiet "$API_SERVICE"', successStart);
+  assert.ok(verifyStart >= 0 && successStart > verifyStart && serviceCheck > successStart);
+  for (const path of [
+    'public/index.html',
+    'public/ux-next.js',
+    'public/docomator-integration.js',
+    'public/docomator-integration.css',
+    'public/docomator-fields.js'
+  ]) assert.match(entrypoint, new RegExp(path.replaceAll('.', '\\.')));
+  assert.match(entrypoint, /cmp -s "\$APP_SOURCE\/\$relative" "\$target\/\$relative"/u);
+  assert.match(entrypoint, /verify_active_ui_files "\$target" \|\| return 1/u);
 });
 
 test('core installer retries an existing release and verifies both services without curl', () => {
