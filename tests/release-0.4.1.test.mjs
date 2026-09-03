@@ -38,7 +38,6 @@ test('release publisher is wired to the 0.4.1 gate and exact-head GRACE', async 
   const publisher = await text('.github/workflows/release.yml');
   assert.match(gate, /^name: Release gate 0\.4\.1$/mu);
   assert.match(publisher, /^\s{4}workflows: \["Release gate 0\.4\.1"\]$/mu);
-  assert.match(publisher, /required=\(
-\s+"GRACE"/u);
+  assert.match(publisher, /required=\(\n\s+"GRACE"/u);
   assert.match(publisher, /\["GRACE"\]="grace\.yml"/u);
 });
