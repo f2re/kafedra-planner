@@ -101,6 +101,7 @@
       <File>.github/workflows/release.yml</File>
       <File>.github/workflows/apply-release-0.4.2.yml</File>
       <File>tests/release-workflow.test.mjs</File>
+      <File>tests/release-recovery-workflow.test.mjs</File>
       <File>tests/release-assets-contract.test.mjs</File>
       <File>tests/release-0.4.1.test.mjs</File>
       <File>tests/release-0.4.2.test.mjs</File>

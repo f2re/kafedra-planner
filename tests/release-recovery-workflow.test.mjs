@@ -18,9 +18,10 @@ test('каждый обязательный post-merge workflow допускае
   }
 });
 
-test('publisher 0.4.0 даёт успешный no-op вне main, восстанавливает только инфраструктурные runs и не скрывает реальные failures', async () => {
+test('publisher текущего выпуска даёт успешный no-op вне main, восстанавливает только инфраструктурные runs и не скрывает реальные failures', async () => {
   const source = await readFile('.github/workflows/release.yml', 'utf8');
-  assert.match(source, /workflows: \["Release gate 0\.4\.0"\]/u);
+  const version = (await readFile('VERSION', 'utf8')).trim().replaceAll('.', '\\.');
+  assert.match(source, new RegExp(`workflows: \\["Release gate ${version}"\\]`, 'u'));
   assert.match(source, /permissions:\n\s+actions: write\n\s+contents: write/u);
   assert.match(source, /SOURCE_EVENT: \$\{\{ github\.event\.workflow_run\.event \|\| github\.event_name \}\}/u);
   assert.match(source, /SOURCE_BRANCH: \$\{\{ github\.event\.workflow_run\.head_branch \|\| github\.ref_name \}\}/u);

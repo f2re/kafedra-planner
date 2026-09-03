@@ -42,3 +42,6 @@
   .docomator-info-row{align-items:stretch;flex-direction:column}
   .docomator-last-import{margin-right:0}
 }
+@media(prefers-reduced-motion:reduce){
+  .docomator-integration,.docomator-integration *{animation-duration:0s!important;animation-delay:0s!important;transition-duration:0s!important;transition-delay:0s!important;scroll-behavior:auto!important}
+}
