@@ -1,4 +1,4 @@
-<GraceChangePlan graceVersion="4.0" status="approved">
+<GraceChangePlan graceVersion="4.0" status="applied">
   <C-DOCOMATOR-UPDATE-0-4-2-303>
     <IntentSummary>Close the administrator path from a copied Docomator address through classified connection diagnostics and idempotent people import, then ship the result as a safely upgradeable Kafedra Planner 0.4.2 release.</IntentSummary>
     <BaselineAssertions>

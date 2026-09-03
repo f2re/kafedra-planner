@@ -1,4 +1,4 @@
-<GraceChangeSpec graceVersion="4.0" status="approved">
+<GraceChangeSpec graceVersion="4.0" status="applied">
   <C-DOCOMATOR-UPDATE-0-4-2-303>
     <Summary>Deliver Kafedra Planner 0.4.2 with a one-address Docomator people integration, current Docomator API compatibility, immediately refreshed static UI and a simpler secure offline updater.</Summary>
     <Problem>Kafedra Planner 0.4.1 exposes Docomator connection as separate scheme, host and port fields, rejects pasted URLs and treats the current Docomator ready payload status ok as not ready. Users therefore see avoidable DNS or readiness failures. Static assets use stable URLs with a one-hour cache, so a correctly replaced release can still display the previous UI. The archive launcher recursively changes extracted ownership and its root boundary is easily mistaken for a requirement that the user's source folder belong to root. A governed 0.4.2 release is required to close the whole install-to-import path.</Problem>
