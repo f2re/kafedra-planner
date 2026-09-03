@@ -188,8 +188,8 @@ async function discover({ force = false } = {}) {
 }
 
 function persistMapping() {
-  if (!docomatorFieldsState.settings) return Promise.resolve();
   const input = { ...baseValues(), ...selectedMapping() };
+  if (!input.url || !input.spaceId) return Promise.resolve();
   delete input.accessCode;
   docomatorFieldsState.savePromise = dfApi('/api/integrations/docomator', {
     method: 'PUT',
