@@ -1,6 +1,6 @@
 # Целевая эксплуатационная приёмка Astra Linux / Debian
 
-Автоматический Ubuntu/Debian CI не закрывает целевую приёмку. Этот документ дополняет issue #27 и применяется к **Kafedra Planner 0.4.0, schema SQLite 31** на реальной Astra Linux и контрольной Debian тем же release bundle, который прошёл GitHub CI.
+Автоматический Ubuntu/Debian CI не закрывает целевую приёмку. Этот документ дополняет issue #27 и применяется к **Kafedra Planner 0.4.1, schema SQLite 31** на реальной Astra Linux и контрольной Debian тем же release bundle, который прошёл GitHub CI.
 
 Отдельно проверяется package contract `full-airgap-v2 / additive-only-v2`: Kafedra Planner не должен обновлять, понижать, удалять или автоматически исправлять уже установленные пакеты ОС.
 

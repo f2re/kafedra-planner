@@ -2,7 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
 
-const version = '0.4.0';
+const version = '0.4.1';
 const escapedVersion = version.replaceAll('.', '\\.');
 
 const text = (path) => readFile(path, 'utf8');

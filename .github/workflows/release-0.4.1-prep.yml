@@ -1,4 +1,4 @@
-name: Сформировать release tree 0.4.1
+name: Подготовить release 0.4.1
 
 on:
   push:
@@ -6,14 +6,14 @@ on:
       - release/0.4.1-280-final
 
 concurrency:
-  group: stage-release-0.4.1
+  group: prepare-release-0.4.1
   cancel-in-progress: false
 
 permissions:
   contents: write
 
 jobs:
-  stage:
+  prepare:
     if: ${{ github.actor != 'github-actions[bot]' }}
     runs-on: ubuntu-24.04
     steps:
@@ -22,29 +22,158 @@ jobs:
           fetch-depth: 0
           ref: release/0.4.1-280-final
           token: ${{ github.token }}
-      - name: Сформировать изменения без записи workflow-файлов
+      - name: Сформировать единый release commit
         shell: bash
         run: |
           set -Eeuo pipefail
+          test "$(tr -d '[:space:]' < VERSION)" = "0.4.0"
+          test ! -e dummy
+          test ! -e __invalid_release_probe__
+          test ! -e .probe-do-not-create
+          mapfile -t active < <(find .grace/changes/active -mindepth 1 -maxdepth 1 -printf '%f\n' | sort)
+          [[ "${active[*]}" == ".gitkeep C-RELEASE-0-4-1-280" ]]
           git fetch --no-tags origin main
-          test "$(tr -d '[:space:]' < VERSION)" = 0.4.0
-          awk '
-            /^          python3 - <<'"'"'PY'"'"'$/ { inside=1; next }
-            inside && /^          PY$/ { exit }
-            inside { sub(/^          /, ""); print }
-          ' .github/workflows/apply-release-0.4.1.yml > /tmp/apply-release.py
-          test -s /tmp/apply-release.py
-          python3 /tmp/apply-release.py
-          cp .github/workflows/release-gate.yml tests/.generated-release-gate-0.4.1.yml
-          cp .github/workflows/release.yml tests/.generated-release-publisher-0.4.1.yml
-          git checkout origin/main -- \
-            .github/workflows/release-gate.yml \
-            .github/workflows/release.yml \
-            .github/workflows/release-0.4.1-prep.yml \
-            .github/workflows/apply-release-0.4.1.yml
-          git config user.name "github-actions[bot]"
-          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add -A
+          BASE_SHA="$(git merge-base HEAD origin/main)"
+          git cat-file -e "${BASE_SHA}^{commit}"
+          printf '%s\n' "$BASE_SHA" > .grace/changes/active/C-RELEASE-0-4-1-280/base-sha.txt
+          python3 <<'PY'
+          import json
+          from pathlib import Path
+
+          def read(path):
+              return Path(path).read_text(encoding='utf-8')
+
+          def write(path, text):
+              Path(path).write_text(text, encoding='utf-8')
+
+          def replace_required(path, old, new):
+              text = read(path)
+              if old not in text:
+                  raise SystemExit(f'{path}: expected marker not found: {old!r}')
+              write(path, text.replace(old, new))
+
+          write('VERSION', '0.4.1\n')
+
+          package = json.loads(read('package.json'))
+          if package.get('version') != '0.4.0':
+              raise SystemExit('package.json: expected version 0.4.0')
+          package['version'] = '0.4.1'
+          write('package.json', json.dumps(package, ensure_ascii=False, indent=2) + '\n')
+
+          lock = json.loads(read('package-lock.json'))
+          if lock.get('version') != '0.4.0':
+              raise SystemExit('package-lock.json: expected root version 0.4.0')
+          lock['version'] = '0.4.1'
+          root = lock.get('packages', {}).get('')
+          if not isinstance(root, dict) or root.get('version') != '0.4.0':
+              raise SystemExit('package-lock.json: expected packages[""] version 0.4.0')
+          root['version'] = '0.4.1'
+          write('package-lock.json', json.dumps(lock, ensure_ascii=False, indent=2) + '\n')
+
+          version_docs = [
+              'README.md', 'README.en.md', 'docs/ROADMAP.md', 'docs/UX_FLOWS.md',
+              'docs/VALIDATION.md', 'docs/RELEASE_CANDIDATE.md'
+          ]
+          for path in version_docs:
+              replace_required(path, '0.4.0', '0.4.1')
+
+          ru = read('README.md')
+          ru_marker = '> Текущий рубеж: **`0.4.1`**, схема SQLite **31**.'
+          ru_patch = (
+              '\n\nВ `0.4.1` вошли завершённые изменения надёжности: Unicode-safe имена загружаемых файлов, '
+              'строгий offline preflight OCR/Poppler/LibreOffice с контрольным PDF → OCR, неизменяемый кэш '
+              'пакетов и восстановление через `doctor.sh --repair`, классифицированные ошибки Оформлятора, '
+              'детерминированные календарные fixtures и desktop-переключатель планов `Текущие | Архив`. '
+              'Схема SQLite не менялась.\n'
+          )
+          if 'В `0.4.1` вошли завершённые изменения надёжности' not in ru:
+              pos = ru.find('\n', ru.find(ru_marker))
+              if pos < 0:
+                  raise SystemExit('README.md milestone line not found')
+              ru = ru[:pos] + ru_patch + ru[pos:]
+              write('README.md', ru)
+
+          en = read('README.en.md')
+          en_marker = '> Current milestone: **`0.4.1`**, SQLite schema **31**.'
+          en_patch = (
+              '\n\n`0.4.1` promotes the completed reliability work: Unicode-safe upload filenames, strict offline '
+              'OCR/Poppler/LibreOffice preflight with a PDF-to-OCR probe, immutable package caching and '
+              '`doctor.sh --repair`, classified Docomator failures, deterministic calendar fixtures, and the '
+              'desktop `Current | Archive` plans switch. SQLite schema remains unchanged.\n'
+          )
+          if '`0.4.1` promotes the completed reliability work' not in en:
+              pos = en.find('\n', en.find(en_marker))
+              if pos < 0:
+                  raise SystemExit('README.en.md milestone line not found')
+              en = en[:pos] + en_patch + en[pos:]
+              write('README.en.md', en)
+
+          roadmap = read('docs/ROADMAP.md')
+          section = '''\n## Patch `0.4.1` — надёжность документов и desktop-планы\n\nСостояние: завершено и включено в выпуск.\n\n- имена загружаемых файлов безопасно передаются в HTTP-заголовках без потери исходного Unicode;\n- full offline bundle до активации строго проверяет OCR, Poppler, LibreOffice и контрольный путь PDF → OCR;\n- набор пакетов хранится как неизменяемый кэш, а `doctor.sh --repair` восстанавливает отсутствующие компоненты автономно;\n- ошибки Оформлятора классифицируются без утечки технических деталей и не блокируют локальную работу;\n- календарные browser fixtures не зависят от текущей даты;\n- на desktop планы переключаются постоянным сегментом `Текущие | Архив`, сохраняя поиск и фильтры; mobile использует прежний совместимый select.\n\nSQLite schema остаётся `31`; миграций в patch release нет.\n'''
+          if '## Patch `0.4.1`' not in roadmap:
+              anchor = '\n## R0 — платформенное основание\n'
+              if anchor not in roadmap:
+                  raise SystemExit('ROADMAP anchor not found')
+              roadmap = roadmap.replace(anchor, section + anchor, 1)
+              write('docs/ROADMAP.md', roadmap)
+
+          ux = read('docs/UX_FLOWS.md')
+          old = 'В списке по умолчанию показываются планы `В работе`; архив открывается явным фильтром.'
+          new = ('На desktop при ширине от `721 px` постоянный сегмент `Текущие | Архив` переключает '
+                 'существующий серверный `status=active|archived`, не сбрасывая поиск и остальные фильтры. '
+                 'Ниже `721 px` сохраняется прежний совместимый select; предметный сценарий и данные не меняются.')
+          if old in ux:
+              ux = ux.replace(old, new, 1)
+          elif new not in ux:
+              raise SystemExit('UX lifecycle marker not found')
+          write('docs/UX_FLOWS.md', ux)
+
+          validation = read('docs/VALIDATION.md')
+          validation_section = '''\n## Проверка patch release 0.4.1\n\nRelease gate дополнительно доказывает согласованность всех version markers, Unicode-safe download headers, детерминированные календарные fixtures, desktop lifecycle планов, классификацию ошибок Оформлятора, immutable package cache, `doctor.sh --repair` и строгий OCR/Poppler/LibreOffice preflight. Publisher ожидает также exact-SHA workflow `GRACE`; pending, failure, cancelled, missing и неожиданно skipped не считаются выпускным доказательством.\n'''
+          if '## Проверка patch release 0.4.1' not in validation:
+              validation += validation_section
+              write('docs/VALIDATION.md', validation)
+
+          rc = read('docs/RELEASE_CANDIDATE.md')
+          rc_section = '''\n## Надёжность, добавленная в 0.4.1\n\n- исходное Unicode-имя документа сохраняется, а download-заголовок остаётся валидным для русских, смешанных, emoji и длинных имён;\n- полный offline bundle активируется только после строгой проверки OCR/Poppler/LibreOffice и контрольного PDF → OCR;\n- target package cache неизменяем, `doctor.sh --repair` восстанавливает отсутствующие компоненты без обязательного Интернета;\n- ошибки Оформлятора разделены на доступность, авторизацию, совместимость и прикладные данные;\n- календарные fixtures фиксированы относительно тестового периода;\n- desktop-планы имеют постоянный `Текущие | Архив`, а mobile-контракт не расширен.\n\nНовой migration нет; текущая схема SQLite — **31**.\n'''
+          if '## Надёжность, добавленная в 0.4.1' not in rc:
+              anchor = '\n## Что завершено в 0.4.1\n'
+              if anchor not in rc:
+                  raise SystemExit('RELEASE_CANDIDATE anchor not found')
+              rc = rc.replace(anchor, rc_section + anchor, 1)
+              write('docs/RELEASE_CANDIDATE.md', rc)
+
+          replace_required('.github/workflows/release-gate.yml', '0.4.0', '0.4.1')
+          replace_required('.github/workflows/release.yml', 'Release gate 0.4.0', 'Release gate 0.4.1')
+          publisher = read('.github/workflows/release.yml')
+          if '            "GRACE"\n' not in publisher:
+              publisher = publisher.replace('          required=(\n', '          required=(\n            "GRACE"\n', 1)
+          if '            ["GRACE"]="grace.yml"\n' not in publisher:
+              publisher = publisher.replace('          declare -A workflow_files=(\n', '          declare -A workflow_files=(\n            ["GRACE"]="grace.yml"\n', 1)
+          write('.github/workflows/release.yml', publisher)
+
+          replace_required('tests/release-publisher.test.mjs', '0.4.0', '0.4.1')
+          publisher_test = read('tests/release-publisher.test.mjs')
+          anchor = "  assert.match(source, /permissions:\\n\\s+actions: write\\n\\s+contents: write/u);\n"
+          extra = "  assert.match(source, /required=\\(\\n\\s+\\\"GRACE\\\"/u);\n  assert.match(source, /\\[\\\"GRACE\\\"\\]=\\\"grace\\.yml\\\"/u);\n"
+          if 'required=\\(\\n\\s+\\\"GRACE\\\"' not in publisher_test:
+              if anchor not in publisher_test:
+                  raise SystemExit('release publisher test anchor not found')
+              publisher_test = publisher_test.replace(anchor, anchor + extra, 1)
+          write('tests/release-publisher.test.mjs', publisher_test)
+
+          replace_required('tests/release-publisher-assets.test.mjs', '0.4.0', '0.4.1')
+
+          release_notes = '''# Kafedra Planner 0.4.1\n\n## Главное\n\nPatch release объединяет только завершённые и уже проверенные изменения текущего `main`; SQLite schema остаётся `31`.\n\n- Unicode-safe загрузка и скачивание документов сохраняют исходные русские, смешанные, emoji и длинные имена без изменения bytes, SHA-256, `document_version` и evidence.\n- Full offline bundle до активации строго проверяет OCR, Poppler, LibreOffice и контрольный путь PDF → OCR.\n- Target package cache неизменяем; `doctor.sh --repair` может автономно восстановить отсутствующие поставочные компоненты.\n- Ошибки локального Оформлятора классифицируются и не блокируют основную работу кафедры.\n- Календарные browser fixtures детерминированы и не зависят от текущей даты.\n- На desktop раздел планов использует постоянный переключатель `Текущие | Архив`; поиск и фильтры сохраняются, а mobile продолжает использовать прежний select.\n\n## Поставка\n\nПубликуются полный Debian 12 amd64 air-gap archive, отдельный SHA-256, installer, README-INSTALL, пакет F2RE Project Control, его SHA-256 и общий `SHA256SUMS`. Publisher запускается только после успешных exact-SHA project workflows, включая `GRACE`.\n\n## Совместимость\n\nОсновной функционал по-прежнему работает без Docker, CDN, обязательного Интернета, облачных сервисов и LLM. Обновление использует проверенный backup, additive-only package policy, последовательные migrations и автоматический rollback; новой migration в 0.4.1 нет.\n\n## Статус\n\nЭто эксплуатационный release candidate. Объявление stable отдельно зависит от реальной приёмки Astra Linux/Debian по issue #27.\n'''
+          write('docs/releases/0.4.1.md', release_notes)
+
+          version_test = '''import test from 'node:test';\nimport assert from 'node:assert/strict';\nimport { readFile } from 'node:fs/promises';\n\nconst version = '0.4.1';\n\ntest('release 0.4.1 синхронизирует машинные version markers', async () => {\n  assert.equal((await readFile('VERSION', 'utf8')).trim(), version);\n  const pkg = JSON.parse(await readFile('package.json', 'utf8'));\n  const lock = JSON.parse(await readFile('package-lock.json', 'utf8'));\n  assert.equal(pkg.version, version);\n  assert.equal(lock.version, version);\n  assert.equal(lock.packages[''].version, version);\n});\n\ntest('release 0.4.1 синхронизирует документацию и workflows', async () => {\n  const files = [\n    'README.md', 'README.en.md', 'docs/ROADMAP.md', 'docs/UX_FLOWS.md',\n    'docs/VALIDATION.md', 'docs/RELEASE_CANDIDATE.md', 'docs/releases/0.4.1.md'\n  ];\n  for (const file of files) {\n    assert.match(await readFile(file, 'utf8'), /0\\.4\\.1/u, `${file} должен содержать 0.4.1`);\n  }\n  const gate = await readFile('.github/workflows/release-gate.yml', 'utf8');\n  const publisher = await readFile('.github/workflows/release.yml', 'utf8');\n  assert.match(gate, /Release gate 0\\.4\\.1/u);\n  assert.match(publisher, /workflows: \\["Release gate 0\\.4\\.1"\\]/u);\n  assert.match(publisher, /required=\\(\\n\\s+"GRACE"/u);\n  assert.match(publisher, /\\["GRACE"\\]="grace\\.yml"/u);\n  assert.doesNotMatch(gate, /Release gate 0\\.4\\.0/u);\n  assert.doesNotMatch(publisher, /Release gate 0\\.4\\.0/u);\n});\n'''
+          write('tests/release-version.test.mjs', version_test)
+          PY
+          git rm .github/workflows/release-0.4.1-prep.yml
+          git config user.name github-actions[bot]
+          git config user.email 41898282+github-actions[bot]@users.noreply.github.com
+          git add .
           git diff --cached --check
-          git commit -m "release: сформировать дерево Kafedra Planner 0.4.1 (#280)"
+          git commit -m "release: подготовить Kafedra Planner 0.4.1 (#280)"
           git push origin HEAD:release/0.4.1-280-final

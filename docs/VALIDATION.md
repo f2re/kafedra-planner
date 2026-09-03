@@ -1,6 +1,6 @@
 # Автоматическая проверка release candidate
 
-Актуальный рубеж: `0.4.0`, схема SQLite **31**. Автоматический gate проверяет код, данные, desktop/mobile UX и поставочный контракт, но не подменяет фактическую приёмку #27 на Astra Linux/Debian.
+Актуальный рубеж: `0.4.1`, схема SQLite **31**. Автоматический gate проверяет код, данные, desktop/mobile UX и поставочный контракт, но не подменяет фактическую приёмку #27 на Astra Linux/Debian.
 
 ## Статические и Node-проверки
 
@@ -122,3 +122,8 @@ Publisher проверяет фактические jobs, а не только t
 - права каталогов и systemd hardening;
 - обновление существующей установки и rollback;
 - при наличии — реальный Оформлятор и настоящий llama-server/GGUF.
+
+
+## Release 0.4.1
+
+Выпуск допускается только на одном exact head после GRACE final и полного project CI. Обязательны Unicode upload regression, desktop/mobile plans regression, release workflow/assets tests, clean install и upgrade schema 31, backup/restore, full offline Debian 12, реальная systemd-установка, offline LLM/GGUF и Project Control. После публикации отдельно проверяются tag SHA, семь assets, `SHA256SUMS`, внешние digest-файлы, embedded `VERSION` и metadata Project Control.
