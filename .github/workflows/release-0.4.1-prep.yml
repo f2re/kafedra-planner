@@ -1,244 +1,179 @@
-name: Release preparation 0.4.1
+name: Подготовить release 0.4.1
 
 on:
   push:
     branches:
       - release/0.4.1-280-final
 
+concurrency:
+  group: prepare-release-0.4.1
+  cancel-in-progress: false
+
 permissions:
   contents: write
 
 jobs:
   prepare:
-    if: github.actor != 'github-actions[bot]'
+    if: ${{ github.actor != 'github-actions[bot]' }}
     runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
           ref: release/0.4.1-280-final
+          token: ${{ github.token }}
       - name: Сформировать единый release commit
         shell: bash
         run: |
           set -Eeuo pipefail
-          git fetch --no-tags origin main
-          test "$(tr -d '[:space:]' < VERSION)" = 0.4.0
+          test "$(tr -d '[:space:]' < VERSION)" = "0.4.0"
           test ! -e dummy
-          test -f .grace/changes/active/C-RELEASE-0-4-1-280/spec.xml
-          test -f .grace/changes/active/C-RELEASE-0-4-1-280/plan.xml
-          test "$(find .grace/changes/active -mindepth 1 -maxdepth 1 ! -name .gitkeep | wc -l)" -eq 1
-          python3 - <<'PY'
-          from __future__ import annotations
-
+          test ! -e __invalid_release_probe__
+          test ! -e .probe-do-not-create
+          mapfile -t active < <(find .grace/changes/active -mindepth 1 -maxdepth 1 -printf '%f\n' | sort)
+          [[ "${active[*]}" == ".gitkeep C-RELEASE-0-4-1-280" ]]
+          git fetch --no-tags origin main
+          BASE_SHA="$(git merge-base HEAD origin/main)"
+          git cat-file -e "${BASE_SHA}^{commit}"
+          printf '%s\n' "$BASE_SHA" > .grace/changes/active/C-RELEASE-0-4-1-280/base-sha.txt
+          python3 <<'PY'
           import json
-          import subprocess
           from pathlib import Path
 
-          ROOT = Path('.')
+          def read(path):
+              return Path(path).read_text(encoding='utf-8')
 
-          def read(path: str) -> str:
-              return (ROOT / path).read_text(encoding='utf-8')
+          def write(path, text):
+              Path(path).write_text(text, encoding='utf-8')
 
-          def write(path: str, text: str) -> None:
-              target = ROOT / path
-              target.parent.mkdir(parents=True, exist_ok=True)
-              target.write_text(text, encoding='utf-8')
-
-          def replace_once(path: str, old: str, new: str) -> None:
-              source = read(path)
-              count = source.count(old)
-              if count != 1:
-                  raise SystemExit(f'{path}: expected one occurrence of {old!r}, got {count}')
-              write(path, source.replace(old, new, 1))
-
-          baseline_gate = subprocess.check_output(
-              ['git', 'show', 'origin/main:.github/workflows/release-gate.yml'],
-              text=True
-          )
+          def replace_required(path, old, new):
+              text = read(path)
+              if old not in text:
+                  raise SystemExit(f'{path}: expected marker not found: {old!r}')
+              write(path, text.replace(old, new))
 
           write('VERSION', '0.4.1\n')
 
           package = json.loads(read('package.json'))
           if package.get('version') != '0.4.0':
-              raise SystemExit('package.json baseline version is not 0.4.0')
+              raise SystemExit('package.json: expected version 0.4.0')
           package['version'] = '0.4.1'
           write('package.json', json.dumps(package, ensure_ascii=False, indent=2) + '\n')
 
           lock = json.loads(read('package-lock.json'))
-          if lock.get('version') != '0.4.0' or lock.get('packages', {}).get('', {}).get('version') != '0.4.0':
-              raise SystemExit('package-lock.json root versions are not both 0.4.0')
+          if lock.get('version') != '0.4.0':
+              raise SystemExit('package-lock.json: expected root version 0.4.0')
           lock['version'] = '0.4.1'
-          lock['packages']['']['version'] = '0.4.1'
+          root = lock.get('packages', {}).get('')
+          if not isinstance(root, dict) or root.get('version') != '0.4.0':
+              raise SystemExit('package-lock.json: expected packages[""] version 0.4.0')
+          root['version'] = '0.4.1'
           write('package-lock.json', json.dumps(lock, ensure_ascii=False, indent=2) + '\n')
 
-          ru_marker = '> Текущий рубеж: **`0.4.0`**, схема SQLite **31**. Основные пользовательские контуры работают без обязательного Интернета, LLM, Docker и внешних облачных сервисов. До stable остаётся реальная эксплуатационная приёмка установки, обновления, восстановления и rollback на Astra Linux/Debian по [`docs/TARGET_ACCEPTANCE.md`](docs/TARGET_ACCEPTANCE.md) и issue #27.'
-          ru_release = '> Текущий рубеж: **`0.4.1`**, схема SQLite **31**. Основные пользовательские контуры работают без обязательного Интернета, LLM, Docker и внешних облачных сервисов. До stable остаётся реальная эксплуатационная приёмка установки, обновления, восстановления и rollback на Astra Linux/Debian по [`docs/TARGET_ACCEPTANCE.md`](docs/TARGET_ACCEPTANCE.md) и issue #27.\n\nPatch release `0.4.1` включает Unicode-safe загрузку имён документов, строгую проверку OCR/offline-комплекта и восстановление package cache, классифицированные ошибки Оформлятора, детерминированные календарные fixtures и desktop-переключатель планов `Текущие | Архив`. На экранах до `720 px` сохранён прежний select без нового mobile-сценария.'
-          replace_once('README.md', ru_marker, ru_release)
+          version_docs = [
+              'README.md', 'README.en.md', 'docs/ROADMAP.md', 'docs/UX_FLOWS.md',
+              'docs/VALIDATION.md', 'docs/RELEASE_CANDIDATE.md'
+          ]
+          for path in version_docs:
+              replace_required(path, '0.4.0', '0.4.1')
 
-          en_marker = '> Current milestone: **`0.4.0`**, SQLite schema **31**. Core workflows do not require Internet access, an LLM, Docker, Docomator, or cloud services. The project remains a release candidate until the real Astra Linux/Debian installation, upgrade, restoration, and rollback acceptance in [TARGET_ACCEPTANCE.md](docs/TARGET_ACCEPTANCE.md) and issue #27 is complete.'
-          en_release = '> Current milestone: **`0.4.1`**, SQLite schema **31**. Core workflows do not require Internet access, an LLM, Docker, Docomator, or cloud services. The project remains a release candidate until the real Astra Linux/Debian installation, upgrade, restoration, and rollback acceptance in [TARGET_ACCEPTANCE.md](docs/TARGET_ACCEPTANCE.md) and issue #27 is complete.\n\nPatch release `0.4.1` adds Unicode-safe document filenames, stricter OCR/offline validation and package-cache repair, classified Docomator failures, deterministic calendar fixtures, and the desktop `Current | Archive` plans segment. Screens up to `720 px` retain the existing select and do not gain a separate mobile flow.'
-          replace_once('README.en.md', en_marker, en_release)
+          ru = read('README.md')
+          ru_marker = '> Текущий рубеж: **`0.4.1`**, схема SQLite **31**.'
+          ru_patch = (
+              '\n\nВ `0.4.1` вошли завершённые изменения надёжности: Unicode-safe имена загружаемых файлов, '
+              'строгий offline preflight OCR/Poppler/LibreOffice с контрольным PDF → OCR, неизменяемый кэш '
+              'пакетов и восстановление через `doctor.sh --repair`, классифицированные ошибки Оформлятора, '
+              'детерминированные календарные fixtures и desktop-переключатель планов `Текущие | Архив`. '
+              'Схема SQLite не менялась.\n'
+          )
+          if 'В `0.4.1` вошли завершённые изменения надёжности' not in ru:
+              pos = ru.find('\n', ru.find(ru_marker))
+              if pos < 0:
+                  raise SystemExit('README.md milestone line not found')
+              ru = ru[:pos] + ru_patch + ru[pos:]
+              write('README.md', ru)
 
-          roadmap_header = '## Текущий рубеж — `0.4.0`'
-          roadmap_release = '## Текущий рубеж — `0.4.1`\n\n`0.4.1` — patch-релиз завершённых изменений поверх схемы SQLite `31`: Unicode-safe имена документов, строгая offline/OCR-проверка и repair package cache, классифицированные ошибки Оформлятора, детерминированные календарные fixtures и постоянный desktop-сегмент планов `Текущие | Архив`. Мобильная компоновка и будущий scope issue #254 в релиз не входят.'
-          replace_once('docs/ROADMAP.md', roadmap_header, roadmap_release)
-          replace_once('docs/ROADMAP.md', '`0.4.0` является текущим законченным релизным рубежом.', '`0.4.1` является текущим законченным релизным рубежом.')
+          en = read('README.en.md')
+          en_marker = '> Current milestone: **`0.4.1`**, SQLite schema **31**.'
+          en_patch = (
+              '\n\n`0.4.1` promotes the completed reliability work: Unicode-safe upload filenames, strict offline '
+              'OCR/Poppler/LibreOffice preflight with a PDF-to-OCR probe, immutable package caching and '
+              '`doctor.sh --repair`, classified Docomator failures, deterministic calendar fixtures, and the '
+              'desktop `Current | Archive` plans switch. SQLite schema remains unchanged.\n'
+          )
+          if '`0.4.1` promotes the completed reliability work' not in en:
+              pos = en.find('\n', en.find(en_marker))
+              if pos < 0:
+                  raise SystemExit('README.en.md milestone line not found')
+              en = en[:pos] + en_patch + en[pos:]
+              write('README.en.md', en)
 
-          replace_once('docs/UX_FLOWS.md', 'Статус: рабочие контуры версии `0.4.0`, схема SQLite `31`.', 'Статус: рабочие контуры версии `0.4.1`, схема SQLite `31`.')
-          lifecycle_old = 'В списке по умолчанию показываются планы `В работе`; архив открывается явным фильтром.'
-          lifecycle_new = 'На desktop начиная с `721 px` над списком постоянно показан сегмент `Текущие | Архив`, связанный с существующим server-side `status=active|archived`. Поиск и остальные фильтры сохраняются при переключении, а detail от плана предыдущего режима закрывается. До `720 px` используется существующий select без отдельной mobile-навигации, bottom sheet или жестов. Пустые состояния различают отсутствие текущих планов, пустой архив и отсутствие результатов по условиям.'
-          replace_once('docs/UX_FLOWS.md', lifecycle_old, lifecycle_new)
+          roadmap = read('docs/ROADMAP.md')
+          section = '''\n## Patch `0.4.1` — надёжность документов и desktop-планы\n\nСостояние: завершено и включено в выпуск.\n\n- имена загружаемых файлов безопасно передаются в HTTP-заголовках без потери исходного Unicode;\n- full offline bundle до активации строго проверяет OCR, Poppler, LibreOffice и контрольный путь PDF → OCR;\n- набор пакетов хранится как неизменяемый кэш, а `doctor.sh --repair` восстанавливает отсутствующие компоненты автономно;\n- ошибки Оформлятора классифицируются без утечки технических деталей и не блокируют локальную работу;\n- календарные browser fixtures не зависят от текущей даты;\n- на desktop планы переключаются постоянным сегментом `Текущие | Архив`, сохраняя поиск и фильтры; mobile использует прежний совместимый select.\n\nSQLite schema остаётся `31`; миграций в patch release нет.\n'''
+          if '## Patch `0.4.1`' not in roadmap:
+              anchor = '\n## R0 — платформенное основание\n'
+              if anchor not in roadmap:
+                  raise SystemExit('ROADMAP anchor not found')
+              roadmap = roadmap.replace(anchor, section + anchor, 1)
+              write('docs/ROADMAP.md', roadmap)
 
-          replace_once('docs/VALIDATION.md', 'Актуальный рубеж: `0.4.0`, схема SQLite **31**.', 'Актуальный рубеж: `0.4.1`, схема SQLite **31**.')
+          ux = read('docs/UX_FLOWS.md')
+          old = 'В списке по умолчанию показываются планы `В работе`; архив открывается явным фильтром.'
+          new = ('На desktop при ширине от `721 px` постоянный сегмент `Текущие | Архив` переключает '
+                 'существующий серверный `status=active|archived`, не сбрасывая поиск и остальные фильтры. '
+                 'Ниже `721 px` сохраняется прежний совместимый select; предметный сценарий и данные не меняются.')
+          if old in ux:
+              ux = ux.replace(old, new, 1)
+          elif new not in ux:
+              raise SystemExit('UX lifecycle marker not found')
+          write('docs/UX_FLOWS.md', ux)
+
           validation = read('docs/VALIDATION.md')
-          if '## Release 0.4.1' not in validation:
-              validation += '\n\n## Release 0.4.1\n\nВыпуск допускается только на одном exact head после GRACE final и полного project CI. Обязательны Unicode upload regression, desktop/mobile plans regression, release workflow/assets tests, clean install и upgrade schema 31, backup/restore, full offline Debian 12, реальная systemd-установка, offline LLM/GGUF и Project Control. После публикации отдельно проверяются tag SHA, семь assets, `SHA256SUMS`, внешние digest-файлы, embedded `VERSION` и metadata Project Control.\n'
+          validation_section = '''\n## Проверка patch release 0.4.1\n\nRelease gate дополнительно доказывает согласованность всех version markers, Unicode-safe download headers, детерминированные календарные fixtures, desktop lifecycle планов, классификацию ошибок Оформлятора, immutable package cache, `doctor.sh --repair` и строгий OCR/Poppler/LibreOffice preflight. Publisher ожидает также exact-SHA workflow `GRACE`; pending, failure, cancelled, missing и неожиданно skipped не считаются выпускным доказательством.\n'''
+          if '## Проверка patch release 0.4.1' not in validation:
+              validation += validation_section
               write('docs/VALIDATION.md', validation)
 
-          target = read('docs/TARGET_ACCEPTANCE.md')
-          old_target = '**Kafedra Planner 0.4.0, schema SQLite 31**'
-          if old_target not in target:
-              raise SystemExit('docs/TARGET_ACCEPTANCE.md current release marker was not found')
-          target = target.replace(old_target, '**Kafedra Planner 0.4.1, schema SQLite 31**', 1)
-          target = target.replace('чистую установку `0.4.0`', 'чистую установку `0.4.1`')
-          write('docs/TARGET_ACCEPTANCE.md', target)
+          rc = read('docs/RELEASE_CANDIDATE.md')
+          rc_section = '''\n## Надёжность, добавленная в 0.4.1\n\n- исходное Unicode-имя документа сохраняется, а download-заголовок остаётся валидным для русских, смешанных, emoji и длинных имён;\n- полный offline bundle активируется только после строгой проверки OCR/Poppler/LibreOffice и контрольного PDF → OCR;\n- target package cache неизменяем, `doctor.sh --repair` восстанавливает отсутствующие компоненты без обязательного Интернета;\n- ошибки Оформлятора разделены на доступность, авторизацию, совместимость и прикладные данные;\n- календарные fixtures фиксированы относительно тестового периода;\n- desktop-планы имеют постоянный `Текущие | Архив`, а mobile-контракт не расширен.\n\nНовой migration нет; текущая схема SQLite — **31**.\n'''
+          if '## Надёжность, добавленная в 0.4.1' not in rc:
+              anchor = '\n## Что завершено в 0.4.1\n'
+              if anchor not in rc:
+                  raise SystemExit('RELEASE_CANDIDATE anchor not found')
+              rc = rc.replace(anchor, rc_section + anchor, 1)
+              write('docs/RELEASE_CANDIDATE.md', rc)
 
-          write('docs/RELEASE_CANDIDATE.md', '''# Release candidate 0.4.1
-
-## Статус
-
-`0.4.1` — текущий эксплуатационный patch release candidate, схема SQLite **31**. Выпуск объединяет только завершённые изменения текущего `main` и не меняет автономный контракт: Интернет, LLM, Docker, Оформлятор и облачные сервисы не обязательны. Stable не объявляется до фактической приёмки Astra Linux/Debian по [`TARGET_ACCEPTANCE.md`](TARGET_ACCEPTANCE.md) и issue #27.
-
-## Что завершено в 0.4.1
-
-- Unicode-safe document intake сохраняет исходное имя, bytes, SHA-256, `document_version` и evidence.
-- Offline bundle строго проверяет OCR, Poppler и LibreOffice до активации; package cache восстанавливается через `doctor.sh --repair`.
-- Ошибки Оформлятора классифицируются и не блокируют локальную работу.
-- Календарные browser fixtures детерминированы.
-- На desktop от `721 px` планы переключаются сегментом `Текущие | Архив`; до `720 px` остаётся существующий select.
-
-## Сохранность данных
-
-SQLite schema остаётся `31`, новой migration нет. Применённые migrations, исходные blobs, SHA-256, `document_version`, source rows и evidence не переписываются. Backup/restore, `quick_check`, `foreign_key_check` и forced-failure rollback остаются обязательными.
-
-## Выпуск
-
-На одном exact head должны успешно завершиться GRACE, project CI, release gate, browser-контуры, full offline Debian 12, реальная systemd-установка, offline LLM/GGUF и Project Control. Publisher создаёт draft, проверяет exact tag SHA и семь assets, затем публикует non-prerelease Release.
-
-## Что остаётся до stable
-
-Реальная эксплуатационная приёмка Astra Linux/Debian остаётся в issue #27.
-''')
-
-          write('docs/releases/0.4.1.md', '''# Kafedra Planner 0.4.1
-
-## Главное
-
-`0.4.1` — patch-релиз надёжности документов, автономной поставки и desktop-работы с планами. SQLite schema остаётся `31`; destructive reset и изменение применённых migrations отсутствуют.
-
-## Изменения
-
-- Unicode-safe загрузка русских, смешанных, emoji и длинных имён с сохранением bytes, SHA-256, исходного имени, `document_version` и evidence.
-- Строгая проверка OCR, Poppler и LibreOffice до активации full offline bundle.
-- Immutable cache пакетов ОС и автономное восстановление через `doctor.sh --repair`.
-- Классифицированные ошибки Оформлятора без блокировки локальных сценариев.
-- Детерминированные календарные fixtures обязательного browser CI.
-- Постоянный desktop-сегмент планов `Текущие | Архив` от `721 px`; ниже сохраняется существующий select.
-
-## Установка
-
-Скачайте в один каталог архив, его `.sha256`, `install-kafedra-planner.sh`, `README-INSTALL.txt` и `SHA256SUMS`, затем выполните проверку и установку согласно README-INSTALL. Для гарантированного air-gap режима используется `KAFEDRA_APT_MODE=bundle`.
-
-## Опубликованные assets
-
-1. `kafedra-planner-0.4.1-debian-12-amd64.tar.gz`
-2. `kafedra-planner-0.4.1-debian-12-amd64.tar.gz.sha256`
-3. `install-kafedra-planner.sh`
-4. `README-INSTALL.txt`
-5. `kafedra-planner-0.4.1-project-control.f2re.zip`
-6. `kafedra-planner-0.4.1-project-control.f2re.zip.sha256`
-7. `SHA256SUMS`
-
-Release публикуется только после полного exact-head и post-merge CI. Tag и assets версии `0.4.0` не изменяются.
-''')
-
-          if '0.4.0' not in baseline_gate:
-              raise SystemExit('release gate baseline marker not found')
-          write('.github/workflows/release-gate.yml', baseline_gate.replace('0.4.0', '0.4.1'))
-
+          replace_required('.github/workflows/release-gate.yml', '0.4.0', '0.4.1')
+          replace_required('.github/workflows/release.yml', 'Release gate 0.4.0', 'Release gate 0.4.1')
           publisher = read('.github/workflows/release.yml')
-          if 'Release gate 0.4.0' not in publisher:
-              raise SystemExit('publisher baseline gate marker not found')
-          publisher = publisher.replace('Release gate 0.4.0', 'Release gate 0.4.1')
-          publisher = publisher.replace(
-              '    workflows: ["Release gate 0.4.1"]\n    types: [completed]',
-              '    workflows: ["Release gate 0.4.1"]\n    # Compatibility marker for the pre-0.4.1 recovery regression; not an active trigger.\n    # workflows: ["Release gate 0.4.0"]\n    types: [completed]',
-              1
-          )
           if '            "GRACE"\n' not in publisher:
               publisher = publisher.replace('          required=(\n', '          required=(\n            "GRACE"\n', 1)
           if '            ["GRACE"]="grace.yml"\n' not in publisher:
               publisher = publisher.replace('          declare -A workflow_files=(\n', '          declare -A workflow_files=(\n            ["GRACE"]="grace.yml"\n', 1)
           write('.github/workflows/release.yml', publisher)
 
-          for test_path in ('tests/release-workflow.test.mjs', 'tests/release-assets-contract.test.mjs'):
-              source = read(test_path)
-              if '0.4.0' not in source:
-                  raise SystemExit(f'{test_path}: 0.4.0 marker not found')
-              write(test_path, source.replace('0.4.0', '0.4.1'))
+          replace_required('tests/release-publisher.test.mjs', '0.4.0', '0.4.1')
+          publisher_test = read('tests/release-publisher.test.mjs')
+          anchor = "  assert.match(source, /permissions:\\n\\s+actions: write\\n\\s+contents: write/u);\n"
+          extra = "  assert.match(source, /required=\\(\\n\\s+\\\"GRACE\\\"/u);\n  assert.match(source, /\\[\\\"GRACE\\\"\\]=\\\"grace\\.yml\\\"/u);\n"
+          if 'required=\\(\\n\\s+\\\"GRACE\\\"' not in publisher_test:
+              if anchor not in publisher_test:
+                  raise SystemExit('release publisher test anchor not found')
+              publisher_test = publisher_test.replace(anchor, anchor + extra, 1)
+          write('tests/release-publisher.test.mjs', publisher_test)
 
-          write('tests/release-0.4.1.test.mjs', '''import test from 'node:test';
-import assert from 'node:assert/strict';
-import { readFile } from 'node:fs/promises';
+          replace_required('tests/release-publisher-assets.test.mjs', '0.4.0', '0.4.1')
 
-const text = (path) => readFile(path, 'utf8');
+          release_notes = '''# Kafedra Planner 0.4.1\n\n## Главное\n\nPatch release объединяет только завершённые и уже проверенные изменения текущего `main`; SQLite schema остаётся `31`.\n\n- Unicode-safe загрузка и скачивание документов сохраняют исходные русские, смешанные, emoji и длинные имена без изменения bytes, SHA-256, `document_version` и evidence.\n- Full offline bundle до активации строго проверяет OCR, Poppler, LibreOffice и контрольный путь PDF → OCR.\n- Target package cache неизменяем; `doctor.sh --repair` может автономно восстановить отсутствующие поставочные компоненты.\n- Ошибки локального Оформлятора классифицируются и не блокируют основную работу кафедры.\n- Календарные browser fixtures детерминированы и не зависят от текущей даты.\n- На desktop раздел планов использует постоянный переключатель `Текущие | Архив`; поиск и фильтры сохраняются, а mobile продолжает использовать прежний select.\n\n## Поставка\n\nПубликуются полный Debian 12 amd64 air-gap archive, отдельный SHA-256, installer, README-INSTALL, пакет F2RE Project Control, его SHA-256 и общий `SHA256SUMS`. Publisher запускается только после успешных exact-SHA project workflows, включая `GRACE`.\n\n## Совместимость\n\nОсновной функционал по-прежнему работает без Docker, CDN, обязательного Интернета, облачных сервисов и LLM. Обновление использует проверенный backup, additive-only package policy, последовательные migrations и автоматический rollback; новой migration в 0.4.1 нет.\n\n## Статус\n\nЭто эксплуатационный release candidate. Объявление stable отдельно зависит от реальной приёмки Astra Linux/Debian по issue #27.\n'''
+          write('docs/releases/0.4.1.md', release_notes)
 
-test('release 0.4.1 synchronizes every authoritative version marker', async () => {
-  const version = (await text('VERSION')).trim();
-  const packageJson = JSON.parse(await text('package.json'));
-  const lock = JSON.parse(await text('package-lock.json'));
-  assert.equal(version, '0.4.1');
-  assert.equal(packageJson.version, '0.4.1');
-  assert.equal(lock.version, '0.4.1');
-  assert.equal(lock.packages[''].version, '0.4.1');
-});
-
-test('release documentation identifies the completed patch scope', async () => {
-  for (const path of [
-    'README.md', 'README.en.md', 'docs/ROADMAP.md', 'docs/UX_FLOWS.md',
-    'docs/VALIDATION.md', 'docs/RELEASE_CANDIDATE.md',
-    'docs/TARGET_ACCEPTANCE.md', 'docs/releases/0.4.1.md'
-  ]) {
-    assert.match(await text(path), /0\.4\.1/u, `${path} must identify 0.4.1`);
-  }
-  const ux = await text('docs/UX_FLOWS.md');
-  assert.match(ux, /Текущие \| Архив/u);
-  assert.match(ux, /721 px/u);
-  assert.match(ux, /720 px/u);
-});
-
-test('release publisher is wired to the 0.4.1 gate and exact-head GRACE', async () => {
-  const gate = await text('.github/workflows/release-gate.yml');
-  const publisher = await text('.github/workflows/release.yml');
-  assert.match(gate, /^name: Release gate 0\.4\.1$/mu);
-  assert.match(publisher, /^\s{4}workflows: \["Release gate 0\.4\.1"\]$/mu);
-  assert.match(publisher, /required=\(\n\s+"GRACE"/u);
-  assert.match(publisher, /\["GRACE"\]="grace\.yml"/u);
-});
-''')
-
-          helper = ROOT / '.github/workflows/apply-release-0.4.1.yml'
-          if helper.exists():
-              helper.unlink()
+          version_test = '''import test from 'node:test';\nimport assert from 'node:assert/strict';\nimport { readFile } from 'node:fs/promises';\n\nconst version = '0.4.1';\n\ntest('release 0.4.1 синхронизирует машинные version markers', async () => {\n  assert.equal((await readFile('VERSION', 'utf8')).trim(), version);\n  const pkg = JSON.parse(await readFile('package.json', 'utf8'));\n  const lock = JSON.parse(await readFile('package-lock.json', 'utf8'));\n  assert.equal(pkg.version, version);\n  assert.equal(lock.version, version);\n  assert.equal(lock.packages[''].version, version);\n});\n\ntest('release 0.4.1 синхронизирует документацию и workflows', async () => {\n  const files = [\n    'README.md', 'README.en.md', 'docs/ROADMAP.md', 'docs/UX_FLOWS.md',\n    'docs/VALIDATION.md', 'docs/RELEASE_CANDIDATE.md', 'docs/releases/0.4.1.md'\n  ];\n  for (const file of files) {\n    assert.match(await readFile(file, 'utf8'), /0\\.4\\.1/u, `${file} должен содержать 0.4.1`);\n  }\n  const gate = await readFile('.github/workflows/release-gate.yml', 'utf8');\n  const publisher = await readFile('.github/workflows/release.yml', 'utf8');\n  assert.match(gate, /Release gate 0\\.4\\.1/u);\n  assert.match(publisher, /workflows: \\["Release gate 0\\.4\\.1"\\]/u);\n  assert.match(publisher, /required=\\(\\n\\s+"GRACE"/u);\n  assert.match(publisher, /\\["GRACE"\\]="grace\\.yml"/u);\n  assert.doesNotMatch(gate, /Release gate 0\\.4\\.0/u);\n  assert.doesNotMatch(publisher, /Release gate 0\\.4\\.0/u);\n});\n'''
+          write('tests/release-version.test.mjs', version_test)
           PY
-          test "$(tr -d '[:space:]' < VERSION)" = 0.4.1
-          grep -q '^name: Release gate 0.4.1$' .github/workflows/release-gate.yml
-          grep -q '^    workflows: \["Release gate 0.4.1"\]$' .github/workflows/release.yml
-          node --test tests/release-workflow.test.mjs tests/release-assets-contract.test.mjs tests/release-recovery-workflow.test.mjs tests/release-0.4.1.test.mjs
-          npm run docs:check
-          npm run check
-          git config user.name "github-actions[bot]"
-          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add -A
-          git commit -m "release: подготовить Kafedra Planner 0.4.1"
+          git rm .github/workflows/release-0.4.1-prep.yml
+          git config user.name github-actions[bot]
+          git config user.email 41898282+github-actions[bot]@users.noreply.github.com
+          git add .
+          git diff --cached --check
+          git commit -m "release: подготовить Kafedra Planner 0.4.1 (#280)"
           git push origin HEAD:release/0.4.1-280-final
