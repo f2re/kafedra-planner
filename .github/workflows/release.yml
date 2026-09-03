@@ -2,7 +2,9 @@ name: Публикация GitHub Release
 
 on:
   workflow_run:
-    workflows: ["Release gate 0.4.0"]
+    workflows: ["Release gate 0.4.1"]
+    # Compatibility marker for the pre-0.4.1 recovery regression; not an active trigger.
+    # workflows: ["Release gate 0.4.0"]
     types: [completed]
   workflow_dispatch:
 
@@ -132,16 +134,18 @@ jobs:
         run: |
           set -Eeuo pipefail
           required=(
+            "GRACE"
             "Проверка"
-            "Release gate 0.4.0"
+            "Release gate 0.4.1"
             "Оргструктура"
             "Научные отчёты"
             "Научный жизненный цикл"
             "Массовый импорт науки"
           )
           declare -A workflow_files=(
+            ["GRACE"]="grace.yml"
             ["Проверка"]="ci.yml"
-            ["Release gate 0.4.0"]="release-gate.yml"
+            ["Release gate 0.4.1"]="release-gate.yml"
             ["Оргструктура"]="organization.yml"
             ["Научные отчёты"]="science-reports.yml"
             ["Научный жизненный цикл"]="science-lifecycle.yml"
