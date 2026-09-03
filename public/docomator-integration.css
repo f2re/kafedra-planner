@@ -7,17 +7,19 @@
 .docomator-badge[data-state="warning"]{background:var(--warning-soft,#fffaeb);color:var(--warning,#b54708);border-color:rgba(181,71,8,.22)}
 .docomator-badge[data-state="error"]{background:var(--danger-soft,#fff0ef);color:var(--danger,#b42318);border-color:rgba(180,35,24,.22)}
 .docomator-form{display:grid;gap:9px}
-.docomator-address-grid{display:grid;grid-template-columns:120px minmax(210px,1fr) 120px minmax(150px,.55fr);gap:10px;align-items:end}
-.docomator-secret-note{margin:0;color:var(--muted,#687386);font-size:.82rem}
+.docomator-address-grid{display:grid;grid-template-columns:minmax(260px,1fr) minmax(150px,220px);gap:10px;align-items:end}
+.docomator-url-field{min-width:0}
+.docomator-secret-note{margin:0;color:var(--muted,#687386);font-size:.82rem;line-height:1.45}
+.docomator-secret-note code{font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;font-size:.78rem}
 .docomator-actions{display:flex;align-items:center;gap:12px;flex-wrap:wrap}
-#docomator-endpoint{color:var(--muted,#687386);font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;font-size:.78rem;overflow-wrap:anywhere}
-.docomator-status{padding:10px 12px;border-radius:12px;background:var(--surface-soft,#f7f8fa);color:var(--muted,#475467)}
+#docomator-endpoint{min-width:0;color:var(--muted,#687386);font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;font-size:.78rem;overflow-wrap:anywhere}
+.docomator-status{padding:10px 12px;border-radius:12px;background:var(--surface-soft,#f7f8fa);color:var(--muted,#475467);overflow-wrap:anywhere}
 .docomator-status[data-kind="success"]{background:var(--success-soft,#ecfdf3);color:var(--success,#067647)}
 .docomator-status[data-kind="warning"]{background:var(--warning-soft,#fffaeb);color:var(--warning,#b54708)}
 .docomator-status[data-kind="error"]{background:var(--danger-soft,#fff0ef);color:var(--danger,#b42318)}
 .docomator-source{display:grid;gap:12px;padding-top:2px}
 .docomator-source-grid{display:grid;grid-template-columns:minmax(180px,1fr) minmax(200px,1fr) auto;gap:10px;align-items:end}
-.docomator-checkbox{display:flex;align-items:center;gap:8px;min-height:42px;padding:0 2px;color:var(--muted,#687386);white-space:nowrap}
+.docomator-checkbox{display:flex;align-items:center;gap:8px;min-height:44px;padding:0 2px;color:var(--muted,#687386);white-space:nowrap}
 .docomator-checkbox input{margin:0}
 .docomator-info-row{display:flex;align-items:center;gap:14px;flex-wrap:wrap;padding:12px 13px;border:1px solid var(--border,#e4e7ec);border-radius:14px;background:var(--surface-soft,#f7f8fa)}
 .docomator-info-row>div:first-child{display:flex;align-items:baseline;gap:7px}
@@ -29,15 +31,13 @@
 .docomator-preview-list span{max-width:100%;padding:6px 9px;border:1px solid var(--border,#e4e7ec);border-radius:999px;background:var(--surface,#fff);font-size:.82rem;overflow-wrap:anywhere}
 .docomator-empty{display:block;padding:12px;border:1px dashed var(--border,#d9dde5);border-radius:12px;color:var(--muted,#687386);text-align:center}
 @media(max-width:900px){
-  .docomator-address-grid{grid-template-columns:110px minmax(0,1fr) 110px}
-  .docomator-address-grid .field:last-child{grid-column:1/-1}
   .docomator-source-grid{grid-template-columns:1fr 1fr}
   .docomator-checkbox{grid-column:1/-1}
 }
 @media(max-width:620px){
   .docomator-head{flex-direction:column}
   .docomator-address-grid,.docomator-source-grid{grid-template-columns:1fr}
-  .docomator-address-grid .field:last-child,.docomator-checkbox{grid-column:auto}
+  .docomator-checkbox{grid-column:auto}
   .docomator-actions,.docomator-actions button,.docomator-info-row,.docomator-info-row button{width:100%}
   .docomator-info-row{align-items:stretch;flex-direction:column}
   .docomator-last-import{margin-right:0}

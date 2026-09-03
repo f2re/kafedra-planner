@@ -58,7 +58,7 @@ function ensureUi() {
           <div id="docomator-extra-fields" class="docomator-extra-fields"></div>
         </div>
       </details>
-      <p id="docomator-fields-status" class="docomator-fields-status">Сначала проверьте соединение и выберите пространство.</p>
+      <p id="docomator-fields-status" class="docomator-fields-status">Сначала подключите Оформлятор и выберите пространство.</p>
     </section>`;
   if (info) info.insertAdjacentHTML('beforebegin', html);
   else source.insertAdjacentHTML('beforeend', html);
@@ -66,12 +66,18 @@ function ensureUi() {
   return true;
 }
 
+function legacyUrl(settings = {}) {
+  if (!settings.host) return '';
+  const host = String(settings.host).includes(':') ? `[${settings.host}]` : settings.host;
+  return `${settings.scheme || 'http'}://${host}:${settings.port || 8080}`;
+}
+
 function baseValues() {
   const form = $df('#docomator-settings-form');
   return {
-    scheme: form?.elements.scheme?.value || docomatorFieldsState.settings?.scheme || 'http',
-    host: form?.elements.host?.value?.trim() || docomatorFieldsState.settings?.host || '',
-    port: Number(form?.elements.port?.value || docomatorFieldsState.settings?.port || 8080),
+    url: form?.elements.url?.value?.trim()
+      || docomatorFieldsState.settings?.url
+      || legacyUrl(docomatorFieldsState.settings),
     accessCode: form?.elements.accessCode?.value?.trim() || undefined,
     spaceId: $df('#docomator-space')?.value || null,
     groupId: $df('#docomator-group')?.value || null,
@@ -161,7 +167,7 @@ async function loadSettings() {
 async function discover({ force = false } = {}) {
   if (docomatorFieldsState.loading || !ensureUi()) return;
   const input = baseValues();
-  if (!input.host || !input.spaceId) return;
+  if (!input.url || !input.spaceId) return;
   if (!force && docomatorFieldsState.loadedSpaceId === input.spaceId && docomatorFieldsState.properties.length) return;
   docomatorFieldsState.loading = true;
   const status = $df('#docomator-fields-status');
