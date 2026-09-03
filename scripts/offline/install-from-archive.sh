@@ -62,4 +62,7 @@ ROOT="$WORK/${roots[0]}"
 [[ -f "$ROOT/install.sh" ]] || { echo 'В архиве отсутствует install.sh' >&2; exit 3; }
 chmod 0755 "$ROOT/install.sh"
 printf 'Архив проверен. Установка выполняется из приватного временного каталога root; владелец исходной папки не меняется.\n'
-exec "$ROOT/install.sh"
+
+# Не заменяем launcher через exec: его EXIT-trap обязан удалить private staging
+# и после успешной установки, и после ошибки внутреннего installer.
+"$ROOT/install.sh"

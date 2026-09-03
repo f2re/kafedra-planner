@@ -46,14 +46,16 @@ test('archive launcher keeps the source folder user-owned and extracts into priv
   assert.doesNotMatch(archiveLauncher, /for command in[^\n]*chown/u);
 });
 
-test('archive launcher confines strict umask to private staging metadata and restores readable bundle permissions before APT and service use', () => {
+test('archive launcher confines strict umask to private staging metadata, restores readable bundle permissions and always cleans staging', () => {
   assert.match(archiveLauncher, /^umask 077$/mu);
+  assert.match(archiveLauncher, /trap 'rm -rf "\$WORK"' EXIT/u);
   const privateRoot = archiveLauncher.indexOf('chmod 0700 "$WORK"');
   const normalUmask = archiveLauncher.indexOf('umask 022');
   const extract = archiveLauncher.indexOf('tar --no-same-owner --no-same-permissions -xzf');
-  const execute = archiveLauncher.indexOf('exec "$ROOT/install.sh"');
+  const execute = archiveLauncher.lastIndexOf('"$ROOT/install.sh"');
   assert.ok(privateRoot >= 0 && normalUmask > privateRoot && extract > normalUmask && execute > extract);
   assert.match(archiveLauncher, /локальный\n# file: APT repository должны быть читаемы sandbox-пользователем _apt/u);
+  assert.doesNotMatch(archiveLauncher, /^exec "\$ROOT\/install\.sh"$/mu);
 });
 
 test('bundle stages both the transactional entrypoint and immutable core installer', () => {
