@@ -29,14 +29,11 @@ async function logout(page) {
   await expect(page.locator('#auth-gate')).toBeVisible();
 }
 
-async function selectNativeWithKeyboard(locator, value) {
-  const values = await locator.locator('option').evaluateAll((options) => options.map((option) => option.value));
-  const index = values.indexOf(value);
-  expect(index).toBeGreaterThanOrEqual(0);
+async function selectNativeOption(locator, value) {
+  await expect(locator).toBeEnabled();
+  await expect(locator.locator(`option[value="${value}"]`)).toHaveCount(1);
   await locator.focus();
-  await locator.press('Home');
-  for (let step = 0; step < index; step += 1) await locator.press('ArrowDown');
-  await locator.press('Enter');
+  await locator.selectOption(value);
   await expect(locator).toHaveValue(value);
 }
 
@@ -116,7 +113,7 @@ test('сотрудник получает личный контур и наст�
   const managerProfile = page.locator('#current-person-select');
   await expect(managerProfile).toBeEnabled();
   await expect(managerProfile.locator('option[value="person-staff"]')).toHaveCount(1);
-  await selectNativeWithKeyboard(managerProfile, 'person-staff');
+  await selectNativeOption(managerProfile, 'person-staff');
   await page.evaluate(() => {
     const marker = document.createElement('span');
     marker.hidden = true;

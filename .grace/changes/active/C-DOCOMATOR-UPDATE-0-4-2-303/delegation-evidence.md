@@ -23,4 +23,11 @@ The lead integrator owns the exact-main branch, GRACE contract, cross-scope inte
 - GRACE branch `contract`, `database` and `merge-gate` checks completed successfully before governed writes.
 - Baseline release is `0.4.1`; SQLite schema is `31`; no migration is planned.
 
-Implementation, audit and final exact-head evidence will be appended before target/final gates.
+## Integration audit and corrective packets
+
+- **kafedra-feature**: the Docomator settings card and admin API read are now mounted only after the authoritative auth context is ready and only for an authenticated administrator; staff and manager sessions retain their personal contours without admin-only Docomator requests. Auth-disabled local mode remains supported.
+- **kafedra-release**: `install-from-archive.sh` no longer replaces the launcher process with `exec`; its EXIT trap removes private `/tmp/kafedra-install.*` staging after both success and failure while leaving the user-owned source directory untouched.
+- **kafedra-tests**: the mobile auth regression was isolated from the product change. The previous helper selected by a stale option index while rank-only preferences could reorder native options. The corrected test selects the stable person value, then still verifies explicit choice persistence, subordinate scope and admin denial. No auth/ACL production contract is changed.
+- **lead integration audit**: Docomator repository main was checked against the implemented `/healthz`, `/readyz`, access unlock, spaces, groups, members, employees and property-definition endpoints. The release branch uses the actual service contract and keeps classified DNS/refused/timeout/TLS/protocol failures non-blocking for local work.
+
+Final exact-head CI, release publication and immutable terminal archive evidence will be recorded through GitHub checks, Release API and the archive-only PR before issue #303 closes.

@@ -84,6 +84,7 @@
       <File>tests/static-cache.test.mjs</File>
       <File>tests/browser/docomator-integration.spec.mjs</File>
       <File>tests/browser/docomator-fields.spec.mjs</File>
+      <File>tests/browser/auth.spec.mjs</File>
       <File>playwright.config.mjs</File>
       <File>VERSION</File>
       <File>package.json</File>
