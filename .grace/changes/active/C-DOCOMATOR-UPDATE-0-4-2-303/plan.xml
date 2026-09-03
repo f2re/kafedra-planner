@@ -24,7 +24,7 @@
     </BaselineAssertions>
     <TargetAssertions>
       <MustExist><Value>.grace/changes/active/C-DOCOMATOR-UPDATE-0-4-2-303/design.md</Value></MustExist>
-      <MustExist><Value>.grace/changes/active/C-DOCOMATOR-UPDATE-0-4-2-303/motion-decision.md</Value></MustExist>
+      <MustExist><Value>.grace/changes/active/C-DOCOMATOR-UPDATE-0-4-2-303/motion.md</Value></MustExist>
       <MustExist><Value>.grace/changes/active/C-DOCOMATOR-UPDATE-0-4-2-303/design-audit.md</Value></MustExist>
       <MustExist><Value>.grace/changes/active/C-DOCOMATOR-UPDATE-0-4-2-303/delegation-evidence.md</Value></MustExist>
       <MustExist><Value>tests/static-cache.test.mjs</Value></MustExist>
@@ -104,19 +104,36 @@
     </ObservedWriteScope>
     <ImplementationPlan>
       <T-001>
-        <Title>kafedra-flow-intake and kafedra-design: define the one-address administrator flow</Title>
+        <Title>kafedra-flow-intake: map the copied-address administrator journey and all recoverable states</Title>
         <DependsOn></DependsOn>
         <AcceptanceCriteria>
-          <Criterion>The design artifact reduces the connection form to one address and one optional access code without changing the surrounding department structure geometry.</Criterion>
-          <Criterion>Desktop and mobile states cover idle, checking, connected, access code required, classified error, empty source, preview, import and repeated import.</Criterion>
-          <Criterion>Endpoint, code and import action are classified never-learn; space and group are domain-derived or explicit current choices.</Criterion>
-          <Criterion>No motion is introduced and reduced-motion users receive the same immediate state changes.</Criterion>
+          <Criterion>The flow covers idle, checking, connected, access code required, classified error, empty source, preview, import and repeated import.</Criterion>
+          <Criterion>Local people and work remain usable through every Docomator failure.</Criterion>
         </AcceptanceCriteria>
-        <Verification><Command>npm run design:check</Command></Verification>
+        <Verification><Command>npm run docs:check</Command></Verification>
       </T-001>
       <T-002>
-        <Title>kafedra-data: normalize endpoint input and preserve stored integration data</Title>
+        <Title>kafedra-design: reduce the connection form to one stable address control</Title>
         <DependsOn><T-001 /></DependsOn>
+        <AcceptanceCriteria>
+          <Criterion>The design artifact reduces the connection form to one address and one optional access code without changing the surrounding department structure geometry.</Criterion>
+          <Criterion>Desktop and mobile retain a clear order of address, connect, source, preview and import.</Criterion>
+          <Criterion>Endpoint, code and import action are never-learn; space and group are domain-derived or explicit current choices.</Criterion>
+        </AcceptanceCriteria>
+        <Verification><Command>npm run design:check</Command></Verification>
+      </T-002>
+      <T-003>
+        <Title>kafedra-motion: record the intentional no-motion behavior</Title>
+        <DependsOn><T-002 /></DependsOn>
+        <AcceptanceCriteria>
+          <Criterion>No animation is introduced for connection, error, source or import states.</Criterion>
+          <Criterion>With prefers-reduced-motion the same immediate state changes, focus and controls remain available.</Criterion>
+        </AcceptanceCriteria>
+        <Verification><Command>npm run design:check</Command></Verification>
+      </T-003>
+      <T-004>
+        <Title>kafedra-data: normalize endpoint input and preserve stored integration data</Title>
+        <DependsOn><T-003 /></DependsOn>
         <AcceptanceCriteria>
           <Criterion>One parser accepts supported copied URLs and bare endpoints, strips only known Docomator paths and rejects credentials, query, fragment and unsupported schemes.</Criterion>
           <Criterion>Legacy scheme, host and port rows remain the persisted representation and are exposed as one canonical url without migration.</Criterion>
@@ -124,41 +141,50 @@
           <Criterion>Classified connection errors and idempotent people import remain deterministic and isolated from local records.</Criterion>
         </AcceptanceCriteria>
         <Verification><Command>node --test tests/docomator-integration.test.mjs</Command></Verification>
-      </T-002>
-      <T-003>
+      </T-004>
+      <T-005>
         <Title>kafedra-feature: implement the complete backend-to-UI Docomator path</Title>
-        <DependsOn><T-002 /></DependsOn>
+        <DependsOn><T-004 /></DependsOn>
         <AcceptanceCriteria>
           <Criterion>The administrator pastes one address, connects, selects the source and imports people without editing protocol or port separately.</Criterion>
           <Criterion>The canonical endpoint is visible, the access code is not persisted, and failure never hides or disables local department data.</Criterion>
           <Criterion>One-space auto-selection, group refresh, preview and repeated idempotent import work on desktop and mobile.</Criterion>
         </AcceptanceCriteria>
         <Verification><Command>npx playwright test tests/browser/docomator-integration.spec.mjs</Command><Command>npm run smoke</Command></Verification>
-      </T-003>
-      <T-004>
+      </T-005>
+      <T-006>
         <Title>kafedra-release: simplify secure archive staging and prove the active UI changed</Title>
-        <DependsOn><T-003 /></DependsOn>
+        <DependsOn><T-005 /></DependsOn>
         <AcceptanceCriteria>
           <Criterion>The source archive stays untouched in any readable user directory while extraction occurs in a private root staging directory without archived owners or permissions.</Criterion>
           <Criterion>Installed release code remains root-owned; service data and configuration ownership contracts remain unchanged.</Criterion>
           <Criterion>Static application responses cannot retain the previous non-fingerprinted UI after upgrade.</Criterion>
-          <Criterion>Post-update verification compares the selected bundle's required UI files with active current before commit and rollback remains automatic on mismatch.</Criterion>
+          <Criterion>Post-update verification compares the selected bundle required UI files with active current before commit and rollback remains automatic on mismatch.</Criterion>
           <Criterion>Operator docs explain root privilege boundaries and provide restart, status and log commands.</Criterion>
         </AcceptanceCriteria>
         <Verification><Command>node --test tests/deploy-install-contract.test.mjs tests/deployment-flow.test.mjs tests/static-cache.test.mjs</Command><Command>bash -n scripts/offline/install-from-archive.sh deploy/install.sh deploy/install-core.sh</Command></Verification>
-      </T-004>
-      <T-005>
-        <Title>kafedra-tests: run independent design, integration and regression audit</Title>
-        <DependsOn><T-004 /></DependsOn>
+      </T-006>
+      <T-007>
+        <Title>kafedra-design-audit: independently audit the implemented desktop and mobile path</Title>
+        <DependsOn><T-006 /></DependsOn>
         <AcceptanceCriteria>
-          <Criterion>The audit checks desktop, mobile, accessibility, no-motion behavior, secrets, error recovery, partial success, idempotency and local-directory independence.</Criterion>
+          <Criterion>The audit checks hierarchy, focus, labels, target size, responsive layout, secrets, errors, empty states, partial success and no-motion behavior against the approved design.</Criterion>
+          <Criterion>Any blocking mismatch is fixed before the tests stage.</Criterion>
+        </AcceptanceCriteria>
+        <Verification><Command>npm run design:check</Command><Command>npx playwright test tests/browser/docomator-integration.spec.mjs</Command></Verification>
+      </T-007>
+      <T-008>
+        <Title>kafedra-tests: run integration, deployment and regression gates</Title>
+        <DependsOn><T-007 /></DependsOn>
+        <AcceptanceCriteria>
           <Criterion>Unit, integration, browser, upgrade, backup, restore, rollback and project regressions pass without weakening mandatory gates.</Criterion>
+          <Criterion>Desktop, mobile, accessibility, prefers-reduced-motion, error recovery, idempotency and local-directory independence are covered.</Criterion>
         </AcceptanceCriteria>
         <Verification><Command>npm run check</Command><Command>npm run docs:check</Command><Command>npm test</Command><Command>npm run smoke</Command></Verification>
-      </T-005>
-      <T-006>
+      </T-008>
+      <T-009>
         <Title>kafedra-release: synchronize 0.4.2, merge, publish, verify and archive</Title>
-        <DependsOn><T-005 /></DependsOn>
+        <DependsOn><T-008 /></DependsOn>
         <AcceptanceCriteria>
           <Criterion>Version, lockfile, release docs, release gate and publisher agree on 0.4.2 and schema 31.</Criterion>
           <Criterion>GRACE final and every mandatory project check succeeds on one unchanged exact head with no pending, failed, cancelled, missing or unexpected skipped check.</Criterion>
@@ -166,7 +192,7 @@
           <Criterion>A separate archive-only PR moves this change to terminal applied state before issue 303 closes.</Criterion>
         </AcceptanceCriteria>
         <Verification><Command>node --test tests/release-workflow.test.mjs tests/release-assets-contract.test.mjs tests/release-0.4.2.test.mjs</Command><Command>npm run check</Command></Verification>
-      </T-006>
+      </T-009>
     </ImplementationPlan>
   </C-DOCOMATOR-UPDATE-0-4-2-303>
 </GraceChangePlan>
