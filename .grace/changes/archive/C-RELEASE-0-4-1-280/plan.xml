@@ -1,4 +1,4 @@
-<GraceChangePlan graceVersion="4.0" status="approved">
+<GraceChangePlan graceVersion="4.0" status="applied">
   <C-RELEASE-0-4-1-280>
     <IntentSummary>Synchronize and publish release 0.4.1 from the clean exact main without changing runtime behavior, schema 31 or immutable historical evidence.</IntentSummary>
     <BaselineAssertions>
