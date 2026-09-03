@@ -36,7 +36,26 @@ function organizationHost() {
   return $d('#organization-admin');
 }
 
+function canManageDocomator() {
+  const context = window.kafedraAuthContext;
+  if (!context) return false;
+  if (context.authEnabled === false) return true;
+  return context.authenticated === true && context.role === 'admin';
+}
+
+function removeDocomatorUi() {
+  $d('#docomator-integration')?.remove();
+  docomatorState.settings = null;
+  docomatorState.check = null;
+  docomatorState.initialized = false;
+  docomatorState.settingsLoadAttempted = false;
+  docomatorState.loadingSettings = false;
+  docomatorState.busy = false;
+  docomatorState.autoChecked = false;
+}
+
 function ensureDocomatorUi() {
+  if (!canManageDocomator()) return false;
   ensureDocomatorStyles();
   const host = organizationHost();
   if (!host) return false;
@@ -215,7 +234,8 @@ function renderCheck(result, requested = {}) {
 
 async function loadSettings() {
   if (
-    docomatorState.settingsLoadAttempted
+    !canManageDocomator()
+    || docomatorState.settingsLoadAttempted
     || docomatorState.loadingSettings
     || authGateVisible()
     || !ensureDocomatorUi()
@@ -324,10 +344,23 @@ document.addEventListener('change', (event) => {
   }
 });
 
-new MutationObserver(() => {
+function syncDocomatorUi() {
+  if (!canManageDocomator()) {
+    removeDocomatorUi();
+    return;
+  }
   if (!authGateVisible() && ensureDocomatorUi() && !docomatorState.settings) loadSettings();
-}).observe(document.body, { childList: true, subtree: true, attributes: true, attributeFilter: ['class'] });
+}
 
-ensureDocomatorUi();
-loadSettings();
+window.addEventListener('kafedra-auth-changed', syncDocomatorUi);
+Promise.resolve(window.kafedraAuthReady).then(syncDocomatorUi).catch(() => {});
+
+new MutationObserver(syncDocomatorUi).observe(document.body, {
+  childList: true,
+  subtree: true,
+  attributes: true,
+  attributeFilter: ['class']
+});
+
+syncDocomatorUi();
 window.kafedraCheckDocomator = checkConnection;
