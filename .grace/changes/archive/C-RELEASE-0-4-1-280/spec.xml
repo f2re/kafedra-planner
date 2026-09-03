@@ -1,4 +1,4 @@
-<GraceChangeSpec graceVersion="4.0" status="approved">
+<GraceChangeSpec graceVersion="4.0" status="applied">
   <C-RELEASE-0-4-1-280>
     <Summary>Prepare, publish and independently verify Kafedra Planner 0.4.1 from the completed changes reachable from the clean exact main.</Summary>
     <Problem>The completed document-runtime, calendar-fixture and desktop plan-lifecycle changes are present in main, but product version markers, release gates, publisher contract, release documentation and release regression evidence still describe 0.4.0. Without one governed release change, GitHub cannot publish an immutable and auditable 0.4.1 bundle.</Problem>
