@@ -32,15 +32,26 @@ function admin(context) {
   return true;
 }
 
+function endpointSuffix(error) {
+  const endpoint = String(error?.details?.endpoint || '').trim();
+  if (!/^https?:\/\/[^\s]{1,300}$/iu.test(endpoint)) return '';
+  return ` Проверено: ${endpoint}.`;
+}
+
 function integrationError(error) {
   if (error instanceof AppError) return error;
   if (!(error instanceof DocomatorIntegrationError)) {
     return new AppError('docomator_integration_failed', 'Не удалось выполнить обмен с Оформлятором.', 500);
   }
+  const suffix = endpointSuffix(error);
   const messages = {
-    docomator_scheme_invalid: ['Выберите HTTP или HTTPS.', 400],
-    docomator_host_required: ['Укажите адрес сервера Оформлятора.', 400],
-    docomator_host_invalid: ['Проверьте адрес сервера. Укажите только имя хоста или IP без пути.', 400],
+    docomator_scheme_invalid: ['Адрес должен начинаться с HTTP или HTTPS.', 400],
+    docomator_host_required: ['Вставьте адрес Оформлятора.', 400],
+    docomator_host_invalid: ['Проверьте имя сервера или IP-адрес Оформлятора.', 400],
+    docomator_url_invalid: ['Не удалось распознать адрес Оформлятора. Вставьте его целиком из браузера.', 400],
+    docomator_url_credentials_forbidden: ['Не вставляйте логин или пароль в адрес. Код доступа вводится в отдельном поле.', 400],
+    docomator_url_options_forbidden: ['Уберите из адреса параметры после знака вопроса и фрагмент после решётки.', 400],
+    docomator_url_path_invalid: ['По этой ссылке не распознан API Оформлятора. Вставьте адрес сайта или ссылку с /api/v1.', 400],
     docomator_port_invalid: ['Порт должен быть целым числом от 1 до 65535.', 400],
     docomator_value_too_long: ['Одно из значений настройки слишком длинное.', 400],
     docomator_remote_id_required: ['Выберите пространство Оформлятора для импорта.', 400],
@@ -51,15 +62,15 @@ function integrationError(error) {
     docomator_property_key_invalid: ['В Оформляторе обнаружен некорректный ключ поля.', 422],
     docomator_extra_fields_invalid: ['Выбран некорректный набор дополнительных полей.', 400],
     docomator_property_not_found: ['Одно из выбранных полей больше не существует в Оформляторе. Обновите список полей.', 409],
-    docomator_dns_failed: ['Имя сервера Оформлятора не найдено. Проверьте адрес или локальный DNS.', 502],
-    docomator_connection_refused: ['Сервер найден, но соединение с указанным портом отклонено. Проверьте порт и службу Оформлятора.', 502],
-    docomator_timeout: ['Оформлятор не ответил вовремя. Проверьте сеть и состояние его службы.', 504],
-    docomator_tls_failed: ['Не удалось установить защищённое соединение с Оформлятором. Проверьте HTTPS и сертификат.', 502],
-    docomator_wrong_service: ['По указанному адресу отвечает не API Оформлятора. Проверьте адрес и порт.', 502],
-    docomator_not_ready: ['Оформлятор запущен, но его база или runtime ещё не готовы. Дождитесь готовности и повторите проверку.', 503],
-    docomator_unreachable: ['Оформлятор не отвечает по указанному адресу и порту.', 502],
-    docomator_remote_error: ['Оформлятор ответил ошибкой. Проверьте его состояние и выбранные данные.', 502],
-    docomator_protocol_error: ['Оформлятор ответил в неожиданном формате. Проверьте совместимость версий.', 502]
+    docomator_dns_failed: [`Сервер Планнера не смог разрешить имя Оформлятора. Вставьте доступный ему DNS-адрес или IP.${suffix}`, 502],
+    docomator_connection_refused: [`Адрес найден, но на указанном порту Оформлятор не принимает соединение. Проверьте адрес службы.${suffix}`, 502],
+    docomator_timeout: [`Оформлятор не ответил вовремя. Проверьте сеть между серверами и состояние службы.${suffix}`, 504],
+    docomator_tls_failed: [`Не удалось установить HTTPS-соединение. Проверьте сертификат или используйте корректный HTTP-адрес локальной сети.${suffix}`, 502],
+    docomator_wrong_service: [`По адресу отвечает не API Оформлятора. Вставьте адрес самого Оформлятора, а не другого сайта.${suffix}`, 502],
+    docomator_not_ready: [`Оформлятор запущен, но его база или runtime ещё не готовы. Повторите подключение после запуска службы.${suffix}`, 503],
+    docomator_unreachable: [`Оформлятор не отвечает по указанному адресу.${suffix}`, 502],
+    docomator_remote_error: [`Оформлятор ответил ошибкой. Проверьте его состояние и выбранные данные.${suffix}`, 502],
+    docomator_protocol_error: [`Оформлятор ответил в неожиданном формате. Проверьте совместимость версий API.${suffix}`, 502]
   };
   const [message, status] = messages[error.code] || ['Не удалось выполнить обмен с Оформлятором.', 500];
   return new AppError(error.code, message, status, error.details);
@@ -72,11 +83,23 @@ function combinedSettings(database, workspace) {
   };
 }
 
+function effectiveConnection(saved, body) {
+  if (Object.hasOwn(body, 'url')) return { url: body.url };
+  const hasLegacyConnection = ['scheme', 'host', 'port'].some((key) => Object.hasOwn(body, key));
+  if (hasLegacyConnection) {
+    return {
+      scheme: body.scheme ?? saved.scheme,
+      host: body.host ?? saved.host,
+      port: body.port ?? saved.port
+    };
+  }
+  if (saved.url) return { url: saved.url };
+  return { scheme: saved.scheme, host: saved.host, port: saved.port };
+}
+
 function effectiveInput(saved, body = {}) {
   return {
-    scheme: body.scheme ?? saved.scheme,
-    host: body.host ?? saved.host,
-    port: body.port ?? saved.port,
+    ...effectiveConnection(saved, body),
     spaceId: body.spaceId ?? saved.spaceId,
     groupId: Object.hasOwn(body, 'groupId') ? body.groupId : saved.groupId,
     includeInactive: Object.hasOwn(body, 'includeInactive') ? Boolean(body.includeInactive) : saved.includeInactive,

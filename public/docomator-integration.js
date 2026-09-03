@@ -36,7 +36,26 @@ function organizationHost() {
   return $d('#organization-admin');
 }
 
+function canManageDocomator() {
+  const context = window.kafedraAuthContext;
+  if (!context) return false;
+  if (context.authEnabled === false) return true;
+  return context.authenticated === true && context.role === 'admin';
+}
+
+function removeDocomatorUi() {
+  $d('#docomator-integration')?.remove();
+  docomatorState.settings = null;
+  docomatorState.check = null;
+  docomatorState.initialized = false;
+  docomatorState.settingsLoadAttempted = false;
+  docomatorState.loadingSettings = false;
+  docomatorState.busy = false;
+  docomatorState.autoChecked = false;
+}
+
 function ensureDocomatorUi() {
+  if (!canManageDocomator()) return false;
   ensureDocomatorStyles();
   const host = organizationHost();
   if (!host) return false;
@@ -48,24 +67,28 @@ function ensureDocomatorUi() {
         <div>
           <span class="eyebrow">Источник сотрудников</span>
           <h3>Импорт из Оформлятора</h3>
-          <p>Подключитесь к Оформлятору по сети, проверьте доступность и перенесите сотрудников в справочник кафедры.</p>
+          <p>Вставьте адрес Оформлятора, выберите источник и перенесите сотрудников в справочник кафедры.</p>
         </div>
         <span id="docomator-connection-badge" class="docomator-badge" data-state="unknown">Не проверено</span>
       </header>
       <form id="docomator-settings-form" class="docomator-form">
         <div class="docomator-address-grid">
-          <label class="field"><span>Протокол</span><select name="scheme"><option value="http">HTTP</option><option value="https">HTTPS</option></select></label>
-          <label class="field docomator-host-field"><span>Адрес</span><input name="host" inputmode="url" autocomplete="off" placeholder="192.168.1.50 или docomator.local"></label>
-          <label class="field"><span>Порт</span><input name="port" type="number" min="1" max="65535" value="8080"></label>
-          <label class="field"><span>Код доступа</span><input name="accessCode" type="password" inputmode="numeric" pattern="[0-9]{4}" maxlength="4" autocomplete="off" placeholder="если включён"></label>
+          <label class="field docomator-url-field">
+            <span>Адрес Оформлятора</span>
+            <input name="url" type="text" inputmode="url" autocomplete="off" spellcheck="false" aria-describedby="docomator-address-help" placeholder="http://192.168.1.50:8080">
+          </label>
+          <label class="field">
+            <span>Код доступа</span>
+            <input name="accessCode" type="password" inputmode="numeric" pattern="[0-9]{4}" maxlength="4" autocomplete="off" placeholder="если включён">
+          </label>
         </div>
-        <p class="docomator-secret-note">Код доступа используется только для текущей проверки или импорта и не сохраняется.</p>
+        <p id="docomator-address-help" class="docomator-secret-note">Скопируйте адрес из браузера. Ссылку с <code>/api/v1</code>, <code>/healthz</code> или <code>/readyz</code> можно вставить целиком. Код используется только сейчас и не сохраняется.</p>
         <div class="docomator-actions">
-          <button class="secondary-button" type="submit" data-docomator-check>Проверить соединение</button>
+          <button class="secondary-button" type="submit" data-docomator-check>Подключить</button>
           <span id="docomator-endpoint"></span>
         </div>
       </form>
-      <div id="docomator-status" class="docomator-status hidden" role="status"></div>
+      <div id="docomator-status" class="docomator-status hidden" role="status" aria-live="polite"></div>
       <div id="docomator-source" class="docomator-source hidden">
         <div class="docomator-source-grid">
           <label class="field"><span>Пространство</span><select id="docomator-space"></select></label>
@@ -92,9 +115,11 @@ function authGateVisible() {
 
 function setBusy(busy) {
   docomatorState.busy = busy;
-  for (const button of document.querySelectorAll('[data-docomator-check], [data-docomator-import]')) {
-    button.disabled = busy || (button.hasAttribute('data-docomator-import') && !canImport());
-  }
+  for (const control of document.querySelectorAll(
+    '#docomator-settings-form input, #docomator-settings-form button, #docomator-source select, #docomator-source input'
+  )) control.disabled = busy;
+  const importButton = $d('[data-docomator-import]');
+  if (importButton) importButton.disabled = busy || !canImport();
 }
 
 function setBadge(text, state = 'unknown') {
@@ -112,13 +137,17 @@ function setStatus(message = '', kind = 'info') {
   status.classList.toggle('hidden', !message);
 }
 
+function legacySettingsUrl(settings = {}) {
+  if (!settings.host) return '';
+  const host = String(settings.host).includes(':') ? `[${settings.host}]` : settings.host;
+  return `${settings.scheme || 'http'}://${host}:${settings.port || 8080}`;
+}
+
 function formValues() {
   const form = $d('#docomator-settings-form');
   const saved = docomatorState.settings || {};
   return {
-    scheme: form?.elements.scheme?.value || saved.scheme || 'http',
-    host: form?.elements.host?.value?.trim() || saved.host || '',
-    port: Number(form?.elements.port?.value || saved.port || 8080),
+    url: form?.elements.url?.value?.trim() || saved.url || legacySettingsUrl(saved),
     accessCode: form?.elements.accessCode?.value?.trim() || undefined,
     spaceId: $d('#docomator-space')?.value || saved.spaceId || null,
     groupId: $d('#docomator-group')?.value || null,
@@ -130,9 +159,8 @@ function applySettings(settings) {
   docomatorState.settings = settings;
   const form = $d('#docomator-settings-form');
   if (!form) return;
-  form.elements.scheme.value = settings.scheme || 'http';
-  form.elements.host.value = settings.host || '';
-  form.elements.port.value = String(settings.port || 8080);
+  const canonicalUrl = settings.url || legacySettingsUrl(settings);
+  form.elements.url.value = canonicalUrl;
   $d('#docomator-include-inactive').checked = Boolean(settings.includeInactive);
   if (settings.lastImportedAt) {
     const date = new Date(settings.lastImportedAt);
@@ -142,7 +170,7 @@ function applySettings(settings) {
   } else {
     $d('#docomator-last-import').textContent = 'Импорт ещё не выполнялся';
   }
-  if (settings.host) $d('#docomator-endpoint').textContent = `${settings.scheme}://${settings.host}:${settings.port}`;
+  $d('#docomator-endpoint').textContent = canonicalUrl;
 }
 
 function optionRows(items, selected, emptyLabel = null) {
@@ -174,7 +202,7 @@ function renderCheck(result, requested = {}) {
   }
   if (result.authRequired) {
     setBadge('Доступен · нужен код', 'warning');
-    setStatus(`Оформлятор отвечает${result.remoteVersion ? `, версия ${result.remoteVersion}` : ''}. Для чтения списка сотрудников введите 4-значный код доступа и повторите проверку.`, 'warning');
+    setStatus(`Оформлятор отвечает${result.remoteVersion ? `, версия ${result.remoteVersion}` : ''}. Введите 4-значный код доступа и снова нажмите «Подключить».`, 'warning');
     source?.classList.add('hidden');
     return;
   }
@@ -206,7 +234,8 @@ function renderCheck(result, requested = {}) {
 
 async function loadSettings() {
   if (
-    docomatorState.settingsLoadAttempted
+    !canManageDocomator()
+    || docomatorState.settingsLoadAttempted
     || docomatorState.loadingSettings
     || authGateVisible()
     || !ensureDocomatorUi()
@@ -216,7 +245,7 @@ async function loadSettings() {
   try {
     const settings = await docomatorApi('/api/integrations/docomator');
     applySettings(settings);
-    if (settings.host && !docomatorState.autoChecked) {
+    if ((settings.url || settings.host) && !docomatorState.autoChecked) {
       docomatorState.autoChecked = true;
       await checkConnection({ silent: true });
     }
@@ -231,11 +260,12 @@ async function checkConnection({ silent = false, resetGroup = false } = {}) {
   if (docomatorState.busy || !ensureDocomatorUi()) return;
   const values = formValues();
   if (resetGroup) values.groupId = null;
-  if (!values.host) {
-    if (!silent) setStatus('Укажите адрес сервера Оформлятора.', 'error');
+  if (!values.url) {
+    if (!silent) setStatus('Вставьте адрес Оформлятора.', 'error');
     return;
   }
   setBusy(true);
+  setBadge('Проверяю…', 'unknown');
   if (!silent) setStatus('Проверяю Оформлятор и доступность сотрудников…');
   try {
     const result = await docomatorApi('/api/integrations/docomator/check', {
@@ -273,7 +303,8 @@ async function importPeople() {
     });
     if (result.settings) applySettings(result.settings);
     const stats = result.stats || {};
-    setStatus(`Импорт завершён: ${Number(stats.total || 0)} записей · новых ${Number(stats.created || 0)} · обновлено ${Number(stats.updated || 0)} · сопоставлено ${Number(stats.matched || 0)}.`, 'success');
+    const skipped = Number(stats.skipped || 0);
+    setStatus(`Импорт завершён: ${Number(stats.total || 0)} записей · новых ${Number(stats.created || 0)} · обновлено ${Number(stats.updated || 0)} · сопоставлено ${Number(stats.matched || 0)}${skipped ? ` · пропущено ${skipped}` : ''}.`, skipped ? 'warning' : 'success');
     await window.kafedraLoadOrganization?.();
   } catch (error) {
     setStatus(error.message, 'error');
@@ -292,6 +323,16 @@ document.addEventListener('click', (event) => {
   if (event.target.closest('[data-docomator-import]')) importPeople();
 });
 
+document.addEventListener('input', (event) => {
+  if (event.target.name !== 'url' || !event.target.closest('#docomator-settings-form')) return;
+  docomatorState.check = null;
+  setBadge('Не проверено', 'unknown');
+  setStatus('Адрес изменён. Нажмите «Подключить», чтобы прочитать сотрудников.');
+  $d('#docomator-source')?.classList.add('hidden');
+  const importButton = $d('[data-docomator-import]');
+  if (importButton) importButton.disabled = true;
+});
+
 document.addEventListener('change', (event) => {
   if (event.target.id === 'docomator-space') {
     const group = $d('#docomator-group');
@@ -303,10 +344,23 @@ document.addEventListener('change', (event) => {
   }
 });
 
-new MutationObserver(() => {
+function syncDocomatorUi() {
+  if (!canManageDocomator()) {
+    removeDocomatorUi();
+    return;
+  }
   if (!authGateVisible() && ensureDocomatorUi() && !docomatorState.settings) loadSettings();
-}).observe(document.body, { childList: true, subtree: true, attributes: true, attributeFilter: ['class'] });
+}
 
-ensureDocomatorUi();
-loadSettings();
+window.addEventListener('kafedra-auth-changed', syncDocomatorUi);
+Promise.resolve(window.kafedraAuthReady).then(syncDocomatorUi).catch(() => {});
+
+new MutationObserver(syncDocomatorUi).observe(document.body, {
+  childList: true,
+  subtree: true,
+  attributes: true,
+  attributeFilter: ['class']
+});
+
+syncDocomatorUi();
 window.kafedraCheckDocomator = checkConnection;

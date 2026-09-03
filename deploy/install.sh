@@ -486,6 +486,25 @@ run_core_installer() {
   return "$status"
 }
 
+verify_active_ui_files() {
+  local target="$1" relative
+  for relative in \
+    public/index.html \
+    public/ux-next.js \
+    public/docomator-integration.js \
+    public/docomator-integration.css \
+    public/docomator-fields.js; do
+    [[ -f "$APP_SOURCE/$relative" && -f "$target/$relative" ]] || {
+      log_event "После обновления отсутствует обязательный файл интерфейса: $relative"
+      return 1
+    }
+    cmp -s "$APP_SOURCE/$relative" "$target/$relative" || {
+      log_event "Активный интерфейс не совпадает с выбранным release bundle: $relative"
+      return 1
+    }
+  done
+}
+
 verify_success() {
   local target deployed_version
   [[ -L "$APP_ROOT/current" ]] || { log_event "После обновления current не является атомарным symlink."; return 1; }
@@ -493,6 +512,7 @@ verify_success() {
   [[ -d "$target" && -f "$target/VERSION" ]] || { log_event "Активный release после обновления недоступен: $target"; return 1; }
   deployed_version="$(tr -d '[:space:]' < "$target/VERSION")"
   [[ "$deployed_version" == "$VERSION" ]] || { log_event "После обновления активна версия $deployed_version вместо $VERSION."; return 1; }
+  verify_active_ui_files "$target" || return 1
   systemctl is-active --quiet "$API_SERVICE" || { log_event "API не active после обновления."; return 1; }
   systemctl is-active --quiet "$WORKER_SERVICE" || { log_event "Worker не active после обновления."; return 1; }
   for _attempt in $(seq 1 30); do

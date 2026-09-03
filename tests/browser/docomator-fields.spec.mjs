@@ -11,7 +11,7 @@ async function openOrganization(page) {
 
 test('Оформлятор: предложенные и дополнительные поля сохраняются до каждого импорта', async ({ page }) => {
   let settings = {
-    scheme: 'http', host: '', port: 8080, spaceId: null, groupId: null,
+    url: '', scheme: 'http', host: '', port: 8080, spaceId: null, groupId: null,
     includeInactive: false, lastStatus: 'unknown', lastCheckedAt: null,
     lastImportedAt: null, remoteVersion: null, lastError: null,
     emailPropertyKey: null, positionPropertyKey: null, extraPropertyKeys: []
@@ -33,12 +33,17 @@ test('Оформлятор: предложенные и дополнительн
         positionPropertyKey: body.positionPropertyKey || null,
         extraPropertyKeys: body.extraPropertyKeys || []
       };
-      settings = { ...settings, ...body, accessCode: undefined };
+      settings = { ...settings, ...body };
+      delete settings.accessCode;
       return route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(settings) });
     }
     if (url.pathname === '/api/integrations/docomator/check') {
       const selected = body.spaceId === 'space-1';
-      settings = { ...settings, host: '192.168.1.50', spaceId: selected ? 'space-1' : null };
+      settings = {
+        ...settings,
+        url: 'http://192.168.1.50:8080', scheme: 'http', host: '192.168.1.50', port: 8080,
+        spaceId: selected ? 'space-1' : null
+      };
       return route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({
         reachable: true, ready: true, authRequired: false, dataAvailable: true,
         remoteVersion: '0.6.6', endpoint: 'http://192.168.1.50:8080',
@@ -74,7 +79,7 @@ test('Оформлятор: предложенные и дополнительн
   await openOrganization(page);
   const section = page.locator('#docomator-integration');
   await expect(section.locator('#docomator-fields-panel')).toBeHidden();
-  await section.locator('[name="host"]').fill('192.168.1.50');
+  await section.locator('[name="url"]').fill('192.168.1.50:8080/api/v1');
   await section.locator('[name="accessCode"]').fill('1234');
   await section.locator('[data-docomator-check]').click();
   await expect(section.locator('#docomator-space')).toHaveValue('space-1', { timeout: 15_000 });
@@ -84,17 +89,16 @@ test('Оформлятор: предложенные и дополнительн
   await expect(section.locator('#docomator-position-field')).toHaveValue('position');
   await expect(section.locator('#docomator-extra-fields')).toContainText('Телефон');
 
-  // Оператор принимает автопредложение и сразу запускает импорт: mapping всё равно должен сохраниться первым.
   await expect(section.locator('[data-docomator-import]')).toBeEnabled({ timeout: 15_000 });
   await section.locator('[data-docomator-import]').click();
   await expect(section.locator('#docomator-status')).toContainText('Импорт завершён', { timeout: 15_000 });
   expect(savedMapping).toEqual({
     emailPropertyKey: 'email', positionPropertyKey: 'position', extraPropertyKeys: []
   });
+  expect(importBody.url).toBe('http://192.168.1.50:8080');
   expect(importBody.spaceId).toBe('space-1');
   expect(importBody.accessCode).toBe('1234');
 
-  // Затем оператор раскрывает дополнительные поля и добавляет телефон.
   const extraDetails = section.locator('.docomator-extra-details');
   await extraDetails.locator('summary').click();
   await expect(extraDetails).toHaveJSProperty('open', true);
@@ -109,5 +113,6 @@ test('Оформлятор: предложенные и дополнительн
   expect(savedMapping).toEqual({
     emailPropertyKey: 'email', positionPropertyKey: 'position', extraPropertyKeys: ['phone']
   });
+  expect(importBody.url).toBe('http://192.168.1.50:8080');
   expect(importBody.accessCode).toBe('1234');
 });

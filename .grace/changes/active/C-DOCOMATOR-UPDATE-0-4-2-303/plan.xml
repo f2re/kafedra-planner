@@ -1,0 +1,204 @@
+<GraceChangePlan graceVersion="4.0" status="approved">
+  <C-DOCOMATOR-UPDATE-0-4-2-303>
+    <IntentSummary>Close the administrator path from a copied Docomator address through classified connection diagnostics and idempotent people import, then ship the result as a safely upgradeable Kafedra Planner 0.4.2 release.</IntentSummary>
+    <BaselineAssertions>
+      <MustExist><Value>VERSION</Value></MustExist>
+      <MustExist><Value>public/docomator-integration.js</Value></MustExist>
+      <MustExist><Value>packages/integrations/src/docomator.mjs</Value></MustExist>
+      <MustExist><Value>scripts/offline/install-from-archive.sh</Value></MustExist>
+      <MustContain><File>VERSION</File><Text>0.4.1</Text></MustContain>
+      <MustContain><File>package.json</File><Text>"version": "0.4.1"</Text></MustContain>
+      <MustContain><File>public/docomator-integration.js</File><Text>Протокол</Text></MustContain>
+      <MustContain><File>public/docomator-integration.js</File><Text>Порт</Text></MustContain>
+      <MustContain><File>apps/api/src/http-utils.mjs</File><Text>public, max-age=3600</Text></MustContain>
+      <MustContain><File>scripts/offline/install-from-archive.sh</File><Text>chown -R root:root</Text></MustContain>
+      <MustVerify><Module>M-API</Module></MustVerify>
+      <MustVerify><Module>M-DATABASE</Module></MustVerify>
+      <MustVerify><Module>M-DESIGN-GOVERNANCE</Module></MustVerify>
+      <MustVerify><Module>M-CI-GATE</Module></MustVerify>
+      <MustVerify><Module>M-OFFLINE-BUNDLE</Module></MustVerify>
+      <MustPassCommand><Command>test "$(find .grace/changes/active -mindepth 1 -maxdepth 1 ! -name .gitkeep | wc -l)" -eq 1</Command></MustPassCommand>
+      <MustPassCommand><Command>npm run check</Command></MustPassCommand>
+      <MustPassCommand><Command>npm run docs:check</Command></MustPassCommand>
+      <MustPassCommand><Command>node --test tests/docomator-integration.test.mjs tests/deploy-install-contract.test.mjs tests/deployment-flow.test.mjs</Command></MustPassCommand>
+    </BaselineAssertions>
+    <TargetAssertions>
+      <MustExist><Value>.grace/changes/active/C-DOCOMATOR-UPDATE-0-4-2-303/design.md</Value></MustExist>
+      <MustExist><Value>.grace/changes/active/C-DOCOMATOR-UPDATE-0-4-2-303/motion.md</Value></MustExist>
+      <MustExist><Value>.grace/changes/active/C-DOCOMATOR-UPDATE-0-4-2-303/design-audit.md</Value></MustExist>
+      <MustExist><Value>.grace/changes/active/C-DOCOMATOR-UPDATE-0-4-2-303/delegation-evidence.md</Value></MustExist>
+      <MustExist><Value>tests/static-cache.test.mjs</Value></MustExist>
+      <MustExist><Value>tests/browser/docomator-integration.spec.mjs</Value></MustExist>
+      <MustExist><Value>docs/releases/0.4.2.md</Value></MustExist>
+      <MustExist><Value>tests/release-0.4.2.test.mjs</Value></MustExist>
+      <MustContain><File>VERSION</File><Text>0.4.2</Text></MustContain>
+      <MustContain><File>package.json</File><Text>"version": "0.4.2"</Text></MustContain>
+      <MustContain><File>package-lock.json</File><Text>"version": "0.4.2"</Text></MustContain>
+      <MustContain><File>public/docomator-integration.js</File><Text>Адрес Оформлятора</Text></MustContain>
+      <MustContain><File>public/docomator-integration.js</File><Text>Подключить</Text></MustContain>
+      <MustContain><File>public/docomator-fields.js</File><Text>elements.url</Text></MustContain>
+      <MustContain><File>packages/integrations/src/docomator.mjs</File><Text>new Set(['ok', 'ready'])</Text></MustContain>
+      <MustContain><File>scripts/offline/install-from-archive.sh</File><Text>--no-same-owner</Text></MustContain>
+      <MustContain><File>scripts/offline/install-from-archive.sh</File><Text>--no-same-permissions</Text></MustContain>
+      <MustContain><File>apps/api/src/http-utils.mjs</File><Text>'cache-control': 'no-store'</Text></MustContain>
+      <MustContain><File>deploy/install.sh</File><Text>public/docomator-integration.js</Text></MustContain>
+      <MustContain><File>README.md</File><Text>systemctl restart kafedra-planner-api.service kafedra-planner-worker.service</Text></MustContain>
+      <MustContain><File>.github/workflows/release-gate.yml</File><Text>Release gate 0.4.2</Text></MustContain>
+      <MustContain><File>.github/workflows/release.yml</File><Text>Release gate 0.4.2</Text></MustContain>
+      <MustVerify><Module>M-API</Module></MustVerify>
+      <MustVerify><Module>M-DATABASE</Module></MustVerify>
+      <MustVerify><Module>M-BACKUP</Module></MustVerify>
+      <MustVerify><Module>M-DESIGN-GOVERNANCE</Module></MustVerify>
+      <MustVerify><Module>M-CI-GATE</Module></MustVerify>
+      <MustVerify><Module>M-OFFLINE-BUNDLE</Module></MustVerify>
+      <MustPassCommand><Command>npm run check</Command></MustPassCommand>
+      <MustPassCommand><Command>npm run docs:check</Command></MustPassCommand>
+      <MustPassCommand><Command>npm test</Command></MustPassCommand>
+      <MustPassCommand><Command>npm run smoke</Command></MustPassCommand>
+      <MustPassCommand><Command>node --test tests/docomator-integration.test.mjs tests/deploy-install-contract.test.mjs tests/deployment-flow.test.mjs tests/static-cache.test.mjs</Command></MustPassCommand>
+      <MustPassCommand><Command>npx playwright test tests/browser/docomator-integration.spec.mjs tests/browser/docomator-fields.spec.mjs</Command></MustPassCommand>
+      <MustPassCommand><Command>node --test tests/release-workflow.test.mjs tests/release-assets-contract.test.mjs tests/release-0.4.2.test.mjs</Command></MustPassCommand>
+      <MustPassCommand><Command>bash -n scripts/offline/install-from-archive.sh deploy/install.sh deploy/install-core.sh</Command></MustPassCommand>
+    </TargetAssertions>
+    <DurableScope>
+      <GraphAnchors><M-API /><M-DATABASE /><M-BACKUP /><M-DESIGN-GOVERNANCE /><M-CI-GATE /><M-OFFLINE-BUNDLE /><DF-GRACE-BRANCH /><DF-DESIGN-CHANGE /></GraphAnchors>
+      <VerificationAnchors><V-M-API /><V-M-DATABASE /><V-M-BACKUP /><V-M-DESIGN-GOVERNANCE /><V-M-CI-GATE /><V-M-OFFLINE-BUNDLE /></VerificationAnchors>
+      <ContextArtifacts><ContextArtifact>principles.xml</ContextArtifact><ContextArtifact>technology.xml</ContextArtifact></ContextArtifacts>
+    </DurableScope>
+    <ObservedWriteScope>
+      <Glob>.grace/changes/active/C-DOCOMATOR-UPDATE-0-4-2-303/**</Glob>
+      <File>packages/integrations/src/docomator.mjs</File>
+      <File>apps/api/src/docomator-integration-router.mjs</File>
+      <File>apps/api/src/http-utils.mjs</File>
+      <File>public/docomator-integration.js</File>
+      <File>public/docomator-integration.css</File>
+      <File>public/docomator-fields.js</File>
+      <File>public/index.html</File>
+      <File>scripts/offline/install-from-archive.sh</File>
+      <File>deploy/install.sh</File>
+      <File>deploy/install-core.sh</File>
+      <File>scripts/offline/systemd-deploy-selftest.sh</File>
+      <File>tests/docomator-integration.test.mjs</File>
+      <File>tests/deploy-install-contract.test.mjs</File>
+      <File>tests/deployment-flow.test.mjs</File>
+      <File>tests/static-cache.test.mjs</File>
+      <File>tests/browser/docomator-integration.spec.mjs</File>
+      <File>tests/browser/docomator-fields.spec.mjs</File>
+      <File>tests/browser/auth.spec.mjs</File>
+      <File>playwright.config.mjs</File>
+      <File>VERSION</File>
+      <File>package.json</File>
+      <File>package-lock.json</File>
+      <File>README.md</File>
+      <File>README.en.md</File>
+      <File>docs/ROADMAP.md</File>
+      <File>docs/UX_FLOWS.md</File>
+      <File>docs/DOCOMATOR_PEOPLE_IMPORT.md</File>
+      <File>docs/VALIDATION.md</File>
+      <File>docs/RELEASE_CANDIDATE.md</File>
+      <File>docs/TARGET_ACCEPTANCE.md</File>
+      <File>docs/releases/0.4.2.md</File>
+      <File>.github/workflows/release-gate.yml</File>
+      <File>.github/workflows/release.yml</File>
+      <File>.github/workflows/apply-release-0.4.2.yml</File>
+      <File>tests/release-workflow.test.mjs</File>
+      <File>tests/release-recovery-workflow.test.mjs</File>
+      <File>tests/release-assets-contract.test.mjs</File>
+      <File>tests/release-0.4.1.test.mjs</File>
+      <File>tests/release-0.4.2.test.mjs</File>
+      <File>scripts/docs-consistency.mjs</File>
+    </ObservedWriteScope>
+    <ImplementationPlan>
+      <T-001>
+        <Title>kafedra-flow-intake: map the copied-address administrator journey and all recoverable states</Title>
+        <DependsOn></DependsOn>
+        <AcceptanceCriteria>
+          <Criterion>The flow covers idle, checking, connected, access code required, classified error, empty source, preview, import and repeated import.</Criterion>
+          <Criterion>Local people and work remain usable through every Docomator failure.</Criterion>
+        </AcceptanceCriteria>
+        <Verification><Command>npm run docs:check</Command></Verification>
+      </T-001>
+      <T-002>
+        <Title>kafedra-design: reduce the connection form to one stable address control</Title>
+        <DependsOn><T-001 /></DependsOn>
+        <AcceptanceCriteria>
+          <Criterion>The design artifact reduces the connection form to one address and one optional access code without changing the surrounding department structure geometry.</Criterion>
+          <Criterion>Desktop and mobile retain a clear order of address, connect, source, preview and import.</Criterion>
+          <Criterion>Endpoint, code and import action are never-learn; space and group are domain-derived or explicit current choices.</Criterion>
+        </AcceptanceCriteria>
+        <Verification><Command>npm run design:check</Command></Verification>
+      </T-002>
+      <T-003>
+        <Title>kafedra-motion: record the intentional no-motion behavior</Title>
+        <DependsOn><T-002 /></DependsOn>
+        <AcceptanceCriteria>
+          <Criterion>No animation is introduced for connection, error, source or import states.</Criterion>
+          <Criterion>With prefers-reduced-motion the same immediate state changes, focus and controls remain available.</Criterion>
+        </AcceptanceCriteria>
+        <Verification><Command>npm run design:check</Command></Verification>
+      </T-003>
+      <T-004>
+        <Title>kafedra-data: normalize endpoint input and preserve stored integration data</Title>
+        <DependsOn><T-003 /></DependsOn>
+        <AcceptanceCriteria>
+          <Criterion>One parser accepts supported copied URLs and bare endpoints, strips only known Docomator paths and rejects credentials, query, fragment and unsupported schemes.</Criterion>
+          <Criterion>Legacy scheme, host and port rows remain the persisted representation and are exposed as one canonical url without migration.</Criterion>
+          <Criterion>The actual Docomator status ok readiness contract and legacy ready value are both supported.</Criterion>
+          <Criterion>Classified connection errors and idempotent people import remain deterministic and isolated from local records.</Criterion>
+        </AcceptanceCriteria>
+        <Verification><Command>node --test tests/docomator-integration.test.mjs</Command></Verification>
+      </T-004>
+      <T-005>
+        <Title>kafedra-feature: implement the complete backend-to-UI Docomator path</Title>
+        <DependsOn><T-004 /></DependsOn>
+        <AcceptanceCriteria>
+          <Criterion>The administrator pastes one address, connects, selects the source and imports people without editing protocol or port separately.</Criterion>
+          <Criterion>The canonical endpoint is visible, the access code is not persisted, and failure never hides or disables local department data.</Criterion>
+          <Criterion>One-space auto-selection, group refresh, field mapping, preview and repeated idempotent import work on desktop and mobile.</Criterion>
+        </AcceptanceCriteria>
+        <Verification><Command>npx playwright test tests/browser/docomator-integration.spec.mjs tests/browser/docomator-fields.spec.mjs</Command><Command>npm run smoke</Command></Verification>
+      </T-005>
+      <T-006>
+        <Title>kafedra-release: simplify secure archive staging and prove the active UI changed</Title>
+        <DependsOn><T-005 /></DependsOn>
+        <AcceptanceCriteria>
+          <Criterion>The source archive stays untouched in any readable user directory while extraction occurs in a private root staging directory without archived owners or permissions.</Criterion>
+          <Criterion>Installed release code remains root-owned; service data and configuration ownership contracts remain unchanged.</Criterion>
+          <Criterion>Static application responses cannot retain the previous non-fingerprinted UI after upgrade.</Criterion>
+          <Criterion>Post-update verification compares the selected bundle required UI files with active current before commit and rollback remains automatic on mismatch.</Criterion>
+          <Criterion>Operator docs explain root privilege boundaries and provide restart, status and log commands.</Criterion>
+        </AcceptanceCriteria>
+        <Verification><Command>node --test tests/deploy-install-contract.test.mjs tests/deployment-flow.test.mjs tests/static-cache.test.mjs</Command><Command>bash -n scripts/offline/install-from-archive.sh deploy/install.sh deploy/install-core.sh</Command></Verification>
+      </T-006>
+      <T-007>
+        <Title>kafedra-design-audit: independently audit the implemented desktop and mobile path</Title>
+        <DependsOn><T-006 /></DependsOn>
+        <AcceptanceCriteria>
+          <Criterion>The audit checks hierarchy, focus, labels, target size, responsive layout, secrets, errors, empty states, partial success and no-motion behavior against the approved design.</Criterion>
+          <Criterion>Any blocking mismatch is fixed before the tests stage.</Criterion>
+        </AcceptanceCriteria>
+        <Verification><Command>npm run design:check</Command><Command>npx playwright test tests/browser/docomator-integration.spec.mjs tests/browser/docomator-fields.spec.mjs</Command></Verification>
+      </T-007>
+      <T-008>
+        <Title>kafedra-tests: run integration, deployment and regression gates</Title>
+        <DependsOn><T-007 /></DependsOn>
+        <AcceptanceCriteria>
+          <Criterion>Unit, integration, browser, upgrade, backup, restore, rollback and project regressions pass without weakening mandatory gates.</Criterion>
+          <Criterion>Desktop, mobile, accessibility, prefers-reduced-motion, error recovery, idempotency and local-directory independence are covered.</Criterion>
+        </AcceptanceCriteria>
+        <Verification><Command>npm run check</Command><Command>npm run docs:check</Command><Command>npm test</Command><Command>npm run smoke</Command></Verification>
+      </T-008>
+      <T-009>
+        <Title>kafedra-release: synchronize 0.4.2, merge, publish, verify and archive</Title>
+        <DependsOn><T-008 /></DependsOn>
+        <AcceptanceCriteria>
+          <Criterion>Version, lockfile, release docs, release gate and publisher agree on 0.4.2 and schema 31.</Criterion>
+          <Criterion>GRACE final and every mandatory project check succeeds on one unchanged exact head with no pending, failed, cancelled, missing or unexpected skipped check.</Criterion>
+          <Criterion>The exact head is squash-merged, post-merge CI succeeds and v0.4.2 assets are independently digest-verified.</Criterion>
+          <Criterion>A separate archive-only PR moves this change to terminal applied state before issue 303 closes.</Criterion>
+        </AcceptanceCriteria>
+        <Verification><Command>node --test tests/release-workflow.test.mjs tests/release-assets-contract.test.mjs tests/release-0.4.2.test.mjs</Command><Command>npm run check</Command></Verification>
+      </T-009>
+    </ImplementationPlan>
+  </C-DOCOMATOR-UPDATE-0-4-2-303>
+</GraceChangePlan>

@@ -6,6 +6,8 @@ const DEFAULT_TIMEOUT_MS = 6_000;
 const MAX_REMOTE_ITEMS = 1_000;
 const ACCESS_CODE_PATTERN = /^\d{4}$/u;
 const DOCOMATOR_SERVICES = new Set(['api', 'docomator', 'docomator-api']);
+const READY_STATUSES = new Set(['ok', 'ready']);
+const DEFAULT_PROTOCOL_PORTS = { http: 80, https: 443 };
 
 export class DocomatorIntegrationError extends Error {
   constructor(code, details = null) {
@@ -40,29 +42,93 @@ function normalizeScheme(value) {
 }
 
 function normalizeHost(value) {
-  const host = String(value ?? '').trim();
+  const host = String(value ?? '').trim().replace(/^\[|\]$/gu, '');
   if (!host) fail('docomator_host_required');
   if (host.length > 253) fail('docomator_host_invalid');
   if (/\s|[/?#@]/u.test(host) || host.includes('://')) fail('docomator_host_invalid');
-  if (host.includes(':') && !(host.startsWith('[') && host.endsWith(']'))) {
-    if (!/^[0-9a-f:]+$/iu.test(host)) fail('docomator_host_invalid');
-    return `[${host}]`;
-  }
+  if (host.includes(':') && !/^[0-9a-f:.]+$/iu.test(host)) fail('docomator_host_invalid');
   return host;
 }
 
-function normalizePort(value) {
-  const port = value === undefined || value === null || value === '' ? DEFAULT_PORT : Number(value);
+function normalizePort(value, fallback = DEFAULT_PORT) {
+  const port = value === undefined || value === null || value === '' ? fallback : Number(value);
   if (!Number.isInteger(port) || port < 1 || port > 65_535) fail('docomator_port_invalid');
   return port;
 }
 
+function endpointHost(host) {
+  return host.includes(':') ? `[${host}]` : host;
+}
+
+function connectionResult(scheme, host, port) {
+  const baseUrl = `${scheme}://${endpointHost(host)}:${port}`;
+  return { scheme, host, port, baseUrl, url: baseUrl };
+}
+
+function explicitPort(raw) {
+  const withoutScheme = raw.replace(/^[A-Za-z][A-Za-z0-9+.-]*:\/\//u, '');
+  const authority = withoutScheme.split('/', 1)[0];
+  const bracketed = authority.match(/^\[[^\]]+\]:(\d+)$/u);
+  if (bracketed) return Number(bracketed[1]);
+  if ((authority.match(/:/gu) || []).length === 1) {
+    const match = authority.match(/:(\d+)$/u);
+    if (match) return Number(match[1]);
+  }
+  return null;
+}
+
+function withDefaultScheme(raw) {
+  const slash = raw.indexOf('/');
+  const authority = slash === -1 ? raw : raw.slice(0, slash);
+  const suffix = slash === -1 ? '' : raw.slice(slash);
+  if (!authority.startsWith('[') && (authority.match(/:/gu) || []).length >= 2) {
+    return `http://[${authority}]${suffix}`;
+  }
+  return `http://${raw}`;
+}
+
+function assertKnownPath(pathname) {
+  const normalized = pathname.replace(/\/+$/gu, '') || '/';
+  if (
+    normalized === '/'
+    || normalized === '/healthz'
+    || normalized === '/readyz'
+    || normalized === '/api/v1'
+    || normalized.startsWith('/api/v1/')
+  ) return;
+  fail('docomator_url_path_invalid', { path: normalized });
+}
+
+function normalizeUrl(value) {
+  const raw = optionalText(value, 2_048);
+  if (!raw) fail('docomator_host_required');
+  if (/\s/u.test(raw)) fail('docomator_url_invalid');
+  const hasScheme = /^[A-Za-z][A-Za-z0-9+.-]*:\/\//u.test(raw);
+  let parsed;
+  try {
+    parsed = new URL(hasScheme ? raw : withDefaultScheme(raw));
+  } catch {
+    fail('docomator_url_invalid');
+  }
+  const scheme = normalizeScheme(parsed.protocol.replace(/:$/u, ''));
+  if (parsed.username || parsed.password) fail('docomator_url_credentials_forbidden');
+  if (parsed.search || parsed.hash) fail('docomator_url_options_forbidden');
+  assertKnownPath(parsed.pathname);
+  const host = normalizeHost(parsed.hostname);
+  const rawPort = explicitPort(raw);
+  const port = normalizePort(
+    rawPort,
+    hasScheme ? DEFAULT_PROTOCOL_PORTS[scheme] : DEFAULT_PORT
+  );
+  return connectionResult(scheme, host, port);
+}
+
 export function normalizeDocomatorConnection(input = {}) {
+  if (Object.hasOwn(input, 'url')) return normalizeUrl(input.url);
   const scheme = normalizeScheme(input.scheme);
   const host = normalizeHost(input.host);
   const port = normalizePort(input.port);
-  const baseUrl = `${scheme}://${host}:${port}`;
-  return { scheme, host: host.replace(/^\[|\]$/gu, ''), port, baseUrl };
+  return connectionResult(scheme, host, port);
 }
 
 function transportCode(error) {
@@ -90,9 +156,12 @@ export function classifyDocomatorTransportError(error) {
   return 'docomator_unreachable';
 }
 
-function transportDetails(error) {
+function transportDetails(error, connection) {
   const code = transportCode(error);
-  return code ? { transportCode: code } : null;
+  return {
+    ...(code ? { transportCode: code } : {}),
+    endpoint: connection.baseUrl
+  };
 }
 
 function assertDocomatorService(payload, path) {
@@ -100,9 +169,15 @@ function assertDocomatorService(payload, path) {
   if (!DOCOMATOR_SERVICES.has(service)) fail('docomator_wrong_service', { path });
 }
 
+function settingsUrl(scheme, host, port) {
+  if (!host) return '';
+  return connectionResult(normalizeScheme(scheme), normalizeHost(host), normalizePort(port)).baseUrl;
+}
+
 function mapSettings(row) {
   if (!row) {
     return {
+      url: '',
       scheme: 'http',
       host: '',
       port: DEFAULT_PORT,
@@ -117,6 +192,7 @@ function mapSettings(row) {
     };
   }
   return {
+    url: settingsUrl(row.scheme, row.host, Number(row.port)),
     scheme: row.scheme,
     host: row.host,
     port: Number(row.port),
@@ -211,7 +287,7 @@ async function remoteFetch(connection, path, {
       signal: abortSignal(timeoutMs)
     });
   } catch (error) {
-    fail(classifyDocomatorTransportError(error), transportDetails(error));
+    fail(classifyDocomatorTransportError(error), transportDetails(error, connection));
   }
   const text = await response.text().catch(() => '');
   let payload = null;
@@ -333,17 +409,18 @@ export async function checkDocomatorConnection(input, {
   const connection = normalizeDocomatorConnection(input);
   const healthResult = await remoteFetch(connection, '/healthz', { fetchImpl });
   if (!healthResult.response.ok) {
-    fail('docomator_unreachable', { status: healthResult.response.status });
+    fail('docomator_unreachable', { status: healthResult.response.status, endpoint: connection.baseUrl });
   }
   assertDocomatorService(healthResult.payload, '/healthz');
-  if (healthResult.payload?.status !== 'ok') {
-    fail('docomator_wrong_service', { path: '/healthz' });
+  if (String(healthResult.payload?.status || '').toLowerCase() !== 'ok') {
+    fail('docomator_wrong_service', { path: '/healthz', endpoint: connection.baseUrl });
   }
 
   const readyResult = await remoteFetch(connection, '/readyz', { fetchImpl });
   assertDocomatorService(readyResult.payload, '/readyz');
-  if (!readyResult.response.ok || readyResult.payload?.status !== 'ready') {
-    fail('docomator_not_ready', { status: readyResult.response.status });
+  const readyStatus = String(readyResult.payload?.status || '').trim().toLowerCase();
+  if (!readyResult.response.ok || !READY_STATUSES.has(readyStatus)) {
+    fail('docomator_not_ready', { status: readyResult.response.status, endpoint: connection.baseUrl });
   }
   const ready = true;
   const remoteVersion = optionalText(healthResult.payload?.version, 80);
@@ -486,6 +563,7 @@ export async function importDocomatorPeople(database, workspaceId, input, {
 
   const stats = { total: remotePeople.length, created: 0, updated: 0, matched: 0, skipped: 0 };
   const imported = [];
+  const skippedRemoteIds = [];
   database.transaction(() => {
     saveDocomatorSettings(database, workspaceId, {
       ...input,
@@ -494,14 +572,21 @@ export async function importDocomatorPeople(database, workspaceId, input, {
       includeInactive
     }, now);
     for (const remote of remotePeople) {
-      const result = syncRemotePerson(database, workspaceId, spaceId, remote, now);
-      stats[result.kind] = (stats[result.kind] || 0) + 1;
-      if (result.person) imported.push({
-        id: result.person.id,
-        displayName: result.person.display_name,
-        status: result.person.status,
-        remoteId: remote.id
-      });
+      try {
+        const result = database.transaction(() => syncRemotePerson(
+          database, workspaceId, spaceId, remote, now
+        ));
+        stats[result.kind] = (stats[result.kind] || 0) + 1;
+        if (result.person) imported.push({
+          id: result.person.id,
+          displayName: result.person.display_name,
+          status: result.person.status,
+          remoteId: remote.id
+        });
+      } catch {
+        stats.skipped += 1;
+        skippedRemoteIds.push(remote.id);
+      }
     }
     setConnectionState(database, workspaceId, {
       status: 'ok',
@@ -514,10 +599,16 @@ export async function importDocomatorPeople(database, workspaceId, input, {
       spaceId,
       groupId,
       includeInactive,
-      stats
+      stats,
+      skippedRemoteIds: skippedRemoteIds.slice(0, 100)
     }, now);
   });
-  return { stats, imported: imported.slice(0, 100), settings: getDocomatorSettings(database, workspaceId) };
+  return {
+    stats,
+    imported: imported.slice(0, 100),
+    skippedRemoteIds: skippedRemoteIds.slice(0, 100),
+    settings: getDocomatorSettings(database, workspaceId)
+  };
 }
 
 export function recordDocomatorCheck(database, workspaceId, input, result, now = new Date().toISOString()) {

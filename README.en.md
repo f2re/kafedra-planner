@@ -7,102 +7,78 @@
 [![GitHub Release](https://img.shields.io/github/v/release/f2re/kafedra-planner?display_name=tag&sort=semver)](https://github.com/f2re/kafedra-planner/releases)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 
-Kafedra Planner is an offline-first daily work system for an academic department: calendar, annual plans, assignments, documents, meetings, reporting, research activity, and auditable evidence.
+Kafedra Planner is an offline-first daily work system for an academic department: calendar, annual plans, assignments, documents, meetings, reporting, research activity, grade sheets, and auditable evidence.
 
-> Current milestone: **`0.4.1`**, SQLite schema **31**. Core workflows do not require Internet access, an LLM, Docker, Docomator, or cloud services. The project remains a release candidate until the real Astra Linux/Debian installation, upgrade, restoration, and rollback acceptance in [TARGET_ACCEPTANCE.md](docs/TARGET_ACCEPTANCE.md) and issue #27 is complete.
+> Current milestone: **`0.4.2`**, SQLite schema **31**. Core workflows do not require Internet access, Docker, an LLM, Docomator, or cloud services. The project remains a release candidate until the real Astra Linux/Debian installation, upgrade, restoration, and rollback acceptance in [TARGET_ACCEPTANCE.md](docs/TARGET_ACCEPTANCE.md) and issue #27 is complete.
 
-Patch release `0.4.1` adds Unicode-safe document filenames, stricter OCR/offline validation and package-cache repair, classified Docomator failures, deterministic calendar fixtures, and the desktop `Current | Archive` plans segment. Screens up to `720 px` retain the existing select and do not gain a separate mobile flow.
+Patch release `0.4.2` reduces Docomator setup to one pasted address, accepts the current readiness response, keeps partial employee import, allows an update bundle to be launched from an ordinary user-owned directory, verifies that the active UI changed, and prevents the previous non-fingerprinted site from remaining in browser or proxy cache.
 
-**[Download an offline bundle](https://github.com/f2re/kafedra-planner/releases)** · **[Install guide](docs/GITHUB_RELEASES.md)** · **[Security policy](SECURITY.md)** · **[Contributing](CONTRIBUTING.md)**
+**[Download an offline bundle](https://github.com/f2re/kafedra-planner/releases)** · **[Install guide](docs/GITHUB_RELEASES.md)** · **[Security policy](SECURITY.md)** · **[Russian documentation](README.md#эксплуатация-и-документация)**
 
-## Why it exists
+Published releases are immutable. Reinstalling the same `v0.4.1` bundle cannot acquire code added after its tag. The new integration and update behavior is delivered as a separate `v0.4.2` release.
 
-An uploaded PDF/DOCX/ODT/XLSX/ODS file or scan is never replaced by recognised text or an AI result. Every extracted fact retains its source and locator; manual corrections keep their reason and history.
+## Operating model
 
-```text
-source document / manual entry
-              ↓
-          domain record
-              ↓
-calendar · assignment · search · report
-              ↓
-confirmation, history, and evidence
-```
+An uploaded file is never replaced by recognised text or an AI result. Every extracted fact retains its source and locator; manual corrections retain their reason and history. A failing document, row, optional converter, Docomator endpoint, or LLM must not block unrelated data or the core daily workflow.
 
-A failing file, adapter, OCR component, optional converter, or integration must not block other documents or the core daily workflow.
-
-## Main capabilities
-
-- Calendar, recurring tasks, deadlines, reminders, and provenance;
-- immutable documents, version history, deduplication, local OCR/preview, and full-text search;
-- imported and manual annual plans linked to assignments, evidence, and plan/fact reporting;
-- deterministic automatic assignment when an imported responsible person matches exactly one active employee; ambiguous names stay unresolved for operator review;
-- assignment execution, reports, manager confirmation or return for revision;
-- meetings, agenda, minutes and extracts generated from ordinary DOCX files through a visual field/repeat-block editor;
-- academic grade sheets grouped by academic year, semester and group, with auditable metadata and discipline summaries;
-- a versioned meeting-template library with default selection, exact historical versions, test filling, impact preview, reversible archive and restoration;
-- optional local-network employee import from Docomator with health/readiness/data checks, space/group selection, selectable remote fields, and idempotent remote employee mapping;
-- local four-digit PIN onboarding, sessions, roles, object ACL, and audit trail;
-- encrypted backup/restore plus atomic update and rollback;
-- optional local `llama.cpp` enhancement; core deterministic workflows work with LLM disabled.
-
-![Department calendar](docs/screenshots/calendar.webp)
-
-![Annual plan](docs/screenshots/annual-plan.webp)
-
-## Academic performance
-
-Under **Academic process → Performance**, an operator uploads an XLSX, ODS or CSV grade sheet with students in rows and disciplines in columns. The system proposes the sheet, header row, student column, disciplines, group, academic year and semester.
-
-Group, academic year and semester may be read from an exact source cell or entered manually. Cell-derived values retain the document version, sheet, address, raw value and locator. The working view is grouped as `academic year → semester → group`; only the latest successful sheet for each group contributes to totals, while older and failed versions remain available as history.
-
-The report contains one row per group and discipline with counts for excellent, good, satisfactory, unsatisfactory and not-attested results, review-required values, and an average calculated only from grades 2–5. CSV, JSON and `sources.json` exports retain the same filters and provenance. See [ACADEMIC_PERFORMANCE.md](docs/ACADEMIC_PERFORMANCE.md).
+Main areas include calendar, immutable documents, imported and manual plans, direct task completion, plan/fact reporting, meetings and versioned DOCX templates, research records, academic grade sheets, PIN access, object ACL, backup/restore, and optional local `llama.cpp` assistance.
 
 ## Docomator employee import
 
-An administrator can open **Settings → Department structure → Import from Docomator**, enter an HTTP/HTTPS host and port, and verify `/healthz`, `/readyz`, and application data access before importing. A four-digit Docomator access code, when required, is used only for the current request and is not stored.
+Open **Settings → Department structure → Import from Docomator** and paste the address that opens in a browser, for example:
 
-The user selects a space, a group or all employees, previews names, and chooses which remote properties should populate local e-mail, position and additional employee fields. Remote employee IDs provide idempotency; the first sync may match an existing local record by normalized name. Repeated synchronization updates the linked person and selected extra values without deleting local plans, tasks, reports, appointments, or history. See [DOCOMATOR_PEOPLE_IMPORT.md](docs/DOCOMATOR_PEOPLE_IMPORT.md).
+```text
+http://192.168.1.50:8080
+https://docomator.local
+http://[fd00::25]:8080/api/v1
+```
 
-## Install
+There is no separate protocol, port, or API-version control. Known `/api/v1`, `/healthz`, `/readyz`, and `/api/v1/system/*` suffixes are reduced to the service origin. Credentials, query parameters, fragments, unsupported schemes, and unrelated paths are rejected before a network request.
 
-Download the required files from the selected [GitHub Release](https://github.com/f2re/kafedra-planner/releases), keep them in one directory, verify the checksum, and run:
+Select **Connect**, enter the optional four-digit Docomator access code for the current request, choose a space, group, and remote fields, review the employee preview, and import. The access code is not stored. Current Docomator readiness `status: ok` and the legacy `ready` value are both accepted.
+
+Planner performs remote requests from the Planner server, not from the browser. Therefore a DNS name must resolve on that server. An IP address can be pasted directly where local DNS is unavailable. DNS failure, refused port, timeout, TLS failure, wrong service, not-ready state, denied code, and incompatible API are reported separately.
+
+Synchronization is idempotent by remote employee ID. A single malformed remote profile is skipped without rolling back successful rows. Local plans, assignments, materials, appointments, and history are not deleted, and the local directory remains usable while Docomator is unavailable. See [DOCOMATOR_PEOPLE_IMPORT.md](docs/DOCOMATOR_PEOPLE_IMPORT.md).
+
+## Installation and update
+
+Download one release archive, its checksum, the installer wrapper, `README-INSTALL.txt`, and `SHA256SUMS` into any readable ordinary user directory, then run:
 
 ```bash
-sha256sum -c --strict kafedra-planner-*.tar.gz.sha256
 sudo KAFEDRA_APT_MODE=bundle ./install-kafedra-planner.sh
 ```
 
-The installer verifies the archive and manifest, runs migrations, creates a verified pre-update backup, and rolls back an unsuccessful update. At the first open, the user sets a four-digit PIN. See the detailed [release guide](docs/GITHUB_RELEASES.md), [offline install contract](docs/OFFLINE_INSTALL.md), and [backup/restore procedure](docs/BACKUP_RESTORE.md).
+The download directory and source archive do not need to be owned by root. The wrapper verifies the external digest and internal manifest, extracts into a private root staging directory, creates and verifies a backup, switches `/opt/kafedra-planner/current` atomically, and rolls back a failed update.
 
-For another architecture or OS series, build a bundle on a compatible Debian/Astra reference machine instead:
+Installed executable releases remain `root:root` and non-writable by the service account. Runtime data remains owned by `kafedra-planner:kafedra-planner`; the source user directory is left unchanged. Active required UI files are compared with the selected bundle, and HTML/JavaScript/CSS use `Cache-Control: no-store` so a successful update does not leave the old interface cached.
+
+Verify the selected release:
 
 ```bash
-npm run bundle:offline
+cat /opt/kafedra-planner/current/VERSION
+readlink -f /opt/kafedra-planner/current
+sudo /opt/kafedra-planner/current/scripts/offline/doctor.sh
 ```
+
+## Restart and diagnostics
+
+```bash
+sudo systemctl restart kafedra-planner-api.service kafedra-planner-worker.service
+sudo systemctl status --no-pager -l kafedra-planner-api.service kafedra-planner-worker.service
+sudo journalctl -u kafedra-planner-api.service -u kafedra-planner-worker.service -n 100 --no-pager
+```
+
+Restart `kafedra-planner-llama.service` separately only when the managed local LLM is enabled.
 
 ## Development
 
 ```bash
 npm ci --ignore-scripts --no-audit --no-fund
 npm run check
+npm run docs:check
 npm test
 npm run smoke
 ```
 
-The full list of browser, release, and deployment checks is in the Russian [README](README.md#разработка-и-проверка). The project is intentionally Russian-first; help translating user-facing documentation or the interface is welcome through an issue or pull request.
-
-## Documentation and policies
-
-- [Architecture](docs/ARCHITECTURE.md)
-- [Roadmap](docs/ROADMAP.md)
-- [User workflows](docs/UX_FLOWS.md)
-- [Docomator employee import](docs/DOCOMATOR_PEOPLE_IMPORT.md)
-- [Meeting template library](docs/MEETING_TEMPLATE_LIBRARY.md)
-- [Academic performance](docs/ACADEMIC_PERFORMANCE.md)
-- [Authorization and object access](docs/AUTHORIZATION.md)
-- [Release candidate and release gates](docs/RELEASE_CANDIDATE.md)
-- [Target acceptance](docs/TARGET_ACCEPTANCE.md)
-- [Contributing](CONTRIBUTING.md)
-- [Security](SECURITY.md)
-- [MIT License](LICENSE)
+See the complete browser, release, deployment, and target-acceptance commands in the [Russian README](README.md#разработка-и-проверка). The primary engineering contracts are [Architecture](docs/ARCHITECTURE.md), [Roadmap](docs/ROADMAP.md), [User workflows](docs/UX_FLOWS.md), [Release candidate](docs/RELEASE_CANDIDATE.md), and [Target acceptance](docs/TARGET_ACCEPTANCE.md).
