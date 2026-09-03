@@ -36,6 +36,7 @@
       <MustContain><File>package-lock.json</File><Text>"version": "0.4.2"</Text></MustContain>
       <MustContain><File>public/docomator-integration.js</File><Text>Адрес Оформлятора</Text></MustContain>
       <MustContain><File>public/docomator-integration.js</File><Text>Подключить</Text></MustContain>
+      <MustContain><File>public/docomator-fields.js</File><Text>elements.url</Text></MustContain>
       <MustContain><File>packages/integrations/src/docomator.mjs</File><Text>new Set(['ok', 'ready'])</Text></MustContain>
       <MustContain><File>scripts/offline/install-from-archive.sh</File><Text>--no-same-owner</Text></MustContain>
       <MustContain><File>scripts/offline/install-from-archive.sh</File><Text>--no-same-permissions</Text></MustContain>
@@ -55,7 +56,7 @@
       <MustPassCommand><Command>npm test</Command></MustPassCommand>
       <MustPassCommand><Command>npm run smoke</Command></MustPassCommand>
       <MustPassCommand><Command>node --test tests/docomator-integration.test.mjs tests/deploy-install-contract.test.mjs tests/deployment-flow.test.mjs tests/static-cache.test.mjs</Command></MustPassCommand>
-      <MustPassCommand><Command>npx playwright test tests/browser/docomator-integration.spec.mjs</Command></MustPassCommand>
+      <MustPassCommand><Command>npx playwright test tests/browser/docomator-integration.spec.mjs tests/browser/docomator-fields.spec.mjs</Command></MustPassCommand>
       <MustPassCommand><Command>node --test tests/release-workflow.test.mjs tests/release-assets-contract.test.mjs tests/release-0.4.2.test.mjs</Command></MustPassCommand>
       <MustPassCommand><Command>bash -n scripts/offline/install-from-archive.sh deploy/install.sh deploy/install-core.sh</Command></MustPassCommand>
     </TargetAssertions>
@@ -71,6 +72,7 @@
       <File>apps/api/src/http-utils.mjs</File>
       <File>public/docomator-integration.js</File>
       <File>public/docomator-integration.css</File>
+      <File>public/docomator-fields.js</File>
       <File>public/index.html</File>
       <File>scripts/offline/install-from-archive.sh</File>
       <File>deploy/install.sh</File>
@@ -81,6 +83,7 @@
       <File>tests/deployment-flow.test.mjs</File>
       <File>tests/static-cache.test.mjs</File>
       <File>tests/browser/docomator-integration.spec.mjs</File>
+      <File>tests/browser/docomator-fields.spec.mjs</File>
       <File>playwright.config.mjs</File>
       <File>VERSION</File>
       <File>package.json</File>
@@ -148,9 +151,9 @@
         <AcceptanceCriteria>
           <Criterion>The administrator pastes one address, connects, selects the source and imports people without editing protocol or port separately.</Criterion>
           <Criterion>The canonical endpoint is visible, the access code is not persisted, and failure never hides or disables local department data.</Criterion>
-          <Criterion>One-space auto-selection, group refresh, preview and repeated idempotent import work on desktop and mobile.</Criterion>
+          <Criterion>One-space auto-selection, group refresh, field mapping, preview and repeated idempotent import work on desktop and mobile.</Criterion>
         </AcceptanceCriteria>
-        <Verification><Command>npx playwright test tests/browser/docomator-integration.spec.mjs</Command><Command>npm run smoke</Command></Verification>
+        <Verification><Command>npx playwright test tests/browser/docomator-integration.spec.mjs tests/browser/docomator-fields.spec.mjs</Command><Command>npm run smoke</Command></Verification>
       </T-005>
       <T-006>
         <Title>kafedra-release: simplify secure archive staging and prove the active UI changed</Title>
@@ -171,7 +174,7 @@
           <Criterion>The audit checks hierarchy, focus, labels, target size, responsive layout, secrets, errors, empty states, partial success and no-motion behavior against the approved design.</Criterion>
           <Criterion>Any blocking mismatch is fixed before the tests stage.</Criterion>
         </AcceptanceCriteria>
-        <Verification><Command>npm run design:check</Command><Command>npx playwright test tests/browser/docomator-integration.spec.mjs</Command></Verification>
+        <Verification><Command>npm run design:check</Command><Command>npx playwright test tests/browser/docomator-integration.spec.mjs tests/browser/docomator-fields.spec.mjs</Command></Verification>
       </T-007>
       <T-008>
         <Title>kafedra-tests: run integration, deployment and regression gates</Title>
