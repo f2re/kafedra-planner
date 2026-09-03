@@ -1,20 +1,24 @@
-# Release candidate 0.4.1
+# Release candidate 0.4.2
 
 ## Статус
 
-`0.4.1` — текущий эксплуатационный patch release candidate, схема SQLite **31**. Выпуск объединяет только завершённые изменения текущего `main` и не меняет автономный контракт: Интернет, LLM, Docker, Оформлятор и облачные сервисы не обязательны. Stable не объявляется до фактической приёмки Astra Linux/Debian по [`TARGET_ACCEPTANCE.md`](TARGET_ACCEPTANCE.md) и issue #27.
+`0.4.2` — текущий эксплуатационный patch release candidate, схема SQLite **31**. Выпуск объединяет завершённую прямую интеграцию с Оформлятором и надёжное обновление статического интерфейса, не меняя автономный контракт: Интернет, LLM, Docker, Оформлятор и облачные сервисы не обязательны. Stable не объявляется до фактической приёмки Astra Linux/Debian по [`TARGET_ACCEPTANCE.md`](TARGET_ACCEPTANCE.md) и issue #27.
 
-## Что завершено в 0.4.1
+## Что завершено в 0.4.2
 
-- Unicode-safe document intake сохраняет исходное имя, bytes, SHA-256, `document_version` и evidence.
-- Offline bundle строго проверяет OCR, Poppler и LibreOffice до активации; package cache восстанавливается через `doctor.sh --repair`.
-- Ошибки Оформлятора классифицируются и не блокируют локальную работу.
-- Календарные browser fixtures детерминированы.
-- На desktop от `721 px` планы переключаются сегментом `Текущие | Архив`; до `720 px` остаётся существующий select.
+- Администратор вставляет один полный URL Оформлятора вместо раздельных protocol/host/port.
+- Поддерживаются URL из браузера, hostname, IPv4 и IPv6; известные API/health paths нормализуются до origin.
+- Актуальный `/readyz` со `status: ok` и legacy `ready` принимаются одинаково.
+- DNS, отказ порта, timeout, TLS, чужой сервис, not-ready и несовместимый API различаются без утечки секретов.
+- Выбор пространства, группы и полей ведёт к preview и идемпотентному импорту; ошибка одной записи не отменяет остальные.
+- Четырёхзначный код Оформлятора используется только в текущем запросе и не сохраняется.
+- Архив установки можно запускать из обычного пользовательского каталога; root нужен только для staging, `/opt`, `/etc`, `/var`, backup и systemd.
+- Активный release проверяет обязательные UI-файлы, а статические ответы используют `Cache-Control: no-store`, поэтому старый сайт не остаётся в кэше после успешного обновления.
+- Документированы одна команда перезапуска API/worker и команды статуса/журнала.
 
 ## Сохранность данных
 
-SQLite schema остаётся `31`, новой migration нет. Применённые migrations, исходные blobs, SHA-256, `document_version`, source rows и evidence не переписываются. Backup/restore, `quick_check`, `foreign_key_check` и forced-failure rollback остаются обязательными.
+SQLite schema остаётся `31`, новой migration нет. Применённые migrations, исходные blobs, SHA-256, `document_version`, source rows и evidence не переписываются. Backup/restore, `quick_check`, `foreign_key_check` и forced-failure rollback остаются обязательными. Импорт Оформлятора не удаляет локальные планы, задачи, материалы, назначения и историю.
 
 ## Выпуск
 

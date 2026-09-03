@@ -2,7 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
 
-test('publisher 0.4.1 публикует полный проверяемый набор release assets', async () => {
+test('publisher 0.4.2 публикует полный проверяемый набор release assets', async () => {
   const source = await readFile('.github/workflows/release.yml', 'utf8');
   assert.match(source, /--target "\$SOURCE_SHA"/u);
   assert.match(source, /"\$ARCHIVE"/u);

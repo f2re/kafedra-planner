@@ -4,12 +4,12 @@ import { readFile } from 'node:fs/promises';
 
 const text = (path) => readFile(path, 'utf8');
 
-test('release gate and active publisher trigger use 0.4.1', async () => {
+test('release gate and active publisher trigger use 0.4.2', async () => {
   const gate = await text('.github/workflows/release-gate.yml');
   const publisher = await text('.github/workflows/release.yml');
-  assert.match(gate, /^name: Release gate 0\.4\.1$/mu);
-  assert.match(publisher, /^    workflows: \["Release gate 0\.4\.1"\]$/mu);
-  assert.doesNotMatch(publisher, /^    workflows: \["Release gate 0\.4\.0"\]$/mu);
+  assert.match(gate, /^name: Release gate 0\.4\.2$/mu);
+  assert.match(publisher, /^    workflows: \["Release gate 0\.4\.2"\]$/mu);
+  assert.doesNotMatch(publisher, /^    workflows: \["Release gate 0\.4\.1"\]$/mu);
 });
 
 test('publisher waits for exact-head GRACE and preserves safe draft publication', async () => {
@@ -24,8 +24,8 @@ test('publisher waits for exact-head GRACE and preserves safe draft publication'
   assert.match(source, /\[\[ "\$OBJECT_SHA" == "\$SOURCE_SHA" \]\]/u);
 });
 
-test('legacy 0.4.0 marker is documentation-only for the pre-release recovery regression', async () => {
+test('legacy 0.4.1 marker is documentation-only for the pre-0.4.2 recovery regression', async () => {
   const source = await text('.github/workflows/release.yml');
-  assert.match(source, /^    # Compatibility marker for the pre-0\.4\.1 recovery regression; not an active trigger\.$/mu);
-  assert.match(source, /^    # workflows: \["Release gate 0\.4\.0"\]$/mu);
+  assert.match(source, /^    # Compatibility marker for the pre-0\.4\.2 recovery regression; not an active trigger\.$/mu);
+  assert.match(source, /^    # workflows: \["Release gate 0\.4\.1"\]$/mu);
 });
