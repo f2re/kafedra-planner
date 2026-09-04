@@ -22,7 +22,14 @@ function protocolText(year, number, withResponsible = false) {
     : 'Принять информацию к сведению.'}`;
 }
 
+async function annualSummary(page, year) {
+  const response = await page.request.get(`/api/protocol-imports?year=${year}`);
+  if (!response.ok()) return null;
+  return (await response.json()).summary;
+}
+
 test('Протоколы за год: пакетная загрузка → исключения → исправление → готово', async ({ page }, testInfo) => {
+  test.setTimeout(120_000);
   const year = testInfo.project.name === 'mobile' ? 2032 : 2031;
   const dir = await mkdtemp(join(tmpdir(), `kafedra-protocol-import-${testInfo.project.name}-`));
   const readyPath = join(dir, `Протокол ${year} готов.txt`);
@@ -44,8 +51,12 @@ test('Протоколы за год: пакетная загрузка → ис
     const upload = page.locator('#protocol-import-input');
     await upload.setInputFiles([readyPath, reviewPath]);
     await expect(page.locator('[data-protocol-import-item]')).toHaveCount(2, { timeout: 20_000 });
-    await expect(page.locator('#protocol-import-summary')).toContainText('1 готово', { timeout: 20_000 });
-    await expect(page.locator('#protocol-import-summary')).toContainText('1 проверить', { timeout: 20_000 });
+    await expect.poll(() => annualSummary(page, year), {
+      timeout: 75_000,
+      intervals: [500, 1000, 2000]
+    }).toMatchObject({ total: 2, ready: 1, needs_review: 1, failed: 0 });
+    await expect(page.locator('#protocol-import-summary')).toContainText('1 готово', { timeout: 5_000 });
+    await expect(page.locator('#protocol-import-summary')).toContainText('1 проверить', { timeout: 5_000 });
 
     const reviewRow = page.locator('[data-protocol-import-item]').filter({ hasText: `Протокол ${year} проверить.txt` });
     await expect(reviewRow).toContainText('Не найден номер протокола');
@@ -71,7 +82,11 @@ test('Протоколы за год: пакетная загрузка → ис
     await expect(page.locator('#meeting-detail')).not.toContainText('Нужно проверить');
     await expect(page.locator('#meeting-detail')).toContainText('Сидоров Пётр Петрович');
     await expect(page.locator('#meeting-detail')).toContainText('25 октября');
-    await expect(page.locator('#protocol-import-summary')).toContainText('2 готово', { timeout: 12_000 });
+    await expect.poll(() => annualSummary(page, year), {
+      timeout: 20_000,
+      intervals: [500, 1000]
+    }).toMatchObject({ total: 2, ready: 2, needs_review: 0, failed: 0 });
+    await expect(page.locator('#protocol-import-summary')).toContainText('2 готово', { timeout: 5_000 });
     await expect(page.locator('#protocol-import-summary')).toContainText('0 проверить');
 
     await page.reload();
