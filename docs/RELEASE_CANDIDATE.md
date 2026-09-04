@@ -1,29 +1,30 @@
-# Release candidate 0.4.2
+# Release candidate 0.4.3
 
 ## Статус
 
-`0.4.2` — текущий эксплуатационный patch release candidate, схема SQLite **31**. Выпуск объединяет завершённую прямую интеграцию с Оформлятором и надёжное обновление статического интерфейса, не меняя автономный контракт: Интернет, LLM, Docker, Оформлятор и облачные сервисы не обязательны. Stable не объявляется до фактической приёмки Astra Linux/Debian по [`TARGET_ACCEPTANCE.md`](TARGET_ACCEPTANCE.md) и issue #27.
+`0.4.3` — текущий эксплуатационный patch release candidate, схема SQLite **31**. Выпуск добавляет пакетный импорт протоколов за выбранный год с исправлением исключений и переводит публикацию на один универсальный release pipeline. Интернет, LLM, Docker, Оформлятор и облачные сервисы не обязательны для production. Stable не объявляется до фактической приёмки Astra Linux/Debian по [`TARGET_ACCEPTANCE.md`](TARGET_ACCEPTANCE.md) и issue #27.
 
-## Что завершено в 0.4.2
+## Что завершено в 0.4.3
 
-- Администратор вставляет один полный URL Оформлятора вместо раздельных protocol/host/port.
-- Поддерживаются URL из браузера, hostname, IPv4 и IPv6; известные API/health paths нормализуются до origin.
-- Актуальный `/readyz` со `status: ok` и legacy `ready` принимаются одинаково.
-- DNS, отказ порта, timeout, TLS, чужой сервис, not-ready и несовместимый API различаются без утечки секретов.
-- Выбор пространства, группы и полей ведёт к preview и идемпотентному импорту; ошибка одной записи не отменяет остальные.
-- Четырёхзначный код Оформлятора используется только в текущем запросе и не сохраняется.
-- Архив установки можно запускать из обычного пользовательского каталога; root нужен только для staging, `/opt`, `/etc`, `/var`, backup и systemd.
-- Активный release проверяет обязательные UI-файлы, а статические ответы используют `Cache-Control: no-store`, поэтому старый сайт не остаётся в кэше после успешного обновления.
-- Документированы одна команда перезапуска API/worker и команды статуса/журнала.
+- В **Заседаниях** выбирается год и одним действием загружается набор DOCX/ODT/PDF/TXT протоколов.
+- Каждый файл сохраняется как immutable source до интерпретации; один плохой файл не блокирует соседние.
+- После reload восстанавливается пофайловая сводка `Готово / Нужно проверить / Ошибка / Обрабатывается` без новой batch-таблицы.
+- Выбранный год является intake context, а не подтверждённым фактом; дата из другого года создаёт review item и не переписывается автоматически.
+- Протокол без текста всё равно оставляет сохранённый source и редактируемую карточку заседания.
+- `Исправить` открывает точное заседание и исходный документ. Редактируются номер, дата, название, повестка, `Слушали / Обсудили / Решили`, ответственный и срок.
+- Правка синхронизирует working meeting/decision/calendar/search и закрывает только устранённые исключения.
+- Raw extraction result, locator/evidence, `document_version`, blob и SHA-256 не перезаписываются; manual before/after остаётся в audit/evidence history.
+- Универсальный **Release gate** больше не содержит номер версии и не запускается на обычных feature PR.
+- Publisher не ждёт набор других workflows и не повторяет unit/Playwright после gate. Он собирает offline bundle один раз, проверяет тот же artifact через Debian 12 systemd install/update/forced rollback и только затем публикует его.
 
 ## Сохранность данных
 
-SQLite schema остаётся `31`, новой migration нет. Применённые migrations, исходные blobs, SHA-256, `document_version`, source rows и evidence не переписываются. Backup/restore, `quick_check`, `foreign_key_check` и forced-failure rollback остаются обязательными. Импорт Оформлятора не удаляет локальные планы, задачи, материалы, назначения и историю.
+SQLite schema остаётся `31`, новой migration нет. Применённые migrations, исходные blobs, SHA-256, `document_version`, source rows и evidence неизменяемы. Backup/restore, `quick_check`, `foreign_key_check` и forced-failure rollback остаются частью release evidence. Ручная коррекция имеет приоритет для рабочего значения, но не уничтожает машинный результат.
 
 ## Выпуск
 
-На одном exact head должны успешно завершиться GRACE, project CI, release gate, browser-контуры, full offline Debian 12, реальная systemd-установка, offline LLM/GGUF и Project Control. Publisher создаёт draft, проверяет exact tag SHA и семь assets, затем публикует non-prerelease Release.
+Release PR проходит GRACE для release/CI-инфраструктуры и обычный exact-head project CI. После squash merge универсальный **Release gate** на exact `main` выполняет полный unit/integration regression, критический desktop/mobile browser и recovery checks. Publisher один раз строит full offline artifact, проверяет clean install, repeated update и forced rollback на disposable Debian 12 systemd reference VM, строит Project Control из того же archive, формирует SHA-256 и публикует семь проверенных assets. Tag `v0.4.3` обязан указывать на тот же exact `main` SHA.
 
 ## Что остаётся до stable
 
-Реальная эксплуатационная приёмка Astra Linux/Debian остаётся в issue #27.
+Реальная эксплуатационная приёмка Astra Linux/Debian остаётся в issue #27 и не подменяется CI.
