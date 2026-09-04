@@ -4,6 +4,10 @@ import { renderMeetingDetail, renderSettingsSummary } from './meetings-render.js
 import { invalidatePlanMeetingLink } from './meetings-plan-links.js';
 import { openAgendaModal, templateOptions } from './meetings-modals.js';
 
+function announceMeetingUpdated(meetingId) {
+  window.dispatchEvent(new CustomEvent('kafedra:meeting-updated', { detail: { meetingId } }));
+}
+
 export async function uploadMeetingTemplateInput(input) {
   const file = input.files?.[0];
   if (!file) return;
@@ -62,6 +66,7 @@ export async function createMeetingFromForm(form) {
   closeMeetingModal();
   meetingsState.selectedForExtract.clear();
   await loadMeetings(created.id);
+  announceMeetingUpdated(created.id);
   showMeetingNotice('Заседание создано. Добавьте вопросы повестки.');
 }
 
@@ -73,7 +78,8 @@ export async function editMeetingFromForm(form) {
   closeMeetingModal();
   meetingsState.meeting = updated;
   await loadMeetings(updated.id);
-  showMeetingNotice('Заседание обновлено.');
+  announceMeetingUpdated(updated.id);
+  showMeetingNotice('Реквизиты сохранены, устранённые сомнения закрыты.');
 }
 
 export async function saveAgendaForm(form) {
@@ -88,7 +94,8 @@ export async function saveAgendaForm(form) {
   meetingsState.meeting = updated;
   closeMeetingModal();
   await loadMeetings(meetingsState.selectedMeetingId);
-  showMeetingNotice(itemId ? 'Вопрос обновлён.' : 'Вопрос добавлен в повестку.');
+  announceMeetingUpdated(meetingsState.selectedMeetingId);
+  showMeetingNotice(itemId ? 'Исправления сохранены в повестке, календаре и поиске.' : 'Вопрос добавлен в повестку.');
 }
 
 export async function addSourceQuestion(button) {
@@ -101,6 +108,7 @@ export async function addSourceQuestion(button) {
   meetingsState.meeting = updated;
   closeMeetingModal();
   await loadMeetings(meetingsState.selectedMeetingId);
+  announceMeetingUpdated(meetingsState.selectedMeetingId);
   if (newest) openAgendaModal(meetingsState.meeting.agenda.find((item) => item.id === newest.id) || newest);
   showMeetingNotice('Вопрос добавлен из исходной задачи. Проверьте формулировку и заполните итог заседания.');
 }
@@ -117,6 +125,7 @@ export async function deleteAgenda() {
   meetingsState.selectedForExtract.delete(itemId);
   closeMeetingModal();
   await loadMeetings(meetingsState.selectedMeetingId);
+  announceMeetingUpdated(meetingsState.selectedMeetingId);
   showMeetingNotice('Вопрос удалён, нумерация повестки обновлена.');
 }
 

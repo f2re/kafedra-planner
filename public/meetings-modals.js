@@ -77,25 +77,42 @@ export function openCreateMeetingModal() {
 export function openEditMeetingModal() {
   const meeting = meetingsState.meeting;
   if (!meeting) return;
+  const reviews = meeting.reviews || [];
   openMeetingModal(`
-    <header class="meeting-modal-head"><div><span>Заседание</span><h3>Дата и номер</h3></div><button type="button" class="icon-button" data-close-meeting-modal>×</button></header>
+    <header class="meeting-modal-head"><div><span>Заседание</span><h3>${reviews.length ? 'Исправить реквизиты' : 'Дата и номер'}</h3></div><button type="button" class="icon-button" data-close-meeting-modal>×</button></header>
     <form id="meeting-edit-form" class="meeting-modal-body">
-      <div class="meeting-form-two"><label class="field"><span>Дата</span><input name="meetingDate" type="date" value="${escMeeting(meeting.meeting_date)}" required></label><label class="field"><span>Номер протокола</span><input name="protocolNumber" value="${escMeeting(meeting.protocol_number)}" required></label></div>
-      <label class="field"><span>Название</span><input name="title" value="${escMeeting(meeting.title)}" required></label>
-      <div class="meeting-modal-actions"><button type="button" class="secondary-button" data-close-meeting-modal>Отмена</button><button type="submit" class="primary-button">Сохранить</button></div>
+      ${reviews.length ? `<div class="meeting-callout"><strong>Автоматика просит проверить:</strong> ${reviews.slice(0, 4).map((review) => escMeeting(review.title)).join(' · ')}</div>` : ''}
+      <div class="meeting-form-two"><label class="field"><span>Дата</span><input name="meetingDate" type="date" value="${escMeeting(meeting.meeting_date || '')}" required></label><label class="field"><span>Номер протокола</span><input name="protocolNumber" value="${escMeeting(meeting.protocol_number || '')}" required></label></div>
+      <label class="field"><span>Название</span><input name="title" value="${escMeeting(meeting.title || 'Заседание кафедры')}" required></label>
+      ${meeting.source_document_id ? `<a class="meeting-source-link" href="/api/documents/${encodeURIComponent(meeting.source_document_id)}/content?variant=original" target="_blank" rel="noopener">Открыть исходный протокол</a>` : ''}
+      <div class="meeting-modal-actions"><button type="button" class="secondary-button" data-close-meeting-modal>Отмена</button><button type="submit" class="primary-button">Сохранить исправления</button></div>
     </form>
   `);
 }
 
 export function openAgendaModal(item = null) {
+  const decision = item?.decision || item?.decisions?.[0] || null;
+  const relatedReviews = item ? (meetingsState.meeting?.reviews || []).filter((review) => {
+    const context = review.context || {};
+    return context.agendaId === item.id || context.existingAgendaId === item.id
+      || context.decisionId === decision?.id
+      || String(review.issue_code || '').includes(item.id)
+      || (decision?.id && String(review.issue_code || '').includes(decision.id));
+  }) : [];
   openMeetingModal(`
-    <header class="meeting-modal-head"><div><span>Вопрос ${item ? `№${Number(item.item_no)}` : ''}</span><h3>${item ? 'Содержание вопроса' : 'Новый вопрос повестки'}</h3></div><button type="button" class="icon-button" data-close-meeting-modal>×</button></header>
+    <header class="meeting-modal-head"><div><span>Вопрос ${item ? `№${Number(item.item_no)}` : ''}</span><h3>${relatedReviews.length ? 'Исправить распознанные данные' : item ? 'Содержание вопроса' : 'Новый вопрос повестки'}</h3></div><button type="button" class="icon-button" data-close-meeting-modal>×</button></header>
     <form id="agenda-item-form" data-agenda-id="${escMeeting(item?.id || '')}" class="meeting-modal-body">
+      ${relatedReviews.length ? `<div class="meeting-callout"><strong>Нужно проверить:</strong> ${relatedReviews.map((review) => escMeeting(review.title)).join(' · ')}</div>` : ''}
       ${item?.source_label ? `<div class="meeting-source-note">Источник: <strong>${escMeeting(item.source_label)}</strong></div>` : ''}
       <label class="field"><span>Вопрос повестки</span><textarea name="title" rows="2" required placeholder="Например: О рассмотрении научной статьи…">${escMeeting(item?.title || '')}</textarea></label>
       <label class="field"><span>Слушали</span><textarea name="heardText" rows="3" placeholder="Кого заслушали и по существу вопроса">${escMeeting(item?.heard_text || '')}</textarea></label>
       <label class="field"><span>Обсудили</span><textarea name="discussedText" rows="3" placeholder="При необходимости">${escMeeting(item?.discussed_text || '')}</textarea></label>
-      <label class="field"><span>Решили</span><textarea name="decisionText" rows="4" placeholder="Итоговое решение по этому вопросу">${escMeeting(item?.decision_text || '')}</textarea></label>
+      <label class="field"><span>Решили</span><textarea name="decisionText" rows="4" placeholder="Итоговое решение по этому вопросу">${escMeeting(item?.decision_text || decision?.text || '')}</textarea></label>
+      <div class="meeting-form-two">
+        <label class="field"><span>Ответственный</span><input name="responsibleRaw" value="${escMeeting(decision?.responsible_raw || '')}" placeholder="Фамилия, подразделение или роль"></label>
+        <label class="field"><span>Срок</span><input name="dueDate" type="date" value="${escMeeting(decision?.due_date || '')}"></label>
+      </div>
+      <p class="meeting-helper">Сохранение обновит карточку, календарь и поиск. Исходный документ и автоматическое извлечение останутся в истории.</p>
       <div class="meeting-modal-actions">${item ? '<button type="button" class="danger-text-button" data-delete-agenda>Удалить вопрос</button>' : ''}<span class="spacer"></span><button type="button" class="secondary-button" data-close-meeting-modal>Отмена</button><button type="submit" class="primary-button">Сохранить</button></div>
     </form>
   `);

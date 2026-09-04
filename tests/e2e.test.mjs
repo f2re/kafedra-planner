@@ -77,9 +77,10 @@ test('сквозной путь: загрузка протокола, worker, к
     assert.equal((await duplicateUpload.json()).duplicateRequest, true);
     const documents = await waitFor(
       `http://127.0.0.1:${port}/api/documents`,
-      (body) => body.items?.[0]?.processing_status === 'processed'
+      (body) => body.items?.[0]?.processing_status === 'needs_review'
     );
     assert.equal(documents.items[0].document_type, 'department_protocol');
+    assert.equal(documents.items[0].processing_status, 'needs_review');
 
     const overview = await (await fetch(`http://127.0.0.1:${port}/api/overview`)).json();
     assert.equal(overview.documents, 1);

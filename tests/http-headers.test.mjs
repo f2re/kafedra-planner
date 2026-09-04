@@ -21,10 +21,12 @@ test('sha256HexUtf8 matches Node for ASCII, Cyrillic, emoji and long input', () 
 test('idempotency normalization is bounded ASCII and stable', () => {
   const raw = 'action-center:plan:План кафедры 🙂.xlsx:2048:1788150000';
   const normalized = normalizeIdempotencyHeader(raw);
+  const annualProtocol = `protocol-year:2031:${'a'.repeat(64)}`;
   assert.match(normalized, /^kp-v1-[a-f0-9]{64}$/u);
   assert.equal(normalized.length, 70);
   assert.equal(normalizeIdempotencyHeader(raw), normalized);
   assert.equal(normalizeIdempotencyHeader(normalized), normalized);
+  assert.equal(normalizeIdempotencyHeader(annualProtocol), annualProtocol);
   assert.notEqual(normalizeIdempotencyHeader(`${raw}:other`), normalized);
 });
 

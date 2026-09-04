@@ -1,4 +1,4 @@
-const CANONICAL_IDEMPOTENCY_KEY = /^kp-v1-[a-f0-9]{64}$/u;
+const CANONICAL_IDEMPOTENCY_KEY = /^(?:kp-v1-[a-f0-9]{64}|protocol-year:20\d{2}:[a-f0-9]{8,64})$/u;
 const INSTALL_STATE = Symbol.for('kafedra-planner.http-headers.v1');
 
 const SHA256_CONSTANTS = new Uint32Array([
