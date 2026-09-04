@@ -32,7 +32,7 @@ test('0.4.3 включает годовой импорт протоколов б
   assert.match(meetings, /Протоколы за год/u);
   assert.match(meetings, /Готово|готово/u);
   assert.match(meetings, /Нужно проверить|проверить/u);
-  assert.match(readme, /пакетн\w* загрузк\w* протокол/u);
+  assert.ok(readme.includes('пакетную загрузку протоколов за выбранный год'));
   assert.equal(migrationFiles.some((name) => /^032_/u.test(name)), false);
 });
 
