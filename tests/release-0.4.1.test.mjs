@@ -12,8 +12,9 @@ test('опубликованный 0.4.1 остаётся отдельным н�
   assert.match(note, /Tag и assets версии `0\.4\.0` не изменяются\./u);
 });
 
-test('publisher хранит 0.4.1 только как неактивный compatibility marker', async () => {
+test('текущий универсальный publisher не может активировать исторический version-specific gate 0.4.1', async () => {
   const publisher = await text('.github/workflows/release.yml');
-  assert.match(publisher, /^    # workflows: \["Release gate 0\.4\.1"\]$/mu);
+  assert.match(publisher, /^    workflows: \["Release gate"\]$/mu);
   assert.doesNotMatch(publisher, /^    workflows: \["Release gate 0\.4\.1"\]$/mu);
+  assert.doesNotMatch(publisher, /gh release (?:edit|upload|create) v0\.4\.1/u);
 });
