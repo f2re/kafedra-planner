@@ -47,13 +47,31 @@ function stripFragmentAndQuery(target) {
 }
 
 function record(errors, file, text, index, kind, target, message) {
-  errors.push({
-    file,
-    line: lineNumber(text, Math.max(0, index || 0)),
-    kind,
-    target,
-    message
-  });
+  errors.push({ file, line: lineNumber(text, Math.max(0, index || 0)), kind, target, message });
+}
+
+async function checkUniversalReleaseWorkflows({ absoluteRoot, errors }) {
+  const markers = [
+    {
+      file: '.github/workflows/release-gate.yml',
+      pattern: /^name:\s*Release gate\s*$/mu,
+      description: 'универсальный release gate'
+    },
+    {
+      file: '.github/workflows/release.yml',
+      pattern: /workflows:\s*\["Release gate"\]/u,
+      description: 'publisher универсального release gate'
+    }
+  ];
+  for (const marker of markers) {
+    const absoluteFile = join(absoluteRoot, marker.file);
+    if (!(await exists(absoluteFile))) continue;
+    const text = await readFile(absoluteFile, 'utf8');
+    if (!marker.pattern.test(text)) {
+      record(errors, marker.file, text, 0, 'release-workflow', 'Release gate',
+        `${marker.description}: workflow должен быть version-neutral.`);
+    }
+  }
 }
 
 async function checkReleaseVersion({ absoluteRoot, pkg, packageText, errors }) {
@@ -87,46 +105,12 @@ async function checkReleaseVersion({ absoluteRoot, pkg, packageText, errors }) {
   }
 
   const markers = [
-    {
-      file: 'README.md',
-      pattern: /Текущий рубеж:\s+\*\*`([^`]+)`\*\*/u,
-      description: 'русский README'
-    },
-    {
-      file: 'README.en.md',
-      pattern: /Current milestone:\s+\*\*`([^`]+)`\*\*/u,
-      description: 'английский README'
-    },
-    {
-      file: 'docs/ROADMAP.md',
-      pattern: /^## Текущий рубеж — `([^`]+)`\s*$/mu,
-      description: 'ROADMAP'
-    },
-    {
-      file: 'docs/RELEASE_CANDIDATE.md',
-      pattern: /^# Release candidate (\d+\.\d+\.\d+)\s*$/mu,
-      description: 'release candidate'
-    },
-    {
-      file: 'docs/VALIDATION.md',
-      pattern: /Актуальный рубеж:\s*`([^`]+)`/u,
-      description: 'validation contract'
-    },
-    {
-      file: 'docs/UX_FLOWS.md',
-      pattern: /Статус: рабочие контуры версии `([^`]+)`/u,
-      description: 'UX contract'
-    },
-    {
-      file: '.github/workflows/release-gate.yml',
-      pattern: /^name:\s*Release gate (\d+\.\d+\.\d+)\s*$/mu,
-      description: 'release gate workflow'
-    },
-    {
-      file: '.github/workflows/release.yml',
-      pattern: /workflows:\s*\["Release gate (\d+\.\d+\.\d+)"\]/u,
-      description: 'release publication workflow'
-    }
+    { file: 'README.md', pattern: /Текущий рубеж:\s+\*\*`([^`]+)`\*\*/u, description: 'русский README' },
+    { file: 'README.en.md', pattern: /Current milestone:\s+\*\*`([^`]+)`\*\*/u, description: 'английский README' },
+    { file: 'docs/ROADMAP.md', pattern: /^## Текущий рубеж — `([^`]+)`\s*$/mu, description: 'ROADMAP' },
+    { file: 'docs/RELEASE_CANDIDATE.md', pattern: /^# Release candidate (\d+\.\d+\.\d+)\s*$/mu, description: 'release candidate' },
+    { file: 'docs/VALIDATION.md', pattern: /Актуальный рубеж:\s*`([^`]+)`/u, description: 'validation contract' },
+    { file: 'docs/UX_FLOWS.md', pattern: /Статус: рабочие контуры версии `([^`]+)`/u, description: 'UX contract' }
   ];
 
   for (const marker of markers) {
@@ -142,6 +126,7 @@ async function checkReleaseVersion({ absoluteRoot, pkg, packageText, errors }) {
         `${marker.description}: указан рубеж ${match[1]}, ожидается ${version}.`);
     }
   }
+  await checkUniversalReleaseWorkflows({ absoluteRoot, errors });
 }
 
 export async function checkDocumentation({ root = process.cwd() } = {}) {
@@ -199,33 +184,25 @@ export async function checkDocumentation({ root = process.cwd() } = {}) {
     const npmRun = /\bnpm\s+run(?:\s+--silent)?\s+([A-Za-z0-9][A-Za-z0-9:._-]*)/g;
     for (const match of text.matchAll(npmRun)) {
       const name = match[1];
-      if (!scripts.has(name)) {
-        record(errors, file, text, match.index, 'npm-script', name, 'В package.json нет такого npm script.');
-      }
+      if (!scripts.has(name)) record(errors, file, text, match.index, 'npm-script', name, 'В package.json нет такого npm script.');
     }
 
     const repoPath = /\b((?:scripts|deploy|config)\/[A-Za-z0-9._@+/-]+\.(?:mjs|js|sh|py|service|txt|json|md|ya?ml|env))\b/g;
     for (const match of text.matchAll(repoPath)) {
       const target = match[1];
-      if (!(await exists(join(absoluteRoot, target)))) {
-        record(errors, file, text, match.index, 'repo-path', target, 'Указанного файла в репозитории нет.');
-      }
+      if (!(await exists(join(absoluteRoot, target)))) record(errors, file, text, match.index, 'repo-path', target, 'Указанного файла в репозитории нет.');
     }
 
     const installedScript = /\/opt\/kafedra-planner\/current\/(scripts\/[A-Za-z0-9._@+/-]+\.(?:mjs|js|sh|py))\b/g;
     for (const match of text.matchAll(installedScript)) {
       const target = match[1];
-      if (!(await exists(join(absoluteRoot, target)))) {
-        record(errors, file, text, match.index, 'installed-script', target, 'Путь установленной системы не соответствует существующему repository script.');
-      }
+      if (!(await exists(join(absoluteRoot, target)))) record(errors, file, text, match.index, 'installed-script', target, 'Путь установленной системы не соответствует существующему repository script.');
     }
 
     const systemdUnit = /\b(kafedra-planner-[A-Za-z0-9_-]+\.service)\b/g;
     for (const match of text.matchAll(systemdUnit)) {
       const target = join('deploy', 'systemd', match[1]);
-      if (!(await exists(join(absoluteRoot, target)))) {
-        record(errors, file, text, match.index, 'systemd-unit', match[1], 'Указанный systemd unit отсутствует в deploy/systemd.');
-      }
+      if (!(await exists(join(absoluteRoot, target)))) record(errors, file, text, match.index, 'systemd-unit', match[1], 'Указанный systemd unit отсутствует в deploy/systemd.');
     }
   }
 
@@ -233,9 +210,7 @@ export async function checkDocumentation({ root = process.cwd() } = {}) {
 }
 
 export function formatDocumentationErrors(errors) {
-  return errors
-    .map((error) => `${error.file}:${error.line} [${error.kind}] ${error.target}: ${error.message}`)
-    .join('\n');
+  return errors.map((error) => `${error.file}:${error.line} [${error.kind}] ${error.target}: ${error.message}`).join('\n');
 }
 
 const isCli = process.argv[1] && import.meta.url === pathToFileURL(resolve(process.argv[1])).href;
