@@ -2,9 +2,7 @@ name: Публикация GitHub Release
 
 on:
   workflow_run:
-    workflows: ["Release gate 0.4.2"]
-    # Compatibility marker for the pre-0.4.2 recovery regression; not an active trigger.
-    # workflows: ["Release gate 0.4.1"]
+    workflows: ["Release gate"]
     types: [completed]
   workflow_dispatch:
 
@@ -13,12 +11,11 @@ concurrency:
   cancel-in-progress: false
 
 permissions:
-  actions: write
   contents: write
 
 jobs:
   release:
-    name: Проверить, собрать и опубликовать
+    name: Собрать, проверить и опубликовать
     runs-on: ubuntu-24.04
     timeout-minutes: 180
     env:
@@ -35,13 +32,13 @@ jobs:
         run: |
           set -Eeuo pipefail
           should_run=false
-          reason="Не-main или неуспешный release gate: публикация не требуется."
+          reason="Не-main или неуспешный Release gate: публикация не требуется."
           if [[ "$GITHUB_EVENT_NAME" == workflow_dispatch ]]; then
             should_run=true
             reason="Ручной запуск для текущего main."
           elif [[ "$SOURCE_EVENT" == push && "$SOURCE_BRANCH" == main && "$SOURCE_CONCLUSION" == success ]]; then
             should_run=true
-            reason="Успешный post-merge release gate main."
+            reason="Успешный универсальный Release gate на main."
           fi
           echo "should_run=$should_run" >> "$GITHUB_OUTPUT"
           echo "reason=$reason" >> "$GITHUB_OUTPUT"
@@ -50,7 +47,7 @@ jobs:
           printf 'event=%s branch=%s conclusion=%s sha=%s should_run=%s\n' \
             "$SOURCE_EVENT" "$SOURCE_BRANCH" "$SOURCE_CONCLUSION" "$SOURCE_COMMIT" "$should_run"
 
-      - name: Завершить штатный no-op для не-main контекста
+      - name: Завершить штатный no-op
         if: steps.context.outputs.should_run != 'true'
         run: echo "${{ steps.context.outputs.reason }}"
 
@@ -63,7 +60,17 @@ jobs:
         if: steps.context.outputs.should_run == 'true'
         with:
           node-version-file: .nvmrc
-          cache: npm
+
+      - name: Подтвердить exact main
+        if: steps.context.outputs.should_run == 'true'
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          MAIN_SHA="$(gh api "repos/$GITHUB_REPOSITORY/git/ref/heads/main" --jq '.object.sha')"
+          [[ "$MAIN_SHA" == "$SOURCE_SHA" ]] || {
+            echo "main изменился: ожидался $SOURCE_SHA, фактически $MAIN_SHA. Выпуск старого commit запрещён." >&2
+            exit 1
+          }
 
       - name: Определить выпуск
         id: release
@@ -78,9 +85,7 @@ jobs:
           OBJECT_SHA=""
           TAG_IS_ANCESTOR=false
 
-          if gh release view "$TAG" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
-            RELEASE_EXISTS=true
-          fi
+          if gh release view "$TAG" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then RELEASE_EXISTS=true; fi
           if TAG_REF="$(gh api "repos/$GITHUB_REPOSITORY/git/ref/tags/$TAG" 2>/dev/null)"; then
             TAG_EXISTS=true
             OBJECT_TYPE="$(jq -r '.object.type' <<<"$TAG_REF")"
@@ -93,22 +98,14 @@ jobs:
           PARENT_SHA="$(gh api "repos/$GITHUB_REPOSITORY/commits/$SOURCE_SHA" --jq '.parents[0].sha // ""')"
           PARENT_VERSION=""
           if [[ -n "$PARENT_SHA" ]]; then
-            PARENT_VERSION="$(
-              gh api "repos/$GITHUB_REPOSITORY/contents/VERSION?ref=$PARENT_SHA" --jq '.content' \
-                | tr -d '\n' \
-                | base64 --decode \
-                | tr -d '[:space:]'
-            )"
+            PARENT_VERSION="$(gh api "repos/$GITHUB_REPOSITORY/contents/VERSION?ref=$PARENT_SHA" --jq '.content' | tr -d '\n' | base64 --decode | tr -d '[:space:]')"
           fi
-
           if [[ "$TAG_EXISTS" == true ]]; then
             if [[ "$OBJECT_SHA" == "$SOURCE_SHA" ]]; then
               TAG_IS_ANCESTOR=true
             else
               COMPARE_STATUS="$(gh api "repos/$GITHUB_REPOSITORY/compare/${OBJECT_SHA}...${SOURCE_SHA}" --jq '.status')"
-              if [[ "$COMPARE_STATUS" == ahead || "$COMPARE_STATUS" == identical ]]; then
-                TAG_IS_ANCESTOR=true
-              fi
+              if [[ "$COMPARE_STATUS" == ahead || "$COMPARE_STATUS" == identical ]]; then TAG_IS_ANCESTOR=true; fi
             fi
           fi
 
@@ -122,165 +119,13 @@ jobs:
             --tag-is-ancestor "$TAG_IS_ANCESTOR" \
             >> "$GITHUB_OUTPUT"
 
-      - name: Подтвердить штатный no-op уже опубликованной версии
+      - name: Подтвердить уже опубликованную версию
         if: steps.context.outputs.should_run == 'true' && steps.release.outputs.publish != 'true'
         run: |
           echo "Новый release не требуется: ${{ steps.release.outputs.reason }}"
           echo "Существующий тег и assets не изменяются."
 
-      - name: Дождаться и при необходимости восстановить post-merge workflow
-        if: steps.context.outputs.should_run == 'true' && steps.release.outputs.publish == 'true'
-        shell: bash
-        run: |
-          set -Eeuo pipefail
-          required=(
-            "GRACE"
-            "Проверка"
-            "Release gate 0.4.2"
-            "Оргструктура"
-            "Научные отчёты"
-            "Научный жизненный цикл"
-            "Массовый импорт науки"
-          )
-          declare -A workflow_files=(
-            ["GRACE"]="grace.yml"
-            ["Проверка"]="ci.yml"
-            ["Release gate 0.4.2"]="release-gate.yml"
-            ["Оргструктура"]="organization.yml"
-            ["Научные отчёты"]="science-reports.yml"
-            ["Научный жизненный цикл"]="science-lifecycle.yml"
-            ["Массовый импорт науки"]="science-import.yml"
-          )
-          declare -A recovered_from=()
-          recovery_after=$((SECONDS + 120))
-          deadline=$((SECONDS + 7200))
-
-          ensure_exact_main() {
-            local main_sha
-            main_sha="$(gh api "repos/$GITHUB_REPOSITORY/git/ref/heads/main" --jq '.object.sha')"
-            if [[ "$main_sha" != "$SOURCE_SHA" ]]; then
-              echo "main уже изменился: ожидался $SOURCE_SHA, фактически $main_sha. Выпуск старого commit запрещён." >&2
-              exit 1
-            fi
-          }
-
-          dispatch_once() {
-            local name="$1"
-            local failed_run_id="$2"
-            local previous="${recovered_from[$name]-}"
-            if [[ -z "$previous" ]]; then
-              ensure_exact_main
-              echo "Инфраструктурный запуск '$name' не создал выполняемых jobs; запускаю один workflow_dispatch."
-              gh workflow run "${workflow_files[$name]}" --repo "$GITHUB_REPOSITORY" --ref main
-              recovered_from["$name"]="$failed_run_id"
-              return 0
-            fi
-            if [[ "$previous" == "$failed_run_id" ]]; then
-              echo "Ожидаю появление повторного запуска '$name'."
-              return 0
-            fi
-            echo "Повторный запуск '$name' также завершился без выполняемых jobs; автоматическое скрытие ошибки запрещено." >&2
-            exit 1
-          }
-
-          while (( SECONDS < deadline )); do
-            gh api --paginate \
-              "repos/$GITHUB_REPOSITORY/actions/runs?head_sha=$SOURCE_SHA&per_page=100" \
-              --jq '.workflow_runs' | jq -s '{workflow_runs: add}' > "$RUNNER_TEMP/runs.json"
-            all_success=1
-            for name in "${required[@]}"; do
-              run="$(jq -c --arg name "$name" '
-                [.workflow_runs[] | select(.name == $name)]
-                | sort_by(.created_at) | last
-              ' "$RUNNER_TEMP/runs.json")"
-              if [[ "$run" == null ]]; then
-                printf '%s: missing\n' "$name"
-                all_success=0
-                if (( SECONDS >= recovery_after )); then
-                  dispatch_once "$name" missing
-                fi
-                continue
-              fi
-
-              run_id="$(jq -r '.id' <<<"$run")"
-              status="$(jq -r '.status' <<<"$run")"
-              conclusion="$(jq -r '.conclusion // ""' <<<"$run")"
-              printf '%s: %s:%s (run %s)\n' "$name" "$status" "$conclusion" "$run_id"
-
-              if [[ "$status" != completed ]]; then
-                all_success=0
-                case "$status" in
-                  queued|in_progress|requested|waiting|pending) continue ;;
-                  *) echo "Неизвестное состояние обязательного workflow '$name': $status:$conclusion." >&2; exit 1 ;;
-                esac
-              fi
-
-              jobs="$(gh api "repos/$GITHUB_REPOSITORY/actions/runs/$run_id/jobs?per_page=100")"
-              job_count="$(jq '.jobs | length' <<<"$jobs")"
-              if (( job_count > 0 )); then
-                running_jobs="$(jq '[.jobs[] | select(.status != "completed")] | length' <<<"$jobs")"
-                failed_jobs="$(jq '[.jobs[] | select(.status == "completed" and .conclusion != "success")] | length' <<<"$jobs")"
-                success_jobs="$(jq '[.jobs[] | select(.status == "completed" and .conclusion == "success")] | length' <<<"$jobs")"
-
-                if (( failed_jobs > 0 )); then
-                  jq -r '.jobs[] | select(.status == "completed" and .conclusion != "success") | "job \(.name): \(.conclusion)"' <<<"$jobs" >&2
-                  echo "Обязательный workflow '$name' реально выполнял jobs и завершился ошибкой; повторять его автоматически нельзя." >&2
-                  exit 1
-                fi
-                if (( running_jobs > 0 )); then
-                  all_success=0
-                  continue
-                fi
-                if (( success_jobs == job_count )); then
-                  if [[ "$conclusion" != success ]]; then
-                    echo "Метаданные run '$name' расходятся с jobs ($conclusion), но все $job_count jobs фактически завершились success."
-                  fi
-                  continue
-                fi
-                echo "Workflow '$name' завершил jobs в неизвестном сочетании состояний." >&2
-                exit 1
-              fi
-
-              all_success=0
-              case "$conclusion" in
-                startup_failure|failure|cancelled|success|'') dispatch_once "$name" "$run_id" ;;
-                skipped) echo "Обязательный workflow '$name' неожиданно пропущен." >&2; exit 1 ;;
-                *) echo "Обязательный workflow '$name' завершился с недопустимым состоянием $conclusion." >&2; exit 1 ;;
-              esac
-            done
-
-            if (( all_success == 1 )); then
-              ensure_exact_main
-              echo "Все обязательные workflow для $SOURCE_SHA завершились успешно."
-              break
-            fi
-            sleep 30
-          done
-          (( SECONDS < deadline )) || { echo "Истекло время ожидания обязательного CI." >&2; exit 1; }
-
-      - name: Установить зависимости проверки
-        if: steps.context.outputs.should_run == 'true' && steps.release.outputs.publish == 'true'
-        run: npm ci --ignore-scripts --no-audit --no-fund
-
-      - name: Повторно проверить исходный код и данные
-        if: steps.context.outputs.should_run == 'true' && steps.release.outputs.publish == 'true'
-        run: |
-          npm run check
-          npm test
-          npm run smoke
-          npm run backup:selftest
-
-      - name: Проверить планы, заседания, назначения и интеграцию Оформлятора в браузере
-        if: steps.context.outputs.should_run == 'true' && steps.release.outputs.publish == 'true'
-        run: |
-          npx playwright install --with-deps chromium
-          npm run test:browser:plans
-          npm run test:browser:academic
-          npx playwright test tests/browser/auto-assignment.spec.mjs
-          npx playwright test tests/browser/docomator-integration.spec.mjs tests/browser/docomator-fields.spec.mjs
-          npx playwright test tests/browser/meeting-template-editor.spec.mjs tests/browser/meeting-template-library.spec.mjs tests/browser/manual-plan-preferences.spec.mjs tests/browser/task-layout.spec.mjs
-
-      - name: Собрать полный автономный bundle
+      - name: Собрать полный автономный bundle один раз
         if: steps.context.outputs.should_run == 'true' && steps.release.outputs.publish == 'true'
         shell: bash
         run: |
@@ -302,14 +147,18 @@ jobs:
             '
           ARCHIVE="$(find "$OUT" -maxdepth 1 -type f -name 'kafedra-planner-*.tar.gz' -print -quit)"
           [[ -f "$ARCHIVE" && -f "$ARCHIVE.sha256" ]]
-          [[ -x "$OUT/install-kafedra-planner.sh" ]]
-          [[ -f "$OUT/README-INSTALL.txt" ]]
+          [[ -x "$OUT/install-kafedra-planner.sh" && -f "$OUT/README-INSTALL.txt" ]]
           REQUIRE_ARCHIVE_SHA256=true SKIP_SYSTEM_PREFLIGHT=true \
             bash scripts/offline/verify-bundle.sh "$ARCHIVE"
           echo "OUT=$OUT" >> "$GITHUB_ENV"
           echo "ARCHIVE=$ARCHIVE" >> "$GITHUB_ENV"
 
-      - name: Собрать пакет F2RE Project Control
+      - name: Проверить install, update и rollback того же artifact
+        if: steps.context.outputs.should_run == 'true' && steps.release.outputs.publish == 'true'
+        shell: bash
+        run: bash scripts/offline/systemd-deploy-selftest.sh "$OUT"
+
+      - name: Собрать Project Control из проверенного archive
         if: steps.context.outputs.should_run == 'true' && steps.release.outputs.publish == 'true'
         shell: bash
         run: |
@@ -327,131 +176,112 @@ jobs:
           PACKAGE="$OUT/kafedra-planner-${VERSION}-project-control.f2re.zip"
           [[ -f "$PACKAGE" && -f "$PACKAGE.sha256" ]]
           (cd "$OUT" && sha256sum -c --strict "$(basename "$PACKAGE.sha256")")
+          echo "PACKAGE=$PACKAGE" >> "$GITHUB_ENV"
 
       - name: Сформировать общие контрольные суммы
         if: steps.context.outputs.should_run == 'true' && steps.release.outputs.publish == 'true'
         shell: bash
         run: |
           set -Eeuo pipefail
-          VERSION="${{ steps.release.outputs.version }}"
           cd "$OUT"
           sha256sum \
             "$(basename "$ARCHIVE")" \
             install-kafedra-planner.sh \
             README-INSTALL.txt \
-            "kafedra-planner-${VERSION}-project-control.f2re.zip" \
+            "$(basename "$PACKAGE")" \
             > SHA256SUMS
           sha256sum -c --strict SHA256SUMS
 
-      - name: Опубликовать GitHub Release с bundle
+      - name: Ещё раз подтвердить exact main перед публикацией
+        if: steps.context.outputs.should_run == 'true' && steps.release.outputs.publish == 'true'
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          MAIN_SHA="$(gh api "repos/$GITHUB_REPOSITORY/git/ref/heads/main" --jq '.object.sha')"
+          [[ "$MAIN_SHA" == "$SOURCE_SHA" ]] || {
+            echo "main изменился после проверки artifact; публикация старого SHA запрещена." >&2
+            exit 1
+          }
+
+      - name: Создать draft release на exact SHA
         if: steps.context.outputs.should_run == 'true' && steps.release.outputs.publish == 'true'
         shell: bash
         run: |
           set -Eeuo pipefail
           VERSION="${{ steps.release.outputs.version }}"
-          TAG="${{ steps.release.outputs.tag }}"
-          assets=(
-            "$ARCHIVE.sha256"
-            "$OUT/install-kafedra-planner.sh"
-            "$OUT/README-INSTALL.txt"
-            "$OUT/kafedra-planner-${VERSION}-project-control.f2re.zip.sha256"
-            "$OUT/SHA256SUMS"
-            "$ARCHIVE"
-            "$OUT/kafedra-planner-${VERSION}-project-control.f2re.zip"
-          )
-
-          RELEASE_ID=""
-          cleanup_draft() {
-            if [[ "$RELEASE_ID" =~ ^[0-9]+$ ]] && [[ "$(gh api "repos/$GITHUB_REPOSITORY/releases/$RELEASE_ID" --jq '.draft' 2>/dev/null || true)" == true ]]; then
-              echo "Удаляем неполный draft release $TAG ($RELEASE_ID) перед безопасным повтором."
-              gh api --method DELETE "repos/$GITHUB_REPOSITORY/releases/$RELEASE_ID" || true
-            fi
-          }
-          trap cleanup_draft ERR
-
+          TAG="v${VERSION}"
+          NOTES="docs/releases/${VERSION}.md"
+          [[ -f "$NOTES" ]]
           gh release create "$TAG" \
             --repo "$GITHUB_REPOSITORY" \
             --target "$SOURCE_SHA" \
             --title "Kafedra Planner ${VERSION}" \
-            --notes-file "docs/releases/${VERSION}.md" \
+            --notes-file "$NOTES" \
             --draft
 
-          for attempt in {1..30}; do
-            RELEASE_ID="$(gh release view "$TAG" --repo "$GITHUB_REPOSITORY" \
-              --json databaseId,isDraft --jq 'select(.isDraft == true) | .databaseId' 2>/dev/null || true)"
-            if [[ "$RELEASE_ID" =~ ^[0-9]+$ ]]; then
-              break
-            fi
-            sleep 2
-          done
-          [[ "$RELEASE_ID" =~ ^[0-9]+$ ]]
-
-          upload_asset() {
-            local file="$1"
-            local name
-            name="$(basename "$file")"
-            for attempt in 1 2 3; do
-              echo "Загрузка $name: попытка $attempt из 3."
-              if gh release upload "$TAG" "$file" --repo "$GITHUB_REPOSITORY" --clobber; then
-                return 0
-              fi
-              asset_id="$(gh api "repos/$GITHUB_REPOSITORY/releases/$RELEASE_ID/assets?per_page=100" \
-                --jq ".[] | select(.name == \"$name\") | .id" 2>/dev/null | head -n 1 || true)"
-              if [[ -n "$asset_id" ]]; then
-                gh api --method DELETE "repos/$GITHUB_REPOSITORY/releases/assets/$asset_id" || true
-              fi
-              sleep $((attempt * 20))
-            done
-            echo "Не удалось загрузить $name после трёх попыток." >&2
-            return 1
-          }
-
-          for asset in "${assets[@]}"; do
-            upload_asset "$asset"
-          done
-
-          RELEASE="$(gh api "repos/$GITHUB_REPOSITORY/releases/$RELEASE_ID")"
-          RELEASE_ASSETS="$(gh api "repos/$GITHUB_REPOSITORY/releases/$RELEASE_ID/assets?per_page=100")"
-          [[ "$(jq -r '.draft' <<<"$RELEASE")" == true ]]
-          [[ "$(jq -r '.tag_name' <<<"$RELEASE")" == "$TAG" ]]
-          [[ "$(jq -r '.target_commitish' <<<"$RELEASE")" == "$SOURCE_SHA" ]]
-          [[ "$(jq '[.[] | select(.state == "uploaded")] | length' <<<"$RELEASE_ASSETS")" -eq 7 ]]
-          EXPECTED_NAMES="$(printf '%s\n' "${assets[@]##*/}" | sort)"
-          ACTUAL_NAMES="$(jq -r '.[] | select(.state == "uploaded") | .name' <<<"$RELEASE_ASSETS" | sort)"
-          [[ "$ACTUAL_NAMES" == "$EXPECTED_NAMES" ]]
-          for asset in "${assets[@]}"; do
-            name="$(basename "$asset")"
-            expected_size="$(stat -c%s "$asset")"
-            actual_size="$(jq -r --arg name "$name" '.[] | select(.name == $name and .state == "uploaded") | .size' <<<"$RELEASE_ASSETS")"
-            [[ "$actual_size" == "$expected_size" ]]
-          done
-          gh api --method PATCH "repos/$GITHUB_REPOSITORY/releases/$RELEASE_ID" \
-            -F draft=false -f make_latest=true >/dev/null
-          trap - ERR
-
-      - name: Проверить опубликованный тег и артефакты
+      - name: Загрузить ровно проверенные release assets
         if: steps.context.outputs.should_run == 'true' && steps.release.outputs.publish == 'true'
         shell: bash
         run: |
           set -Eeuo pipefail
-          TAG="${{ steps.release.outputs.tag }}"
-          RELEASE="$(gh api "repos/$GITHUB_REPOSITORY/releases/tags/$TAG")"
-          [[ "$(jq -r '.draft' <<<"$RELEASE")" == false ]]
-          [[ "$(jq -r '.prerelease' <<<"$RELEASE")" == false ]]
-          EXPECTED_ASSETS="$(printf '%s\n' \
-            "kafedra-planner-${{ steps.release.outputs.version }}-debian-12-amd64.tar.gz" \
-            "kafedra-planner-${{ steps.release.outputs.version }}-debian-12-amd64.tar.gz.sha256" \
+          VERSION="${{ steps.release.outputs.version }}"
+          TAG="v${VERSION}"
+          gh release upload "$TAG" --repo "$GITHUB_REPOSITORY" \
+            "$ARCHIVE" \
+            "$ARCHIVE.sha256" \
+            "$OUT/install-kafedra-planner.sh" \
+            "$OUT/README-INSTALL.txt" \
+            "$PACKAGE" \
+            "$PACKAGE.sha256" \
+            "$OUT/SHA256SUMS"
+
+      - name: Проверить семь assets до публикации
+        if: steps.context.outputs.should_run == 'true' && steps.release.outputs.publish == 'true'
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          VERSION="${{ steps.release.outputs.version }}"
+          TAG="v${VERSION}"
+          ARCHIVE_NAME="$(basename "$ARCHIVE")"
+          PACKAGE_NAME="$(basename "$PACKAGE")"
+          EXPECTED="$(printf '%s\n' \
+            "$ARCHIVE_NAME" \
+            "$ARCHIVE_NAME.sha256" \
             install-kafedra-planner.sh \
             README-INSTALL.txt \
-            "kafedra-planner-${{ steps.release.outputs.version }}-project-control.f2re.zip" \
-            "kafedra-planner-${{ steps.release.outputs.version }}-project-control.f2re.zip.sha256" \
+            "$PACKAGE_NAME" \
+            "$PACKAGE_NAME.sha256" \
             SHA256SUMS | sort)"
-          ACTUAL_ASSETS="$(jq -r '.assets[] | select(.state == "uploaded") | .name' <<<"$RELEASE" | sort)"
-          [[ "$ACTUAL_ASSETS" == "$EXPECTED_ASSETS" ]]
-          OBJECT_TYPE="$(gh api "repos/$GITHUB_REPOSITORY/git/ref/tags/$TAG" --jq '.object.type')"
-          OBJECT_SHA="$(gh api "repos/$GITHUB_REPOSITORY/git/ref/tags/$TAG" --jq '.object.sha')"
+          ACTUAL="$(gh api "repos/$GITHUB_REPOSITORY/releases/tags/$TAG" --jq '.assets[].name' | sort)"
+          [[ "$ACTUAL" == "$EXPECTED" ]] || {
+            echo "Набор release assets отличается от проверенного." >&2
+            diff -u <(printf '%s\n' "$EXPECTED") <(printf '%s\n' "$ACTUAL") || true
+            exit 1
+          }
+          gh api "repos/$GITHUB_REPOSITORY/releases/tags/$TAG" --jq '.assets[] | select(.size <= 0) | .name' | grep -q . && {
+            echo "Найден пустой release asset." >&2
+            exit 1
+          } || true
+
+      - name: Опубликовать и проверить tag/release
+        if: steps.context.outputs.should_run == 'true' && steps.release.outputs.publish == 'true'
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          VERSION="${{ steps.release.outputs.version }}"
+          TAG="v${VERSION}"
+          gh release edit "$TAG" --repo "$GITHUB_REPOSITORY" --draft=false --prerelease=false --latest
+          RELEASE_JSON="$(gh api "repos/$GITHUB_REPOSITORY/releases/tags/$TAG")"
+          [[ "$(jq -r '.draft' <<<"$RELEASE_JSON")" == false ]]
+          [[ "$(jq -r '.prerelease' <<<"$RELEASE_JSON")" == false ]]
+          TAG_REF="$(gh api "repos/$GITHUB_REPOSITORY/git/ref/tags/$TAG")"
+          OBJECT_TYPE="$(jq -r '.object.type' <<<"$TAG_REF")"
+          OBJECT_SHA="$(jq -r '.object.sha' <<<"$TAG_REF")"
           if [[ "$OBJECT_TYPE" == tag ]]; then
             OBJECT_SHA="$(gh api "repos/$GITHUB_REPOSITORY/git/tags/$OBJECT_SHA" --jq '.object.sha')"
           fi
-          [[ "$OBJECT_SHA" == "$SOURCE_SHA" ]]
-          gh release view "$TAG" --repo "$GITHUB_REPOSITORY" --json url,tagName,name,isDraft,isPrerelease
+          [[ "$OBJECT_SHA" == "$SOURCE_SHA" ]] || {
+            echo "Тег $TAG указывает на $OBJECT_SHA вместо $SOURCE_SHA." >&2
+            exit 1
+          }
+          echo "Опубликован $TAG на exact SHA $SOURCE_SHA с семью проверенными assets."
