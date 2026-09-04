@@ -7,6 +7,7 @@ const core = await readFile(new URL('../deploy/install-core.sh', import.meta.url
 const builder = await readFile(new URL('../scripts/offline/build-bundle.sh', import.meta.url), 'utf8');
 const doctor = await readFile(new URL('../scripts/offline/doctor.sh', import.meta.url), 'utf8');
 const archiveLauncher = await readFile(new URL('../scripts/offline/install-from-archive.sh', import.meta.url), 'utf8');
+const systemdSelftest = await readFile(new URL('../scripts/offline/systemd-deploy-selftest.sh', import.meta.url), 'utf8');
 
 test('transactional entrypoint serializes updates and can recover an interrupted transaction', () => {
   assert.match(entrypoint, /flock -n 9/u);
@@ -76,11 +77,8 @@ test('transactional verification proves that the active document UI came from th
   const serviceCheck = entrypoint.indexOf('systemctl is-active --quiet "$API_SERVICE"', successStart);
   assert.ok(verifyStart >= 0 && successStart > verifyStart && serviceCheck > successStart);
   for (const path of [
-    'public/index.html',
-    'public/ux-next.js',
-    'public/docomator-integration.js',
-    'public/docomator-integration.css',
-    'public/docomator-fields.js'
+    'public/index.html', 'public/ux-next.js', 'public/docomator-integration.js',
+    'public/docomator-integration.css', 'public/docomator-fields.js'
   ]) assert.match(entrypoint, new RegExp(path.replaceAll('.', '\\.')));
   assert.match(entrypoint, /cmp -s "\$APP_SOURCE\/\$relative" "\$target\/\$relative"/u);
   assert.match(entrypoint, /verify_active_ui_files "\$target" \|\| return 1/u);
@@ -110,4 +108,16 @@ test('offline doctor treats operator config as data', () => {
   assert.match(doctor, /kafedra_read_environment_file/u);
   assert.doesNotMatch(doctor, /source\s+["']?\$CONFIG(?:\s|$)/u);
   assert.doesNotMatch(doctor, /eval\s/u);
+});
+
+test('release artifact selftest proves clean install, update, legacy upgrade and forced-core-rollback', () => {
+  assert.match(systemdSelftest, /run_installer\nassert_deployed/u);
+  assert.match(systemdSelftest, /Повторный install/u);
+  assert.match(systemdSelftest, /0\.1\.0-legacy-ci/u);
+  assert.match(systemdSelftest, /0\.1\.0-forced-core-rollback/u);
+  assert.match(systemdSelftest, /forced rollback fixture/u);
+  assert.match(systemdSelftest, /Installer принял повреждённый post-update release вместо rollback/u);
+  assert.match(systemdSelftest, /systemctl is-active --quiet kafedra-planner-api\.service/u);
+  assert.match(systemdSelftest, /systemctl is-active --quiet kafedra-planner-worker\.service/u);
+  assert.match(systemdSelftest, /Forced rollback изменил PIN/u);
 });
