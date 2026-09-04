@@ -1,6 +1,25 @@
 import { newId } from '../../core/src/ids.mjs';
-import { clean, fail, required, writeAudit } from './meeting-common.mjs';
+import { clean, dateValue, fail, required, writeAudit } from './meeting-common.mjs';
 import { getMeeting, syncMeetingSearch } from './meeting-core.mjs';
+import { syncDecisionCalendar } from './decision-calendar.mjs';
+import { resolveMeetingReviews } from './meeting-reviews.mjs';
+
+function parseJson(value, fallback = {}) {
+  try { return JSON.parse(value); } catch { return fallback; }
+}
+
+function optionalDate(value) {
+  const text = clean(value);
+  if (!text) return null;
+  try { return dateValue(text); } catch { fail('agenda_due_date_invalid'); }
+}
+
+function appendManualCorrection(raw, correction) {
+  const evidence = parseJson(raw, {});
+  const history = Array.isArray(evidence.manualCorrections) ? [...evidence.manualCorrections] : [];
+  history.push(correction);
+  return { ...evidence, manualCorrections: history.slice(-100) };
+}
 
 function sourceQuestionTitle(source) {
   const title = required(source?.title, 'agenda_source_not_found');
@@ -89,6 +108,26 @@ function nextAgendaNumber(database, meetingId) {
   return Number(database.get('SELECT COALESCE(MAX(item_no), 0) AS value FROM agenda_items WHERE meeting_id = ?', meetingId)?.value || 0) + 1;
 }
 
+function createManualDecision(database, workspaceId, agendaId, agendaTitle, input, actorPersonId, now) {
+  const text = clean(input?.decisionText);
+  if (!text) return null;
+  const id = newId('decision');
+  const responsibleRaw = clean(input?.responsibleRaw);
+  const dueDate = optionalDate(input?.dueDate);
+  database.run(`
+    INSERT INTO decisions(
+      id, agenda_item_id, text, responsible_raw, due_date, status, evidence_json, created_at
+    ) VALUES (?, ?, ?, ?, ?, 'confirmed', ?, ?)
+  `, id, agendaId, text, responsibleRaw, dueDate, JSON.stringify({
+    kind: 'operator',
+    source: 'meeting_editor',
+    manualCorrections: [{ at: now, actorPersonId, fields: ['decisionText', 'responsibleRaw', 'dueDate'] }]
+  }), now);
+  const decision = database.get('SELECT * FROM decisions WHERE id = ?', id);
+  syncDecisionCalendar(database, workspaceId, decision, agendaTitle, now);
+  return decision;
+}
+
 export function addAgendaItem(database, workspaceId, meetingId, input, actorPersonId = null, now = new Date().toISOString()) {
   const meeting = database.get('SELECT * FROM meetings WHERE workspace_id = ? AND id = ?', workspaceId, meetingId);
   if (!meeting) fail('meeting_not_found');
@@ -113,8 +152,15 @@ export function addAgendaItem(database, workspaceId, meetingId, input, actorPers
     `, id, meetingId, itemNo, title, clean(input?.heardText), clean(input?.discussedText),
     clean(input?.decisionText), JSON.stringify({ kind: 'operator', source: source ? 'linked_item' : 'manual' }),
     now, source?.kind || null, source?.id || null, source?.label || null, now);
+    const decision = createManualDecision(database, workspaceId, id, title, input, actorPersonId, now);
     database.run('UPDATE meetings SET updated_at = ? WHERE id = ?', now, meetingId);
     syncMeetingSearch(database, workspaceId, meetingId);
+    resolveMeetingReviews(database, workspaceId, meetingId, {
+      scope: 'agenda', agendaItemId: id, decisionId: decision?.id || null,
+      touchedFields: ['title', 'heardText', 'discussedText', 'decisionText', 'responsibleRaw', 'dueDate'],
+      values: { title, heardText: clean(input?.heardText), discussedText: clean(input?.discussedText),
+        decisionText: clean(input?.decisionText), responsibleRaw: clean(input?.responsibleRaw), dueDate: optionalDate(input?.dueDate) }
+    }, actorPersonId, now);
     writeAudit(database, workspaceId, actorPersonId, 'meeting.agenda.added', 'meeting', meetingId, {
       agendaItemId: id, itemNo, sourceKind: source?.kind || null, sourceId: source?.id || null
     }, now);
@@ -130,26 +176,102 @@ function agendaContext(database, workspaceId, meetingId, itemId) {
   `, workspaceId, meetingId, itemId) || null;
 }
 
+function firstDecision(database, itemId) {
+  return database.get(`
+    SELECT * FROM decisions WHERE agenda_item_id = ? ORDER BY created_at, id LIMIT 1
+  `, itemId) || null;
+}
+
 export function updateAgendaItem(database, workspaceId, meetingId, itemId, input, actorPersonId = null, now = new Date().toISOString()) {
   const current = agendaContext(database, workspaceId, meetingId, itemId);
   if (!current) fail('agenda_item_not_found');
+  const touchedFields = ['title', 'heardText', 'discussedText', 'decisionText', 'responsibleRaw', 'dueDate']
+    .filter((field) => Object.prototype.hasOwnProperty.call(input || {}, field));
   const value = (key, field) => Object.prototype.hasOwnProperty.call(input || {}, key)
     ? clean(input[key]) : current[field];
   const title = Object.prototype.hasOwnProperty.call(input || {}, 'title')
     ? required(input.title, 'agenda_title_required') : current.title;
   const heard = value('heardText', 'heard_text');
   const discussed = value('discussedText', 'discussed_text');
-  const decision = value('decisionText', 'decision_text');
+  const existingDecision = firstDecision(database, itemId);
+  const requestedDecision = Object.prototype.hasOwnProperty.call(input || {}, 'decisionText')
+    ? clean(input.decisionText) : current.decision_text;
+  const decisionText = requestedDecision || existingDecision?.text || null;
+  const responsibleRaw = Object.prototype.hasOwnProperty.call(input || {}, 'responsibleRaw')
+    ? clean(input.responsibleRaw) : existingDecision?.responsible_raw || null;
+  const dueDate = Object.prototype.hasOwnProperty.call(input || {}, 'dueDate')
+    ? optionalDate(input.dueDate) : existingDecision?.due_date || null;
+  let decisionId = existingDecision?.id || null;
+
   database.transaction(() => {
+    const agendaEvidence = touchedFields.length
+      ? appendManualCorrection(current.evidence_json, {
+        at: now,
+        actorPersonId,
+        fields: touchedFields,
+        before: {
+          title: current.title,
+          heardText: current.heard_text,
+          discussedText: current.discussed_text,
+          decisionText: current.decision_text
+        },
+        after: { title, heardText: heard, discussedText: discussed, decisionText }
+      })
+      : parseJson(current.evidence_json, {});
     database.run(`
       UPDATE agenda_items
-      SET title = ?, heard_text = ?, discussed_text = ?, decision_text = ?, updated_at = ?
+      SET title = ?, heard_text = ?, discussed_text = ?, decision_text = ?, evidence_json = ?, updated_at = ?
       WHERE id = ?
-    `, title, heard, discussed, decision, now, itemId);
+    `, title, heard, discussed, decisionText, JSON.stringify(agendaEvidence), now, itemId);
+
+    if (decisionText) {
+      if (existingDecision) {
+        const decisionEvidence = appendManualCorrection(existingDecision.evidence_json, {
+          at: now,
+          actorPersonId,
+          fields: touchedFields.filter((field) => ['decisionText', 'responsibleRaw', 'dueDate'].includes(field)),
+          before: {
+            text: existingDecision.text,
+            responsibleRaw: existingDecision.responsible_raw,
+            dueDate: existingDecision.due_date
+          },
+          after: { text: decisionText, responsibleRaw, dueDate }
+        });
+        database.run(`
+          UPDATE decisions
+          SET text = ?, responsible_raw = ?, due_date = ?, status = 'confirmed', evidence_json = ?
+          WHERE id = ?
+        `, decisionText, responsibleRaw, dueDate, JSON.stringify(decisionEvidence), existingDecision.id);
+      } else {
+        const created = createManualDecision(database, workspaceId, itemId, title, {
+          decisionText, responsibleRaw, dueDate
+        }, actorPersonId, now);
+        decisionId = created?.id || null;
+      }
+      const decision = firstDecision(database, itemId);
+      decisionId = decision?.id || decisionId;
+      syncDecisionCalendar(database, workspaceId, decision, title, now);
+    }
+
     database.run('UPDATE meetings SET updated_at = ? WHERE id = ?', now, meetingId);
     syncMeetingSearch(database, workspaceId, meetingId);
+    resolveMeetingReviews(database, workspaceId, meetingId, {
+      scope: 'agenda', agendaItemId: itemId, decisionId, touchedFields,
+      values: { title, heardText: heard, discussedText: discussed, decisionText, responsibleRaw, dueDate }
+    }, actorPersonId, now);
     writeAudit(database, workspaceId, actorPersonId, 'meeting.agenda.updated', 'agenda_item', itemId, {
-      meetingId, itemNo: current.item_no
+      meetingId,
+      itemNo: current.item_no,
+      touchedFields,
+      before: {
+        title: current.title,
+        heardText: current.heard_text,
+        discussedText: current.discussed_text,
+        decisionText: current.decision_text,
+        responsibleRaw: existingDecision?.responsible_raw || null,
+        dueDate: existingDecision?.due_date || null
+      },
+      after: { title, heardText: heard, discussedText: discussed, decisionText, responsibleRaw, dueDate }
     }, now);
   });
   return getMeeting(database, workspaceId, meetingId);
@@ -169,6 +291,13 @@ export function deleteAgendaItem(database, workspaceId, meetingId, itemId, actor
   const current = agendaContext(database, workspaceId, meetingId, itemId);
   if (!current) fail('agenda_item_not_found');
   database.transaction(() => {
+    const decisionIds = database.all('SELECT id FROM decisions WHERE agenda_item_id = ?', itemId).map((item) => item.id);
+    for (const decisionId of decisionIds) {
+      database.run(`
+        DELETE FROM calendar_items
+        WHERE workspace_id = ? AND source_kind = 'decision' AND source_id = ?
+      `, workspaceId, decisionId);
+    }
     database.run('DELETE FROM agenda_items WHERE id = ?', itemId);
     renumberAgenda(database, meetingId, now);
     database.run('UPDATE meetings SET updated_at = ? WHERE id = ?', now, meetingId);

@@ -1,3 +1,13 @@
+function initialMeetingYear() {
+  const current = new Date().getFullYear();
+  try {
+    const saved = Number(window.localStorage.getItem('kafedra-meetings-year'));
+    return Number.isInteger(saved) && saved >= 2000 && saved <= 2100 ? saved : current;
+  } catch {
+    return current;
+  }
+}
+
 export const meetingsState = {
   active: false,
   settings: null,
@@ -6,7 +16,10 @@ export const meetingsState = {
   selectedMeetingId: null,
   meeting: null,
   sources: [],
-  selectedForExtract: new Set()
+  selectedForExtract: new Set(),
+  selectedYear: initialMeetingYear(),
+  protocolImports: { year: initialMeetingYear(), items: [], summary: { total: 0, ready: 0, needs_review: 0, failed: 0, processing: 0 } },
+  localProtocolUploads: []
 };
 
 export const $m = (selector, root = document) => root.querySelector(selector);
@@ -37,12 +50,17 @@ export function meetingDate(value) {
 }
 
 function ensureMeetingStyles() {
-  if ($m('#meetings-next-styles')) return;
-  const link = document.createElement('link');
-  link.id = 'meetings-next-styles';
-  link.rel = 'stylesheet';
-  link.href = '/meetings-next.css';
-  document.head.append(link);
+  for (const [id, href] of [
+    ['meetings-next-styles', '/meetings-next.css'],
+    ['protocol-import-styles', '/protocol-import.css']
+  ]) {
+    if ($m(`#${id}`)) continue;
+    const link = document.createElement('link');
+    link.id = id;
+    link.rel = 'stylesheet';
+    link.href = href;
+    document.head.append(link);
+  }
 }
 
 let templateEditorLoading = null;
@@ -88,12 +106,15 @@ export function ensureMeetingsUi() {
     workspace.insertAdjacentHTML('beforeend', `
       <section class="view meetings-view" data-view-panel="meetings">
         <div class="meetings-heading">
-          <div><h2>Заседания кафедры</h2><p>Повестка собирается из задач и пунктов планов. Протокол и выписка формируются по вашим DOCX-шаблонам.</p></div>
+          <div><h2>Заседания кафедры</h2><p>Загрузите протоколы за выбранный год. Готовые заседания сохраняются сразу, а сомнения показываются отдельно.</p></div>
           <div class="meetings-heading-actions">
+            <label class="meeting-year-field"><span>Год</span><input id="meeting-year-filter" type="number" min="2000" max="2100" step="1" value="${meetingsState.selectedYear}"></label>
+            <label class="primary-button meeting-upload-button">Загрузить протоколы<input id="protocol-import-input" type="file" accept=".docx,.odt,.pdf,.txt" multiple hidden></label>
+            <button id="meeting-create-button" class="secondary-button" type="button">Новое заседание</button>
             <button id="meeting-settings-button" class="secondary-button" type="button">Настройки</button>
-            <button id="meeting-create-button" class="primary-button" type="button">Новое заседание</button>
           </div>
         </div>
+        <div id="protocol-import-summary" class="protocol-import-summary"></div>
         <div id="meeting-settings-summary" class="meeting-settings-summary"></div>
         <div class="meetings-layout">
           <section class="meetings-list-panel" aria-label="Заседания"><div id="meetings-list" class="meetings-list"><div class="empty-state">Загрузка…</div></div></section>

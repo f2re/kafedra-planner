@@ -9,11 +9,17 @@ export async function loadMeetingSettings() {
 }
 
 export async function loadMeetings(preferredId = null) {
-  const data = await meetingApi('/api/meetings?limit=500');
+  const year = Number(meetingsState.selectedYear) || new Date().getFullYear();
+  const data = await meetingApi(`/api/meetings?limit=500&year=${encodeURIComponent(year)}`);
   meetingsState.meetings = data.items || [];
   if (preferredId) meetingsState.selectedMeetingId = preferredId;
   if (meetingsState.selectedMeetingId && !meetingsState.meetings.some((item) => item.id === meetingsState.selectedMeetingId)) {
-    meetingsState.selectedMeetingId = null;
+    try {
+      await loadMeeting(meetingsState.selectedMeetingId, false);
+      return;
+    } catch {
+      meetingsState.selectedMeetingId = null;
+    }
   }
   if (!meetingsState.selectedMeetingId && meetingsState.meetings.length) meetingsState.selectedMeetingId = meetingsState.meetings[0].id;
   renderMeetingList();
@@ -28,6 +34,15 @@ export async function loadMeetings(preferredId = null) {
 export async function loadMeeting(meetingId, resetSelection = true) {
   meetingsState.meeting = await meetingApi(`/api/meetings/${encodeURIComponent(meetingId)}`);
   meetingsState.selectedMeetingId = meetingId;
+  if (!meetingsState.meetings.some((item) => item.id === meetingId)) {
+    meetingsState.meetings.unshift({
+      ...meetingsState.meeting,
+      agenda_count: (meetingsState.meeting.agenda || []).length,
+      document_count: (meetingsState.meeting.documents || []).length,
+      open_review_count: meetingsState.meeting.open_review_count || 0,
+      outside_selected_year: true
+    });
+  }
   if (resetSelection) meetingsState.selectedForExtract.clear();
   else {
     const valid = new Set((meetingsState.meeting.agenda || []).map((item) => item.id));

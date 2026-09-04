@@ -3,6 +3,7 @@ import { buildDocumentPreview } from '../../../packages/document-intake/src/prev
 import { supportedFormat } from '../../../packages/document-intake/src/formats.mjs';
 import { looksLikeDepartmentProtocol, extractDepartmentProtocol } from '../../../packages/protocols/src/extractor.mjs';
 import { persistProtocol } from '../../../packages/protocols/src/persist.mjs';
+import { protocolImportYear } from '../../../packages/protocols/src/protocol-imports.mjs';
 import { applyMatchingTemplates } from '../../../packages/templates/src/service.mjs';
 import { newId } from '../../../packages/core/src/ids.mjs';
 import { addSearchFragment } from '../../../packages/storage/src/search.mjs';
@@ -30,6 +31,14 @@ function insertReview(database, workspaceId, versionId, code, title, explanation
     ) VALUES (?, ?, 'document_version', ?, ?, ?, ?, ?, 'warning', 'open', ?, ?)
   `, newId('review'), workspaceId, versionId, code, title, explanation,
   proposedAction, JSON.stringify(context), new Date().toISOString());
+}
+
+function openReviewCount(database, workspaceId, versionId) {
+  return Number(database.get(`
+    SELECT COUNT(*) AS count FROM review_items
+    WHERE workspace_id = ? AND source_kind = 'document_version'
+      AND source_id = ? AND status = 'open'
+  `, workspaceId, versionId)?.count || 0);
 }
 
 function ocrReview(database, version, ocr) {
@@ -71,7 +80,16 @@ export async function processDocumentJob(database, payload, logger, config) {
   `, payload.versionId, payload.documentId);
   if (!version) throw new Error(`Document version not found: ${payload.versionId}`);
   if (['processed', 'needs_review'].includes(version.processing_status)) {
-    logger.info('document already finalized; retry is idempotent', { versionId: version.id, status: version.processing_status });
+    const reviewCount = openReviewCount(database, version.workspace_id, version.id);
+    if (version.processing_status === 'processed' && reviewCount > 0) {
+      const now = new Date().toISOString();
+      database.run(`UPDATE document_versions SET processing_status = 'needs_review' WHERE id = ?`, version.id);
+      database.run(`UPDATE documents SET status = 'needs_review', updated_at = ? WHERE id = ?`, now, version.document_id);
+    }
+    logger.info('document already finalized; retry is idempotent', {
+      versionId: version.id,
+      status: reviewCount > 0 ? 'needs_review' : version.processing_status
+    });
     return;
   }
 
@@ -159,8 +177,9 @@ export async function processDocumentJob(database, payload, logger, config) {
       ocrReview(database, version, ocr);
     }
 
-    const isProtocol = Boolean(text) && (payload.requestedType === 'protocol' || looksLikeDepartmentProtocol(text));
-    const protocolResult = isProtocol ? extractDepartmentProtocol(text) : null;
+    const requestedProtocol = payload.requestedType === 'protocol';
+    const isProtocol = requestedProtocol || (Boolean(text) && looksLikeDepartmentProtocol(text));
+    const protocolResult = isProtocol ? extractDepartmentProtocol(text || '') : null;
     const requestedDirective = ['directive', 'order', 'decree'].includes(payload.requestedType);
     const isDirective = Boolean(text) && !isProtocol && (requestedDirective || looksLikeDirective(text));
     const directiveResult = isDirective
@@ -182,6 +201,7 @@ export async function processDocumentJob(database, payload, logger, config) {
       && (requestedScience || looksLikeScientificMaterial(text, version.title));
     const scienceResult = isScientific ? extractScientificMaterial(text, version.title) : null;
     let templateApplications = [];
+    let persistedProtocolId = null;
     let persistedDirective = null;
     let persistedPlan = null;
     let persistedScience = null;
@@ -222,12 +242,23 @@ export async function processDocumentJob(database, payload, logger, config) {
       }
 
       if (isProtocol) {
-        persistProtocol(database, {
+        persistedProtocolId = persistProtocol(database, {
           workspaceId: version.workspace_id,
           documentVersionId: version.id,
           documentTitle: version.title,
           result: protocolResult
         });
+        const importYear = protocolImportYear(version.upload_key);
+        protocolResult.importYear = importYear;
+        if (importYear && protocolResult.meetingDate && !protocolResult.meetingDate.startsWith(`${importYear}-`)) {
+          insertReview(database, version.workspace_id, version.id, 'protocol_year_mismatch',
+            'Дата протокола не совпадает с выбранным годом',
+            `Для загрузки выбран ${importYear} год, а в документе найдена дата ${protocolResult.meetingDate}.`,
+            'Проверьте дату в исходнике и исправьте её в карточке заседания либо загрузите файл в нужный год.',
+            { meetingId: persistedProtocolId, importYear, meetingDate: protocolResult.meetingDate });
+        }
+        protocolResult.reviewCount = openReviewCount(database, version.workspace_id, version.id);
+        finalStatus = protocolResult.reviewCount > 0 ? 'needs_review' : 'processed';
       } else if (isDirective) {
         persistedDirective = persistDirective(database, {
           workspaceId: version.workspace_id,
@@ -355,6 +386,8 @@ export async function processDocumentJob(database, payload, logger, config) {
       versionId: version.id,
       format: version.detected_format,
       type: finalType,
+      status: finalStatus,
+      meetingId: persistedProtocolId,
       templates: templateApplications.length,
       reportMatches: reportMatches.length,
       planId: persistedPlan?.id || null,

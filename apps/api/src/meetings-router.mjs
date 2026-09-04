@@ -14,6 +14,7 @@ import {
   listMeetingTemplateCatalog,
   listMeetings,
   listMeetingLinks,
+  listProtocolImports,
   meetingSettingsResources,
   meetingTemplateImpact,
   moveAgendaItem,
@@ -84,10 +85,12 @@ function mappedError(cause) {
     meeting_duplicate: ['Заседание с таким номером протокола на эту дату уже существует.', 409],
     meeting_not_found: ['Заседание не найдено.', 404],
     agenda_title_required: ['Укажите текст вопроса повестки.', 400],
+    agenda_due_date_invalid: ['Укажите корректный срок решения.', 400],
     agenda_source_not_found: ['Исходная задача или пункт плана не найдены.', 404],
     agenda_source_duplicate: ['Этот пункт уже включён в повестку данного заседания.', 409],
     agenda_item_not_found: ['Вопрос повестки не найден.', 404],
     agenda_move_invalid: ['Не удалось изменить порядок вопроса.', 400],
+    protocol_import_year_invalid: ['Укажите календарный год от 2000 до 2100.', 400],
     meeting_document_kind_invalid: ['Можно сформировать только протокол или выписку.', 400],
     meeting_document_items_required: ['Отметьте хотя бы один вопрос для выписки.', 400],
     meeting_document_item_invalid: ['Один из выбранных вопросов не относится к этому заседанию.', 400],
@@ -122,6 +125,7 @@ export function createMeetingsRouter({ database, config }) {
       || path === '/api/meeting-links'
       || path === '/api/meeting-templates'
       || path === '/api/meeting-template-library'
+      || path === '/api/protocol-imports'
       || path === '/api/meetings'
       || meetingMatch || agendaCollectionMatch || agendaItemMatch || agendaMoveMatch || documentsMatch
       || templateAnalysisMatch || templateProfilesMatch || libraryActionMatch;
@@ -219,8 +223,19 @@ export function createMeetingsRouter({ database, config }) {
         const sourceIds = String(url.searchParams.get('sourceIds') || '').split(',').map((value) => value.trim()).filter(Boolean);
         return sendJson(response, 200, { items: listMeetingLinks(database, workspace.id, sourceKind, sourceIds) });
       }
+      if (method === 'GET' && path === '/api/protocol-imports') {
+        return sendJson(response, 200, listProtocolImports(
+          database,
+          workspace.id,
+          url.searchParams.get('year'),
+          url.searchParams.get('limit') || 500
+        ));
+      }
       if (method === 'GET' && path === '/api/meetings') {
-        return sendJson(response, 200, { items: listMeetings(database, workspace.id, url.searchParams.get('limit') || 200) });
+        return sendJson(response, 200, { items: listMeetings(database, workspace.id, {
+          year: url.searchParams.get('year'),
+          limit: url.searchParams.get('limit') || 200
+        }) });
       }
       if (method === 'POST' && path === '/api/meetings') {
         const body = await readJson(request);
