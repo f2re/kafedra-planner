@@ -1,0 +1,49 @@
+<GraceChangeSpec graceVersion="4.0" status="approved">
+  <C-PROTOCOL-YEAR-IMPORT-RELEASE-306>
+    <Summary>Publish Kafedra Planner 0.4.3 from the completed annual protocol import feature and simplify the release pipeline to one universal gate plus one build-once verified publisher.</Summary>
+    <Problem>The annual protocol package workflow is now merged to main, but the repository still identifies its release gate as 0.4.2 and the publisher waits for seven unrelated workflows before rerunning tests and browser suites. That duplicates evidence, delays releases and violates the current project release contract. Release 0.4.3 must publish the completed feature without changing schema 31, while proving the exact offline artifact can install, update and roll back before that same artifact is uploaded.</Problem>
+    <Goals>
+      <Goal>Synchronize VERSION, package metadata and release documentation to 0.4.3 without changing SQLite schema 31.</Goal>
+      <Goal>Rename the version-specific release gate to one universal Release gate and run it only for main release commits or explicit manual dispatch.</Goal>
+      <Goal>Keep full unit/integration, critical browser and recovery evidence in the universal gate without duplicating the same suites in the publisher.</Goal>
+      <Goal>Build the full offline bundle once, run real Debian 12 systemd install, repeated update and forced rollback against that exact artifact, then publish that same immutable artifact.</Goal>
+      <Goal>Remove publisher fan-in polling, automatic workflow redispatch and redundant post-gate test reruns.</Goal>
+      <Goal>Publish and verify v0.4.3 with the seven canonical release assets targeting the exact main SHA.</Goal>
+    </Goals>
+    <Constraints>
+      <Constraint>The exact base is main commit 81a419f6c8ea2a574d8478ffd33498c1d2a69285 and issue 306 remains the governing request until release verification completes.</Constraint>
+      <Constraint>No applied migration is edited and no migration is added; schema version remains 31.</Constraint>
+      <Constraint>Production remains Debian/Astra, offline-first and Docker-free; Docker may be used only as the disposable CI reference VM already used by deployment self-tests.</Constraint>
+      <Constraint>The release publisher may consume successful exact-SHA Release gate evidence but must not poll multiple independent workflows or rerun equivalent unit/browser suites.</Constraint>
+      <Constraint>Checksum, backup, restore, systemd health, atomic current switch, update and rollback remain fail-closed.</Constraint>
+      <Constraint>Only the exact artifact that passes deployment verification may be uploaded to GitHub Release and wrapped for Project Control.</Constraint>
+    </Constraints>
+    <NonGoals>
+      <NonGoal>Change annual protocol parsing, review semantics or UI after the already merged feature commit.</NonGoal>
+      <NonGoal>Change SQLite tables, data ownership, PIN/auth, ACL or document immutability contracts.</NonGoal>
+      <NonGoal>Create a version-specific release workflow, temporary probe workflow or second release orchestration layer.</NonGoal>
+      <NonGoal>Declare Astra Linux stable acceptance complete without issue 27 target evidence.</NonGoal>
+    </NonGoals>
+    <AcceptanceCriteria>
+      <Criterion>VERSION, package.json, package-lock.json and current release documentation identify 0.4.3 while schema remains 31.</Criterion>
+      <Criterion>.github/workflows/release-gate.yml is named Release gate, is version-neutral and runs full unit/integration, smoke, recovery evidence and critical desktop/mobile browser scenarios including annual protocol import.</Criterion>
+      <Criterion>Normal feature pull requests no longer run the heavy release gate; ordinary CI remains their regression gate.</Criterion>
+      <Criterion>.github/workflows/release.yml triggers from the universal Release gate and does not contain workflow fan-in polling, gh workflow run recovery or duplicate npm test / Playwright regression reruns.</Criterion>
+      <Criterion>The publisher builds one full offline bundle and invokes systemd-deploy-selftest.sh on the same output directory before Project Control packaging, checksum generation, tag creation or asset upload.</Criterion>
+      <Criterion>The deployment self-test proves clean install, repeated update, legacy-layout upgrade, PIN/data preservation and a deterministic forced post-update rollback for the ordinary non-LLM release artifact.</Criterion>
+      <Criterion>The exact verified archive produces the Project Control payload and the seven canonical assets; tag v0.4.3 resolves to the exact release main SHA and the release is public and non-prerelease.</Criterion>
+      <Criterion>GRACE final and the relevant release PR CI succeed on one unchanged head before squash merge.</Criterion>
+      <Criterion>After merge, the universal Release gate succeeds on the exact main SHA, the publisher succeeds once, and GitHub API confirms the tag, release and all assets.</Criterion>
+    </AcceptanceCriteria>
+    <AffectedAreas><M-CI-GATE /><M-OFFLINE-BUNDLE /><M-BACKUP /><M-DATABASE /></AffectedAreas>
+    <VerificationIntent>
+      <ExpectedCommand>npm run check</ExpectedCommand>
+      <ExpectedCommand>npm run docs:check</ExpectedCommand>
+      <ExpectedCommand>npm test</ExpectedCommand>
+      <ExpectedCommand>npm run smoke</ExpectedCommand>
+      <ExpectedCommand>node --test tests/release-workflow.test.mjs tests/release-assets-contract.test.mjs tests/release-0.4.2.test.mjs tests/release-0.4.3.test.mjs tests/deploy-install-contract.test.mjs</ExpectedCommand>
+      <ExpectedCommand>bash -n scripts/offline/systemd-deploy-selftest.sh</ExpectedCommand>
+      <ExpectedEvidence>Exact-head GRACE and release CI, one build-once verified offline artifact, successful install/update/forced rollback evidence, immutable v0.4.3 tag and seven GitHub Release assets verified through GitHub API.</ExpectedEvidence>
+    </VerificationIntent>
+  </C-PROTOCOL-YEAR-IMPORT-RELEASE-306>
+</GraceChangeSpec>

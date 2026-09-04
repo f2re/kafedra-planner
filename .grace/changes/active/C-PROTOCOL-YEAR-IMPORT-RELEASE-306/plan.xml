@@ -1,0 +1,131 @@
+<GraceChangePlan graceVersion="4.0" status="approved">
+  <C-PROTOCOL-YEAR-IMPORT-RELEASE-306>
+    <IntentSummary>Ship the already merged annual protocol import as Kafedra Planner 0.4.3 and replace version-specific, duplicative release orchestration with one universal exact-SHA gate and a build-once verified publisher.</IntentSummary>
+    <BaselineAssertions>
+      <MustExist><Value>VERSION</Value></MustExist>
+      <MustExist><Value>.github/workflows/release-gate.yml</Value></MustExist>
+      <MustExist><Value>.github/workflows/release.yml</Value></MustExist>
+      <MustExist><Value>scripts/offline/systemd-deploy-selftest.sh</Value></MustExist>
+      <MustExist><Value>tests/browser/protocol-import.spec.mjs</Value></MustExist>
+      <MustContain><File>VERSION</File><Text>0.4.2</Text></MustContain>
+      <MustContain><File>.github/workflows/release-gate.yml</File><Text>Release gate 0.4.2</Text></MustContain>
+      <MustContain><File>.github/workflows/release.yml</File><Text>Release gate 0.4.2</Text></MustContain>
+      <MustContain><File>.github/workflows/release.yml</File><Text>gh workflow run</Text></MustContain>
+      <MustVerify><Module>M-CI-GATE</Module></MustVerify>
+      <MustVerify><Module>M-OFFLINE-BUNDLE</Module></MustVerify>
+      <MustVerify><Module>M-BACKUP</Module></MustVerify>
+      <MustVerify><Module>M-DATABASE</Module></MustVerify>
+      <MustPassCommand><Command>test "$(find .grace/changes/active -mindepth 1 -maxdepth 1 ! -name .gitkeep | wc -l)" -eq 1</Command></MustPassCommand>
+      <MustPassCommand><Command>npm run check</Command></MustPassCommand>
+      <MustPassCommand><Command>npm test</Command></MustPassCommand>
+    </BaselineAssertions>
+    <TargetAssertions>
+      <MustExist><Value>docs/releases/0.4.3.md</Value></MustExist>
+      <MustExist><Value>tests/release-0.4.3.test.mjs</Value></MustExist>
+      <MustContain><File>VERSION</File><Text>0.4.3</Text></MustContain>
+      <MustContain><File>package.json</File><Text>"version": "0.4.3"</Text></MustContain>
+      <MustContain><File>package-lock.json</File><Text>"version": "0.4.3"</Text></MustContain>
+      <MustContain><File>.github/workflows/release-gate.yml</File><Text>name: Release gate</Text></MustContain>
+      <MustContain><File>.github/workflows/release-gate.yml</File><Text>tests/browser/protocol-import.spec.mjs</Text></MustContain>
+      <MustContain><File>.github/workflows/release.yml</File><Text>workflows: ["Release gate"]</Text></MustContain>
+      <MustContain><File>.github/workflows/release.yml</File><Text>systemd-deploy-selftest.sh "$OUT"</Text></MustContain>
+      <MustContain><File>scripts/offline/systemd-deploy-selftest.sh</File><Text>forced-core-rollback</Text></MustContain>
+      <MustVerify><Module>M-CI-GATE</Module></MustVerify>
+      <MustVerify><Module>M-OFFLINE-BUNDLE</Module></MustVerify>
+      <MustVerify><Module>M-BACKUP</Module></MustVerify>
+      <MustVerify><Module>M-DATABASE</Module></MustVerify>
+      <MustPassCommand><Command>npm run check</Command></MustPassCommand>
+      <MustPassCommand><Command>npm run docs:check</Command></MustPassCommand>
+      <MustPassCommand><Command>npm test</Command></MustPassCommand>
+      <MustPassCommand><Command>npm run smoke</Command></MustPassCommand>
+      <MustPassCommand><Command>node --test tests/release-workflow.test.mjs tests/release-assets-contract.test.mjs tests/release-0.4.2.test.mjs tests/release-0.4.3.test.mjs tests/deploy-install-contract.test.mjs</Command></MustPassCommand>
+      <MustPassCommand><Command>bash -n scripts/offline/systemd-deploy-selftest.sh</Command></MustPassCommand>
+    </TargetAssertions>
+    <DurableScope>
+      <GraphAnchors><M-CI-GATE /><M-OFFLINE-BUNDLE /><M-BACKUP /><M-DATABASE /><DF-GRACE-BRANCH /></GraphAnchors>
+      <VerificationAnchors><V-M-CI-GATE /><V-M-OFFLINE-BUNDLE /><V-M-BACKUP /><V-M-DATABASE /></VerificationAnchors>
+      <ContextArtifacts><ContextArtifact>principles.xml</ContextArtifact><ContextArtifact>technology.xml</ContextArtifact></ContextArtifacts>
+    </DurableScope>
+    <ObservedWriteScope>
+      <Glob>.grace/changes/active/C-PROTOCOL-YEAR-IMPORT-RELEASE-306/**</Glob>
+      <File>VERSION</File>
+      <File>package.json</File>
+      <File>package-lock.json</File>
+      <File>README.md</File>
+      <File>README.en.md</File>
+      <File>docs/ROADMAP.md</File>
+      <File>docs/UX_FLOWS.md</File>
+      <File>docs/RELEASE_CANDIDATE.md</File>
+      <File>docs/VALIDATION.md</File>
+      <File>docs/TARGET_ACCEPTANCE.md</File>
+      <File>docs/releases/0.4.3.md</File>
+      <File>.github/workflows/release-gate.yml</File>
+      <File>.github/workflows/release.yml</File>
+      <File>scripts/offline/systemd-deploy-selftest.sh</File>
+      <File>scripts/docs-consistency.mjs</File>
+      <File>tests/docs-consistency.test.mjs</File>
+      <File>tests/deploy-install-contract.test.mjs</File>
+      <File>tests/release-workflow.test.mjs</File>
+      <File>tests/release-assets-contract.test.mjs</File>
+      <File>tests/release-0.4.2.test.mjs</File>
+      <File>tests/release-0.4.3.test.mjs</File>
+    </ObservedWriteScope>
+    <ImplementationPlan>
+      <T-001>
+        <Title>kafedra-release: freeze exact main and define the 0.4.3 release contract</Title>
+        <DependsOn></DependsOn>
+        <AcceptanceCriteria>
+          <Criterion>The release change is based exactly on 81a419f6c8ea2a574d8478ffd33498c1d2a69285 and issue 306.</Criterion>
+          <Criterion>Schema 31 and immutable source/evidence contracts remain unchanged.</Criterion>
+        </AcceptanceCriteria>
+        <Verification><Command>npm run docs:check</Command></Verification>
+      </T-001>
+      <T-002>
+        <Title>kafedra-release: make release CI universal and remove duplicated orchestration</Title>
+        <DependsOn><T-001 /></DependsOn>
+        <AcceptanceCriteria>
+          <Criterion>The heavy Release gate runs only on main or manual dispatch and has no version in its name.</Criterion>
+          <Criterion>The publisher consumes only the successful universal gate, never waits for unrelated workflows and never repeats equivalent unit/browser suites.</Criterion>
+        </AcceptanceCriteria>
+        <Verification><Command>node --test tests/release-workflow.test.mjs tests/release-assets-contract.test.mjs</Command></Verification>
+      </T-002>
+      <T-003>
+        <Title>kafedra-release: verify the same offline artifact through install, update and forced rollback</Title>
+        <DependsOn><T-002 /></DependsOn>
+        <AcceptanceCriteria>
+          <Criterion>The publisher builds one archive and passes its output directory directly to systemd-deploy-selftest before packaging or upload.</Criterion>
+          <Criterion>The self-test exercises a deterministic ordinary-core post-update failure and proves automatic restoration of previous current, data, PIN and active API/worker before retrying successfully.</Criterion>
+        </AcceptanceCriteria>
+        <Verification><Command>bash -n scripts/offline/systemd-deploy-selftest.sh</Command><Command>node --test tests/deploy-install-contract.test.mjs</Command></Verification>
+      </T-003>
+      <T-004>
+        <Title>kafedra-release: synchronize version, operator docs and release notes</Title>
+        <DependsOn><T-003 /></DependsOn>
+        <AcceptanceCriteria>
+          <Criterion>Current release markers are 0.4.3 and historical 0.4.1/0.4.2 documentation remains historical rather than rewritten.</Criterion>
+          <Criterion>The release note describes annual protocol package import, correction semantics, unchanged schema and safe upgrade.</Criterion>
+        </AcceptanceCriteria>
+        <Verification><Command>npm run docs:check</Command><Command>node --test tests/release-0.4.2.test.mjs tests/release-0.4.3.test.mjs</Command></Verification>
+      </T-004>
+      <T-005>
+        <Title>kafedra-tests: run relevant exact-head release regression</Title>
+        <DependsOn><T-004 /></DependsOn>
+        <AcceptanceCriteria>
+          <Criterion>Check, unit/integration, smoke, release workflow contracts and GRACE final pass on one unchanged release PR head.</Criterion>
+          <Criterion>No schema migration or unrelated feature workflow is added merely to satisfy release governance.</Criterion>
+        </AcceptanceCriteria>
+        <Verification><Command>npm run check</Command><Command>npm test</Command><Command>npm run smoke</Command></Verification>
+      </T-005>
+      <T-006>
+        <Title>kafedra-release: squash merge exact head and publish v0.4.3</Title>
+        <DependsOn><T-005 /></DependsOn>
+        <AcceptanceCriteria>
+          <Criterion>The exact release PR head is squash-merged and the universal Release gate succeeds on that exact main commit.</Criterion>
+          <Criterion>The publisher verifies the one built artifact, creates tag v0.4.3 at that commit, uploads exactly seven canonical assets and publishes a non-prerelease GitHub Release.</Criterion>
+          <Criterion>GitHub API confirms tag target, release state, asset names and SHA-256 evidence before issue 306 is closed.</Criterion>
+        </AcceptanceCriteria>
+        <Verification><Command>npm run smoke</Command></Verification>
+      </T-006>
+    </ImplementationPlan>
+  </C-PROTOCOL-YEAR-IMPORT-RELEASE-306>
+</GraceChangePlan>
