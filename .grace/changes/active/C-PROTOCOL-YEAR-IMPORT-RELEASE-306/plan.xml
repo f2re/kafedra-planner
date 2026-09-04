@@ -38,7 +38,7 @@
       <MustPassCommand><Command>npm run docs:check</Command></MustPassCommand>
       <MustPassCommand><Command>npm test</Command></MustPassCommand>
       <MustPassCommand><Command>npm run smoke</Command></MustPassCommand>
-      <MustPassCommand><Command>node --test tests/release-workflow.test.mjs tests/release-recovery-workflow.test.mjs tests/release-assets-contract.test.mjs tests/release-0.4.2.test.mjs tests/release-0.4.3.test.mjs tests/deploy-install-contract.test.mjs</Command></MustPassCommand>
+      <MustPassCommand><Command>node --test tests/release-workflow.test.mjs tests/release-recovery-workflow.test.mjs tests/release-assets-contract.test.mjs tests/release-0.4.1.test.mjs tests/release-0.4.2.test.mjs tests/release-0.4.3.test.mjs tests/deploy-install-contract.test.mjs</Command></MustPassCommand>
       <MustPassCommand><Command>bash -n scripts/offline/systemd-deploy-selftest.sh</Command></MustPassCommand>
     </TargetAssertions>
     <DurableScope>
@@ -68,6 +68,7 @@
       <File>tests/release-workflow.test.mjs</File>
       <File>tests/release-recovery-workflow.test.mjs</File>
       <File>tests/release-assets-contract.test.mjs</File>
+      <File>tests/release-0.4.1.test.mjs</File>
       <File>tests/release-0.4.2.test.mjs</File>
       <File>tests/release-0.4.3.test.mjs</File>
     </ObservedWriteScope>
@@ -87,9 +88,9 @@
         <AcceptanceCriteria>
           <Criterion>The heavy Release gate runs only on main or manual dispatch and has no version in its name.</Criterion>
           <Criterion>The publisher consumes only the successful universal gate, never waits for unrelated workflows and never repeats equivalent unit/browser suites.</Criterion>
-          <Criterion>Regression tests enforce the universal gate/publisher contract rather than requiring the removed workflow fan-in.</Criterion>
+          <Criterion>Regression tests enforce the universal gate/publisher contract while historical releases are checked through immutable release notes rather than stale workflow comments.</Criterion>
         </AcceptanceCriteria>
-        <Verification><Command>node --test tests/release-workflow.test.mjs tests/release-recovery-workflow.test.mjs tests/release-assets-contract.test.mjs</Command></Verification>
+        <Verification><Command>node --test tests/release-workflow.test.mjs tests/release-recovery-workflow.test.mjs tests/release-assets-contract.test.mjs tests/release-0.4.1.test.mjs</Command></Verification>
       </T-002>
       <T-003>
         <Title>kafedra-release: verify the same offline artifact through install, update and forced rollback</Title>
@@ -107,7 +108,7 @@
           <Criterion>Current release markers are 0.4.3 and historical 0.4.1/0.4.2 documentation remains historical rather than rewritten.</Criterion>
           <Criterion>The release note describes annual protocol package import, correction semantics, unchanged schema and safe upgrade.</Criterion>
         </AcceptanceCriteria>
-        <Verification><Command>npm run docs:check</Command><Command>node --test tests/release-0.4.2.test.mjs tests/release-0.4.3.test.mjs</Command></Verification>
+        <Verification><Command>npm run docs:check</Command><Command>node --test tests/release-0.4.1.test.mjs tests/release-0.4.2.test.mjs tests/release-0.4.3.test.mjs</Command></Verification>
       </T-004>
       <T-005>
         <Title>kafedra-tests: run relevant exact-head release regression</Title>
