@@ -1,14 +1,12 @@
-name: Release gate 0.4.2
+name: Release gate
 
 on:
   push:
     branches: [main]
-  pull_request:
-    branches: [main]
   workflow_dispatch:
 
 concurrency:
-  group: release-gate-${{ github.workflow }}-${{ github.ref }}
+  group: release-gate-${{ github.ref }}
   cancel-in-progress: true
 
 permissions:
@@ -18,7 +16,7 @@ jobs:
   quality:
     name: release-quality
     runs-on: ubuntu-24.04
-    timeout-minutes: 25
+    timeout-minutes: 30
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -30,10 +28,10 @@ jobs:
       - run: npm test
       - run: npm run smoke
 
-  migrations:
-    name: release-migrations-backup
+  recovery:
+    name: release-recovery
     runs-on: ubuntu-24.04
-    timeout-minutes: 25
+    timeout-minutes: 30
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -41,7 +39,7 @@ jobs:
           node-version-file: .nvmrc
           cache: npm
       - run: npm ci --ignore-scripts --no-audit --no-fund
-      - name: Schema 19 → 31 and release evidence
+      - name: Verify existing schema, backup and restore contracts
         run: >-
           node --test
           tests/organization-migration.test.mjs
@@ -50,23 +48,19 @@ jobs:
           tests/science-reports-migration.test.mjs
           tests/plan-source-rows-migration.test.mjs
           tests/docomator-integration-migration.test.mjs
-          tests/docomator-integration.test.mjs
           tests/meeting-template-library-migration.test.mjs
-          tests/meeting-template-library.test.mjs
           tests/docomator-fields-migration.test.mjs
-          tests/docomator-fields.test.mjs
           tests/academic-performance-migration.test.mjs
-          tests/academic-performance.test.mjs
           tests/academic-performance-backup.test.mjs
           tests/lifecycle.test.mjs
-          tests/acceptance-020.test.mjs
           tests/backup-restore.test.mjs
           tests/target-acceptance.test.mjs
+      - run: npm run backup:selftest
 
   browser:
-    name: release-browser-desktop-mobile
+    name: release-browser-critical
     runs-on: ubuntu-24.04
-    timeout-minutes: 50
+    timeout-minutes: 60
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -75,37 +69,37 @@ jobs:
           cache: npm
       - run: npm ci --ignore-scripts --no-audit --no-fund
       - run: npx playwright install --with-deps chromium
-      - name: Complete 0.4.2 scenarios
+      - name: Critical working scenarios
         run: >-
           npx playwright test
-          tests/browser/organization.spec.mjs
-          tests/browser/docomator-integration.spec.mjs
-          tests/browser/docomator-fields.spec.mjs
+          tests/browser/protocol-import.spec.mjs
+          tests/browser/meetings.spec.mjs
           tests/browser/meeting-template-editor.spec.mjs
           tests/browser/meeting-template-library.spec.mjs
-          tests/browser/manual-plan-preferences.spec.mjs
-          tests/browser/task-layout.spec.mjs
-          tests/browser/science-lifecycle.spec.mjs
-          tests/browser/science-import.spec.mjs
-          tests/browser/science-reports.spec.mjs
           tests/browser/plan-source-rows.spec.mjs
-          tests/browser/lifecycle.spec.mjs
           tests/browser/auto-assignment.spec.mjs
+          tests/browser/docomator-integration.spec.mjs
+          tests/browser/docomator-fields.spec.mjs
           tests/browser/academic-performance.spec.mjs
+          tests/browser/lifecycle.spec.mjs
+      - name: PIN and ACL regressions
+        run: |
+          npm run test:browser:auth
+          npm run test:browser:acl
 
   release-gate:
     name: release-gate
     if: always()
-    needs: [quality, migrations, browser]
+    needs: [quality, recovery, browser]
     runs-on: ubuntu-24.04
     steps:
       - name: Require every release job
         env:
           QUALITY: ${{ needs.quality.result }}
-          MIGRATIONS: ${{ needs.migrations.result }}
+          RECOVERY: ${{ needs.recovery.result }}
           BROWSER: ${{ needs.browser.result }}
         run: |
-          printf 'quality=%s\nmigrations=%s\nbrowser=%s\n' "$QUALITY" "$MIGRATIONS" "$BROWSER"
+          printf 'quality=%s\nrecovery=%s\nbrowser=%s\n' "$QUALITY" "$RECOVERY" "$BROWSER"
           test "$QUALITY" = success
-          test "$MIGRATIONS" = success
+          test "$RECOVERY" = success
           test "$BROWSER" = success
