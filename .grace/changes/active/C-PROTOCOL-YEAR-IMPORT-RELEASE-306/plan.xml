@@ -38,7 +38,7 @@
       <MustPassCommand><Command>npm run docs:check</Command></MustPassCommand>
       <MustPassCommand><Command>npm test</Command></MustPassCommand>
       <MustPassCommand><Command>npm run smoke</Command></MustPassCommand>
-      <MustPassCommand><Command>node --test tests/release-workflow.test.mjs tests/release-assets-contract.test.mjs tests/release-0.4.2.test.mjs tests/release-0.4.3.test.mjs tests/deploy-install-contract.test.mjs</Command></MustPassCommand>
+      <MustPassCommand><Command>node --test tests/release-workflow.test.mjs tests/release-recovery-workflow.test.mjs tests/release-assets-contract.test.mjs tests/release-0.4.2.test.mjs tests/release-0.4.3.test.mjs tests/deploy-install-contract.test.mjs</Command></MustPassCommand>
       <MustPassCommand><Command>bash -n scripts/offline/systemd-deploy-selftest.sh</Command></MustPassCommand>
     </TargetAssertions>
     <DurableScope>
@@ -66,6 +66,7 @@
       <File>tests/docs-consistency.test.mjs</File>
       <File>tests/deploy-install-contract.test.mjs</File>
       <File>tests/release-workflow.test.mjs</File>
+      <File>tests/release-recovery-workflow.test.mjs</File>
       <File>tests/release-assets-contract.test.mjs</File>
       <File>tests/release-0.4.2.test.mjs</File>
       <File>tests/release-0.4.3.test.mjs</File>
@@ -86,15 +87,16 @@
         <AcceptanceCriteria>
           <Criterion>The heavy Release gate runs only on main or manual dispatch and has no version in its name.</Criterion>
           <Criterion>The publisher consumes only the successful universal gate, never waits for unrelated workflows and never repeats equivalent unit/browser suites.</Criterion>
+          <Criterion>Regression tests enforce the universal gate/publisher contract rather than requiring the removed workflow fan-in.</Criterion>
         </AcceptanceCriteria>
-        <Verification><Command>node --test tests/release-workflow.test.mjs tests/release-assets-contract.test.mjs</Command></Verification>
+        <Verification><Command>node --test tests/release-workflow.test.mjs tests/release-recovery-workflow.test.mjs tests/release-assets-contract.test.mjs</Command></Verification>
       </T-002>
       <T-003>
         <Title>kafedra-release: verify the same offline artifact through install, update and forced rollback</Title>
         <DependsOn><T-002 /></DependsOn>
         <AcceptanceCriteria>
           <Criterion>The publisher builds one archive and passes its output directory directly to systemd-deploy-selftest before packaging or upload.</Criterion>
-          <Criterion>The self-test exercises a deterministic ordinary-core post-update failure and proves automatic restoration of previous current, data, PIN and active API/worker before retrying successfully.</Criterion>
+          <Criterion>The self-test exercises a deterministic ordinary-core post-update failure and proves automatic restoration of previous current, data, PIN and active API/worker after the failed update.</Criterion>
         </AcceptanceCriteria>
         <Verification><Command>bash -n scripts/offline/systemd-deploy-selftest.sh</Command><Command>node --test tests/deploy-install-contract.test.mjs</Command></Verification>
       </T-003>
