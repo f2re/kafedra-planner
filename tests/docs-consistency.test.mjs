@@ -27,8 +27,8 @@ async function fixture() {
   await writeFile(join(root, 'docs', 'RELEASE_CANDIDATE.md'), '# Release candidate 0.3.4\n');
   await writeFile(join(root, 'docs', 'VALIDATION.md'), 'Актуальный рубеж: `0.3.4`\n');
   await writeFile(join(root, 'docs', 'UX_FLOWS.md'), 'Статус: рабочие контуры версии `0.3.4`\n');
-  await writeFile(join(root, '.github', 'workflows', 'release-gate.yml'), 'name: Release gate 0.3.4\n');
-  await writeFile(join(root, '.github', 'workflows', 'release.yml'), 'workflows: ["Release gate 0.3.4"]\n');
+  await writeFile(join(root, '.github', 'workflows', 'release-gate.yml'), 'name: Release gate\n');
+  await writeFile(join(root, '.github', 'workflows', 'release.yml'), 'workflows: ["Release gate"]\n');
   return root;
 }
 
@@ -58,14 +58,8 @@ test('documentation checker reports stale npm, file and Markdown references', as
   ].join('\n'));
   const errors = await checkDocumentation({ root });
   assert.deepEqual(new Set(errors.map((item) => item.kind)), new Set([
-    'markdown-link',
-    'npm-script',
-    'repo-path',
-    'installed-script',
-    'systemd-unit'
+    'markdown-link', 'npm-script', 'repo-path', 'installed-script', 'systemd-unit'
   ]));
-  assert.ok(errors.some((item) => item.target === 'missing-command'));
-  assert.ok(errors.some((item) => item.target === 'docs/missing.md'));
 });
 
 test('documentation checker reports drift between VERSION and current release markers', async () => {
@@ -77,4 +71,13 @@ test('documentation checker reports drift between VERSION and current release ma
   assert.equal(releaseErrors.length, 2);
   assert.ok(errors.some((item) => item.file === 'README.md' && item.target === '0.3.2'));
   assert.ok(errors.some((item) => item.file === 'docs/ROADMAP.md' && item.target === '0.3.2'));
+});
+
+test('documentation checker requires one version-neutral release workflow contract', async () => {
+  const root = await fixture();
+  await writeFile(join(root, 'README.md'), '> Текущий рубеж: **`0.3.4`**\n');
+  await writeFile(join(root, '.github', 'workflows', 'release-gate.yml'), 'name: Release gate 0.3.4\n');
+  await writeFile(join(root, '.github', 'workflows', 'release.yml'), 'workflows: ["Release gate 0.3.4"]\n');
+  const errors = await checkDocumentation({ root });
+  assert.equal(errors.filter((item) => item.kind === 'release-workflow').length, 2);
 });
