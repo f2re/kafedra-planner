@@ -45,6 +45,49 @@ function canReadResult(database, workspace, context, item) {
   return canReadSearchResult(database, workspace, context, item);
 }
 
+export function routeForSearchResult(database, workspace, item) {
+  if (!item?.source_kind || !item?.source_id) return null;
+  switch (item.source_kind) {
+    case 'document':
+      return { kind: 'document', id: item.source_id };
+    case 'meeting':
+      return { kind: 'meeting', id: item.source_id };
+    case 'assignment':
+      return { kind: 'assignment', id: item.source_id };
+    case 'periodic_task':
+      return { kind: 'periodic_task', id: item.source_id };
+    case 'plan':
+      return { kind: 'plan', id: item.source_id };
+    case 'plan_item': {
+      const parent = database.get(`
+        SELECT p.id
+        FROM plan_items pi
+        JOIN plans p ON p.id = pi.plan_id
+        WHERE p.workspace_id = ? AND pi.id = ?
+      `, workspace, item.source_id);
+      return parent ? { kind: 'plan', id: parent.id } : null;
+    }
+    case 'decision': {
+      const parent = database.get(`
+        SELECT m.id
+        FROM decisions d
+        JOIN agenda_items ai ON ai.id = d.agenda_item_id
+        JOIN meetings m ON m.id = ai.meeting_id
+        WHERE m.workspace_id = ? AND d.id = ?
+      `, workspace, item.source_id);
+      return parent ? { kind: 'meeting', id: parent.id } : null;
+    }
+    case 'directive':
+      return { kind: 'directive', id: item.source_id };
+    case 'scientific_item':
+      return { kind: 'science', id: item.source_id };
+    case 'template_extraction':
+      return item.source_document_id ? { kind: 'document', id: item.source_document_id } : null;
+    default:
+      return item.source_document_id ? { kind: 'document', id: item.source_document_id } : null;
+  }
+}
+
 export function createSearchRouter({ database }) {
   return async function routeSearch(request, response, url) {
     if ((request.method || 'GET') !== 'GET' || url.pathname !== '/api/search') return false;
@@ -56,7 +99,10 @@ export function createSearchRouter({ database }) {
     const accessible = context.enabled
       ? payload.items.filter((item) => canReadResult(database, workspace, context, item))
       : payload.items;
-    const items = accessible.slice(0, limit);
+    const items = accessible.slice(0, limit).map((item) => ({
+      ...item,
+      route: routeForSearchResult(database, workspace, item)
+    }));
     return sendJson(response, 200, {
       query: payload.query,
       items,
