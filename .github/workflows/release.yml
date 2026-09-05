@@ -150,7 +150,19 @@ jobs:
           OBJECT_SHA=""
           TAG_IS_ANCESTOR=false
 
-          if gh release view "$TAG" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then RELEASE_EXISTS=true; fi
+          # A failed run may leave an unpublished draft. It is safe to remove only
+          # after exact-main preflight: drafts are not public releases and have no tag ref.
+          DRAFT_IDS="$(
+            gh api --paginate "repos/$GITHUB_REPOSITORY/releases?per_page=100" \
+              | jq -r --arg tag "$TAG" '.[] | select(.tag_name == $tag and .draft == true) | .id'
+          )"
+          for DRAFT_ID in $DRAFT_IDS; do
+            DRAFT_TARGET="$(gh api "repos/$GITHUB_REPOSITORY/releases/$DRAFT_ID" --jq '.target_commitish')"
+            echo "Удаляю незавершённый draft $DRAFT_ID для $TAG (target=$DRAFT_TARGET); новый выпуск будет построен от exact main $SOURCE_SHA."
+            gh api --method DELETE "repos/$GITHUB_REPOSITORY/releases/$DRAFT_ID"
+          done
+
+          if gh api "repos/$GITHUB_REPOSITORY/releases/tags/$TAG" >/dev/null 2>&1; then RELEASE_EXISTS=true; fi
           if TAG_REF="$(gh api "repos/$GITHUB_REPOSITORY/git/ref/tags/$TAG" 2>/dev/null)"; then
             TAG_EXISTS=true
             OBJECT_TYPE="$(jq -r '.object.type' <<<"$TAG_REF")"
@@ -283,6 +295,14 @@ jobs:
             --title "Kafedra Planner ${VERSION}" \
             --notes-file "$NOTES" \
             --draft
+          RELEASE_ID="$(
+            gh api --paginate "repos/$GITHUB_REPOSITORY/releases?per_page=100" \
+              | jq -r --arg tag "$TAG" --arg sha "$SOURCE_SHA" \
+                '.[] | select(.tag_name == $tag and .draft == true and .target_commitish == $sha) | .id' \
+              | head -n 1
+          )"
+          [[ -n "$RELEASE_ID" ]] || { echo "Не найден созданный draft для $TAG на $SOURCE_SHA" >&2; exit 1; }
+          echo "RELEASE_ID=$RELEASE_ID" >> "$GITHUB_ENV"
 
       - name: Upload exactly the verified assets
         if: steps.release.outputs.publish == 'true'
@@ -315,7 +335,10 @@ jobs:
             "$PACKAGE_NAME" \
             "$PACKAGE_NAME.sha256" \
             SHA256SUMS | sort)"
-          RELEASE_JSON="$(gh api "repos/$GITHUB_REPOSITORY/releases/tags/$TAG")"
+          RELEASE_JSON="$(gh api "repos/$GITHUB_REPOSITORY/releases/$RELEASE_ID")"
+          [[ "$(jq -r '.draft' <<<"$RELEASE_JSON")" == true ]]
+          [[ "$(jq -r '.tag_name' <<<"$RELEASE_JSON")" == "$TAG" ]]
+          [[ "$(jq -r '.target_commitish' <<<"$RELEASE_JSON")" == "$SOURCE_SHA" ]]
           ACTUAL="$(jq -r '.assets[].name' <<<"$RELEASE_JSON" | sort)"
           [[ "$ACTUAL" == "$EXPECTED" ]] || {
             echo "Набор assets отличается от проверенного." >&2
@@ -326,7 +349,7 @@ jobs:
           [[ -z "$EMPTY" ]] || { echo "Пустые assets: $EMPTY" >&2; exit 1; }
           gh release edit "$TAG" --repo "$GITHUB_REPOSITORY" --draft=false --prerelease=false --latest
 
-          RELEASE_JSON="$(gh api "repos/$GITHUB_REPOSITORY/releases/tags/$TAG")"
+          RELEASE_JSON="$(gh api "repos/$GITHUB_REPOSITORY/releases/$RELEASE_ID")"
           [[ "$(jq -r '.draft' <<<"$RELEASE_JSON")" == false ]]
           [[ "$(jq -r '.prerelease' <<<"$RELEASE_JSON")" == false ]]
           TAG_REF="$(gh api "repos/$GITHUB_REPOSITORY/git/ref/tags/$TAG")"
