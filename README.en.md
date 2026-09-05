@@ -9,19 +9,27 @@
 
 Kafedra Planner is an offline-first daily work system for an academic department: calendar, annual plans, assignments, documents, meetings, reporting, research activity, grade sheets, and auditable evidence.
 
-> Current milestone: **`0.4.2`**, SQLite schema **31**. Core workflows do not require Internet access, Docker, an LLM, Docomator, or cloud services. The project remains a release candidate until the real Astra Linux/Debian installation, upgrade, restoration, and rollback acceptance in [TARGET_ACCEPTANCE.md](docs/TARGET_ACCEPTANCE.md) and issue #27 is complete.
+> Current milestone: **`0.4.3`**, SQLite schema **31**. Core workflows do not require Internet access, Docker, an LLM, Docomator, or cloud services. The project remains a release candidate until the real Astra Linux/Debian installation, upgrade, restoration, and rollback acceptance in [TARGET_ACCEPTANCE.md](docs/TARGET_ACCEPTANCE.md) and issue #27 is complete.
 
-Patch release `0.4.2` reduces Docomator setup to one pasted address, accepts the current readiness response, keeps partial employee import, allows an update bundle to be launched from an ordinary user-owned directory, verifies that the active UI changed, and prevents the previous non-fingerprinted site from remaining in browser or proxy cache.
+Patch release `0.4.3` adds annual multi-file protocol intake, independent per-file processing, persistent `ready / review / failed / processing` status, and review-by-exception editing without destroying raw extraction or source evidence. Publication uses one manual `Release` workflow and the same offline artifact that passed install, update, and forced rollback verification.
 
 **[Download an offline bundle](https://github.com/f2re/kafedra-planner/releases)** · **[Install guide](docs/GITHUB_RELEASES.md)** · **[Security policy](SECURITY.md)** · **[Russian documentation](README.md#эксплуатация-и-документация)**
 
-Published releases are immutable. Reinstalling the same `v0.4.1` bundle cannot acquire code added after its tag. The new integration and update behavior is delivered as a separate `v0.4.2` release.
+Published releases are immutable. `v0.4.1` and `v0.4.2` remain historical bundles; annual protocol intake is delivered in `v0.4.3`.
 
 ## Operating model
 
 An uploaded file is never replaced by recognised text or an AI result. Every extracted fact retains its source and locator; manual corrections retain their reason and history. A failing document, row, optional converter, Docomator endpoint, or LLM must not block unrelated data or the core daily workflow.
 
 Main areas include calendar, immutable documents, imported and manual plans, direct task completion, plan/fact reporting, meetings and versioned DOCX templates, research records, academic grade sheets, PIN access, object ACL, backup/restore, and optional local `llama.cpp` assistance.
+
+## Annual meeting protocols
+
+Open **Meetings**, select a calendar year and choose multiple DOCX, ODT, PDF, or TXT protocols at once. Each file is persisted as an immutable document version before interpretation. Safe facts materialise immediately; a bad or ambiguous file does not roll back the others.
+
+The annual summary is reconstructed from durable document, extraction, meeting, and review state after reload. A questionable protocol number, date, agenda item, decision, responsible person, or due date opens the exact meeting and original source for correction. Manual changes update working meeting/decision/calendar/search projections but keep the machine result, source locator, blob, and SHA-256 intact.
+
+See [MEETINGS.md](docs/MEETINGS.md).
 
 ## Docomator employee import
 
