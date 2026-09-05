@@ -289,6 +289,8 @@ jobs:
           TAG="v${VERSION}"
           NOTES="docs/releases/${VERSION}.md"
           [[ -f "$NOTES" ]]
+          # REST create below is the exact equivalent of:
+          # gh release create "$TAG" --target "$SOURCE_SHA" --draft
           RELEASE_JSON="$(
             jq -n \
               --arg tag "$TAG" \
@@ -349,6 +351,8 @@ jobs:
           EMPTY="$(jq -r '.assets[] | select(.size <= 0) | .name' <<<"$RELEASE_JSON")"
           [[ -z "$EMPTY" ]] || { echo "Пустые assets: $EMPTY" >&2; exit 1; }
 
+          # REST patch below is the exact equivalent of:
+          # gh release edit "$TAG" --repo "$GITHUB_REPOSITORY" --draft=false --prerelease=false --latest
           PUBLISHED_JSON="$(
             gh api --method PATCH "repos/$GITHUB_REPOSITORY/releases/$RELEASE_ID" \
               -F draft=false \
