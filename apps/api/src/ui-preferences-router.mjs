@@ -42,6 +42,21 @@ function emptyPreferences(keys) {
   return Object.fromEntries(keys.map((key) => [key, []]));
 }
 
+export function effectiveUiPreferences(database, workspaceId, accountId, keys, controls) {
+  const preferences = controls.learningEnabled
+    ? listUiPreferences(database, workspaceId, accountId, keys)
+    : emptyPreferences(keys);
+  for (const [key, value] of Object.entries(controls.pinned || {})) {
+    if (!keys.includes(key)) continue;
+    const rows = Array.isArray(preferences[key]) ? preferences[key] : [];
+    preferences[key] = [
+      { value, count: Number.MAX_SAFE_INTEGER, pinned: true },
+      ...rows.filter((row) => String(row.value) !== String(value))
+    ];
+  }
+  return preferences;
+}
+
 export function filterNeverLearnPreferenceBody(body) {
   const choices = Array.isArray(body?.choices)
     ? body.choices.filter((choice) => !NEVER_LEARN_KEYS.has(String(choice?.key || '')))
@@ -146,24 +161,18 @@ export function createUiPreferencesRouter({ database }) {
     if (method === 'GET') {
       return sendJson(response, 200, {
         controls,
-        preferences: controls.learningEnabled
-          ? listUiPreferences(database, workspace.id, accountId, requestedKeys)
-          : emptyPreferences(requestedKeys)
+        preferences: effectiveUiPreferences(database, workspace.id, accountId, requestedKeys, controls)
       });
     }
     if (method === 'POST') {
       const body = filterNeverLearnPreferenceBody(await readJson(request));
-      if (!controls.learningEnabled || !body.choices.length) {
-        return sendJson(response, 200, {
-          controls,
-          preferences: controls.learningEnabled
-            ? listUiPreferences(database, workspace.id, accountId, requestedKeys)
-            : emptyPreferences(requestedKeys)
-        });
+      if (controls.learningEnabled && body.choices.length) {
+        recordUiPreferences(database, workspace.id, accountId, body);
       }
+      const currentControls = readPreferenceControls(database, workspace.id, accountId);
       return sendJson(response, 200, {
-        controls,
-        preferences: recordUiPreferences(database, workspace.id, accountId, body)
+        controls: currentControls,
+        preferences: effectiveUiPreferences(database, workspace.id, accountId, requestedKeys, currentControls)
       });
     }
     throw new AppError('method_not_allowed', 'Метод не поддерживается.', 405);
