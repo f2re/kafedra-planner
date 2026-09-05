@@ -10,7 +10,7 @@
       <MustExist><Value>public/upload-feedback.js</Value></MustExist>
       <MustExist><Value>public/upload-feedback-next.js</Value></MustExist>
       <MustExist><Value>tests/upload-feedback.test.mjs</Value></MustExist>
-      <MustContain><File>public/protocol-import.js</File><Text>Файл загружается</Text></MustContain>
+      <MustContain><File>public/upload-feedback.js</File><Text>Файл загружается</Text></MustContain>
       <MustContain><File>public/upload-feedback-next.js</File><Text>batchUploadMessage</Text></MustContain>
       <MustVerify><Module>M-API</Module></MustVerify>
     </TargetAssertions>
@@ -32,13 +32,19 @@
       <T-001>
         <Title>kafedra-design: define honest compact upload states</Title>
         <DependsOn></DependsOn>
-        <AcceptanceCriteria><Criterion>Uploading, saved/processing, ready, needs-review and failed use short Russian labels without modal confirmation.</Criterion></AcceptanceCriteria>
+        <AcceptanceCriteria>
+          <Criterion>Uploading, saved/processing, ready, needs-review and failed use short Russian labels without modal confirmation.</Criterion>
+          <Criterion>Desktop and mobile use the same state meanings and keep the existing compact geometry; only wrapping may differ.</Criterion>
+        </AcceptanceCriteria>
         <Verification><Command>node --test tests/upload-feedback.test.mjs</Command></Verification>
       </T-001>
       <T-002>
         <Title>kafedra-motion: use no-motion for upload feedback</Title>
         <DependsOn><T-001 /></DependsOn>
-        <AcceptanceCriteria><Criterion>No animation is added; existing live progress text remains the feedback surface.</Criterion></AcceptanceCriteria>
+        <AcceptanceCriteria>
+          <Criterion>No animation is added; existing live progress text remains the feedback surface.</Criterion>
+          <Criterion>prefers-reduced-motion behavior remains unchanged because this feature introduces no motion dependency.</Criterion>
+        </AcceptanceCriteria>
         <Verification><Command>node --test tests/upload-feedback.test.mjs</Command></Verification>
       </T-002>
       <T-003>
@@ -50,7 +56,10 @@
       <T-004>
         <Title>kafedra-design-audit: verify primary work stays available</Title>
         <DependsOn><T-003 /></DependsOn>
-        <AcceptanceCriteria><Criterion>Good files remain visible immediately, failed file text is local to that row, and no extra step is introduced.</Criterion></AcceptanceCriteria>
+        <AcceptanceCriteria>
+          <Criterion>Good files remain visible immediately, failed file text is local to that row, and no extra step is introduced.</Criterion>
+          <Criterion>Desktop and mobile retain keyboard/focus behavior and the same primary actions while feedback remains inline.</Criterion>
+        </AcceptanceCriteria>
         <Verification><Command>npx playwright test tests/browser/protocol-import.spec.mjs</Command></Verification>
       </T-004>
       <T-005>
