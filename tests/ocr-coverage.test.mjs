@@ -13,11 +13,13 @@ async function fakeOcrTools(run) {
   const pdftoppm = `#!/bin/sh
 limit=50
 prev=''
+last=''
 for arg in "$@"; do
   if [ "$prev" = '-l' ]; then limit="$arg"; fi
   prev="$arg"
+  last="$arg"
 done
-prefix="${'${!#}'}"
+prefix="$last"
 pages="${'${FAKE_PDF_PAGES:-3}'}"
 i=1
 while [ "$i" -le "$limit" ] && [ "$i" -le "$pages" ]; do

@@ -62,7 +62,7 @@ test('повторная обработка использует ту же immut
   assert.equal(database.get('SELECT COUNT(*) count FROM extraction_runs WHERE document_version_id=?', created.versionId).count, 1);
   assert.equal(database.get('SELECT COUNT(*) count FROM audit_log WHERE action=?', 'document.reprocess_requested').count, 1);
 
-  database.run("UPDATE jobs SET status='completed', finished_at=? WHERE id=?", '2026-09-05T09:00:00.000Z', first.jobId);
+  database.run("UPDATE jobs SET status='completed' WHERE id=?", first.jobId);
   const second = requestDocumentReprocess(database, {
     workspaceId: workspace.id,
     documentId: created.documentId
