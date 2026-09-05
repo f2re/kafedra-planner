@@ -9,7 +9,11 @@
 3. Не реализовывать повторно существующий контур и не переносить старую ветку поверх нового `main` без проверки diff.
 4. Существенную работу оформить Issue с пользовательским результатом и критериями приёмки.
 5. Создать короткую branch от проверенного `main`.
-6. Для существенной работы прочитать `codex/skills/kafedra-workspace-orchestrator/SKILL.md` и выбрать только реально нужные repository-local роли/skills.
+6. Выполнить обязательный Kafedra workspace preflight из раздела ниже и выбрать только реально нужные роли/skills.
+
+## Обязательный Kafedra workspace preflight
+
+Для существенной работы прочитать `codex/skills/kafedra-workspace-orchestrator/SKILL.md` и выбрать минимальный набор реально нужных repository-local ролей и профильных skills. Pinned snapshot, происхождение и порядок обновления описаны в `docs/AI_SKILLS_PROFILE.md`. Для чистого backend/infrastructure/release изменения допустим результат `focused profile skills: none`.
 
 ## Разработка и роли
 

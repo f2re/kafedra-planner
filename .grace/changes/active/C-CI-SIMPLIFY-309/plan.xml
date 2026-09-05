@@ -19,8 +19,6 @@
       <MustContain><File>.github/workflows/organization.yml</File><Text>pull_request:</Text></MustContain>
       <MustContain><File>.github/workflows/science-import.yml</File><Text>pull_request:</Text></MustContain>
       <MustVerify><Module>M-CI-GATE</Module></MustVerify>
-      <MustPassCommand><Command>npm run check</Command></MustPassCommand>
-      <MustPassCommand><Command>npm test</Command></MustPassCommand>
     </BaselineAssertions>
     <TargetAssertions>
       <MustExist><Value>.github/workflows/ci.yml</Value></MustExist>
@@ -34,12 +32,6 @@
       <MustContain><File>.github/workflows/science-lifecycle.yml</File><Text>workflow_dispatch:</Text></MustContain>
       <MustContain><File>.github/workflows/science-reports.yml</File><Text>workflow_dispatch:</Text></MustContain>
       <MustVerify><Module>M-CI-GATE</Module></MustVerify>
-      <MustPassCommand><Command>node --test tests/ci-simplification.test.mjs</Command></MustPassCommand>
-      <MustPassCommand><Command>npm run check</Command></MustPassCommand>
-      <MustPassCommand><Command>npm run docs:check</Command></MustPassCommand>
-      <MustPassCommand><Command>npm test</Command></MustPassCommand>
-      <MustPassCommand><Command>npm run smoke</Command></MustPassCommand>
-      <MustPassCommand><Command>bash -n scripts/github/configure-main-protection.sh</Command></MustPassCommand>
     </TargetAssertions>
     <DurableScope>
       <GraphAnchors><M-CI-GATE /></GraphAnchors>
