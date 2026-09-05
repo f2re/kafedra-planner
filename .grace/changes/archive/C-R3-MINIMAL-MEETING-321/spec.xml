@@ -1,4 +1,4 @@
-<GraceChangeSpec graceVersion="4.0" status="approved">
+<GraceChangeSpec graceVersion="4.0" status="applied">
   <C-R3-MINIMAL-MEETING-321>
     <Summary>Allow a working meeting draft and agenda before document-generation setup, while preserving available defaults and binding only the template needed for the generated document.</Summary>
     <Problem>Manual meeting creation currently calls requireCompleteSettings and the UI redirects to Settings unless both protocol and extract templates, quorum, chair and secretary are configured. Document generation also resolves its template only through the meeting snapshot or the all-or-nothing settings row, so an absent extract template can unnecessarily block protocol work.</Problem>

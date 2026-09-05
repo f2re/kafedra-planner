@@ -1,4 +1,4 @@
-<GraceChangePlan graceVersion="4.0" status="approved">
+<GraceChangePlan graceVersion="4.0" status="applied">
   <C-R3-MINIMAL-MEETING-321>
     <IntentSummary>Move document-generation setup to the moment it is needed: create the authoritative meeting from minimal domain identity, preserve any existing reusable defaults, and resolve only the template for the requested output kind.</IntentSummary>
     <BaselineAssertions>
