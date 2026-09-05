@@ -1,6 +1,7 @@
 import { installUnicodeSafeHeaders } from './http-headers.js';
 
 installUnicodeSafeHeaders(window);
+await import('./ui-preference-origin.js');
 await import('./upload-feedback-next.js');
 
 await import('./auth-next.js');
@@ -31,4 +32,5 @@ await import('./calendar-start-settings.js');
 await window.kafedraCalendarStartReady;
 await import('./ui-preferences.js');
 await import('./manual-plan-preferences.js');
+await import('./preference-controls.js');
 await import('./periodic-completion-next.js');

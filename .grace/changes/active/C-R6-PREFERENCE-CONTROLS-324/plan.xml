@@ -1,0 +1,92 @@
+<GraceChangePlan graceVersion="4.0" status="approved">
+  <C-R6-PREFERENCE-CONTROLS-324>
+    <IntentSummary>Add explicit account controls and a single value-origin contract so adaptive suggestions remain subordinate to saved state, user intent and domain facts.</IntentSummary>
+    <BaselineAssertions>
+      <MustExist><Value>packages/preferences/src/service.mjs</Value></MustExist>
+      <MustExist><Value>apps/api/src/ui-preferences-router.mjs</Value></MustExist>
+      <MustExist><Value>public/ui-preferences.js</Value></MustExist>
+      <MustExist><Value>public/plan-fact-tools.js</Value></MustExist>
+      <MustExist><Value>public/manual-plan-preferences.js</Value></MustExist>
+      <MustVerify><Module>M-API</Module></MustVerify>
+    </BaselineAssertions>
+    <TargetAssertions>
+      <MustExist><Value>packages/preferences/src/controls.mjs</Value></MustExist>
+      <MustExist><Value>public/ui-preference-origin.js</Value></MustExist>
+      <MustExist><Value>public/preference-controls.js</Value></MustExist>
+      <MustContain><File>apps/api/src/ui-preferences-router.mjs</File><Text>/api/ui-preferences/controls</Text></MustContain>
+      <MustContain><File>public/ui-preferences.js</File><Text>preferenceState.controls</Text></MustContain>
+      <MustContain><File>public/plan-fact-tools.js</File><Text>markPreferenceOrigin</Text></MustContain>
+      <MustContain><File>public/manual-plan-preferences.js</File><Text>canPreferenceSuggestionApply</Text></MustContain>
+      <MustExist><Value>tests/ui-preference-controls.test.mjs</Value></MustExist>
+      <MustExist><Value>tests/ui-preference-origin.test.mjs</Value></MustExist>
+      <MustExist><Value>tests/browser/preference-priority.spec.mjs</Value></MustExist>
+      <MustVerify><Module>M-API</Module></MustVerify>
+    </TargetAssertions>
+    <DurableScope>
+      <GraphAnchors><M-API /><DF-GRACE-BRANCH /></GraphAnchors>
+      <VerificationAnchors><V-M-API /></VerificationAnchors>
+      <ContextArtifacts><ContextArtifact>principles.xml</ContextArtifact></ContextArtifacts>
+    </DurableScope>
+    <ObservedWriteScope>
+      <Glob>.grace/changes/active/C-R6-PREFERENCE-CONTROLS-324/**</Glob>
+      <File>packages/preferences/src/service.mjs</File>
+      <File>packages/preferences/src/controls.mjs</File>
+      <File>apps/api/src/ui-preferences-router.mjs</File>
+      <File>public/ui-preference-origin.js</File>
+      <File>public/ui-preferences.js</File>
+      <File>public/preference-controls.js</File>
+      <File>public/ux-next.js</File>
+      <File>public/plan-fact-tools.js</File>
+      <File>public/manual-plan-preferences.js</File>
+      <File>docs/ADAPTIVE_UX.md</File>
+      <File>tests/ui-preference-controls.test.mjs</File>
+      <File>tests/ui-preference-origin.test.mjs</File>
+      <File>tests/browser/preference-priority.spec.mjs</File>
+    </ObservedWriteScope>
+    <ImplementationPlan>
+      <T-001>
+        <Title>kafedra-design: expose compact personal suggestion controls</Title>
+        <DependsOn></DependsOn>
+        <AcceptanceCriteria>
+          <Criterion>Desktop and mobile expose one Подсказки control with learning on/off, reset and safe pin/unpin actions in concise Russian text.</Criterion>
+          <Criterion>Controls do not expose work data, ACL or destructive choices and require no modal cascade.</Criterion>
+        </AcceptanceCriteria>
+        <Verification><Command>npx playwright test tests/browser/preference-priority.spec.mjs</Command></Verification>
+      </T-001>
+      <T-002>
+        <Title>kafedra-motion: use no-motion for preference controls</Title>
+        <DependsOn><T-001 /></DependsOn>
+        <AcceptanceCriteria><Criterion>No animation is introduced; visible focus and existing prefers-reduced-motion behavior remain sufficient.</Criterion></AcceptanceCriteria>
+        <Verification><Command>npx playwright test tests/browser/preference-priority.spec.mjs</Command></Verification>
+      </T-002>
+      <T-003>
+        <Title>kafedra-feature: implement origin precedence and account-scoped controls</Title>
+        <DependsOn><T-002 /></DependsOn>
+        <AcceptanceCriteria>
+          <Criterion>Origin contract prevents suggested values from replacing saved, explicit or domain-derived values.</Criterion>
+          <Criterion>Existing preference table stores learning control and safe pins outside normal context ranking; reset deletes only learned rows for the current account.</Criterion>
+          <Criterion>Pinned values outrank frequency; disabled learning suppresses normal frequency read/write but leaves pins and domain-derived behavior active.</Criterion>
+          <Criterion>Plan/fact saved view and manual-plan async suggestions participate in the same origin contract.</Criterion>
+        </AcceptanceCriteria>
+        <Verification><Command>node --test tests/ui-preference-controls.test.mjs tests/ui-preference-origin.test.mjs</Command></Verification>
+      </T-003>
+      <T-004>
+        <Title>kafedra-design-audit: verify precedence and reset boundaries</Title>
+        <DependsOn><T-003 /></DependsOn>
+        <AcceptanceCriteria>
+          <Criterion>Saved view/manual input do not jump after late preference load; controls are clear on desktop/mobile and domain-derived values remain automatic.</Criterion>
+          <Criterion>Reset visibly affects suggestions only and does not imply deletion of plans, calendar, settings or evidence.</Criterion>
+        </AcceptanceCriteria>
+        <Verification><Command>npx playwright test tests/browser/preference-priority.spec.mjs</Command></Verification>
+      </T-004>
+      <T-005>
+        <Title>kafedra-tests: prove account isolation pin precedence and delayed-response safety</Title>
+        <DependsOn><T-004 /></DependsOn>
+        <AcceptanceCriteria>
+          <Criterion>Tests cover two accounts, reset, pin-over-frequency, disabled learning, origin ordering, saved plan/fact view and a delayed suggestion after a trusted edit.</Criterion>
+        </AcceptanceCriteria>
+        <Verification><Command>node --test tests/ui-preference-controls.test.mjs tests/ui-preference-origin.test.mjs</Command><Command>npx playwright test tests/browser/preference-priority.spec.mjs</Command></Verification>
+      </T-005>
+    </ImplementationPlan>
+  </C-R6-PREFERENCE-CONTROLS-324>
+</GraceChangePlan>

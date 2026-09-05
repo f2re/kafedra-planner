@@ -1,4 +1,4 @@
-<GraceChangePlan graceVersion="4.0" status="approved">
+<GraceChangePlan graceVersion="4.0" status="applied">
   <C-R5-SEARCH-ROUTING-323>
     <IntentSummary>Reuse existing domain openers and add only safe route metadata plus search-state continuity, while reducing always-visible filters through progressive disclosure.</IntentSummary>
     <BaselineAssertions>

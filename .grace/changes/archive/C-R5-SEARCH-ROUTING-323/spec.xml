@@ -1,4 +1,4 @@
-<GraceChangeSpec graceVersion="4.0" status="approved">
+<GraceChangeSpec graceVersion="4.0" status="applied">
   <C-R5-SEARCH-ROUTING-323>
     <Summary>Turn search results into entry points to existing work objects while preserving the search query, filters, focus and scroll position for return.</Summary>
     <Problem>The current faceted search is ACL-filtered and protects against stale responses, but every result is a passive card. Users must infer another section and find the object again. All rare filters are permanently expanded, and leaving search discards the working search context.</Problem>
