@@ -102,7 +102,9 @@ Release workflow не опрашивает другие Actions, не вызыв
 
 ## Terminal archive
 
-Действующие lifecycle-правила GRACE защищают terminal archive от подмены содержимого: archived bundle сохраняет тот же набор артефактов, а `spec.xml`/`plan.xml` меняют только terminal status. Archive bookkeeping не заменяет продуктовую проверку и не должен приводить к повторному запуску полного release/deployment набора без отдельного риска.
+Действующие lifecycle-правила GRACE защищают terminal archive от подмены содержимого: archived bundle сохраняет тот же набор артефактов, а `spec.xml`/`plan.xml` меняют только terminal status. Завершённый change можно перенести в terminal archive в том же PR, где начинается следующий governed change: lifecycle старого bundle проверяется отдельно от `ObservedWriteScope` нового. Отдельный archive-only PR для этого не нужен.
+
+Archive bookkeeping не заменяет продуктовую проверку и не должен приводить к повторному запуску полного release/deployment набора без отдельного риска.
 
 ## Failure behavior
 

@@ -19,13 +19,14 @@ test('release builds once and verifies deployment before packaging or publicatio
   assert.ok(createRelease > projectControl, 'GitHub Release creation must follow artifact verification');
 });
 
-test('release deployment path proves install update rollback without external workflow recovery', async () => {
+test('release deployment path reuses the same installer for install update and forced rollback evidence', async () => {
   const workflow = await text('.github/workflows/release.yml');
   const selftest = await text('scripts/offline/systemd-deploy-selftest.sh');
   assert.match(workflow, /Verify install, update and rollback of the same artifact/u);
-  assert.match(selftest, /Clean offline install of the exact archive/u);
-  assert.match(selftest, /same archive is an idempotent update/u);
-  assert.match(selftest, /forced-core-rollback/u);
+  assert.match(selftest, /run_installer\(\)/u);
+  assert.match(selftest, /Тот же комплект должен безопасно проходить как повторный update/u);
+  assert.match(selftest, /Installer не откатился после принудительного сбоя llama-server/u);
+  assert.match(selftest, /Rollback не вернул legacy current/u);
   assert.doesNotMatch(workflow, /gh workflow run/u);
   assert.doesNotMatch(workflow, /actions\/runs/u);
 });

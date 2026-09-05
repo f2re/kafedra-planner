@@ -66,6 +66,23 @@ function bundleExistsAtRef(root, ref, location, changeId, { requirePlan = false 
   return Boolean(artifacts['spec.xml'] && (!requirePlan || artifacts['plan.xml']));
 }
 
+function entryPaths(entry) {
+  return [entry.oldPath, entry.path]
+    .filter(Boolean)
+    .map((path) => normalizePath(path));
+}
+
+function isArchiveLifecycleEntry(entry, changeId) {
+  const activePrefix = bundlePrefix('active', changeId);
+  const archivePrefix = bundlePrefix('archive', changeId);
+  const paths = entryPaths(entry);
+  return paths.length > 0 && paths.every((path) => (
+    path === '.grace/changes/archive/.gitkeep'
+    || path.startsWith(activePrefix)
+    || path.startsWith(archivePrefix)
+  ));
+}
+
 export function activeChangeIdsAtRef(root, ref, { requirePlan = false } = {}) {
   const prefix = '.grace/changes/active/';
   const output = git(['ls-tree', '-r', '--name-only', ref, '--', prefix], { root, trim: false });
@@ -96,22 +113,20 @@ export function runPolicy({
   const entries = parseNameStatus(
     git(['diff', '--name-status', '-M', `${base}...${head}`], { root, trim: false })
   );
-  const paths = changedPaths(entries);
-  const governed = paths.filter(isGovernedPath);
-  const touchedActive = changedChangeIds(entries, 'active');
+  const allPaths = changedPaths(entries);
+  const allGoverned = allPaths.filter(isGovernedPath);
+  const allTouchedActive = changedChangeIds(entries, 'active');
   const touchedArchive = changedChangeIds(entries, 'archive');
   const activeAtHead = activeChangeIdsAtRef(root, head);
-  const touchedActiveAtHead = touchedActive.filter((id) => activeAtHead.includes(id));
   const archivedAtHead = touchedArchive.filter((id) => (
     bundleExistsAtRef(root, head, 'archive', id, { requirePlan: true })
   ));
 
-  // Markdown companion artifacts remain governed during normal implementation.
-  // For a terminal move, evaluateArchiveTransition below validates every path,
-  // the exact file set and byte-identical companion content fail-closed.
-  const archiveCandidate = touchedActive.length === 1
+  // Preserve the strict terminal-only transition. It remains useful when the
+  // branch contains no next governed change at all.
+  const archiveCandidate = allTouchedActive.length === 1
     && touchedArchive.length === 1
-    && touchedActive[0] === touchedArchive[0]
+    && allTouchedActive[0] === touchedArchive[0]
     && activeAtHead.length === 0
     && archivedAtHead.length === 1;
 
@@ -132,16 +147,50 @@ export function runPolicy({
       changeId: null,
       archivedChangeId: changeId,
       archiveStatus: result.status,
-      paths,
-      governed
+      paths: allPaths,
+      governed: allGoverned
     };
   }
 
+  // A completed change may be archived together with the next governed change.
+  // Validate the old bundle as an immutable terminal transition, then remove
+  // only those lifecycle paths before validating the new active scope. This
+  // avoids a separate bookkeeping PR without weakening either contract.
+  let archivedChangeId = null;
+  let archiveStatus = null;
+  let implementationEntries = entries;
   if (touchedArchive.length) {
-    throw new Error(
-      `Archived C-* bundles may change only in one immutable archive-only transition; touched: ${touchedArchive.join(', ')}.`
-    );
+    if (touchedArchive.length !== 1) {
+      throw new Error(`Only one archived C-* bundle may be touched per branch diff; touched: ${touchedArchive.join(', ')}.`);
+    }
+    const candidate = touchedArchive[0];
+    const validTerminalMove = allTouchedActive.includes(candidate)
+      && !activeAtHead.includes(candidate)
+      && archivedAtHead.includes(candidate);
+    if (!validTerminalMove) {
+      throw new Error(
+        `Archived C-* bundles may change only through an immutable terminal move from exact base; touched: ${candidate}.`
+      );
+    }
+    const lifecycleEntries = entries.filter((entry) => isArchiveLifecycleEntry(entry, candidate));
+    const result = evaluateArchiveTransition({
+      entries: lifecycleEntries,
+      changeId: candidate,
+      baseArtifacts: bundleArtifactsAtRef(root, base, 'active', candidate),
+      archivedArtifacts: bundleArtifactsAtRef(root, head, 'archive', candidate),
+      activeArtifactsAtHead: bundleArtifactsAtRef(root, head, 'active', candidate)
+    });
+    if (result.errors.length) throw new Error(result.errors.join('\n'));
+    archivedChangeId = candidate;
+    archiveStatus = result.status;
+    implementationEntries = entries.filter((entry) => !isArchiveLifecycleEntry(entry, candidate));
   }
+
+  const paths = changedPaths(implementationEntries);
+  const governed = paths.filter(isGovernedPath);
+  const touchedActive = changedChangeIds(implementationEntries, 'active');
+  const touchedActiveAtHead = touchedActive.filter((id) => activeAtHead.includes(id));
+
   if (activeAtHead.length > 1) {
     throw new Error(`Only one complete active C-* bundle is allowed at HEAD; found: ${activeAtHead.join(', ')}.`);
   }
@@ -167,10 +216,11 @@ export function runPolicy({
     }
     return {
       ok: true,
-      lifecycle: 'none',
+      lifecycle: archivedChangeId ? 'archive' : 'none',
       assertionMode: 'current',
       changeId: null,
-      archivedChangeId: null,
+      archivedChangeId,
+      archiveStatus,
       paths,
       governed
     };
@@ -185,7 +235,7 @@ export function runPolicy({
 
   if (governed.length > 0 || mode !== 'branch') {
     const result = evaluateGovernance({
-      entries,
+      entries: implementationEntries,
       changeId,
       specXml: artifacts['spec.xml'],
       planXml: artifacts['plan.xml']
@@ -197,7 +247,8 @@ export function runPolicy({
       stage: 'implementation',
       assertionMode: 'final',
       changeId,
-      archivedChangeId: null,
+      archivedChangeId,
+      archiveStatus,
       paths: result.paths,
       governed: result.governed
     };
@@ -218,7 +269,8 @@ export function runPolicy({
     stage: planned ? 'planned' : 'draft',
     assertionMode: planned ? 'baseline' : 'current',
     changeId,
-    archivedChangeId: null,
+    archivedChangeId,
+    archiveStatus,
     paths,
     governed
   };
