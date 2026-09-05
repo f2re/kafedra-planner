@@ -9,14 +9,22 @@ async function expectMissing(path) {
   await assert.rejects(text(path), (error) => error?.code === 'ENOENT');
 }
 
-test('release is one version-neutral manual workflow', async () => {
+test('release is one version-neutral explicit workflow', async () => {
   const source = await text('.github/workflows/release.yml');
   assert.match(source, /^name: Release$/mu);
-  assert.match(source, /^on:\n  workflow_dispatch:\n/mu);
+  assert.match(source, /^on:\n  workflow_dispatch:\n  push:\n    branches: \[release-run\]$/mu);
   assert.doesNotMatch(source, /^  workflow_run:/mu);
   assert.doesNotMatch(source, /^  pull_request:/mu);
-  assert.doesNotMatch(source, /^  push:/mu);
+  assert.doesNotMatch(source, /^    branches: \[main\]$/mu);
   await expectMissing('.github/workflows/release-gate.yml');
+});
+
+test('release-run is only a reusable exact-main trigger', async () => {
+  const source = await text('.github/workflows/release.yml');
+  assert.match(source, /case "\$GITHUB_EVENT_NAME:\$GITHUB_REF" in/u);
+  assert.match(source, /workflow_dispatch:refs\/heads\/main\|push:refs\/heads\/release-run/u);
+  assert.match(source, /\[\[ "\$MAIN_SHA" == "\$GITHUB_SHA" \]\]/u);
+  assert.match(source, /Release разрешён только вручную из main или через release-run/u);
 });
 
 test('release uses native job dependencies and exact current main', async () => {
