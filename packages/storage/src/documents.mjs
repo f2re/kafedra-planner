@@ -5,6 +5,15 @@ function parseJson(value, fallback) {
   try { return JSON.parse(value); } catch { return fallback; }
 }
 
+function reprocessRequestedType(documentType, uploadKey) {
+  if (String(uploadKey || '').startsWith('protocol-year:')) return 'protocol';
+  if (documentType === 'department_protocol') return 'protocol';
+  if (['directive', 'order', 'decree'].includes(documentType)) return documentType;
+  if (['plan', 'department_plan', 'faculty_plan', 'personal_plan', 'unit_plan', 'organization_plan'].includes(documentType)) return documentType;
+  if (['article', 'conference', 'grant', 'patent', 'project', 'nir_report', 'science'].includes(documentType)) return documentType;
+  return 'auto';
+}
+
 export function registerDocument(database, {
   workspaceId,
   title,
@@ -66,6 +75,78 @@ export function registerDocument(database, {
       VALUES (?, ?, 'operator', 'document.uploaded', 'document', ?, ?, ?)
     `, newId('audit'), workspaceId, documentId, JSON.stringify({ versionId, originalName, sha256: blob.sha256 }), now);
     return { documentId, versionId, jobId: job.id, sha256: blob.sha256, status: 'queued' };
+  });
+}
+
+export function requestDocumentReprocess(database, { workspaceId, documentId }) {
+  const document = database.get(`
+    SELECT d.id AS document_id, d.document_type, dv.id AS version_id,
+      dv.blob_sha256, dv.upload_key
+    FROM documents d
+    JOIN document_versions dv ON dv.id = d.current_version_id
+    WHERE d.workspace_id = ? AND d.id = ?
+  `, workspaceId, documentId);
+  if (!document) return null;
+
+  return database.transaction(() => {
+    const keyPrefix = `reprocess:${document.version_id}:%`;
+    const active = database.get(`
+      SELECT id, status FROM jobs
+      WHERE idempotency_key LIKE ? AND status IN ('queued', 'retry', 'running')
+      ORDER BY created_at DESC LIMIT 1
+    `, keyPrefix);
+    if (active) {
+      return {
+        documentId: document.document_id,
+        versionId: document.version_id,
+        jobId: active.id,
+        sha256: document.blob_sha256,
+        status: active.status,
+        duplicateRequest: true
+      };
+    }
+
+    const previous = Number(database.get(`
+      SELECT COUNT(*) AS count FROM jobs WHERE idempotency_key LIKE ?
+    `, keyPrefix)?.count || 0);
+    const idempotencyKey = `reprocess:${document.version_id}:${previous + 1}`;
+    const now = new Date().toISOString();
+    const job = enqueueJob(database, {
+      kind: 'process_document',
+      payload: {
+        workspaceId,
+        documentId: document.document_id,
+        versionId: document.version_id,
+        requestedType: reprocessRequestedType(document.document_type, document.upload_key),
+        reprocess: true
+      },
+      priority: 10,
+      idempotencyKey
+    });
+    database.run(`
+      UPDATE document_versions
+      SET processing_status = 'queued', extraction_error = NULL
+      WHERE id = ?
+    `, document.version_id);
+    database.run(`
+      UPDATE documents SET status = 'processing', updated_at = ? WHERE id = ?
+    `, now, document.document_id);
+    database.run(`
+      INSERT INTO audit_log(id, workspace_id, actor, action, subject_kind, subject_id, details_json, created_at)
+      VALUES (?, ?, 'operator', 'document.reprocess_requested', 'document', ?, ?, ?)
+    `, newId('audit'), workspaceId, document.document_id, JSON.stringify({
+      versionId: document.version_id,
+      sha256: document.blob_sha256,
+      jobId: job.id
+    }), now);
+    return {
+      documentId: document.document_id,
+      versionId: document.version_id,
+      jobId: job.id,
+      sha256: document.blob_sha256,
+      status: 'queued',
+      duplicateRequest: false
+    };
   });
 }
 

@@ -13,6 +13,7 @@ import { createNotificationDeliveryRouter } from './notification-delivery-router
 import { createAssignmentResponsibilityRouter } from './assignment-responsibility-router.mjs';
 import { createPeriodicTasksRouter } from './periodic-tasks-router.mjs';
 import { createSearchRouter } from './search-router.mjs';
+import { createDocumentReprocessRouter } from './document-reprocess-router.mjs';
 import { createAuthRouter } from './auth-router.mjs';
 import { createAccessRouter } from './access-router.mjs';
 import { createOrganizationRouter } from './organization-router.mjs';
@@ -37,6 +38,7 @@ export function createApp({ database, config, logger }) {
   const assignmentResponsibilityRouter = createAssignmentResponsibilityRouter({ database, config, logger });
   const periodicTasksRouter = createPeriodicTasksRouter({ database, config, logger });
   const searchRouter = createSearchRouter({ database, config, logger });
+  const documentReprocessRouter = createDocumentReprocessRouter({ database, config, logger });
   const manualPlansRouter = createManualPlansRouter({ database, config, logger });
   const planItemsRouter = createPlanItemsRouter({ database, config, logger });
   const planSourceRowsRouter = createPlanSourceRowsRouter({ database, config, logger });
@@ -101,11 +103,14 @@ export function createApp({ database, config, logger }) {
           const meetingsHandled = !preferencesHandled && !notificationHandled && !responsibilityHandled && !periodicHandled && !searchHandled && !manualPlansHandled && !planItemHandled && !planSourceRowsHandled && !plansHandled && !response.headersSent
             ? await meetingsRouter(request, response, url, requestId)
             : false;
-          const accessHandled = !preferencesHandled && !notificationHandled && !responsibilityHandled && !periodicHandled && !searchHandled && !manualPlansHandled && !planItemHandled && !planSourceRowsHandled && !plansHandled && !meetingsHandled && !response.headersSent && request.auth?.enabled
+          const documentReprocessHandled = !preferencesHandled && !notificationHandled && !responsibilityHandled && !periodicHandled && !searchHandled && !manualPlansHandled && !planItemHandled && !planSourceRowsHandled && !plansHandled && !meetingsHandled && !response.headersSent
+            ? await documentReprocessRouter(request, response, url, requestId)
+            : false;
+          const accessHandled = !preferencesHandled && !notificationHandled && !responsibilityHandled && !periodicHandled && !searchHandled && !manualPlansHandled && !planItemHandled && !planSourceRowsHandled && !plansHandled && !meetingsHandled && !documentReprocessHandled && !response.headersSent && request.auth?.enabled
             ? await accessRouter(request, response, url, requestId)
             : false;
           let extensionHandled = false;
-          if (!preferencesHandled && !notificationHandled && !responsibilityHandled && !periodicHandled && !searchHandled && !manualPlansHandled && !planItemHandled && !planSourceRowsHandled && !plansHandled && !meetingsHandled && !accessHandled && !response.headersSent) {
+          if (!preferencesHandled && !notificationHandled && !responsibilityHandled && !periodicHandled && !searchHandled && !manualPlansHandled && !planItemHandled && !planSourceRowsHandled && !plansHandled && !meetingsHandled && !documentReprocessHandled && !accessHandled && !response.headersSent) {
             extensionHandled = await docomatorIntegrationRouter(request, response, url, requestId);
             if (!extensionHandled && !response.headersSent) extensionHandled = await organizationRouter(request, response, url, requestId);
             if (!extensionHandled && !response.headersSent) extensionHandled = await scienceLifecycleRouter(request, response, url, requestId);
@@ -114,7 +119,7 @@ export function createApp({ database, config, logger }) {
             if (!extensionHandled && !response.headersSent) extensionHandled = await directiveArchiveRouter(request, response, url, requestId);
             if (!extensionHandled && !response.headersSent) extensionHandled = await academicPerformanceRouter(request, response, url, requestId);
           }
-          if (!preferencesHandled && !notificationHandled && !responsibilityHandled && !periodicHandled && !searchHandled && !manualPlansHandled && !planItemHandled && !planSourceRowsHandled && !plansHandled && !meetingsHandled && !accessHandled && !extensionHandled && !response.headersSent) {
+          if (!preferencesHandled && !notificationHandled && !responsibilityHandled && !periodicHandled && !searchHandled && !manualPlansHandled && !planItemHandled && !planSourceRowsHandled && !plansHandled && !meetingsHandled && !documentReprocessHandled && !accessHandled && !extensionHandled && !response.headersSent) {
             const handled = await planFactRouter(request, response, url, requestId);
             if (!handled && !response.headersSent) await router(request, response, url, requestId);
           }

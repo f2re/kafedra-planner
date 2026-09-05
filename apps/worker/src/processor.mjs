@@ -41,22 +41,43 @@ function openReviewCount(database, workspaceId, versionId) {
   `, workspaceId, versionId)?.count || 0);
 }
 
+const RECOGNITION_REVIEW_CODES = [
+  'empty_text', 'ocr_unavailable', 'ocr_failed', 'ocr_empty', 'ocr_disabled', 'ocr_partial'
+];
+
+function resolvePreviousRecognitionReviews(database, version, extractionRunId) {
+  const now = new Date().toISOString();
+  const placeholders = RECOGNITION_REVIEW_CODES.map(() => '?').join(', ');
+  database.run(`
+    UPDATE review_items
+    SET status = 'resolved', resolved_at = ?, resolution_json = ?
+    WHERE workspace_id = ? AND source_kind = 'document_version' AND source_id = ?
+      AND status = 'open' AND issue_code IN (${placeholders})
+  `, now, JSON.stringify({ kind: 'reprocess', extractionRunId }), version.workspace_id, version.id,
+  ...RECOGNITION_REVIEW_CODES);
+}
+
 function ocrReview(database, version, ocr) {
-  if (!['unavailable', 'failed', 'empty', 'disabled'].includes(ocr?.status)) return;
+  if (!['unavailable', 'failed', 'empty', 'disabled', 'partial'].includes(ocr?.status)) return;
+  const failedPages = Array.isArray(ocr?.coverage?.failedPages) ? ocr.coverage.failedPages : [];
+  const skippedPages = Array.isArray(ocr?.coverage?.skippedPages) ? ocr.coverage.skippedPages : [];
   const explanations = {
     unavailable: 'OCR не запущен: в системе отсутствует Tesseract или конвертер страниц PDF.',
     failed: `OCR завершился ошибкой: ${ocr.error || 'причина не определена'}.`,
     empty: 'OCR выполнен, но распознаваемый текст не найден.',
-    disabled: 'OCR отключён в настройках системы.'
+    disabled: 'OCR отключён в настройках системы.',
+    partial: `OCR выполнен частично.${failedPages.length ? ` Ошибка страниц: ${failedPages.map((item) => item.page).join(', ')}.` : ''}${skippedPages.length ? ` Не обработаны из-за лимита: ${skippedPages.join(', ')}.` : ''}`
   };
   insertReview(
     database,
     version.workspace_id,
     version.id,
     `ocr_${ocr.status}`,
-    'Требуется распознавание документа',
+    ocr.status === 'partial' ? 'Документ распознан частично' : 'Требуется распознавание документа',
     explanations[ocr.status],
-    'Проверьте качество скана, языковые пакеты OCR и настройки KAFEDRA_OCR_*.',
+    ocr.status === 'partial'
+      ? 'Хорошие страницы уже доступны. Устраните причину и повторите распознавание сохранённого источника.'
+      : 'Проверьте качество скана, языковые пакеты OCR и настройки KAFEDRA_OCR_*.',
     { ocr }
   );
 }
@@ -165,8 +186,11 @@ export async function processDocumentJob(database, payload, logger, config) {
       engine: null,
       languages: null,
       confidence: null,
-      error: null
+      error: null,
+      coverage: null
     };
+
+    if (payload.reprocess) resolvePreviousRecognitionReviews(database, version, extractionRunId);
 
     if (!text) {
       insertReview(database, version.workspace_id, version.id, 'empty_text',
@@ -174,8 +198,9 @@ export async function processDocumentJob(database, payload, logger, config) {
         'Файл сохранён, но текстовый слой и результат OCR пусты.',
         'Проверьте качество скана или загрузите документ с текстовым слоем.',
         { format: version.detected_format, ocr });
-      ocrReview(database, version, ocr);
     }
+    ocrReview(database, version, ocr);
+    const recognitionNeedsReview = ['unavailable', 'failed', 'empty', 'disabled', 'partial'].includes(ocr.status);
 
     const requestedProtocol = payload.requestedType === 'protocol';
     const isProtocol = requestedProtocol || (Boolean(text) && looksLikeDepartmentProtocol(text));
@@ -313,6 +338,8 @@ export async function processDocumentJob(database, payload, logger, config) {
             'Откройте документ и создайте шаблон из структурного фрагмента.');
         }
       }
+
+      if (recognitionNeedsReview) finalStatus = 'needs_review';
 
       database.run(`
         UPDATE document_versions

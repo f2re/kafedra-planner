@@ -28,7 +28,7 @@ async function annualSummary(page, year) {
   return (await response.json()).summary;
 }
 
-test('Протоколы за год: пакетная загрузка → исключения → исправление → готово', async ({ page }, testInfo) => {
+test('Протоколы за год: пакетная загрузка → повтор сохранённого источника → исключения → исправление → готово', async ({ page }, testInfo) => {
   test.setTimeout(120_000);
   const year = testInfo.project.name === 'mobile' ? 2032 : 2031;
   const dir = await mkdtemp(join(tmpdir(), `kafedra-protocol-import-${testInfo.project.name}-`));
@@ -58,11 +58,25 @@ test('Протоколы за год: пакетная загрузка → ис
     await expect(page.locator('#protocol-import-summary')).toContainText('1 готово', { timeout: 5_000 });
     await expect(page.locator('#protocol-import-summary')).toContainText('1 проверить', { timeout: 5_000 });
 
-    const reviewRow = page.locator('[data-protocol-import-item]').filter({ hasText: `Протокол ${year} проверить.txt` });
+    const readyRow = page.locator('[data-protocol-import-item]').filter({ hasText: `Протокол ${year} готов.txt` });
+    await expect(readyRow.getByRole('button', { name: 'Повторить распознавание' })).toHaveCount(0);
+    let reviewRow = page.locator('[data-protocol-import-item]').filter({ hasText: `Протокол ${year} проверить.txt` });
     await expect(reviewRow).toContainText('Не найден номер протокола');
     await expect(reviewRow).toContainText('Нужно сопоставить ответственного');
-    await reviewRow.getByRole('button', { name: 'Исправить' }).click();
+    const retry = reviewRow.getByRole('button', { name: 'Повторить распознавание' });
+    await expect(retry).toBeVisible();
+    const [retryResponse] = await Promise.all([
+      page.waitForResponse((response) => response.request().method() === 'POST' && /\/api\/documents\/[^/]+\/reprocess$/u.test(new URL(response.url()).pathname)),
+      retry.click()
+    ]);
+    expect([200, 202]).toContain(retryResponse.status());
+    await expect.poll(() => annualSummary(page, year), {
+      timeout: 30_000,
+      intervals: [500, 1000]
+    }).toMatchObject({ total: 2, ready: 1, needs_review: 1, failed: 0 });
 
+    reviewRow = page.locator('[data-protocol-import-item]').filter({ hasText: `Протокол ${year} проверить.txt` });
+    await reviewRow.getByRole('button', { name: 'Исправить' }).click();
     await expect(page.locator('#meeting-detail')).toContainText('Нужно проверить 2');
     await page.locator('[data-edit-meeting]').click();
     const meetingForm = page.locator('#meeting-edit-form');

@@ -36,6 +36,22 @@ def language_candidates(languages):
     return unique
 
 
+def parse_pages(value):
+    if isinstance(value, (list, tuple)):
+        raw = value
+    else:
+        raw = str(value or "").split(",")
+    pages = []
+    for item in raw:
+        try:
+            page = int(item)
+        except (TypeError, ValueError):
+            continue
+        if page > 0 and page not in pages:
+            pages.append(page)
+    return sorted(pages)
+
+
 def parse_tsv(tsv, page=1):
     rows = str(tsv or "").replace("\r\n", "\n").split("\n")
     if len(rows) < 2:
@@ -45,6 +61,10 @@ def parse_tsv(tsv, page=1):
     required = {"level", "text", "page_num", "block_num", "par_num", "line_num", "left", "top", "width", "height", "conf"}
     if not required.issubset(set(index)):
         raise RuntimeError("Некорректный TSV Tesseract: отсутствуют обязательные столбцы")
+    try:
+        absolute_page = int(page) or 1
+    except (TypeError, ValueError):
+        absolute_page = 1
     groups = {}
     order = []
     for row in rows[1:]:
@@ -62,10 +82,7 @@ def parse_tsv(tsv, page=1):
         text = clean_text(columns[index["text"]])
         if not text:
             continue
-        try:
-            page_number = int(columns[index["page_num"]] or page) or page
-        except ValueError:
-            page_number = page
+        page_number = absolute_page
         key = "%s:%s:%s:%s" % (
             page_number,
             columns[index["block_num"]] or "0",
@@ -181,17 +198,19 @@ def recognize_image(path, languages, dpi):
     return run_tesseract(path, languages, dpi, 1)
 
 
-def recognize_pdf(path, languages, dpi, max_pages):
+def recognize_pdf(path, languages, dpi, max_pages, selected_pages=None):
     if not shutil.which("pdftoppm"):
         return {
             "status": "unavailable", "engine": "tesseract-python", "languages": languages,
             "confidence": None, "text": "", "blocks": [], "error": "pdftoppm:command_not_found"
         }
+    max_pages = max(1, int(max_pages or 50))
+    requested = parse_pages(selected_pages)
     with tempfile.TemporaryDirectory(prefix="kafedra-ocr-") as directory:
         prefix = os.path.join(directory, "page")
         try:
             subprocess.run(
-                ["pdftoppm", "-png", "-r", str(dpi), "-f", "1", "-l", str(max_pages), path, prefix],
+                ["pdftoppm", "-png", "-r", str(dpi), "-f", "1", "-l", str(max_pages + 1), path, prefix],
                 check=True,
                 stdout=subprocess.PIPE,
                 stderr=subprocess.PIPE,
@@ -204,31 +223,74 @@ def recognize_pdf(path, languages, dpi, max_pages):
                 "engine": "tesseract-python", "languages": languages, "confidence": None,
                 "text": "", "blocks": [], "error": "pdftoppm:%s" % command_error(exc),
             }
-        pages = []
+        rendered = []
         for name in os.listdir(directory):
             match = re.match(r"^page-(\d+)\.png$", name, re.I)
             if match:
-                pages.append((int(match.group(1)), name))
-        pages.sort()
+                rendered.append((int(match.group(1)), name))
+        rendered.sort()
+        rendered_numbers = set(page for page, _ in rendered)
+        requested_pages = requested or [page for page, _ in rendered if page <= max_pages]
+        skipped_pages = [page for page in requested_pages if page > max_pages or page not in rendered_numbers]
+        truncated = not requested and any(page > max_pages for page, _ in rendered)
+        pages = [(page, name) for page, name in rendered if page <= max_pages and page in requested_pages]
         blocks = []
         results = []
         for page_number, name in pages:
             result = run_tesseract(os.path.join(directory, name), languages, dpi, page_number)
+            result = dict(result)
+            result["page"] = page_number
             results.append(result)
             blocks.extend(result["blocks"])
             if result["status"] == "unavailable":
                 break
         confidences = [item["confidence"] for item in results if item["confidence"] is not None]
-        failed = next((item for item in results if item["status"] in ("unavailable", "failed")), None)
+        recognized_pages = [item["page"] for item in results if item["status"] == "used"]
+        empty_pages = [item["page"] for item in results if item["status"] == "empty"]
+        failed_pages = [
+            {"page": item["page"], "status": item["status"], "error": item.get("error")}
+            for item in results if item["status"] in ("unavailable", "failed")
+        ]
+        total_pages = len(rendered) if len(rendered) <= max_pages else None
+        coverage = {
+            "requestedPages": requested_pages,
+            "attemptedPages": [item["page"] for item in results],
+            "recognizedPages": recognized_pages,
+            "emptyPages": empty_pages,
+            "failedPages": failed_pages,
+            "skippedPages": skipped_pages,
+            "totalPages": total_pages,
+            "truncated": truncated,
+            "complete": not failed_pages and not skipped_pages and not truncated,
+        }
         used = bool(blocks)
+        successful_attempt = bool(recognized_pages or empty_pages)
+        first_failure = next((item for item in results if item["status"] in ("unavailable", "failed")), None)
+        if not coverage["complete"] and successful_attempt:
+            status = "partial"
+        elif not coverage["complete"] and first_failure:
+            status = first_failure["status"]
+        elif not coverage["complete"]:
+            status = "partial"
+        else:
+            status = "used" if used else (first_failure["status"] if first_failure else "empty")
+        error_parts = [
+            "page %s: %s" % (item["page"], item.get("error") or item["status"])
+            for item in failed_pages
+        ]
+        if skipped_pages:
+            error_parts.append("pages outside OCR limit: %s" % ",".join(str(page) for page in skipped_pages))
+        if truncated:
+            error_parts.append("document has pages after OCR limit %s" % max_pages)
         return {
-            "status": "used" if used else (failed["status"] if failed else "empty"),
+            "status": status,
             "engine": "tesseract-python",
             "languages": next((item["languages"] for item in results if item.get("languages")), languages),
             "confidence": round(sum(confidences) / len(confidences), 2) if confidences else None,
             "text": "\n".join(block["text"] for block in blocks),
             "blocks": blocks,
-            "error": None if used else (failed["error"] if failed else "ocr_text_empty"),
+            "coverage": coverage,
+            "error": "; ".join(error_parts) if not coverage["complete"] else (None if used else (first_failure["error"] if first_failure else "ocr_text_empty")),
         }
 
 
@@ -242,7 +304,6 @@ def tesseract_languages():
         return [], command_error(exc)
     lines = [line.strip() for line in completed.stdout.splitlines() if line.strip()]
     return [line for line in lines if not line.lower().startswith("list of available")], None
-
 
 
 def write_control_pdf(path):
@@ -365,6 +426,7 @@ def doctor(languages, self_test=False):
         "error": error,
     }
 
+
 def main(argv=None):
     parser = argparse.ArgumentParser(description="Локальное OCR Kafedra Planner")
     sub = parser.add_subparsers(dest="command")
@@ -380,6 +442,7 @@ def main(argv=None):
     for target in (image, pdf):
         target.add_argument("--dpi", type=int, default=250)
     pdf.add_argument("--max-pages", type=int, default=50)
+    pdf.add_argument("--pages", default="")
     doctor_parser.add_argument("--self-test", action="store_true")
     args = parser.parse_args(argv)
     if not args.command:
@@ -387,7 +450,7 @@ def main(argv=None):
     if args.command == "image":
         result = recognize_image(args.path, args.languages, args.dpi)
     elif args.command == "pdf":
-        result = recognize_pdf(args.path, args.languages, args.dpi, args.max_pages)
+        result = recognize_pdf(args.path, args.languages, args.dpi, args.max_pages, args.pages)
     elif args.command == "doctor":
         result = doctor(args.languages, self_test=args.self_test)
     else:
