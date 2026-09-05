@@ -3,6 +3,8 @@ import { listUiPreferences, recordUiPreferences, supportedUiPreferenceKeys } fro
 import { readCalendarStartMode, writeCalendarStartMode } from '../../../packages/preferences/src/calendar-start.mjs';
 import { readJson, sendJson } from './http-utils.mjs';
 
+const NEVER_LEARN_KEYS = new Set(['work.periodic.edit.status']);
+
 function workspaceOf(database, request) {
   if (request.auth?.workspaceId) {
     const workspace = database.get('SELECT * FROM workspaces WHERE id = ?', request.auth.workspaceId);
@@ -18,12 +20,23 @@ function workspaceOf(database, request) {
   return workspace;
 }
 
+function allowedKeys(keys) {
+  return keys.filter((key) => !NEVER_LEARN_KEYS.has(key));
+}
+
 function keysFrom(url) {
   const requested = url.searchParams.getAll('key')
     .flatMap((value) => String(value).split(','))
     .map((value) => value.trim())
     .filter(Boolean);
-  return requested.length ? requested : supportedUiPreferenceKeys();
+  return allowedKeys(requested.length ? requested : supportedUiPreferenceKeys());
+}
+
+function withoutNeverLearn(body) {
+  const choices = Array.isArray(body?.choices)
+    ? body.choices.filter((choice) => !NEVER_LEARN_KEYS.has(String(choice?.key || '')))
+    : [];
+  return { ...body, choices };
 }
 
 export function createUiPreferencesRouter({ database }) {
@@ -69,7 +82,12 @@ export function createUiPreferencesRouter({ database }) {
     }
     if (method === 'POST') {
       const body = await readJson(request);
-      return sendJson(response, 200, recordUiPreferences(database, workspace.id, accountId, body));
+      return sendJson(response, 200, recordUiPreferences(
+        database,
+        workspace.id,
+        accountId,
+        withoutNeverLearn(body)
+      ));
     }
     throw new AppError('method_not_allowed', 'Метод не поддерживается.', 405);
   };
