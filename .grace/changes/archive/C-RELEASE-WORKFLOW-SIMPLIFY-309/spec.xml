@@ -1,0 +1,51 @@
+<GraceChangeSpec graceVersion="4.0" status="applied">
+  <C-RELEASE-WORKFLOW-SIMPLIFY-309>
+    <Summary>Simplify release and deployment automation to one explicit, version-neutral GitHub Actions workflow that verifies only release-critical properties and publishes the same offline artifact it installs, updates and rolls back.</Summary>
+    <Problem>Issue 309 removed the ordinary PR fan-out, but the current release publisher still chains from a separate version-specific gate, polls multiple unrelated workflows, redispatches failed/missing Actions and reruns project/browser tests before building. The GRACE policy also forces a separate archive-only integration when a completed change is retired before the next governed change. These waiting and bookkeeping loops make automation rather than product risk the development bottleneck.</Problem>
+    <Goals>
+      <Goal>Replace the release-gate → workflow_run publisher chain with one manual workflow named Release.</Goal>
+      <Goal>Run release verification inside that workflow using native job dependencies rather than GitHub API polling or workflow redispatch.</Goal>
+      <Goal>Execute project check/unit/smoke once and the critical browser suite once for an explicit release attempt.</Goal>
+      <Goal>Build the full offline bundle exactly once, then verify install/update/rollback using that same output before Project Control packaging and GitHub Release upload.</Goal>
+      <Goal>Require exact current main SHA before release work and again immediately before publication.</Goal>
+      <Goal>Keep ordinary PR/main development free from release-scale browser, offline bundle and deployment work.</Goal>
+      <Goal>Allow one immutable terminal archive transition to accompany the next governed change so GRACE bookkeeping does not require a standalone PR.</Goal>
+    </Goals>
+    <Constraints>
+      <Constraint>The exact base is main 12f93755be01e5f4dccec7b18d418db7ec119abd and issue 309 is reopened until this deployment simplification is merged.</Constraint>
+      <Constraint>No application/domain behavior, SQLite schema, applied migration, immutable source/evidence, PIN or ACL semantics change.</Constraint>
+      <Constraint>Release publication is not performed by this change; the workflow is prepared and tested, while an actual GitHub Release still requires an explicit release run from current main.</Constraint>
+      <Constraint>Production remains Docker-free; Docker is allowed only as the disposable Debian reference environment used by existing offline bundle/systemd verification.</Constraint>
+      <Constraint>Backup/restore, exact artifact checksum, atomic update and rollback verification remain fail-closed.</Constraint>
+      <Constraint>Terminal archive content remains immutable: only root lifecycle status may change and the exact bundle file set must be preserved.</Constraint>
+      <Constraint>No polling loop, gh workflow run recovery, temporary workflow or version-specific release workflow is introduced.</Constraint>
+    </Constraints>
+    <NonGoals>
+      <NonGoal>Bump VERSION or publish v0.4.3 in this change.</NonGoal>
+      <NonGoal>Modify annual protocol import, parser, UI or storage.</NonGoal>
+      <NonGoal>Rewrite the native installer or backup subsystem.</NonGoal>
+      <NonGoal>Declare real Astra Linux acceptance complete.</NonGoal>
+    </NonGoals>
+    <AcceptanceCriteria>
+      <Criterion>.github/workflows/release.yml is the single release workflow, is version-neutral and starts only through workflow_dispatch.</Criterion>
+      <Criterion>.github/workflows/release-gate.yml is removed and README badges/docs point to release.yml.</Criterion>
+      <Criterion>The release workflow has no workflow_run, push or pull_request trigger and therefore does not run on ordinary development merges.</Criterion>
+      <Criterion>The release workflow contains no GitHub Actions polling loop, no gh workflow run, no sleep-based waiting for external checks and no automatic redispatch.</Criterion>
+      <Criterion>Project check/unit/smoke and backup self-test run once in release verification; critical Playwright runs once in the release browser job.</Criterion>
+      <Criterion>The publisher builds one full offline bundle, passes the same OUT directory to systemd-deploy-selftest.sh, creates Project Control from that verified archive and uploads only the checked assets.</Criterion>
+      <Criterion>Exact main SHA is verified before heavy publication work and immediately before tag/release creation.</Criterion>
+      <Criterion>Existing ordinary CI and risk-scoped GRACE remain unchanged; this governed release/CI change passes GRACE final plus the ordinary project check on one exact PR head.</Criterion>
+      <Criterion>The superseded CI simplification change C-CI-SIMPLIFY-309 is moved to terminal applied archive in the same PR without a separate bookkeeping PR.</Criterion>
+      <Criterion>GRACE validates a co-located previous terminal archive independently from the new active change, and still rejects any archive content mutation.</Criterion>
+    </AcceptanceCriteria>
+    <AffectedAreas><M-CI-GATE /><M-OFFLINE-BUNDLE /></AffectedAreas>
+    <VerificationIntent>
+      <ExpectedCommand>npm run check</ExpectedCommand>
+      <ExpectedCommand>npm run docs:check</ExpectedCommand>
+      <ExpectedCommand>npm test</ExpectedCommand>
+      <ExpectedCommand>npm run smoke</ExpectedCommand>
+      <ExpectedCommand>node --test tests/ci-simplification.test.mjs tests/grace-policy-combined-transition.test.mjs tests/release-workflow.test.mjs tests/release-recovery-workflow.test.mjs tests/release-assets-contract.test.mjs tests/release-decision.test.mjs tests/release-0.4.1.test.mjs tests/release-0.4.2.test.mjs tests/docs-consistency.test.mjs</ExpectedCommand>
+      <ExpectedEvidence>One manual Release workflow, no cross-workflow polling/redispatch, one build-once artifact path through deployment verification, immutable same-PR GRACE archive transition and unchanged ordinary PR CI.</ExpectedEvidence>
+    </VerificationIntent>
+  </C-RELEASE-WORKFLOW-SIMPLIFY-309>
+</GraceChangeSpec>
