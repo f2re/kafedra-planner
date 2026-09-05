@@ -1,0 +1,44 @@
+<GraceChangeSpec graceVersion="4.0" status="approved">
+  <C-R4-PERIODIC-COMPLETION-322>
+    <Summary>Make periodic task completion a direct domain transition for the executor, independent from optional evidence review, while preserving ACL, calendar/plan-fact projections and history.</Summary>
+    <Problem>Periodic task status is currently mutated through the generic manager-only PATCH which requires a reason, while attaching an optional report forces status submitted and report review forces completed/rework. An executor therefore cannot finish their own ordinary periodic task in one action, and optional evidence acts as a mandatory approval workflow. The adaptive UI also treats periodic edit status as learnable.</Problem>
+    <Goals>
+      <Goal>Add explicit complete/reopen transitions with no required text or file.</Goal>
+      <Goal>Allow the owner/executor, its manager chain and admin to perform completion transitions without granting them rights to dates, ownership, delegation or cancellation.</Goal>
+      <Goal>Synchronize periodic task, both calendar projections and live Plan/Fact state transactionally.</Goal>
+      <Goal>Keep report/evidence attachment and review optional and independent from task completion state.</Goal>
+      <Goal>Record completion history in audit while preventing completion/cancel/return status values from adaptive preference learning.</Goal>
+    </Goals>
+    <Constraints>
+      <Constraint>Exact base is main d6b3484633f222bb7a468491d8889cc3f65ec84f.</Constraint>
+      <Constraint>No SQLite migration, destructive reset or VERSION change.</Constraint>
+      <Constraint>Generic PATCH remains restricted to the existing manageable/control permission.</Constraint>
+      <Constraint>Cancelled tasks cannot be completed or reopened through the direct completion action.</Constraint>
+      <Constraint>Existing evidence records and report review history are preserved.</Constraint>
+      <Constraint>No LLM, Internet or new runtime dependency.</Constraint>
+    </Constraints>
+    <NonGoals>
+      <NonGoal>Remove legacy submitted/rework values from stored historical records.</NonGoal>
+      <NonGoal>Change assignment completion, ownership hierarchy or organization ACL.</NonGoal>
+      <NonGoal>Make report review a prerequisite for completion.</NonGoal>
+      <NonGoal>Change due dates, task ownership or manager through the transition endpoint.</NonGoal>
+    </NonGoals>
+    <AcceptanceCriteria>
+      <Criterion>The task owner completes an open/submitted/rework periodic task with one complete action and no reason/file.</Criterion>
+      <Criterion>A completed task can be returned to open work with one reopen action; cancelled tasks reject both.</Criterion>
+      <Criterion>A stranger receives 403; generic PATCH reassignment/date permission remains unchanged.</Criterion>
+      <Criterion>Task status/completed_at and periodic_task/periodic_task_plan calendar projections change in the same transaction; Plan/Fact reflects the new status on the next read.</Criterion>
+      <Criterion>Attaching or reviewing an optional report no longer changes the task status.</Criterion>
+      <Criterion>Audit/history records the transition actor and before/after state.</Criterion>
+      <Criterion>No completion/cancel/reopen transition writes or reapplies a learned UI preference.</Criterion>
+      <Criterion>Desktop and mobile inspector expose one compact Выполнено or Вернуть в работу action; no modal and no animation are added, compatible with prefers-reduced-motion.</Criterion>
+      <Criterion>Auth/ACL regression, targeted unit/integration and ordinary CI/GRACE pass on one exact head.</Criterion>
+    </AcceptanceCriteria>
+    <AffectedAreas><M-API /><M-DATABASE /></AffectedAreas>
+    <VerificationIntent>
+      <ExpectedCommand>node --test tests/periodic-task-completion.test.mjs tests/periodic-task-reports.test.mjs</ExpectedCommand>
+      <ExpectedCommand>npm run check</ExpectedCommand>
+      <ExpectedEvidence>Exact-head evidence proves owner/manager/stranger ACL, one-click transition projections, optional evidence independence and never-learn status behavior.</ExpectedEvidence>
+    </VerificationIntent>
+  </C-R4-PERIODIC-COMPLETION-322>
+</GraceChangeSpec>

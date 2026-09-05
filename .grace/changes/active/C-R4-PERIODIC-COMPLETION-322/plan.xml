@@ -1,0 +1,46 @@
+<GraceChangePlan graceVersion="4.0" status="approved">
+  <C-R4-PERIODIC-COMPLETION-322>
+    <IntentSummary>Separate completion from manager-only editing and from optional evidence review: one explicit transition endpoint changes only task completion state, while the existing PATCH keeps date/ownership/control authority.</IntentSummary>
+    <BaselineAssertions>
+      <MustExist><Value>packages/work-management/src/periodic-tasks.mjs</Value></MustExist>
+      <MustExist><Value>packages/work-management/src/periodic-task-reports.mjs</Value></MustExist>
+      <MustExist><Value>apps/api/src/periodic-tasks-router.mjs</Value></MustExist>
+      <MustExist><Value>public/work-next.js</Value></MustExist>
+      <MustVerify><Module>M-API</Module></MustVerify>
+      <MustVerify><Module>M-DATABASE</Module></MustVerify>
+    </BaselineAssertions>
+    <TargetAssertions>
+      <MustContain><File>packages/work-management/src/periodic-tasks.mjs</File><Text>transitionPeriodicTaskV2</Text></MustContain>
+      <MustContain><File>apps/api/src/periodic-tasks-router.mjs</File><Text>/transition</Text></MustContain>
+      <MustContain><File>public/work-next.js</File><Text>Вернуть в работу</Text></MustContain>
+      <MustExist><Value>tests/periodic-task-completion.test.mjs</Value></MustExist>
+      <MustVerify><Module>M-API</Module></MustVerify>
+      <MustVerify><Module>M-DATABASE</Module></MustVerify>
+    </TargetAssertions>
+    <DurableScope>
+      <GraphAnchors><M-API /><M-DATABASE /><DF-GRACE-BRANCH /></GraphAnchors>
+      <VerificationAnchors><V-M-API /><V-M-DATABASE /></VerificationAnchors>
+      <ContextArtifacts><ContextArtifact>principles.xml</ContextArtifact><ContextArtifact>technology.xml</ContextArtifact></ContextArtifacts>
+    </DurableScope>
+    <ObservedWriteScope>
+      <Glob>.grace/changes/active/C-R4-PERIODIC-COMPLETION-322/**</Glob>
+      <File>packages/work-management/src/periodic-tasks.mjs</File>
+      <File>packages/work-management/src/periodic-task-reports.mjs</File>
+      <File>apps/api/src/periodic-tasks-router.mjs</File>
+      <File>public/work-next.js</File>
+      <File>public/ui-preferences.js</File>
+      <File>packages/preferences/src/service.mjs</File>
+      <File>docs/ADAPTIVE_UX.md</File>
+      <File>tests/periodic-task-completion.test.mjs</File>
+      <File>tests/periodic-task-reports.test.mjs</File>
+      <File>tests/browser/work-management.spec.mjs</File>
+    </ObservedWriteScope>
+    <ImplementationPlan>
+      <T-001><Title>kafedra-design: expose one direct completion action</Title><DependsOn></DependsOn><AcceptanceCriteria><Criterion>Desktop and mobile inspector show Выполнено for non-completed/non-cancelled and Вернуть в работу for completed, without modal or required evidence.</Criterion></AcceptanceCriteria><Verification><Command>npx playwright test tests/browser/work-management.spec.mjs</Command></Verification></T-001>
+      <T-002><Title>kafedra-motion: use no-motion for periodic completion</Title><DependsOn><T-001 /></DependsOn><AcceptanceCriteria><Criterion>No animation is added; existing focus and prefers-reduced-motion behavior remain valid.</Criterion></AcceptanceCriteria><Verification><Command>npx playwright test tests/browser/work-management.spec.mjs</Command></Verification></T-002>
+      <T-003><Title>kafedra-feature: add completion transition without widening edit ACL</Title><DependsOn><T-002 /></DependsOn><AcceptanceCriteria><Criterion>Owner/manager/admin transition only status/completed_at and projections; stranger denied; generic PATCH permissions unchanged; optional reports do not drive status.</Criterion></AcceptanceCriteria><Verification><Command>node --test tests/periodic-task-completion.test.mjs tests/periodic-task-reports.test.mjs</Command></Verification></T-003>
+      <T-004><Title>kafedra-design-audit: verify evidence remains optional</Title><DependsOn><T-003 /></DependsOn><AcceptanceCriteria><Criterion>Completion remains primary and evidence/review is secondary; desktop/mobile keep existing geometry and keyboard access.</Criterion></AcceptanceCriteria><Verification><Command>npx playwright test tests/browser/work-management.spec.mjs</Command></Verification></T-004>
+      <T-005><Title>kafedra-tests: prove ACL projections history and never-learn</Title><DependsOn><T-004 /></DependsOn><AcceptanceCriteria><Criterion>Tests cover owner/manager/outsider, complete/reopen, calendar and Plan/Fact reads, optional evidence, audit history, and absence of learned status registration.</Criterion></AcceptanceCriteria><Verification><Command>node --test tests/periodic-task-completion.test.mjs tests/periodic-task-reports.test.mjs</Command></Verification></T-005>
+    </ImplementationPlan>
+  </C-R4-PERIODIC-COMPLETION-322>
+</GraceChangePlan>
