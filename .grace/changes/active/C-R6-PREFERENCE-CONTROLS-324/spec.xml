@@ -1,0 +1,45 @@
+<GraceChangeSpec graceVersion="4.0" status="approved">
+  <C-R6-PREFERENCE-CONTROLS-324>
+    <Summary>Make adaptive defaults subordinate to saved, explicit and domain-derived values, and give each account direct control over learning, reset and safe pinned defaults.</Summary>
+    <Problem>The current preference layer ignores synthetic events when recording choices but does not preserve value origin. A late MutationObserver or async helper can therefore reapply a learned default after a saved view or a manual choice. Users also cannot disable learning, clear learned frequency or explicitly pin a safe default without affecting work data.</Problem>
+    <Goals>
+      <Goal>Introduce one UI value-origin contract with precedence saved/explicit &gt; domain-derived &gt; pinned/learned suggestion &gt; static fallback.</Goal>
+      <Goal>Prevent delayed suggestion application from overwriting a saved view, a trusted user edit or deterministic domain-derived value.</Goal>
+      <Goal>Store account-scoped learning enabled and pinned safe-default controls using the existing preference table without a migration.</Goal>
+      <Goal>Allow resetting only learned frequency for the current account while preserving work data, explicit settings, pins and other accounts.</Goal>
+      <Goal>Make pinned safe defaults outrank frequency and continue deterministic domain-derived behavior when learning is disabled.</Goal>
+    </Goals>
+    <Constraints>
+      <Constraint>Exact base is main a7ee084f2409372b08462b8007e809a106cf620f.</Constraint>
+      <Constraint>No SQLite migration, no work-domain mutation and no VERSION change.</Constraint>
+      <Constraint>Programmatic substitutions and synthetic events never increment frequency.</Constraint>
+      <Constraint>Only an explicit safe allowlist can be pinned; status/ACL/execution/destructive decisions remain never-learn.</Constraint>
+      <Constraint>Account controls are isolated by existing account_scope and participate in ordinary backup/restore.</Constraint>
+      <Constraint>Disabling learning suppresses frequency reads/writes but does not disable deterministic domain-derived defaults or explicit pinned values.</Constraint>
+    </Constraints>
+    <NonGoals>
+      <NonGoal>Introduce an ML recommendation engine or change UI geometry by statistics.</NonGoal>
+      <NonGoal>Reset saved plan/fact views, calendar start settings, work objects, evidence or audit.</NonGoal>
+      <NonGoal>Pin people assignments, ACL roles, completion/cancel states, delete/archive actions or free text.</NonGoal>
+      <NonGoal>Add a new table or migration for settings that fit the existing auxiliary preference projection.</NonGoal>
+    </NonGoals>
+    <AcceptanceCriteria>
+      <Criterion>A saved plan/fact view remains authoritative after preference reapplication and DOM mutation.</Criterion>
+      <Criterion>A trusted manual input made before a delayed preference response is never overwritten by that response.</Criterion>
+      <Criterion>Domain-derived values remain stronger than pinned or learned defaults.</Criterion>
+      <Criterion>Per-account controls can disable/enable learning, reset learned frequency and pin/unpin safe defaults; another account is unchanged.</Criterion>
+      <Criterion>Pinned safe default wins over a more frequent learned value.</Criterion>
+      <Criterion>With learning disabled, new frequency choices are not written and learned rankings are not applied, while deterministic domain-derived behavior still runs.</Criterion>
+      <Criterion>Existing never-learn status protection remains and control rows never appear as normal preference contexts.</Criterion>
+      <Criterion>Desktop/mobile preference controls are compact, Russian, keyboard usable, no modal cascade and no motion dependency; prefers-reduced-motion remains unchanged.</Criterion>
+      <Criterion>Targeted controls/origin/browser regressions and ordinary project CI pass on one exact PR head.</Criterion>
+    </AcceptanceCriteria>
+    <AffectedAreas><M-API /></AffectedAreas>
+    <VerificationIntent>
+      <ExpectedCommand>node --test tests/ui-preference-controls.test.mjs tests/ui-preference-origin.test.mjs</ExpectedCommand>
+      <ExpectedCommand>npx playwright test tests/browser/preference-priority.spec.mjs</ExpectedCommand>
+      <ExpectedCommand>npm run check</ExpectedCommand>
+      <ExpectedEvidence>Exact-head evidence proves account isolation, reset boundaries, pin-over-frequency, saved/explicit/domain origin precedence and disabled-learning behavior without schema changes.</ExpectedEvidence>
+    </VerificationIntent>
+  </C-R6-PREFERENCE-CONTROLS-324>
+</GraceChangeSpec>
