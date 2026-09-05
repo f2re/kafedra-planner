@@ -1,0 +1,45 @@
+<GraceChangeSpec graceVersion="4.0" status="approved">
+  <C-R1-OCR-REPROCESS-319>
+    <Summary>Make document recognition page-faithful and recoverable: absolute OCR locators, page-aware mixed-PDF extraction, explicit partial coverage, and idempotent reprocessing of the same immutable document version.</Summary>
+    <Problem>Single-page Tesseract runs report TSV page_num=1 and currently override the source page supplied by the PDF renderer. PDF OCR is skipped when the document as a whole has enough native text, so a text cover can hide scanned later pages. OCR returns success when any page produced blocks even if another page failed or processing was limited. Finalized documents cannot be reprocessed from the saved source after OCR/runtime recovery.</Problem>
+    <Goals>
+      <Goal>Use the absolute source page supplied by the renderer for OCR locators in both JS and managed Python adapters.</Goal>
+      <Goal>Evaluate native PDF text per page and OCR only pages that lack a useful text layer, then merge results without duplicating the useful native text.</Goal>
+      <Goal>Expose attempted, successful, empty, failed and truncated page coverage and classify incomplete recognition as partial rather than full success.</Goal>
+      <Goal>Add a user-visible reprocess action that queues the current document version without uploading a new blob or creating a duplicate domain object.</Goal>
+      <Goal>Keep every extraction run and manual/domain correction intact; automatic reprocessing may add evidence or review conflicts but must not overwrite a differing populated fact.</Goal>
+    </Goals>
+    <Constraints>
+      <Constraint>Exact base is main ff70f56524dace02d1d2a89a6d22f85441a40b30 from issue 319 and PR 317.</Constraint>
+      <Constraint>Existing file_blobs, documents, document_versions and extraction_runs are sufficient; no schema migration is introduced.</Constraint>
+      <Constraint>Source bytes, SHA-256, original_name and document_version id are immutable.</Constraint>
+      <Constraint>Reprocessing is idempotent while one request is queued/running and uses the existing deterministic materializers for the same source version.</Constraint>
+      <Constraint>One page failure does not discard good pages.</Constraint>
+      <Constraint>No LLM, Internet, Docker or new runtime dependency is required.</Constraint>
+      <Constraint>Previous extraction runs and resolved/open review history are preserved rather than deleted.</Constraint>
+    </Constraints>
+    <NonGoals>
+      <NonGoal>Rewrite historical evidence locators created by older extraction runs.</NonGoal>
+      <NonGoal>Create a general OCR engine, universal template builder or new document-version model.</NonGoal>
+      <NonGoal>Change release version, migrations, installer or package policy.</NonGoal>
+      <NonGoal>Redesign the protocol-import screen beyond the minimal recoverable reprocess action and state.</NonGoal>
+    </NonGoals>
+    <AcceptanceCriteria>
+      <Criterion>Three separately rendered OCR pages produce source locators 1, 2 and 3 in JS and Python adapters even when each local TSV reports page_num=1.</Criterion>
+      <Criterion>A PDF with useful native text on page 1 and a scanned page 2 returns both pages, with page 2 OCR blocks and without duplicating page 1 text.</Criterion>
+      <Criterion>A page-level OCR failure retains good pages and records failed page number and reason; processing limited by maxPages is not reported as complete.</Criterion>
+      <Criterion>Protocol import offers Повторить распознавание for recoverable failed/needs-review items and does not require a second upload.</Criterion>
+      <Criterion>Repeated reprocess requests while active return the same queued/running job; a completed reprocess permits a later new run.</Criterion>
+      <Criterion>The reprocess job uses the same document id, document version id and blob SHA-256, creates a new extraction_runs row, and does not duplicate an existing meeting sourced from that document version.</Criterion>
+      <Criterion>Existing populated/manual domain facts are not replaced by conflicting automatic values; normal conflict review remains the resolution path.</Criterion>
+      <Criterion>Targeted OCR, reprocess and protocol-import regressions pass together with risk-scoped GRACE final on one exact PR head.</Criterion>
+    </AcceptanceCriteria>
+    <AffectedAreas><M-API /><M-WORKER /><M-DATABASE /></AffectedAreas>
+    <VerificationIntent>
+      <ExpectedCommand>node --test tests/ocr-tsv.test.mjs tests/ocr-coverage.test.mjs tests/document-reprocess.test.mjs tests/protocol-year-import.test.mjs</ExpectedCommand>
+      <ExpectedCommand>python3 -m py_compile scripts/recognition/ocr.py</ExpectedCommand>
+      <ExpectedCommand>npx playwright test tests/browser/protocol-import.spec.mjs</ExpectedCommand>
+      <ExpectedEvidence>Exact-head evidence shows absolute page locators, mixed native/OCR page merge, explicit partial coverage and same-version reprocessing without source or domain duplication.</ExpectedEvidence>
+    </VerificationIntent>
+  </C-R1-OCR-REPROCESS-319>
+</GraceChangeSpec>

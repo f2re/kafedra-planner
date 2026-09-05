@@ -1,0 +1,98 @@
+<GraceChangePlan graceVersion="4.0" status="approved">
+  <C-R1-OCR-REPROCESS-319>
+    <IntentSummary>Repair the existing intake pipeline vertically from page provenance through worker/API to a minimal retry action, reusing extraction_runs and existing idempotent protocol materialization instead of adding schema or a second document flow.</IntentSummary>
+    <BaselineAssertions>
+      <MustExist><Value>packages/document-intake/src/ocr.mjs</Value></MustExist>
+      <MustExist><Value>packages/document-intake/src/extract-text.mjs</Value></MustExist>
+      <MustExist><Value>scripts/recognition/ocr.py</Value></MustExist>
+      <MustExist><Value>packages/storage/src/documents.mjs</Value></MustExist>
+      <MustExist><Value>tests/ocr-tsv.test.mjs</Value></MustExist>
+      <MustExist><Value>tests/protocol-year-import.test.mjs</Value></MustExist>
+      <MustVerify><Module>M-API</Module></MustVerify>
+      <MustVerify><Module>M-WORKER</Module></MustVerify>
+      <MustVerify><Module>M-DATABASE</Module></MustVerify>
+    </BaselineAssertions>
+    <TargetAssertions>
+      <MustExist><Value>apps/api/src/document-reprocess-router.mjs</Value></MustExist>
+      <MustExist><Value>tests/ocr-coverage.test.mjs</Value></MustExist>
+      <MustExist><Value>tests/document-reprocess.test.mjs</Value></MustExist>
+      <MustContain><File>packages/storage/src/documents.mjs</File><Text>requestDocumentReprocess</Text></MustContain>
+      <MustContain><File>apps/api/src/document-reprocess-router.mjs</File><Text>/reprocess</Text></MustContain>
+      <MustContain><File>public/protocol-import.js</File><Text>Повторить распознавание</Text></MustContain>
+      <MustContain><File>apps/worker/src/processor.mjs</File><Text>ocr_partial</Text></MustContain>
+      <MustVerify><Module>M-API</Module></MustVerify>
+      <MustVerify><Module>M-WORKER</Module></MustVerify>
+      <MustVerify><Module>M-DATABASE</Module></MustVerify>
+    </TargetAssertions>
+    <DurableScope>
+      <GraphAnchors><M-API /><M-WORKER /><M-DATABASE /><DF-GRACE-BRANCH /></GraphAnchors>
+      <VerificationAnchors><V-M-API /><V-M-WORKER /><V-M-DATABASE /></VerificationAnchors>
+      <ContextArtifacts><ContextArtifact>principles.xml</ContextArtifact><ContextArtifact>technology.xml</ContextArtifact></ContextArtifacts>
+    </DurableScope>
+    <ObservedWriteScope>
+      <Glob>.grace/changes/active/C-R1-OCR-REPROCESS-319/**</Glob>
+      <File>packages/document-intake/src/ocr.mjs</File>
+      <File>packages/document-intake/src/extract-text.mjs</File>
+      <File>scripts/recognition/ocr.py</File>
+      <File>packages/storage/src/documents.mjs</File>
+      <File>apps/worker/src/processor.mjs</File>
+      <File>apps/api/src/app.mjs</File>
+      <File>apps/api/src/document-reprocess-router.mjs</File>
+      <File>public/protocol-import.js</File>
+      <File>tests/ocr-tsv.test.mjs</File>
+      <File>tests/ocr-coverage.test.mjs</File>
+      <File>tests/document-reprocess.test.mjs</File>
+      <File>tests/browser/protocol-import.spec.mjs</File>
+    </ObservedWriteScope>
+    <ImplementationPlan>
+      <T-001>
+        <Title>kafedra-design: keep reprocess as a secondary exception action</Title>
+        <DependsOn></DependsOn>
+        <AcceptanceCriteria>
+          <Criterion>Desktop and mobile protocol-import rows keep the existing primary Open/Исправить action and expose reprocess only for failed or needs-review processing states.</Criterion>
+          <Criterion>The action uses the saved source and is labelled in plain Russian without asking the user for OCR settings.</Criterion>
+        </AcceptanceCriteria>
+        <Verification><Command>npx playwright test tests/browser/protocol-import.spec.mjs</Command></Verification>
+      </T-001>
+      <T-002>
+        <Title>kafedra-motion: use no-motion for the retry control</Title>
+        <DependsOn><T-001 /></DependsOn>
+        <AcceptanceCriteria>
+          <Criterion>No new animation is introduced; focus remains on the row/action and existing prefers-reduced-motion behavior is unchanged.</Criterion>
+        </AcceptanceCriteria>
+        <Verification><Command>npx playwright test tests/browser/protocol-import.spec.mjs</Command></Verification>
+      </T-002>
+      <T-003>
+        <Title>kafedra-feature: implement page provenance, partial coverage and same-version reprocess</Title>
+        <DependsOn><T-002 /></DependsOn>
+        <AcceptanceCriteria>
+          <Criterion>Per-image OCR always maps to the supplied absolute source page in JS and Python.</Criterion>
+          <Criterion>Native PDF blocks are evaluated per page and weak pages are OCRed and merged without replacing useful native pages.</Criterion>
+          <Criterion>OCR diagnostics expose page coverage and partial/truncated outcomes.</Criterion>
+          <Criterion>POST document reprocess enforces edit access when ACL is enabled, queues the current version idempotently, and preserves immutable source/history.</Criterion>
+          <Criterion>The worker creates a fresh extraction run and existing domain materializers prevent duplicate meetings or destructive field replacement.</Criterion>
+        </AcceptanceCriteria>
+        <Verification><Command>node --test tests/ocr-tsv.test.mjs tests/ocr-coverage.test.mjs tests/document-reprocess.test.mjs tests/protocol-year-import.test.mjs</Command><Command>python3 -m py_compile scripts/recognition/ocr.py</Command></Verification>
+      </T-003>
+      <T-004>
+        <Title>kafedra-design-audit: verify exception-first retry flow</Title>
+        <DependsOn><T-003 /></DependsOn>
+        <AcceptanceCriteria>
+          <Criterion>Ready imports do not gain an unnecessary retry action; failed/needs-review rows have one clear recoverable action and retain Original/Open.</Criterion>
+          <Criterion>Keyboard activation and desktop/mobile layout remain usable without modal or motion additions.</Criterion>
+        </AcceptanceCriteria>
+        <Verification><Command>npx playwright test tests/browser/protocol-import.spec.mjs</Command></Verification>
+      </T-004>
+      <T-005>
+        <Title>kafedra-tests: prove provenance, partial success and idempotency</Title>
+        <DependsOn><T-004 /></DependsOn>
+        <AcceptanceCriteria>
+          <Criterion>Tests fail on the original page_num=1 bug and pass only with locators 1/2/3.</Criterion>
+          <Criterion>Mixed-PDF and failed-page cases keep good blocks and report incomplete coverage.</Criterion>
+          <Criterion>Repeated active reprocess requests do not create duplicate jobs/documents/meetings and old extraction runs remain queryable.</Criterion>
+        </AcceptanceCriteria>
+        <Verification><Command>node --test tests/ocr-tsv.test.mjs tests/ocr-coverage.test.mjs tests/document-reprocess.test.mjs tests/protocol-year-import.test.mjs</Command><Command>npx playwright test tests/browser/protocol-import.spec.mjs</Command></Verification>
+      </T-005>
+    </ImplementationPlan>
+  </C-R1-OCR-REPROCESS-319>
+</GraceChangePlan>

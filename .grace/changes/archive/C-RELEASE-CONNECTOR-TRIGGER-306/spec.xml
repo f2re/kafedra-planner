@@ -1,4 +1,4 @@
-<GraceChangeSpec graceVersion="4.0" status="approved">
+<GraceChangeSpec graceVersion="4.0" status="applied">
   <C-RELEASE-CONNECTOR-TRIGGER-306>
     <Summary>Allow the existing single Release workflow to be started through the GitHub write connector by moving one reusable release-run ref to exact current main, without restoring automatic main fan-out, polling or version-specific release automation.</Summary>
     <Problem>The current release contract is workflow_dispatch-only. The connected GitHub write surface can update refs and inspect Actions but cannot invoke workflow_dispatch directly, so publishing 0.4.3 would otherwise require a manual UI action or a temporary workflow. Temporary workflows, cross-workflow orchestration and automatic release work on ordinary main pushes are explicitly prohibited.</Problem>

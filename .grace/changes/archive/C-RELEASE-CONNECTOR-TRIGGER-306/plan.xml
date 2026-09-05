@@ -1,4 +1,4 @@
-<GraceChangePlan graceVersion="4.0" status="approved">
+<GraceChangePlan graceVersion="4.0" status="applied">
   <C-RELEASE-CONNECTOR-TRIGGER-306>
     <IntentSummary>Expose one connector-safe release trigger without reintroducing release fan-out: release-run is fast-forwarded to exact current main, the existing Release workflow performs the same verification and publication, and ordinary main development remains unchanged.</IntentSummary>
     <BaselineAssertions>

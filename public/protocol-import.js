@@ -64,6 +64,9 @@ function itemActions(item) {
   if (item.meeting_id) {
     actions.push(`<button class="link-button" type="button" data-open-import-meeting="${escMeeting(item.meeting_id)}">${item.state === 'needs_review' ? 'Исправить' : 'Открыть'}</button>`);
   }
+  if (item.document_id && ['failed', 'needs_review'].includes(item.state)) {
+    actions.push(`<button class="link-button" type="button" data-reprocess-document="${escMeeting(item.document_id)}">Повторить распознавание</button>`);
+  }
   if (item.original_url) {
     actions.push(`<a class="link-button" href="${escMeeting(item.original_url)}" target="_blank" rel="noopener">Исходник</a>`);
   }
@@ -175,6 +178,28 @@ async function uploadSelectedProtocols(input) {
   await Promise.all([loadProtocolImports(), loadMeetings()]);
 }
 
+async function reprocessDocument(button) {
+  const documentId = button.dataset.reprocessDocument;
+  if (!documentId || button.disabled) return;
+  button.disabled = true;
+  const previous = button.textContent;
+  button.textContent = 'Запускается…';
+  try {
+    await meetingApi(`/api/documents/${encodeURIComponent(documentId)}/reprocess`, { method: 'POST' });
+    const local = meetingsState.localProtocolUploads.find((item) => item.document_id === documentId);
+    if (local) {
+      local.state = 'processing';
+      local.extraction_error = '';
+    }
+    renderProtocolImports();
+    await Promise.all([loadProtocolImports(), loadMeetings()]);
+  } catch (error) {
+    button.disabled = false;
+    button.textContent = previous;
+    throw error;
+  }
+}
+
 async function changeYear(input) {
   const year = Number(input.value);
   if (!Number.isInteger(year) || year < 2000 || year > 2100) {
@@ -202,6 +227,11 @@ document.addEventListener('change', (event) => {
 }, true);
 
 document.addEventListener('click', (event) => {
+  const retry = event.target.closest('[data-reprocess-document]');
+  if (retry) {
+    reprocessDocument(retry).catch((error) => showMeetingNotice(error.message));
+    return;
+  }
   const button = event.target.closest('[data-open-import-meeting]');
   if (!button) return;
   loadMeeting(button.dataset.openImportMeeting).catch((error) => showMeetingNotice(error.message));

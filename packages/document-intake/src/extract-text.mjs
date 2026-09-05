@@ -24,7 +24,8 @@ function ocrDiagnostic(result, fallbackStatus = 'not_needed') {
       engine: null,
       languages: null,
       confidence: null,
-      error: null
+      error: null,
+      coverage: null
     };
   }
   return {
@@ -32,12 +33,55 @@ function ocrDiagnostic(result, fallbackStatus = 'not_needed') {
     engine: result.engine || null,
     languages: result.languages || null,
     confidence: Number.isFinite(result.confidence) ? result.confidence : null,
-    error: result.error || null
+    error: result.error || null,
+    coverage: result.coverage || null
   };
 }
 
 function textCharacterCount(text) {
   return (String(text || '').match(/[\p{L}\p{N}]/gu) || []).length;
+}
+
+function normalizedBlockText(block) {
+  return String(block?.text || '').replace(/\s+/gu, ' ').trim().toLocaleLowerCase('ru-RU').replace(/ё/gu, 'е');
+}
+
+function pageNumberOf(block) {
+  const page = Number(block?.locator?.page);
+  return Number.isInteger(page) && page > 0 ? page : null;
+}
+
+function mergePdfBlocks(nativeBlocks, ocrBlocks) {
+  const merged = [];
+  const seen = new Set();
+  for (const block of [...nativeBlocks, ...ocrBlocks]) {
+    const text = normalizedBlockText(block);
+    if (!text) continue;
+    const page = pageNumberOf(block) || 0;
+    const key = `${page}:${text}`;
+    if (seen.has(key)) continue;
+    seen.add(key);
+    merged.push(block);
+  }
+  return merged.sort((left, right) => {
+    const leftPage = pageNumberOf(left) || 0;
+    const rightPage = pageNumberOf(right) || 0;
+    if (leftPage !== rightPage) return leftPage - rightPage;
+    const leftLine = Number(left?.locator?.line || 0);
+    const rightLine = Number(right?.locator?.line || 0);
+    return leftLine - rightLine;
+  });
+}
+
+function pageTextCounts(blocks, pageCount) {
+  const counts = new Map();
+  for (let page = 1; page <= pageCount; page += 1) counts.set(page, 0);
+  for (const block of blocks) {
+    const page = pageNumberOf(block);
+    if (!page) continue;
+    counts.set(page, (counts.get(page) || 0) + textCharacterCount(block.text));
+  }
+  return counts;
 }
 
 async function archiveEntries(path) {
@@ -72,11 +116,13 @@ async function extractPdf(path, { ocr = {}, tempDir }) {
   let blocks = [];
   let extractor = 'pdftotext-layout';
   let version = '3';
+  let pageCount = null;
 
   try {
     const { stdout } = await execFileAsync('pdftotext', ['-bbox-layout', '-enc', 'UTF-8', path, '-'], {
       encoding: 'utf8', maxBuffer: 192 * 1024 * 1024, timeout: 120_000
     });
+    pageCount = [...String(stdout).matchAll(/<page\b/gi)].length || null;
     blocks = pdfBboxHtmlToBlocks(stdout);
     if (blocks.length) {
       text = blocksToText(blocks);
@@ -90,7 +136,7 @@ async function extractPdf(path, { ocr = {}, tempDir }) {
         encoding: 'utf8', maxBuffer: 128 * 1024 * 1024, timeout: 120_000
       });
       text = cleanupText(stdout);
-      blocks = plainTextToBlocks(text);
+      if (!blocks.length) blocks = plainTextToBlocks(text);
     } catch (error) {
       if (error?.code === 'ENOENT') {
         throw new AppError(
@@ -103,7 +149,21 @@ async function extractPdf(path, { ocr = {}, tempDir }) {
     }
   }
 
-  if (textCharacterCount(text) >= Number(ocr.minCharacters ?? 40)) {
+  const minCharacters = Math.max(1, Number(ocr.minCharacters ?? 40));
+  let pages = null;
+  if (pageCount && blocks.some((block) => pageNumberOf(block))) {
+    const counts = pageTextCounts(blocks, pageCount);
+    pages = [...counts.entries()].filter(([, count]) => count < minCharacters).map(([page]) => page);
+    if (!pages.length) {
+      return {
+        text,
+        blocks,
+        extractor,
+        version,
+        diagnostics: { ocr: ocrDiagnostic(null) }
+      };
+    }
+  } else if (textCharacterCount(text) >= minCharacters) {
     return {
       text,
       blocks,
@@ -118,9 +178,22 @@ async function extractPdf(path, { ocr = {}, tempDir }) {
     languages: ocr.languages,
     dpi: ocr.dpi,
     maxPages: ocr.maxPages,
-    tempDir
+    tempDir,
+    pages,
+    pageCount
   });
+
   if (result.blocks.length) {
+    if (pageCount && pages) {
+      const merged = mergePdfBlocks(blocks, result.blocks);
+      return {
+        text: blocksToText(merged),
+        blocks: merged,
+        extractor: blocks.length ? 'pdf-native-ocr-hybrid' : 'tesseract-pdf',
+        version: blocks.length ? '4' : '1',
+        diagnostics: { ocr: ocrDiagnostic(result) }
+      };
+    }
     return {
       text: cleanupText(result.text),
       blocks: result.blocks,
