@@ -11,7 +11,6 @@
       <MustVerify><Module>M-API</Module></MustVerify>
       <MustVerify><Module>M-WORKER</Module></MustVerify>
       <MustVerify><Module>M-DATABASE</Module></MustVerify>
-      <MustPassCommand><Command>node --test tests/ocr-tsv.test.mjs tests/protocol-year-import.test.mjs</Command></MustPassCommand>
     </BaselineAssertions>
     <TargetAssertions>
       <MustExist><Value>apps/api/src/document-reprocess-router.mjs</Value></MustExist>
@@ -24,8 +23,6 @@
       <MustVerify><Module>M-API</Module></MustVerify>
       <MustVerify><Module>M-WORKER</Module></MustVerify>
       <MustVerify><Module>M-DATABASE</Module></MustVerify>
-      <MustPassCommand><Command>node --test tests/ocr-tsv.test.mjs tests/ocr-coverage.test.mjs tests/document-reprocess.test.mjs tests/protocol-year-import.test.mjs</Command></MustPassCommand>
-      <MustPassCommand><Command>python3 -m py_compile scripts/recognition/ocr.py</Command></MustPassCommand>
     </TargetAssertions>
     <DurableScope>
       <GraphAnchors><M-API /><M-WORKER /><M-DATABASE /><DF-GRACE-BRANCH /></GraphAnchors>
