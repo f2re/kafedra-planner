@@ -17,7 +17,7 @@
       <MustExist><Value>tests/browser/meeting-minimal-create.spec.mjs</Value></MustExist>
       <MustContain><File>packages/protocols/src/meeting-documents-flexible.mjs</File><Text>explicitTemplateVersionId</Text></MustContain>
       <MustContain><File>public/meetings-modals-flow.js</File><Text>meeting-generate-form</Text></MustContain>
-      <MustContain><File>docs/MEETINGS.md</File><Text>дата и номер протокола</Text></MustContain>
+      <MustContain><File>docs/MEETINGS.md</File><Text>рабочий `draft`</Text></MustContain>
       <MustVerify><Module>M-API</Module></MustVerify>
       <MustVerify><Module>M-DATABASE</Module></MustVerify>
     </TargetAssertions>
