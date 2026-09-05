@@ -2,7 +2,7 @@ import { meetingsState, $m, meetingApi, closeMeetingModal, showMeetingNotice } f
 import { loadMeeting, loadMeetings } from './meetings-data.js';
 import { renderMeetingDetail, renderSettingsSummary } from './meetings-render.js';
 import { invalidatePlanMeetingLink } from './meetings-plan-links.js';
-import { openAgendaModal, templateOptions } from './meetings-modals.js';
+import { openAgendaModal, openGenerateMeetingModal, templateOptions } from './meetings-modals-flow.js';
 
 function announceMeetingUpdated(meetingId) {
   window.dispatchEvent(new CustomEvent('kafedra:meeting-updated', { detail: { meetingId } }));
@@ -138,13 +138,31 @@ export async function moveAgenda(button) {
   renderMeetingDetail();
 }
 
-export async function generateDocument(kind) {
+export async function generateDocument(kind, templateVersionId = null) {
   const itemIds = kind === 'extract' ? [...meetingsState.selectedForExtract] : undefined;
-  const generated = await meetingApi(`/api/meetings/${encodeURIComponent(meetingsState.selectedMeetingId)}/documents`, {
-    method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ kind, itemIds })
-  });
+  let generated;
+  try {
+    generated = await meetingApi(`/api/meetings/${encodeURIComponent(meetingsState.selectedMeetingId)}/documents`, {
+      method: 'POST', headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ kind, itemIds, templateVersionId: templateVersionId || undefined })
+    });
+  } catch (error) {
+    if (error.code === 'meeting_settings_incomplete' && !templateVersionId) {
+      openGenerateMeetingModal(kind);
+      return null;
+    }
+    throw error;
+  }
   await loadMeeting(meetingsState.selectedMeetingId, false);
   showMeetingNotice(generated.duplicateRequest
     ? 'Такой документ уже был сформирован — показан существующий файл.'
     : kind === 'extract' ? 'Выписка сформирована.' : 'Протокол сформирован.');
+  return generated;
+}
+
+export async function generateDocumentFromForm(form) {
+  const data = Object.fromEntries(new FormData(form));
+  const kind = form.dataset.documentKind;
+  const generated = await generateDocument(kind, data.templateVersionId);
+  if (generated) closeMeetingModal();
 }

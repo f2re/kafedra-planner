@@ -1,0 +1,110 @@
+<GraceChangePlan graceVersion="4.0" status="approved">
+  <C-R3-MINIMAL-MEETING-321>
+    <IntentSummary>Move document-generation setup to the moment it is needed: create the authoritative meeting from minimal domain identity, preserve any existing reusable defaults, and resolve only the template for the requested output kind.</IntentSummary>
+    <BaselineAssertions>
+      <MustExist><Value>packages/protocols/src/meeting-core.mjs</Value></MustExist>
+      <MustExist><Value>packages/protocols/src/meeting-documents.mjs</Value></MustExist>
+      <MustExist><Value>public/meetings-modals.js</Value></MustExist>
+      <MustExist><Value>tests/meeting-workflow.test.mjs</Value></MustExist>
+      <MustVerify><Module>M-API</Module></MustVerify>
+      <MustVerify><Module>M-DATABASE</Module></MustVerify>
+    </BaselineAssertions>
+    <TargetAssertions>
+      <MustExist><Value>packages/protocols/src/meeting-create-flexible.mjs</Value></MustExist>
+      <MustExist><Value>packages/protocols/src/meeting-documents-flexible.mjs</Value></MustExist>
+      <MustExist><Value>public/meetings-modals-flow.js</Value></MustExist>
+      <MustExist><Value>tests/meeting-minimal-create.test.mjs</Value></MustExist>
+      <MustExist><Value>tests/browser/meeting-minimal-create.spec.mjs</Value></MustExist>
+      <MustContain><File>packages/protocols/src/meeting-documents-flexible.mjs</File><Text>explicitTemplateVersionId</Text></MustContain>
+      <MustContain><File>public/meetings-modals-flow.js</File><Text>meeting-generate-form</Text></MustContain>
+      <MustContain><File>docs/MEETINGS.md</File><Text>рабочий `draft`</Text></MustContain>
+      <MustVerify><Module>M-API</Module></MustVerify>
+      <MustVerify><Module>M-DATABASE</Module></MustVerify>
+    </TargetAssertions>
+    <DurableScope>
+      <GraphAnchors><M-API /><M-DATABASE /><DF-GRACE-BRANCH /></GraphAnchors>
+      <VerificationAnchors><V-M-API /><V-M-DATABASE /></VerificationAnchors>
+      <ContextArtifacts><ContextArtifact>principles.xml</ContextArtifact><ContextArtifact>technology.xml</ContextArtifact></ContextArtifacts>
+    </DurableScope>
+    <ObservedWriteScope>
+      <Glob>.grace/changes/active/C-R3-MINIMAL-MEETING-321/**</Glob>
+      <File>packages/protocols/src/meeting-create-flexible.mjs</File>
+      <File>packages/protocols/src/meeting-documents-flexible.mjs</File>
+      <File>packages/protocols/src/meetings.mjs</File>
+      <File>public/meetings-modals-flow.js</File>
+      <File>public/meetings-actions.js</File>
+      <File>public/meetings-events.js</File>
+      <File>tests/meeting-minimal-create.test.mjs</File>
+      <File>tests/browser/meeting-minimal-create.spec.mjs</File>
+      <File>docs/MEETINGS.md</File>
+    </ObservedWriteScope>
+    <ImplementationPlan>
+      <T-000>
+        <Title>kafedra-flow-intake: fix the meeting stages and minimum data</Title>
+        <DependsOn></DependsOn>
+        <AcceptanceCriteria>
+          <Criterion>Actor: staff member preparing a department meeting; trigger: New meeting; authoritative object: meeting; minimum create data: date and protocol number; agenda follows immediately; document-template exceptions are deferred to generation.</Criterion>
+          <Criterion>The imported-protocol path remains separate and unchanged.</Criterion>
+        </AcceptanceCriteria>
+        <Verification><Command>node --test tests/meeting-minimal-create.test.mjs tests/meeting-workflow.test.mjs</Command></Verification>
+      </T-000>
+      <T-001>
+        <Title>kafedra-data: reuse nullable meeting snapshots without migration</Title>
+        <DependsOn><T-000 /></DependsOn>
+        <AcceptanceCriteria>
+          <Criterion>No schema change is needed because chair, secretary, quorum and template-version meeting fields are already nullable.</Criterion>
+          <Criterion>The configured create path is reused unchanged; only meeting_settings_incomplete falls back to available nullable defaults and null profile snapshots.</Criterion>
+          <Criterion>Historical snapshots and generated meeting_documents are never rewritten.</Criterion>
+        </AcceptanceCriteria>
+        <Verification><Command>node --test tests/meeting-minimal-create.test.mjs tests/meeting-workflow.test.mjs</Command></Verification>
+      </T-001>
+      <T-002>
+        <Title>kafedra-design: keep create minimal and defer only the missing output template</Title>
+        <DependsOn><T-001 /></DependsOn>
+        <AcceptanceCriteria>
+          <Criterion>Desktop and mobile create forms ask only for date and protocol number; focus starts on the first meaningful field and no setup modal is forced.</Criterion>
+          <Criterion>If generation lacks a deterministic template, one compact dialog asks only for the template of that document kind and keeps the original action understandable.</Criterion>
+        </AcceptanceCriteria>
+        <Verification><Command>npx playwright test tests/browser/meeting-minimal-create.spec.mjs</Command></Verification>
+      </T-002>
+      <T-003>
+        <Title>kafedra-motion: use no-motion for create and generation disclosure</Title>
+        <DependsOn><T-002 /></DependsOn>
+        <AcceptanceCriteria>
+          <Criterion>No new animation or gesture is introduced; existing modal/focus behavior is reused.</Criterion>
+          <Criterion>prefers-reduced-motion needs no special branch because the new flow has no motion dependency.</Criterion>
+        </AcceptanceCriteria>
+        <Verification><Command>npx playwright test tests/browser/meeting-minimal-create.spec.mjs</Command></Verification>
+      </T-003>
+      <T-004>
+        <Title>kafedra-feature: implement minimal meeting creation and per-kind template resolution</Title>
+        <DependsOn><T-003 /></DependsOn>
+        <AcceptanceCriteria>
+          <Criterion>The existing configured create/generate implementations remain the first path; flexible fallback is used only when full meeting settings or a deterministic output template are absent.</Criterion>
+          <Criterion>Generation fallback resolves meeting snapshot → explicit choice → saved setting → default catalog entry → single ready catalog entry for the requested kind.</Criterion>
+          <Criterion>A missing extract template cannot block protocol generation and a missing protocol template cannot block extract generation.</Criterion>
+          <Criterion>Existing request hash, meeting_documents.template_version_id and audit provenance remain authoritative.</Criterion>
+        </AcceptanceCriteria>
+        <Verification><Command>node --test tests/meeting-minimal-create.test.mjs tests/meeting-workflow.test.mjs</Command></Verification>
+      </T-004>
+      <T-005>
+        <Title>kafedra-design-audit: verify draft-to-agenda continuity</Title>
+        <DependsOn><T-004 /></DependsOn>
+        <AcceptanceCriteria>
+          <Criterion>After create the exact meeting is open and Add question is immediately available; no template, chair, secretary or quorum interruption appears.</Criterion>
+          <Criterion>Desktop/mobile keyboard flow remains usable and the generation exception dialog exposes one decision instead of the full settings form.</Criterion>
+        </AcceptanceCriteria>
+        <Verification><Command>npx playwright test tests/browser/meeting-minimal-create.spec.mjs</Command></Verification>
+      </T-005>
+      <T-006>
+        <Title>kafedra-tests: prove empty-install meeting and unchanged snapshot history</Title>
+        <DependsOn><T-005 /></DependsOn>
+        <AcceptanceCriteria>
+          <Criterion>Unit/integration covers empty settings create→agenda, existing complete-settings copy, protocol-only template generation and ambiguous template selection.</Criterion>
+          <Criterion>Browser regression covers New meeting → date/number → open meeting → add agenda without opening Settings.</Criterion>
+        </AcceptanceCriteria>
+        <Verification><Command>node --test tests/meeting-minimal-create.test.mjs tests/meeting-workflow.test.mjs</Command><Command>npx playwright test tests/browser/meeting-minimal-create.spec.mjs</Command></Verification>
+      </T-006>
+    </ImplementationPlan>
+  </C-R3-MINIMAL-MEETING-321>
+</GraceChangePlan>

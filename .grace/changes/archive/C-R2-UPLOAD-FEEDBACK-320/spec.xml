@@ -1,4 +1,4 @@
-<GraceChangeSpec graceVersion="4.0" status="approved">
+<GraceChangeSpec graceVersion="4.0" status="applied">
   <C-R2-UPLOAD-FEEDBACK-320>
     <Summary>Make document upload feedback truthful and file-specific without changing storage or processing semantics.</Summary>
     <Problem>Generic batch upload always ends with «Документы приняты» even when individual requests failed, while protocol import uses the same saved-source explanation for both in-flight upload and already-saved processing.</Problem>

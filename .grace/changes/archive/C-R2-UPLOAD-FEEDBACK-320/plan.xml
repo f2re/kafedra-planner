@@ -1,4 +1,4 @@
-<GraceChangePlan graceVersion="4.0" status="approved">
+<GraceChangePlan graceVersion="4.0" status="applied">
   <C-R2-UPLOAD-FEEDBACK-320>
     <IntentSummary>Reuse the existing upload APIs and processing states, changing only presentation and batch accounting so the UI never reports success before the server confirms each file.</IntentSummary>
     <BaselineAssertions>
