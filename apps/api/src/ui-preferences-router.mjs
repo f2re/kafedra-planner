@@ -32,7 +32,7 @@ function keysFrom(url) {
   return allowedKeys(requested.length ? requested : supportedUiPreferenceKeys());
 }
 
-function withoutNeverLearn(body) {
+export function filterNeverLearnPreferenceBody(body) {
   const choices = Array.isArray(body?.choices)
     ? body.choices.filter((choice) => !NEVER_LEARN_KEYS.has(String(choice?.key || '')))
     : [];
@@ -86,7 +86,7 @@ export function createUiPreferencesRouter({ database }) {
         database,
         workspace.id,
         accountId,
-        withoutNeverLearn(body)
+        filterNeverLearnPreferenceBody(body)
       ));
     }
     throw new AppError('method_not_allowed', 'Метод не поддерживается.', 405);
