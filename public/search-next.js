@@ -4,7 +4,8 @@ const searchState = {
   controller: null,
   returnContext: null,
   returnPending: false,
-  restoreAfterRender: null
+  restoreAfterRender: null,
+  routeErrors: new Map()
 };
 const qs = (selector, root = document) => root.querySelector(selector);
 
@@ -144,6 +145,7 @@ function render(payload) {
   target.className = 'search-results';
   target.innerHTML = payload.items.map((item) => {
     const key = resultKey(item);
+    const routeError = searchState.routeErrors.get(key) || '';
     const original = item.source_document_id
       ? `<a class="secondary-button search-original" href="/api/documents/${encodeURIComponent(item.source_document_id)}/content?variant=original" target="_blank" rel="noopener">Оригинал</a>`
       : '';
@@ -151,7 +153,7 @@ function render(payload) {
       <div class="search-result-head"><div><span class="search-kind">${escapeHtml(sourceLabel(item.source_kind))}</span><h3>${escapeHtml(item.title)}</h3></div>${original}</div>
       <p>${safeSnippet(item.snippet || '')}</p>
       <div class="search-meta">${metaParts(item).map((part) => `<span>${escapeHtml(part)}</span>`).join('')}</div>
-      <div class="search-route-error hidden" role="status"></div>
+      <div class="search-route-error${routeError ? '' : ' hidden'}" role="status">${escapeHtml(routeError)}</div>
     </article>`;
   }).join('');
   restorePosition();
@@ -268,16 +270,19 @@ function captureContext(card = null) {
   };
 }
 
+function currentView() {
+  return document.querySelector('.nav-item.active[data-view], .mobile-tab.active[data-view]')?.dataset.view || '';
+}
+
 function updateReturnAction() {
   const button = qs('#search-return-action');
   if (!button) return;
-  const currentView = document.querySelector('.nav-item.active[data-view], .mobile-tab.active[data-view]')?.dataset.view || '';
-  button.classList.toggle('hidden', !searchState.returnPending || currentView === 'search');
+  button.classList.toggle('hidden', !searchState.returnPending || currentView() === 'search');
 }
 
 function applyReturnContext() {
   const context = searchState.returnContext;
-  if (!context) return;
+  if (!context || !searchState.returnPending) return;
   const query = qs('#search-input');
   if (query) query.value = context.query || '';
   const form = qs('#search-filters');
@@ -297,7 +302,7 @@ function applyReturnContext() {
 function returnToSearch() {
   if (typeof window.kafedraSetView === 'function') window.kafedraSetView('search');
   else qs('[data-view="search"]')?.click();
-  applyReturnContext();
+  if (searchState.returnPending) applyReturnContext();
 }
 
 function resetSearch() {
@@ -316,6 +321,7 @@ function resetSearch() {
   qs('#search-more-filters')?.removeAttribute('open');
   searchState.returnContext = null;
   searchState.returnPending = false;
+  searchState.routeErrors.clear();
   updateReturnAction();
   renderActiveFilters();
   qs('#search-input')?.focus();
@@ -323,7 +329,9 @@ function resetSearch() {
 }
 
 function showRouteError(card, message) {
-  const error = qs('.search-route-error', card);
+  const key = card?.dataset.searchResultKey;
+  if (key) searchState.routeErrors.set(key, message);
+  const error = card ? qs('.search-route-error', card) : null;
   if (!error) return;
   error.textContent = message;
   error.classList.remove('hidden');
@@ -332,8 +340,10 @@ function showRouteError(card, message) {
 
 async function openResult(card) {
   if (!card?.dataset.searchRouteKind || !card.dataset.searchRouteId) return;
+  const key = card.dataset.searchResultKey;
   searchState.returnContext = captureContext(card);
   searchState.returnPending = true;
+  searchState.routeErrors.delete(key);
   updateReturnAction();
   const route = { kind: card.dataset.searchRouteKind, id: card.dataset.searchRouteId };
   try {
@@ -342,9 +352,15 @@ async function openResult(card) {
     if (!opened) throw new Error('Объект больше недоступен или находится в другом состоянии.');
     updateReturnAction();
   } catch (error) {
-    searchState.returnPending = false;
-    updateReturnAction();
-    showRouteError(card, error?.message || 'Не удалось открыть рабочий объект.');
+    const message = error?.message || 'Не удалось открыть рабочий объект.';
+    showRouteError(card, message);
+    if (currentView() !== 'search') {
+      searchState.returnPending = true;
+      returnToSearch();
+    } else {
+      searchState.returnPending = false;
+      updateReturnAction();
+    }
   }
 }
 
