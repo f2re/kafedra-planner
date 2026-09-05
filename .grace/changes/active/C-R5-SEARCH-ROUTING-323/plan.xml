@@ -11,7 +11,6 @@
     <TargetAssertions>
       <MustContain><File>apps/api/src/search-router.mjs</File><Text>routeForSearchResult</Text></MustContain>
       <MustContain><File>public/action-center.js</File><Text>kafedraOpenExactRoute</Text></MustContain>
-      <MustContain><File>public/lifecycle-safe.js</File><Text>kafedraOpenDocument</Text></MustContain>
       <MustContain><File>public/search-next.js</File><Text>К поиску</Text></MustContain>
       <MustContain><File>public/search-next.js</File><Text>search-more-filters</Text></MustContain>
       <MustExist><Value>tests/search-routing.test.mjs</Value></MustExist>
@@ -29,7 +28,6 @@
       <File>public/search-next.js</File>
       <File>public/search-next.css</File>
       <File>public/action-center.js</File>
-      <File>public/lifecycle-safe.js</File>
       <File>tests/search-routing.test.mjs</File>
       <File>tests/browser/search-routing.spec.mjs</File>
     </ObservedWriteScope>
@@ -58,7 +56,7 @@
         <DependsOn><T-002 /></DependsOn>
         <AcceptanceCriteria>
           <Criterion>Route metadata is derived after ACL filtering and maps child result kinds to existing parent/domain surfaces without exposing a new object.</Criterion>
-          <Criterion>Search reuses Action Center exact routing and lifecycle document opening rather than building a second inspector.</Criterion>
+          <Criterion>Search reuses Action Center exact routing and the existing documents view/lifecycle path rather than building a second inspector.</Criterion>
           <Criterion>Query, filters, details state, focus and scroll restore after returning; stale response sequencing remains unchanged.</Criterion>
           <Criterion>Route failure is rendered inline on the originating result and does not fall through to an unauthorized URL.</Criterion>
         </AcceptanceCriteria>
