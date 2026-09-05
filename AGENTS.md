@@ -1,167 +1,139 @@
 # AGENTS.md
 
-Эти правила действуют для всего репозитория `kafedra-planner` и дополняют `README.md`, `docs/ARCHITECTURE.md`, `docs/ROADMAP.md` и профильные документы в `docs/`.
+Правила действуют для всего `kafedra-planner`. Приоритет: рабочий пользовательский сценарий → сохранность данных → понятный UX → отсутствие регрессий → безопасное обновление. GRACE, CI и GitHub-процедуры дают доказательства, но не являются целью разработки.
 
-## Перед изменением
+## Перед существенным изменением
 
-1. Получить фактический `refs/heads/main` и точный SHA его дерева.
-2. Прочитать `README.md`, `docs/ARCHITECTURE.md`, `docs/ROADMAP.md`, относящиеся к задаче документы, открытые Issues, последние коммиты и текущий CI.
-3. Не реализовывать повторно уже существующий контур и не переносить старую ветку поверх нового `main` без проверки фактического diff.
-4. Существенную работу зафиксировать в GitHub Issue с критериями приёмки.
-5. Создать короткую рабочую ветку от точного проверенного SHA `main`.
+1. Получить фактический `main` и exact SHA.
+2. Прочитать `README.md`, `docs/ARCHITECTURE.md`, `docs/ROADMAP.md`, профильные документы, связанные Issues/PR и текущий CI.
+3. Не реализовывать повторно существующий контур и не переносить старую ветку поверх нового `main` без проверки diff.
+4. Существенную работу оформить Issue с пользовательским результатом и критериями приёмки.
+5. Создать короткую branch от проверенного `main`.
+6. Для существенной работы прочитать `codex/skills/kafedra-workspace-orchestrator/SKILL.md` и выбрать только реально нужные repository-local роли/skills.
 
-## Обязательный Kafedra workspace preflight
+## Разработка и роли
 
-После репозиторного и GRACE preflight, но до проектирования или реализации любого существенного изменения обязательно прочитать `codex/skills/kafedra-workspace-orchestrator/SKILL.md`. Он классифицирует задачу и выбирает минимальный набор профильных skills из pinned snapshot `codex/skills/kafedra-profile.json`; все 14 профильных skills доступны локально и не требуют сети.
-
-Приоритет неизменен: `AGENTS.md` → approved GRACE change → проектные архитектурные/UX-контракты → существующие repository-local роли `kafedra-*` → выбранные профильные skills. Orchestrator не заменяет GRACE и не создаёт второй контур полномочий. Для чистого backend/infrastructure/release изменения без document-workspace или UX-составляющей допустим результат `focused profile skills: none`, но сам orchestrator preflight всё равно выполняется.
-
-Для document/workspace задач выбирать только относящиеся к сценарию skills: intake/processing → `kafedra-document-intake` + `kafedra-states-and-recovery`; source/evidence/detail → `kafedra-provenance-and-inspector`; clutter/click tax → `kafedra-action-recomposition`; ambiguity → `kafedra-review-by-exception`; search/navigation → `kafedra-search-and-navigation`; responsive detail → `kafedra-responsive-inspector`; adaptive defaults → `kafedra-adaptive-controls`; plan/calendar → `kafedra-plan-calendar-continuity`; templates → `kafedra-template-and-structured-document-flow`; motion → `kafedra-motion-continuity`; итоговая UX-проверка → `kafedra-ux-acceptance`.
-
-Ссылки внутри vendored upstream skills на общие library helpers (`anti-slop-ui-direction`, `dense-controls-and-selection` и подобные) являются необязательными подсказками исходной библиотеки. Kafedra Planner не зависит от их установки: при их отсутствии используются локальные `kafedra-flow-intake`, `kafedra-design`, `kafedra-motion`, `kafedra-feature`, `kafedra-design-audit` и `kafedra-tests`. Происхождение snapshot и процедура обновления описаны в `docs/AI_SKILLS_PROFILE.md`.
-
-## Запись в GitHub из ChatGPT
-
-При команде пользователя «сделай коммит», «слей в main» или аналогичной сначала нужно обнаружить полный набор GitHub actions. Нельзя делать вывод о read-only доступе только потому, что отсутствуют `gh`, локальный `.git`, shell credentials или OAuth-токен в окружении.
-
-Если GitHub write actions доступны, для нескольких связанных файлов использовать атомарную последовательность:
+Закрывать сценарий вертикально:
 
 ```text
-fetch refs/heads/main и tree SHA
-        ↓
-create_blob для каждого изменённого файла
-        ↓
-create_tree(base_tree = проверенный tree SHA)
-        ↓
-create_commit(parent = проверенный HEAD)
-        ↓
-update_ref(рабочая ветка, force = false)
-        ↓
-compare_commits
-        ↓
-обычный PR в main
-        ↓
-обязательный CI
-        ↓
-squash merge с проверкой head SHA
-        ↓
-повторная проверка refs/heads/main и post-merge CI
+проблема → domain/storage → API → UI → ошибки/partial success → evidence/history → targeted tests
 ```
 
-Для одиночного файла допустим `update_file`, если это не разрушает атомарность сценария. `update_ref` должен передвигать рабочую ветку; итоговое изменение `main` выполняется через проверенный PR и squash merge.
+Не оставлять production mocks, TODO, временные обходы или мёртвый код. Не делать «backend сейчас, UI потом», если пользовательский сценарий можно закончить сразу.
 
-Перед `update_ref` повторно убедиться, что parent соответствует ветке. Не использовать `force=true` для обхода параллельных изменений. Если `main` успел измениться и это влияет на mergeability, перестроить изменение поверх нового HEAD.
+Основные роли:
 
-Перед слиянием повторно проверить:
+- `kafedra-flow-intake` — пользовательский путь;
+- `kafedra-design` / `kafedra-motion` / `kafedra-design-audit` — UX, responsive и независимая UI-проверка;
+- `kafedra-data` — storage/schema/migrations/recovery;
+- `kafedra-feature` — вертикальная реализация;
+- `kafedra-tests` — regression/Playwright;
+- `kafedra-release` — installer/update/offline/rollback/release.
 
-- фактический head SHA PR;
-- mergeability и отсутствие конфликтов;
-- review threads/замечания;
-- все обязательные jobs: нельзя сливать при `pending`, `failure`, `cancelled` или неожиданном `skipped`.
+Не прогонять все роли формально. Делегировать законченные зоны ответственности; один контракт меняет один исполнитель. После параллельных scopes выполнить интеграционный аудит.
 
-После squash merge обязательно получить новый SHA `main` и проверить post-merge CI. Нельзя сообщать о созданном коммите, PR, merge или зелёном CI, пока соответствующий объект фактически не подтверждён GitHub API.
+## Архитектурные инварианты
 
-Если после discovery write-actions действительно отсутствуют, сообщить именно об отсутствии GitHub write actions в текущей сессии. Отсутствие `gh` само по себе причиной не является.
+Система автономна на Debian/Astra Linux: production без Docker, CDN, обязательного Интернета, облака и LLM. SQLite — основное хранилище; `llama.cpp` только необязательное улучшение.
 
-## Обучаемый, но стабильный UX
+Исходные PDF/DOCX/XLSX/ODS, blobs, SHA-256 и `document_version` неизменяемы. Ручная правка не уничтожает автоматически извлечённый факт/evidence. Автоматический факт имеет источник `document → version → locator`; предположение не становится подтверждённым фактом без основания.
 
-Интерфейс должен быть минималистичным, понятным без инструкции и обучаемым на повторяющихся действиях пользователя, но **не должен визуально перестраиваться от статистики использования**. Это правило относится ко всему интерфейсу, а не к отдельным разделам.
+Upload/import/sync/materialize/generate/background jobs должны быть идемпотентными. Ошибка одного документа, строки или адаптера не блокирует остальные.
 
-Каждый новый или изменяемый интерактивный контрол при UX-аудите обязан быть отнесён к одному из четырёх классов:
+Applied migrations неизменяемы; новая получает следующий номер. Schema/storage/recovery change требует clean install → upgrade существующей базы → repeated migration → `PRAGMA quick_check` → `PRAGMA foreign_key_check` → backup/verify → restore → forced-failure rollback. Destructive reset существующей установки запрещён.
 
-1. **safe-default** — безопасный выбор при создании нового объекта. Частый явный выбор может стать значением по умолчанию; варианты внутри списка можно ранжировать.
-2. **rank-only** — фильтр или редактирование существующего объекта. Частые варианты можно поднять внутри раскрывающегося списка, но нейтральное или уже сохранённое значение нельзя молча заменить.
-3. **domain-derived** — значение надёжно выводится из предметных данных или контекста. Такая автоматика важнее статистики: выбранный день календаря, руководитель сотрудника, сохранённая дата объекта, следующий период плана и другие подтверждённые значения не переопределяются learned default.
-4. **never-learn** — пароль, токен, логин, поисковый запрос, свободный деловой текст, ACL, роль аккаунта, подтверждение/возврат/отклонение, удаление и любое действие, где частотный default способен изменить полномочия или предметное решение.
+## UX
 
-Общие инварианты:
+Интерфейс спокойный, минималистичный и понятный без инструкции. Система автоматически делает всё однозначное; человек исправляет только исключения.
 
-- Положение кнопок, вкладок, секций и основных действий фиксировано. Частота использования никогда не переставляет их по экрану и не меняет иерархию интерфейса.
-- Учитываются только явные действия человека. Для сохраняемого предметного действия частота увеличивается только после успешного сохранения; для чистого режима/фильтра завершённым действием считается сам явный выбор.
-- Автоматически предложенное или программно подставленное значение, которое пользователь не менял, частоту не увеличивает.
-- Явный выбор пользователя в текущем сеансе всегда важнее накопленной статистики и не должен «отскакивать» обратно к частому варианту сразу после выбора.
-- Сохранённое предметное значение существующего объекта всегда важнее обученного значения по умолчанию.
-- В раскрывающемся списке частые варианты разрешено ранжировать, но placeholder/нейтральный и служебные варианты остаются на логическом месте.
-- Для checkbox/radio можно использовать наиболее частое явно выбранное состояние только в классе `safe-default`; флаги ACL, разрешений и предметных решений не обучаются.
-- Для группы кнопок статистика может выбирать стартовый режим только там, где это безопасный UI-режим; порядок самих кнопок неизменен.
-- Даты нового действия нельзя запоминать как устаревающий абсолютный `YYYY-MM-DD`. Если дата обучается, хранится ограниченное относительное смещение от понятной базовой даты; явно выбранная дата/предметная автоматика имеет приоритет.
-- Текст запоминается только в явно разрешённых повторно используемых несекретных словарных полях. Нельзя автоматически обучаться на паролях, поисковых запросах, комментариях, названиях документов/задач и произвольном деловом тексте.
-- Постоянная серверная настройка пользователя не дублируется в preference-layer только ради «обучаемости»: если значение уже сохраняется как собственная настройка, именно она остаётся источником истины.
-- Новые обучаемые контексты добавляются только в единый серверный allowlist пользовательских предпочтений, с понятным fallback и regression-тестом. Не создавать локальные параллельные механизмы «последнего/частого выбора»; `localStorage` допустим только как совместимый/автономный кэш или fallback при отключённой авторизации.
-- Ошибка чтения или записи UX-предпочтения не должна блокировать основное действие. Это вспомогательная персональная проекция, а не источник предметной истины.
-- При добавлении формы необходимо проверить desktop/mobile и отдельным тестом доказать, что программная подстановка не считается пользовательским выбором.
+Intake:
 
-Подробный контракт и разрешённые контексты: `docs/ADAPTIVE_UX.md`.
+```text
+загрузить → сохранить immutable source → обработать → создать рабочий объект → открыть → исправить неоднозначности
+```
 
-## Apple-inspired дизайн и motion
+Одна проблемная строка не блокирует документ. Для задачи действие `Выполнено` сразу синхронизирует связанные план, календарь и `План / факт`; файл, справка, скан или комментарий необязательны.
 
-`docs/design.md` задаёт обязательный продуктовый характер: ясная иерархия, спокойная плотность, стабильная геометрия, системная предсказуемость, понятные русские действия и restrained material. Apple-inspired означает дисциплину и качество взаимодействия, а не копирование Apple assets/screens.
+Adaptive UX использует классы `safe-default`, `rank-only`, `domain-derived`, `never-learn`. Приоритет: сохранённый факт → явный выбор → domain-derived → safe personal default → static fallback. ACL, PIN, роли, выполнение, удаление, archive/restore, подтверждения и свободный деловой текст — `never-learn`. Геометрия интерфейса не меняется по статистике, а программная подстановка не считается пользовательским выбором.
 
-`docs/MOTION_DESIGN.md` и `codex/skills/kafedra-motion/` задают motion-контракт. Анимация используется только для причинности, ориентации, direct manipulation и локального feedback; routine actions не получают декоративный bounce/задержку. Статическое состояние всегда остаётся понятным, а `prefers-reduced-motion` проектируется явно.
+Для затронутого UI проверить соответствующий desktop/mobile layout и `prefers-reduced-motion`; не запускать обе компоновки формально, если менялась только одна.
 
-Для UI-scoped GRACE change (`ObservedWriteScope` содержит `public/**` или конкретный `public/...`) specialist path обязателен: `kafedra-design → kafedra-motion → kafedra-feature → kafedra-design-audit → kafedra-tests`. Motion worker может выдать `no-motion`, но стадия решения не пропускается. Design audit выполняется после реализации и не является самооценкой автора дизайна/фичи.
+## GRACE — только по риску
 
-## Качество изменения
+Полный GRACE обязателен только для:
 
-- Реализовывать минимальный вертикальный сценарий целиком: причина → domain/API/storage → UI → ошибки → tests → документация, когда эти слои затронуты.
-- Не оставлять заглушки, фиктивные данные, TODO, временные обходы и мёртвый код.
-- Сохранять исходные документы, доказательства и историю изменений; повторная обработка должна оставаться идемпотентной.
-- Не добавлять обязательные внешние сервисы, CDN, Docker или LLM-зависимость. Основной сценарий должен работать автономно на Debian/Astra Linux.
-- Новые пользовательские сценарии проверять unit/integration и Playwright там, где есть UI; учитывать desktop и mobile.
-- Локальная или фокусная проверка не заменяет полный GitHub CI.
-- После изменения синхронизировать затронутые README/VERSION/ROADMAP/архитектурные документы только тогда, когда меняется соответствующий контракт или рубеж продукта.
+- SQLite schema/migrations/storage/recovery;
+- immutable source/evidence/history;
+- backup/restore;
+- installer/update/rollback/offline bundle;
+- PIN/auth/ACL/security;
+- release/CI infrastructure;
+- опасных архитектурных или необратимых изменений.
 
-## Codex project roles
+Обычные feature/UI/API/test/docs изменения полного lifecycle не требуют.
 
-Repository-local role skills live in `codex/skills/`; their shared routing is in `docs/CODEX_AGENTS.md` and their design contract is `docs/design.md`. For a matching task, read the role skill before acting:
+Governed flow:
 
-- `kafedra-flow-intake` for a new or materially changed user workflow;
-- `kafedra-design` for interaction, hierarchy, layout, responsive UX and Apple-inspired product character;
-- `kafedra-motion` for motion/no-motion decisions, reference retrieval, measurable timing/geometry/gesture/reduced-motion briefs;
-- `kafedra-design-audit` for independent post-implementation UI/motion/accessibility/responsive audit;
-- `kafedra-data` for persisted data, entities, migrations, projections, or recovery;
-- `kafedra-tests` for test strategy or coverage;
-- `kafedra-feature` for implementation of a vertical slice;
-- `kafedra-release` for versioning, migration rollout, offline deployment, backup/restore, or rollback.
+```text
+Issue → exact main SHA → approved spec.xml + plan.xml
+      → scoped implementation → GRACE final lint/scope
+      → relevant risk gate + project CI → PR → squash merge
+```
 
-Follow the documented handoff whenever the task crosses roles. These skills refine project-specific decisions; they do not replace authorization boundaries or the mandatory CI/release gates above.
+`ObservedWriteScope` описывает предметную область; связанные regression tests и документация разрешаются в том же change. Approved plan не расширять задним числом. Supersede нужен только при существенном изменении цели, schema, security model, архитектуры или acceptance criteria.
 
-## GRACE 4 development lifecycle
+GRACE не должен повторно выполнять тот же `npm test`/Playwright, который уже является project CI evidence, и не должен опрашивать/ожидать другие GitHub workflows. Подробности: `docs/GRACE_GOVERNANCE.md`.
 
-GRACE 4 является обязательным внешним lifecycle для существенных изменений. Repository-local `kafedra-*` skills остаются специалистами внутри задач GRACE и не заменяют `GraceChangeSpec`, `GraceChangePlan`, scopes или verification gates.
+## Tests и CI
 
-Перед первой записью в governed-код:
+Обычный PR автоматически запускает один workflow `Проверка`:
 
-1. Получить точный `main` SHA, создать короткую ветку и связанный Issue.
-2. Проверить `grace status --path .` и соответствующие `M-*`, `DF-*`, `V-M-*`.
-3. Создать один `.grace/changes/active/C-*` с `spec.xml` через `grace-spec`; существенная реализация начинается только после `status="approved"`.
-4. Создать `plan.xml` через `grace-plan`; план должен иметь machine-checkable baseline/target assertions, `DurableScope`, `ObservedWriteScope` и `T-*` задачи. Реализация начинается только после явного `status="approved"`.
-5. До observed writes выполнить `grace lint --path . --assertions current` и `grace lint --path . --change C-ID --assertions baseline --run-commands`.
+1. locked `npm ci`;
+2. `npm run check`;
+3. `npm run docs:check`;
+4. `npm test`;
+5. `npm run smoke`.
 
-Во время реализации:
+Targeted regression выбирается по затронутому сценарию. Для UI — targeted Playwright. Полный browser regression не нужен на каждый PR.
 
-- `kafedra-flow-intake`, `kafedra-design`, `kafedra-motion`, `kafedra-data`, `kafedra-feature`, `kafedra-design-audit`, `kafedra-tests`, `kafedra-release` используются как specialist workers для соответствующих `T-*`;
-- каждый worker пишет только в утверждённый `ObservedWriteScope`;
-- approved plan не расширяется задним числом. Изменение scope/assertions/acceptance criteria требует нового superseding `C-*`;
-- параллельное исполнение допускается только после `grace lint --path . --parallel-preflight` и при отсутствии пересекающихся durable/observed scopes;
-- миграции SQLite append-only: уже присутствующий в base SQL-файл нельзя изменять, переименовывать или удалять; новый schema change требует следующего последовательного номера, migration regression test, `M-DATABASE`/`V-M-DATABASE`, clean-install, base→HEAD upgrade, `quick_check`, `foreign_key_check`, backup и restore evidence;
-- GRACE/Bun являются только dev/CI tooling и не добавляются в runtime/offline bundle.
+Тяжёлые gates только по риску:
 
-Для UI-scoped GRACE plan:
+- schema/storage → migration + backup/restore;
+- auth/ACL → auth/ACL regression;
+- installer/update/offline → full bundle + systemd + update/rollback;
+- release infrastructure → release regression.
 
-1. `kafedra-design` фиксирует flow, hierarchy, desktop/mobile и accessibility acceptance.
-2. `kafedra-motion` фиксирует motion brief или явный `no-motion`; `prefers-reduced-motion` обязателен в acceptance.
-3. `kafedra-feature` реализует только после этих решений.
-4. `kafedra-design-audit` независимо проверяет фактическую реализацию и возвращает `PASS`, `REVISE` или `BLOCK`.
-5. Только после `PASS` UI-поток передаётся `kafedra-tests` и release/final gates.
-6. `npm run design:check` / `scripts/design-governance.mjs` fail-closed проверяет наличие и порядок этих стадий в active GRACE plan.
+Full browser и offline/deployment regression выполняются перед release и при изменении соответствующего контура. Node minimum/alternate host проверяются при изменении runtime/build tooling и перед release, а не на каждом feature PR.
 
-Перед PR/merge:
+Standalone organization/science workflows являются ручными diagnostics, а не обязательным fan-out. Если свойство уже доказано на exact SHA, не запускать тот же набор второй раз без отдельной причины.
 
-1. Выполнить selected target/final gates: `grace lint --path . --change C-ID --assertions target --run-commands` и затем `--assertions final --run-commands`.
-2. GitHub обязан подтвердить `GRACE / merge-gate`, весь существующий project CI и `release-gate` на одном неизменившемся PR head SHA.
-3. Нельзя считать `pending`, `failure`, `cancelled`, отсутствующий или неожиданный `skipped` достаточным доказательством.
-4. Слияние — только squash merge через PR с повторной проверкой exact head SHA, mergeability, review threads и required checks.
-5. После merge получить новый `main` SHA и подтвердить post-merge CI. Только после этого C-* получает terminal `applied` и переносится в `.grace/changes/archive/`.
+## GitHub
 
-Машинные правила, required checks и административная защита `main` описаны в `docs/GRACE_GOVERNANCE.md`. `scripts/grace-governance.mjs`, `scripts/design-governance.mjs` и `.github/workflows/grace.yml` являются fail-closed enforcement layer поверх инструкций агенту.
+Для записи из ChatGPT сначала обнаружить GitHub write actions. Отсутствие `gh`, локального `.git` или shell credentials само по себе не означает read-only доступ.
+
+Для связанных файлов предпочтительна атомарная последовательность Git Data API:
+
+```text
+exact main/tree → create blobs → create tree → create commit
+→ update short branch (force=false) → compare → PR → relevant CI
+→ re-fetch exact PR head/mergeability/comments → squash merge
+→ re-fetch main → короткий post-merge smoke/CI
+```
+
+Не использовать force push для обхода race. Не создавать probe Issues, dummy files/commits или временные workflows для проверки connector. Не сообщать о commit/PR/merge/CI/release без подтверждения GitHub API.
+
+Перед merge проверять только обязательные checks, относящиеся к изменению. Для ordinary PR это `Проверка`; если risk-scoped GRACE запустился, `GRACE / gate` также должен быть успешен. `pending`, `failure`, `cancelled` и неожиданный `skipped` не являются доказательством.
+
+## Release
+
+Использовать один универсальный release flow для всех версий. Release идёт от exact SHA `main` и один раз выполняет необходимые unit/integration, critical browser, DB/recovery проверки, сборку offline bundle, clean install, upgrade предыдущей версии и forced-failure rollback.
+
+Offline bundle собирается один раз. Публикуется тот же artifact, который прошёл install/update/rollback verification. Publisher не должен ждать множество других workflows, перезапускать их или повторять их тесты.
+
+После успеха tag и GitHub Release проверяются через GitHub API. GRACE bookkeeping не является условием публикации release.
+
+## Готовность
+
+Фича готова, когда сценарий работает целиком, данные не теряются, ошибки и partial success обработаны, в затронутом контуре нет известных регрессий, UX соответствует правилам, релевантные tests зелёные, а update/recovery безопасны, если были затронуты deployment/storage.
+
+Не создавать проверку только потому, что можно создать ещё одну. Если governance или CI задерживают исправление без новой полезной гарантии — упрощать их, а не добавлять слой.

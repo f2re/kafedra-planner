@@ -2,21 +2,7 @@
 import { resolve } from 'node:path';
 import { pathToFileURL } from 'node:url';
 
-export const GRACE_MERGE_CHECK = 'GRACE / merge-gate';
-
-export const REQUIRED_MAIN_CHECKS = Object.freeze([
-  GRACE_MERGE_CHECK,
-  'Минимальный Node 24.15',
-  'test',
-  'browser',
-  'Сборщик под host Node 25.6',
-  'Full offline Debian 12 + Project Control',
-  'release-gate',
-  'organization-browser',
-  'science-lifecycle-browser',
-  'science-import-browser',
-  'science-reports-browser'
-]);
+export const REQUIRED_MAIN_CHECKS = Object.freeze(['Проверка']);
 
 export function mainProtectionPayload() {
   return {

@@ -1,14 +1,10 @@
 name: Научный жизненный цикл
 
 on:
-  push:
-    branches: [main]
-  pull_request:
-    branches: [main]
   workflow_dispatch:
 
 concurrency:
-  group: science-lifecycle-${{ github.workflow }}-${{ github.ref }}
+  group: science-lifecycle-${{ github.ref }}
   cancel-in-progress: true
 
 permissions:

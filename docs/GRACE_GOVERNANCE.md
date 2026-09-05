@@ -1,192 +1,108 @@
-# GRACE 4 governance
+# GRACE 4: проверки по риску
 
-`kafedra-planner` uses GRACE 4 as the outer engineering lifecycle for significant changes. Project-specific `kafedra-*` Codex skills remain the specialists that design and implement the work; GRACE owns the durable contract, scope, verification and transition between branch stages.
+GRACE используется в `kafedra-planner` как дополнительный fail-closed контур для изменений, где ошибка может повредить данные, безопасность, установку или сам механизм выпуска. Он не является обязательной оболочкой для каждой фичи и не дублирует обычные project tests.
 
-## Invariant
+## Когда GRACE обязателен
 
-```text
-Issue
-  → exact main SHA
-  → short branch
-  → draft/approved GraceChangeSpec
-  → approved GraceChangePlan
-  → baseline gate before governed writes
-  → scoped implementation
-  → selected final gate
-  → project CI + release gate + database gate
-  → unchanged-head squash merge
-  → post-merge CI
-  → immutable archive-only PR
-  → C-* applied/archive
-```
+Полный governed flow нужен только если изменение затрагивает хотя бы один из контуров:
 
-No step converts a projection into a second source of truth. Application data invariants from `docs/ARCHITECTURE.md` remain authoritative.
+- SQLite schema, migrations, storage или recovery;
+- immutable source/evidence/history;
+- backup/restore;
+- installer, offline bundle, update или rollback;
+- PIN, auth, ACL или security;
+- release/CI infrastructure;
+- опасное архитектурное или необратимое изменение.
 
-## Branch lifecycle
+Обычный feature/UI/API/test/docs PR без этих рисков не создаёт `C-*` только ради процедуры. Для него достаточно обычного project CI и targeted regression затронутого сценария.
 
-A development branch is compared with the exact current `main` base. Branch pushes may advance through three machine-visible stages:
+## Governed flow
 
-| Stage | Allowed branch state | GRACE assertion gate |
-| --- | --- | --- |
-| `draft` | one active `C-*`; draft or approved spec; plan optional/draft | `current` |
-| `planned` | approved spec and approved plan; no governed implementation writes yet | `baseline --run-commands` |
-| `implementation` | approved spec/plan plus governed writes contained by `ObservedWriteScope` | `final --run-commands` |
-
-A pull request to `main` cannot contain only an active proposal. It must contain a completed governed change with approved `spec.xml` and `plan.xml`, or be the dedicated terminal archive-only transition described below.
-
-Until terminal archiving, the sole complete active `C-*` remains the governing contract for corrective follow-up branches based on that `main`; it may be continued without rewriting the approved bundle, but a different active change cannot coexist with it or borrow its scope.
-
-Every repository file is governed except direct XML artifacts inside `.grace/changes/active/C-*` and `.grace/changes/archive/C-*`, which are validated by dedicated lifecycle rules. Consequently, application code, tests, scripts, workflow files, root build/test configuration, documentation, and durable GRACE context/graph/verification artifacts all require exactly one matching active `C-*`. This closes the possibility of changing architectural contracts or weakening a test configuration outside a change plan.
-
-Markdown companion artifacts such as `design.md`, `motion.md` and `design-audit.md` remain ordinary governed files throughout planning and implementation. They receive no general path exemption. Only when one exact `C-*` is removed from `active` and the same complete bundle appears under `archive` may the policy route those matching lifecycle paths to the stricter archive evaluator. That evaluator sees the full diff, rejects every external path, requires an identical file set and byte-identical companions, and permits only the root lifecycle status change in `spec.xml` and `plan.xml`.
-
-Before governed writes:
-
-```bash
-grace lint --path . --assertions current
-grace lint --path . --change C-CHANGE --assertions baseline --run-commands
-grace status --path . --json
-```
-
-After implementation:
-
-```bash
-grace lint --path . --change C-CHANGE --assertions target --run-commands
-grace lint --path . --change C-CHANGE --assertions final --run-commands
-grace status --path . --json
-```
-
-An approved plan is immutable. If scope, assertions or acceptance criteria materially change, supersede the change bundle instead of silently widening an approved plan.
-
-`scripts/github/grace-policy-gate.mjs`independently compares the branch with its exact base and rejects writes outside `ObservedWriteScope`. It is deliberately separate from GRACE CLI so an agent cannot make a broad diff merely by keeping XML syntactically valid.
-
-## Terminal archive transition
-
-GRACE 4 keeps an executable change under `.grace/changes/active/` while selected final assertions are being evaluated. Therefore the completed bundle is archived only after the implementation PR is merged and the new `main` SHA has green post-merge CI.
-
-Archiving is a second, dedicated archive-only branch and PR. Candidate recognition is based only on one matching active/archive change ID, absence of any active bundle at HEAD and presence of terminal archive `spec.xml` plus `plan.xml; it does not make companion files globally ungoverned. The strict archive evaluator then accepts the transition only when all of the following are true:
-
-- the exact base contains one approved active bundle;
-- HEAD removes that active bundle and creates the same `C-*` under `archive`;
-- no application, documentation, workflow, context, graph, verification or other repository file changes;
-- the exact bundle file set is preserved;
-- every companion artifact is byte-identical;
-- `spec.xml` and `plan.xml differ only in their root `status`;
-- both roots use the same terminal status: `applied`, `rejected`, `cancelled` or `superseded`;
-- no active copy remains at HEAD.
-
-A direct edit of an existing archive, a content rewrite disguised as archiving, deletion without an archive, or archive plus product changes fails closed. The archive PR runs normal PR CI and is squash-merged with the same exact-head rule.
-
-## Role routing
-
-The default task flow inside a `GraceChangePlan` is:
+Для рискованного изменения:
 
 ```text
-T-* flow intake
-  → T-* design + data
-  → T-* feature
-  → T-* tests
-  → T-* release
+Issue → exact main SHA → short branch
+      → approved spec.xml + plan.xml
+      → scoped implementation
+      → GRACE final lint/scope
+      → relevant risk gate + ordinary project CI
+      → exact-head PR → squash merge
 ```
 
-The corresponding repository-local skills are `kafedra-flow-intake`, `kafedra-design`, `kafedra-data`, `kafedra-feature`, `kafedra-tests`, and `kafedra-release`. A specialist may only write files covered by the selected plan's `ObservedWriteScope` and must return evidence to the GRACE controller.
+`ObservedWriteScope` описывает предметный scope изменения. Связанные regression tests и документация входят в тот же change; отдельный governance-проект для них не нужен.
 
-## SQLite and migration gate
+Approved plan не расширяется задним числом. Supersede нужен только когда существенно меняются цель, architecture/security model, schema или acceptance criteria.
 
-Applied SQL files are immutable. A branch may only add the next contiguous `migrations/NNN_lowercase_name.sql`; it may not edit, rename or delete a migration that exists at the comparison base. Any new migration also requires:
+## Что делает GitHub workflow GRACE
 
-- a changed `tests/*migration*.test.mjs` regression test;
-- `<M-DATABASE />` in the change spec;
-- `<V-M-DATABASE />` in the plan durable verification scope;
-- clean database creation from HEAD;
-- creation of a real database using the exact base revision, followed by upgrade with HEAD;
-- `PRAGMA quick_check` and `PRAGMA foreign_key_check` after each supported state;
-- exact `schema_migrations` parity with the migration directory;
-- automatic pre-migration backup, backup verification and restoration to the exact base schema whenever a schema migration is added.
+`.github/workflows/grace.yml` автоматически запускается только когда PR или `main` меняет `.grace/**`, то есть когда автор явно выбрал governed flow. Также доступен `workflow_dispatch`.
 
-Run locally with:
+Workflow выполняет три компактных шага:
 
-```bash
-node scripts/grace-governance.mjs migrations --base origin/main
-bash scripts/ci/grace-db-gate.sh origin/main
-```
+1. `contract` — durable model, lifecycle, `ObservedWriteScope` и выбранный GRACE lint;
+2. `database` — тяжёлый migration/recovery gate только если active spec содержит `M-DATABASE`, `M-BACKUP` или `M-MIGRATION-RUNNER`;
+3. `gate` — проверяет только результат двух предыдущих GRACE jobs.
 
-This extends the existing recovery behavior in `scripts/migrate.mjs`; it does not add a second migration engine. Database rollback is restoration of the verified pre-migration backup; destructive down-migrations are not introduced.
+GRACE не опрашивает GitHub Checks API, не ждёт `Проверка`, browser, organization/science или release workflows и не перезапускает их. Команды unit/Playwright из change plan не должны повторно гоняться GRACE-ом, если то же свойство уже доказывает project CI или профильный risk gate.
 
-## GitHub checks
+## Обычный CI
 
-`.github/workflows/grace.yml` runs on every development-branch push, pull request to `main`, and `main` push. It pins Bun `1.3.14` and `@osovv/grace-cli@4.0.5`. GRACE is not installed into the product runtime or offline bundle.
-
-Check names are event-specific so a branch push and its pull-request run cannot publish ambiguous duplicate contexts:
-
-| Event | Contract/database/aggregate names |
-| --- | --- |
-| pull request | `GRACE / contract`, `GRACE / database`, `GRACE / merge-gate` |
-| development branch push | `GRACE branch / contract`, `GRACE branch / database`, `GRACE branch / merge-gate` |
-| `main` push | `GRACE post-merge / contract`, `GRACE post-merge / database`, `GRACE post-merge / merge-gate` |
-
-`GRACE / merge-gate` is successful only if both PR-scoped GRACE jobs complete successfully. Existing project CI, release CI, organization and science workflows remain independent mandatory evidence.
-
-The desired required checks for `main` are:
-
-- `GRACE / merge-gate`
-- `Минимальный Node 24.15`
-- `test`
-- `browser`
-- `Сборщик под host Node 25.6`
-- `Full offline Debian 12 + Project Control`
-- `release-gate`
-- `organization-browser`
-- `science-lifecycle-browser`
-- `science-import-browser`
-- `science-reports-browser`
-
-A required check that is pending, failed, cancelled, missing or unexpectedly skipped is not merge evidence. Conditional assertion modes are executed inside one check step, so lifecycle selection does not create misleading skipped check jobs.
-
-### Executable assertion environment
-
-For `baseline` and `final` change stages, the contract job prepares the same locked project toolchain that the approved `MustPassCommand` entries expect before it invokes `grace lint --run-commands`. It runs:
+Для каждого pull request и push в `main` всегда существует один обязательный workflow `Проверка`:
 
 ```bash
 npm ci --ignore-scripts --no-audit --no-fund
+npm run check
+npm run docs:check
+npm test
+npm run smoke
 ```
 
-The committed `package-lock.json` is authoritative. Installation failure is a gate failure; CI never updates the lockfile or commits generated `node_modules`. Current-only lint does not install project dependencies.
+Это базовая защита от регрессий. Полный Playwright, alternate host Node, full offline bundle, systemd deployment, Project Control и backup/recovery self-tests не запускаются на каждый обычный PR.
 
-`scripts/ci/grace-assertion-env.mjs` inspects only `<Command>` elements in the selected active plan. If one of those commands directly runs `playwright test` or an `npm run test:browser*` script, the workflow installs the pinned Chromium runtime with its runner system dependencies before assertions. Plans without browser commands do not pay this cost. Detection or browser installation failure is fail-closed; it does not turn the assertion into a skip.
+Targeted Playwright выполняется при разработке затронутого UI-сценария. Полный browser/deployment regression относится к release или к изменению соответствующего рискованного контура.
 
-This preparation belongs only to engineering CI. Playwright, Chromium and GRACE remain absent from the production runtime and offline Debian/Astra bundle.
+Standalone workflows `Оргструктура`, `Массовый импорт науки`, `Научный жизненный цикл` и `Научные отчёты` сохранены как `workflow_dispatch` для диагностики; они не являются независимыми обязательными PR checks.
 
-## Server-side protection of main
+## SQLite и recovery
 
-GitHub branch protection is a server setting and cannot be enforced by repository files alone. Apply the committed desired state once with an administrator token:
+Applied SQL migrations неизменяемы. Schema change получает следующий последовательный номер и требует:
 
-```bash
-scripts/github/configure-main-protection.sh f2re/kafedra-planner main
-```
+- migration regression test;
+- `M-DATABASE`/`V-M-DATABASE` в governed change;
+- clean install;
+- exact-base → HEAD upgrade;
+- repeated migration run;
+- `PRAGMA quick_check` и `PRAGMA foreign_key_check`;
+- pre-migration backup, verify и restore;
+- forced-failure recovery там, где меняется механизм обновления/восстановления.
 
-The script configures strict up-to-date checks, pull-request-only integration with zero mandatory human approvals, resolved conversations, linear history, squash-only merging, auto-merge support, administrator enforcement, and disables force-push and branch deletion.
+Эти проверки выполняются только для storage/recovery риска и перед release, а не для каждого UI/docs/API изменения.
 
-Verify afterwards:
+## Release
 
-```bash
-gh api repos/f2re/kafedra-planner/branches/main/protection
-```
+Release-scale проверка отделена от feature PR. `Release gate` запускается на `main`/явный release запуск и сохраняет полный unit/integration, критический browser и recovery evidence. Publisher не должен создавать второй набор тех же тестов: его задача — собрать один offline artifact, проверить install/update/rollback именно этого artifact и опубликовать его без пересборки.
 
-If a required check is renamed, change the workflow and protection desired state in the same GRACE change.
+Текущий release publisher до завершения #308 сохраняет совместимость с именем gate текущей версии; #308 переводит его на version-neutral build-once contract.
 
-## Merge
+## Branch protection
 
-A PR is merged only after its exact head SHA is recorded and all mandatory checks are successful. The local helper performs the final stale-head guard:
+Условный GRACE нельзя делать always-required status context: на обычном low-risk PR он намеренно отсутствует. Поэтому desired protection из `scripts/github/configure-main-protection.sh` требует только всегда присутствующий check `Проверка`.
 
-```bash
-scripts/github/merge-grace-pr.sh <PR_NUMBER> f2re/kafedra-planner
-```
+Для risk-scoped PR исполнитель дополнительно обязан убедиться, что запустившийся `GRACE / gate` успешен. Для release/update/storage/security scope проверяются только соответствующие дополнительные gates.
 
-Agents using GitHub APIs must enforce the same invariant: refetch PR metadata immediately before merge, reject unresolved review threads or non-success checks, and pass the expected head SHA to the squash merge operation.
+Никакой aggregate workflow не должен ждать набор внешних Actions. Exact head SHA, mergeability и актуальные review comments проверяются непосредственно перед squash merge.
 
-After implementation merge, fetch the new `main` SHA and confirm post-merge CI. Then create the archive-only PR described above, let all PR checks complete, and squash-merge it with exact-head verification. Only the second merge leaves the durable GRACE state with zero active changes and one terminal archived bundle.
+## Terminal archive
+
+Действующие lifecycle-правила GRACE по-прежнему защищают terminal archive от подмены содержимого: archived bundle сохраняет тот же набор артефактов, а `spec.xml`/`plan.xml` меняют только terminal status. Archive bookkeeping не заменяет продуктовую проверку и не должен приводить к повторному запуску полного release/deployment набора без отдельного риска.
 
 ## Failure behavior
 
-The governance layer fails closed. It never rewrites an existing migration, force-pushes around a race, widens scope automatically, treats local focused tests as replacement for GitHub CI, modifies durable GRACE contracts without an active plan, rewrites an archive, or reports a merge/green gate before GitHub confirms it.
+Fail-closed остаётся только там, где он даёт новую гарантию. Нельзя:
+
+- редактировать применённую migration;
+- выходить за approved `ObservedWriteScope` в governed change;
+- скрывать failure/cancelled как success;
+- force-push обходить stale head;
+- публиковать release без exact SHA и проверенного artifact;
+- добавлять новый workflow только для повторения уже существующей проверки.
