@@ -24,11 +24,12 @@ export {
   testMeetingTemplateCatalogEntry
 } from './meeting-template-library.mjs';
 export { enrichMeetingDocumentTemplateMetadata } from './meeting-document-metadata.mjs';
+export { createMeeting } from './meeting-create-flexible.mjs';
 export {
-  createMeeting, getMeeting, listMeetingLinks, listMeetings, syncMeetingSearch, updateMeeting
+  getMeeting, listMeetingLinks, listMeetings, syncMeetingSearch, updateMeeting
 } from './meeting-core.mjs';
 export {
   addAgendaItem, deleteAgendaItem, listAgendaSources, moveAgendaItem, updateAgendaItem
 } from './meeting-agenda.mjs';
 export { listProtocolImports, normalizeProtocolImportYear, protocolImportYear } from './protocol-imports.mjs';
-export { generateMeetingDocument } from './meeting-documents.mjs';
+export { generateMeetingDocument } from './meeting-documents-flexible.mjs';
