@@ -1,0 +1,47 @@
+<GraceChangeSpec graceVersion="4.0" status="approved">
+  <C-RELEASE-CONNECTOR-TRIGGER-306>
+    <Summary>Allow the existing single Release workflow to be started through the GitHub write connector by moving one reusable release-run ref to exact current main, without restoring automatic main fan-out, polling or version-specific release automation.</Summary>
+    <Problem>The current release contract is workflow_dispatch-only. The connected GitHub write surface can update refs and inspect Actions but cannot invoke workflow_dispatch directly, so publishing 0.4.3 would otherwise require a manual UI action or a temporary workflow. Temporary workflows, cross-workflow orchestration and automatic release work on ordinary main pushes are explicitly prohibited.</Problem>
+    <Goals>
+      <Goal>Keep .github/workflows/release.yml as the only version-neutral release workflow.</Goal>
+      <Goal>Retain workflow_dispatch from main for human operation.</Goal>
+      <Goal>Add one persistent release-run push trigger that starts the same workflow only when that ref equals exact current main.</Goal>
+      <Goal>Keep ordinary pull requests and ordinary push/merge events in main free from release-scale jobs.</Goal>
+      <Goal>Preserve the existing build-once, checksum, install/update/rollback, Project Control and seven-asset publication contract.</Goal>
+      <Goal>Make the trigger reusable for later releases through a fast-forward ref update instead of new workflows or probe commits.</Goal>
+    </Goals>
+    <Constraints>
+      <Constraint>The exact base is main 51bf56d2690d3bf1d44e3d5f8f67e041288d04d7 and issue 306 remains open until v0.4.3 is published and verified.</Constraint>
+      <Constraint>No application/domain behavior, SQLite schema, applied migration, immutable source/evidence, PIN or ACL semantics change.</Constraint>
+      <Constraint>release-run is a release pointer, not a development branch; stale or non-main SHA must fail in release-preflight.</Constraint>
+      <Constraint>Release must not gain a push trigger for main, pull_request trigger, workflow_run trigger, polling loop, gh workflow run recovery or version-specific workflow.</Constraint>
+      <Constraint>Production remains Docker-free; the existing disposable Debian reference environment is unchanged.</Constraint>
+      <Constraint>Exact main is checked before release verification, before build and before publication.</Constraint>
+    </Constraints>
+    <NonGoals>
+      <NonGoal>Change the 0.4.3 product functionality or annual protocol import.</NonGoal>
+      <NonGoal>Change schema 31, migrations, installer internals, backup format or package policy.</NonGoal>
+      <NonGoal>Automatically release every merge to main.</NonGoal>
+      <NonGoal>Add a second release workflow or a one-off workflow for 0.4.3.</NonGoal>
+    </NonGoals>
+    <AcceptanceCriteria>
+      <Criterion>.github/workflows/release.yml remains the single workflow named Release and supports workflow_dispatch plus push only for branches: [release-run].</Criterion>
+      <Criterion>release-preflight accepts only workflow_dispatch:refs/heads/main or push:refs/heads/release-run and requires GITHUB_SHA to equal the current main SHA.</Criterion>
+      <Criterion>No ordinary push or merge to main starts release-scale work.</Criterion>
+      <Criterion>The release workflow has no workflow_run or pull_request trigger, no gh workflow run, no Actions polling and no sleep-based wait loop.</Criterion>
+      <Criterion>Project verification, critical browser, build-once artifact, systemd install/update/rollback, Project Control and seven checked assets remain unchanged.</Criterion>
+      <Criterion>Documentation validation accepts the release-run trigger but rejects a Release push trigger for main.</Criterion>
+      <Criterion>C-RELEASE-WORKFLOW-SIMPLIFY-309 moves from active approved to archive applied with identical content except root lifecycle status.</Criterion>
+      <Criterion>The exact-head PR passes ordinary Проверка and GRACE / gate before squash merge.</Criterion>
+    </AcceptanceCriteria>
+    <AffectedAreas><M-CI-GATE /><M-OFFLINE-BUNDLE /></AffectedAreas>
+    <VerificationIntent>
+      <ExpectedCommand>node --test tests/release-workflow.test.mjs tests/ci-simplification.test.mjs tests/release-0.4.3.test.mjs tests/docs-consistency.test.mjs</ExpectedCommand>
+      <ExpectedCommand>npm run check</ExpectedCommand>
+      <ExpectedCommand>npm run docs:check</ExpectedCommand>
+      <ExpectedCommand>npm test</ExpectedCommand>
+      <ExpectedCommand>npm run smoke</ExpectedCommand>
+      <ExpectedEvidence>One universal Release workflow, ordinary main development unchanged, a reusable exact-main release-run pointer, and no external orchestration.</ExpectedEvidence>
+    </VerificationIntent>
+  </C-RELEASE-CONNECTOR-TRIGGER-306>
+</GraceChangeSpec>
