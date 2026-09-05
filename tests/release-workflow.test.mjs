@@ -61,13 +61,16 @@ test('release project verification is not duplicated inside the publisher', asyn
   assert.equal(count(source, /npx playwright install --with-deps chromium/g), 1);
 });
 
-test('draft publication is verified by release id and stale failed drafts are removed', async () => {
+test('draft publication uses create-release response id and stale failed drafts are removed', async () => {
   const source = await text('.github/workflows/release.yml');
   assert.match(source, /select\(\.tag_name == \$tag and \.draft == true\) \| \.id/u);
   assert.match(source, /gh api --method DELETE "repos\/\$GITHUB_REPOSITORY\/releases\/\$DRAFT_ID"/u);
-  assert.match(source, /RELEASE_ID=.*select\(\.tag_name == \$tag and \.draft == true and \.target_commitish == \$sha\)/su);
+  assert.match(source, /gh api --method POST "repos\/\$GITHUB_REPOSITORY\/releases" --input -/u);
+  assert.match(source, /\{tag_name:\$tag,target_commitish:\$sha,name:\$name,body:\$body,draft:true,prerelease:false\}/u);
+  assert.match(source, /RELEASE_ID="\$\(jq -r '\.id \/\/ empty' <<<"\$RELEASE_JSON"\)"/u);
   assert.match(source, /echo "RELEASE_ID=\$RELEASE_ID" >> "\$GITHUB_ENV"/u);
   assert.match(source, /RELEASE_JSON="\$\(gh api "repos\/\$GITHUB_REPOSITORY\/releases\/\$RELEASE_ID"\)"/u);
+  assert.match(source, /gh api --method PATCH "repos\/\$GITHUB_REPOSITORY\/releases\/\$RELEASE_ID"/u);
   assert.match(source, /\[\[ "\$\(jq -r '\.target_commitish' <<<"\$RELEASE_JSON"\)" == "\$SOURCE_SHA" \]\]/u);
-  assert.doesNotMatch(source, /RELEASE_JSON="\$\(gh api "repos\/\$GITHUB_REPOSITORY\/releases\/tags\/\$TAG"\)"/u);
+  assert.doesNotMatch(source, /select\(\.tag_name == \$tag and \.draft == true and \.target_commitish == \$sha\)/u);
 });

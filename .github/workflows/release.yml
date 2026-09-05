@@ -150,8 +150,8 @@ jobs:
           OBJECT_SHA=""
           TAG_IS_ANCESTOR=false
 
-          # A failed run may leave an unpublished draft. It is safe to remove only
-          # after exact-main preflight: drafts are not public releases and have no tag ref.
+          # Failed attempts may leave an unpublished draft. After exact-main
+          # preflight it is safe to delete such drafts and rebuild from current main.
           DRAFT_IDS="$(
             gh api --paginate "repos/$GITHUB_REPOSITORY/releases?per_page=100" \
               | jq -r --arg tag "$TAG" '.[] | select(.tag_name == $tag and .draft == true) | .id'
@@ -289,19 +289,22 @@ jobs:
           TAG="v${VERSION}"
           NOTES="docs/releases/${VERSION}.md"
           [[ -f "$NOTES" ]]
-          gh release create "$TAG" \
-            --repo "$GITHUB_REPOSITORY" \
-            --target "$SOURCE_SHA" \
-            --title "Kafedra Planner ${VERSION}" \
-            --notes-file "$NOTES" \
-            --draft
-          RELEASE_ID="$(
-            gh api --paginate "repos/$GITHUB_REPOSITORY/releases?per_page=100" \
-              | jq -r --arg tag "$TAG" --arg sha "$SOURCE_SHA" \
-                '.[] | select(.tag_name == $tag and .draft == true and .target_commitish == $sha) | .id' \
-              | head -n 1
+          # REST create below is the exact equivalent of:
+          # gh release create "$TAG" --target "$SOURCE_SHA" --draft
+          RELEASE_JSON="$(
+            jq -n \
+              --arg tag "$TAG" \
+              --arg sha "$SOURCE_SHA" \
+              --arg name "Kafedra Planner ${VERSION}" \
+              --rawfile body "$NOTES" \
+              '{tag_name:$tag,target_commitish:$sha,name:$name,body:$body,draft:true,prerelease:false}' \
+              | gh api --method POST "repos/$GITHUB_REPOSITORY/releases" --input -
           )"
-          [[ -n "$RELEASE_ID" ]] || { echo "Не найден созданный draft для $TAG на $SOURCE_SHA" >&2; exit 1; }
+          RELEASE_ID="$(jq -r '.id // empty' <<<"$RELEASE_JSON")"
+          [[ -n "$RELEASE_ID" ]] || { echo "GitHub не вернул id созданного draft $TAG" >&2; exit 1; }
+          [[ "$(jq -r '.draft' <<<"$RELEASE_JSON")" == true ]]
+          [[ "$(jq -r '.tag_name' <<<"$RELEASE_JSON")" == "$TAG" ]]
+          [[ "$(jq -r '.target_commitish' <<<"$RELEASE_JSON")" == "$SOURCE_SHA" ]]
           echo "RELEASE_ID=$RELEASE_ID" >> "$GITHUB_ENV"
 
       - name: Upload exactly the verified assets
@@ -347,7 +350,17 @@ jobs:
           }
           EMPTY="$(jq -r '.assets[] | select(.size <= 0) | .name' <<<"$RELEASE_JSON")"
           [[ -z "$EMPTY" ]] || { echo "Пустые assets: $EMPTY" >&2; exit 1; }
-          gh release edit "$TAG" --repo "$GITHUB_REPOSITORY" --draft=false --prerelease=false --latest
+
+          # REST patch below is the exact equivalent of:
+          # gh release edit "$TAG" --repo "$GITHUB_REPOSITORY" --draft=false --prerelease=false --latest
+          PUBLISHED_JSON="$(
+            gh api --method PATCH "repos/$GITHUB_REPOSITORY/releases/$RELEASE_ID" \
+              -F draft=false \
+              -F prerelease=false \
+              -f make_latest=true
+          )"
+          [[ "$(jq -r '.draft' <<<"$PUBLISHED_JSON")" == false ]]
+          [[ "$(jq -r '.prerelease' <<<"$PUBLISHED_JSON")" == false ]]
 
           RELEASE_JSON="$(gh api "repos/$GITHUB_REPOSITORY/releases/$RELEASE_ID")"
           [[ "$(jq -r '.draft' <<<"$RELEASE_JSON")" == false ]]
