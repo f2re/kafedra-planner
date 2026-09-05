@@ -169,7 +169,7 @@ export function runPolicy({
       && archivedAtHead.includes(candidate);
     if (!validTerminalMove) {
       throw new Error(
-        `Archived C-* bundles may change only through an immutable terminal move from exact base; touched: ${candidate}.`
+        `Archived C-* bundles may change only in one immutable archive-only transition or as one immutable terminal move alongside the next governed change; touched: ${candidate}.`
       );
     }
     const lifecycleEntries = entries.filter((entry) => isArchiveLifecycleEntry(entry, candidate));
