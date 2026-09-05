@@ -1,7 +1,7 @@
 import { meetingsState, $m, ensureMeetingsUi, closeMeetingModal, showMeetingNotice } from './meetings-state.js';
 import { activateMeetingsView } from './meetings-view.js';
-import { openAgendaModal, openCreateMeetingModal, openEditMeetingModal, openSettingsModal, openSourceModal, renderSources } from './meetings-modals.js';
-import { addSourceQuestion, createMeetingFromForm, deleteAgenda, editMeetingFromForm, generateDocument, moveAgenda, saveAgendaForm, saveSettings, uploadMeetingTemplateInput } from './meetings-actions.js';
+import { openAgendaModal, openCreateMeetingModal, openEditMeetingModal, openSettingsModal, openSourceModal, renderSources } from './meetings-modals-flow.js';
+import { addSourceQuestion, createMeetingFromForm, deleteAgenda, editMeetingFromForm, generateDocument, generateDocumentFromForm, moveAgenda, saveAgendaForm, saveSettings, uploadMeetingTemplateInput } from './meetings-actions.js';
 import { schedulePlanMeetingLinks } from './meetings-plan-links.js';
 import { loadMeeting } from './meetings-data.js';
 import { renderMeetingDetail } from './meetings-render.js';
@@ -76,6 +76,10 @@ document.addEventListener('submit', (event) => {
   if (event.target.id === 'agenda-item-form') {
     event.preventDefault();
     saveAgendaForm(event.target).catch((error) => showMeetingNotice(error.message));
+  }
+  if (event.target.id === 'meeting-generate-form') {
+    event.preventDefault();
+    generateDocumentFromForm(event.target).catch((error) => showMeetingNotice(error.message));
   }
 }, true);
 
