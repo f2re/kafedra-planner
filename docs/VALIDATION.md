@@ -1,6 +1,6 @@
 # Проверка изменений
 
-Актуальный рубеж: `0.4.2`, SQLite schema **31**. CI доказывает только свойства, относящиеся к риску изменения; полный release/deployment regression не запускается на каждый feature PR.
+Актуальный рубеж: `0.4.3`, SQLite schema **31**. CI доказывает только свойства, относящиеся к риску изменения; полный release/deployment regression не запускается на каждый feature PR.
 
 ## Обычный pull request
 
@@ -40,7 +40,7 @@ GRACE запускается автоматически только для gove
 
 1. `release-preflight` — workflow запущен от exact текущего `main` SHA;
 2. `release-verify` — check, unit/integration, smoke и backup self-test выполняются один раз;
-3. `release-browser-critical` — критические browser/PIN/ACL сценарии выполняются один раз;
+3. `release-browser-critical` — критические browser/PIN/ACL сценарии, включая пакетный импорт протоколов, выполняются один раз;
 4. внутренний `release-gate` — принимает результаты этих jobs без опроса внешних Actions;
 5. `release-build-verify-publish` — один full offline artifact проходит checksum, systemd clean install, repeated update и forced rollback; из этого же archive формируется Project Control и публикуются семь assets.
 
