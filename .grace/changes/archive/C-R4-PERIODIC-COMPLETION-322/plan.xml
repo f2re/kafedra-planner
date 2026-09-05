@@ -1,4 +1,4 @@
-<GraceChangePlan graceVersion="4.0" status="approved">
+<GraceChangePlan graceVersion="4.0" status="applied">
   <C-R4-PERIODIC-COMPLETION-322>
     <IntentSummary>Separate completion from manager-only editing and from optional evidence review: one explicit transition endpoint changes only task completion state, while the existing PATCH keeps date/ownership/control authority.</IntentSummary>
     <BaselineAssertions>

@@ -1,4 +1,4 @@
-<GraceChangeSpec graceVersion="4.0" status="approved">
+<GraceChangeSpec graceVersion="4.0" status="applied">
   <C-R4-PERIODIC-COMPLETION-322>
     <Summary>Make periodic task completion a direct domain transition for the executor, independent from optional evidence review, while preserving ACL, calendar/plan-fact projections and history.</Summary>
     <Problem>Periodic task status is currently mutated through the generic manager-only PATCH which requires a reason, while attaching an optional report forces status submitted and report review forces completed/rework. An executor therefore cannot finish their own ordinary periodic task in one action, and optional evidence acts as a mandatory approval workflow. The adaptive UI also treats periodic edit status as learnable.</Problem>
