@@ -51,6 +51,9 @@ export function filterNeverLearnPreferenceBody(body) {
 
 function controlsError(error) {
   const code = String(error?.message || error);
+  if (code === 'preference_account_required') {
+    return new AppError(code, 'Персональная настройка доступна после входа в аккаунт.', 409);
+  }
   if (code === 'preference_pin_key_forbidden') {
     return new AppError(code, 'Это поле нельзя закреплять как личный default.', 400);
   }
@@ -131,7 +134,11 @@ export function createUiPreferencesRouter({ database }) {
 
     if (resetPath) {
       if (method !== 'POST') throw new AppError('method_not_allowed', 'Метод не поддерживается.', 405);
-      return sendJson(response, 200, resetLearnedPreferences(database, workspace.id, accountId));
+      try {
+        return sendJson(response, 200, resetLearnedPreferences(database, workspace.id, accountId));
+      } catch (error) {
+        throw controlsError(error);
+      }
     }
 
     const requestedKeys = keysFrom(url);
@@ -156,7 +163,7 @@ export function createUiPreferencesRouter({ database }) {
       }
       return sendJson(response, 200, {
         controls,
-        preferences: recordUiPreferences(database, workspace.id, accountId, body).preferences
+        preferences: recordUiPreferences(database, workspace.id, accountId, body)
       });
     }
     throw new AppError('method_not_allowed', 'Метод не поддерживается.', 405);
