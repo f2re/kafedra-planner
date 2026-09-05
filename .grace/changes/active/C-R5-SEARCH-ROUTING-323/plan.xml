@@ -1,0 +1,87 @@
+<GraceChangePlan graceVersion="4.0" status="approved">
+  <C-R5-SEARCH-ROUTING-323>
+    <IntentSummary>Reuse existing domain openers and add only safe route metadata plus search-state continuity, while reducing always-visible filters through progressive disclosure.</IntentSummary>
+    <BaselineAssertions>
+      <MustExist><Value>public/search-next.js</Value></MustExist>
+      <MustExist><Value>public/action-center.js</Value></MustExist>
+      <MustExist><Value>public/lifecycle-safe.js</Value></MustExist>
+      <MustExist><Value>apps/api/src/search-router.mjs</Value></MustExist>
+      <MustVerify><Module>M-API</Module></MustVerify>
+    </BaselineAssertions>
+    <TargetAssertions>
+      <MustContain><File>apps/api/src/search-router.mjs</File><Text>routeForSearchResult</Text></MustContain>
+      <MustContain><File>public/action-center.js</File><Text>kafedraOpenExactRoute</Text></MustContain>
+      <MustContain><File>public/lifecycle-safe.js</File><Text>kafedraOpenDocument</Text></MustContain>
+      <MustContain><File>public/search-next.js</File><Text>К поиску</Text></MustContain>
+      <MustContain><File>public/search-next.js</File><Text>search-more-filters</Text></MustContain>
+      <MustExist><Value>tests/search-routing.test.mjs</Value></MustExist>
+      <MustExist><Value>tests/browser/search-routing.spec.mjs</Value></MustExist>
+      <MustVerify><Module>M-API</Module></MustVerify>
+    </TargetAssertions>
+    <DurableScope>
+      <GraphAnchors><M-API /><DF-GRACE-BRANCH /></GraphAnchors>
+      <VerificationAnchors><V-M-API /></VerificationAnchors>
+      <ContextArtifacts><ContextArtifact>principles.xml</ContextArtifact></ContextArtifacts>
+    </DurableScope>
+    <ObservedWriteScope>
+      <Glob>.grace/changes/active/C-R5-SEARCH-ROUTING-323/**</Glob>
+      <File>apps/api/src/search-router.mjs</File>
+      <File>public/search-next.js</File>
+      <File>public/search-next.css</File>
+      <File>public/action-center.js</File>
+      <File>public/lifecycle-safe.js</File>
+      <File>tests/search-routing.test.mjs</File>
+      <File>tests/browser/search-routing.spec.mjs</File>
+    </ObservedWriteScope>
+    <ImplementationPlan>
+      <T-001>
+        <Title>kafedra-design: make result card primary and filters progressive</Title>
+        <DependsOn></DependsOn>
+        <AcceptanceCriteria>
+          <Criterion>Desktop and mobile expose the whole result card as the primary keyboard/click target while Original remains a separate secondary action.</Criterion>
+          <Criterion>Search text, compact type and active filter chips remain visible; all rare filters live under one disclosure without geometry learning.</Criterion>
+          <Criterion>A compact К поиску return action is visible after routing away from search.</Criterion>
+        </AcceptanceCriteria>
+        <Verification><Command>npx playwright test tests/browser/search-routing.spec.mjs</Command></Verification>
+      </T-001>
+      <T-002>
+        <Title>kafedra-motion: use no-motion for search routing and return</Title>
+        <DependsOn><T-001 /></DependsOn>
+        <AcceptanceCriteria>
+          <Criterion>No route or filter animation is added; static state and focus are sufficient.</Criterion>
+          <Criterion>Existing prefers-reduced-motion behavior remains unchanged.</Criterion>
+        </AcceptanceCriteria>
+        <Verification><Command>npx playwright test tests/browser/search-routing.spec.mjs</Command></Verification>
+      </T-002>
+      <T-003>
+        <Title>kafedra-feature: add safe route metadata and context restoration</Title>
+        <DependsOn><T-002 /></DependsOn>
+        <AcceptanceCriteria>
+          <Criterion>Route metadata is derived after ACL filtering and maps child result kinds to existing parent/domain surfaces without exposing a new object.</Criterion>
+          <Criterion>Search reuses Action Center exact routing and lifecycle document opening rather than building a second inspector.</Criterion>
+          <Criterion>Query, filters, details state, focus and scroll restore after returning; stale response sequencing remains unchanged.</Criterion>
+          <Criterion>Route failure is rendered inline on the originating result and does not fall through to an unauthorized URL.</Criterion>
+        </AcceptanceCriteria>
+        <Verification><Command>node --test tests/search-routing.test.mjs</Command></Verification>
+      </T-003>
+      <T-004>
+        <Title>kafedra-design-audit: verify continuity and secondary Original action</Title>
+        <DependsOn><T-003 /></DependsOn>
+        <AcceptanceCriteria>
+          <Criterion>Meeting/plan/assignment/document reuse their existing working card and the return action restores the exact search context on desktop and mobile.</Criterion>
+          <Criterion>Keyboard Enter opens the primary result; activating Original never also opens the domain route.</Criterion>
+        </AcceptanceCriteria>
+        <Verification><Command>npx playwright test tests/browser/search-routing.spec.mjs</Command></Verification>
+      </T-004>
+      <T-005>
+        <Title>kafedra-tests: cover route kinds ACL stale responses and return state</Title>
+        <DependsOn><T-004 /></DependsOn>
+        <AcceptanceCriteria>
+          <Criterion>Unit tests cover route target derivation for document/meeting/assignment/periodic/plan child types and no route for unknown result.</Criterion>
+          <Criterion>Browser regression covers click, Enter, Original isolation, filter disclosure, return state and unavailable target message.</Criterion>
+        </AcceptanceCriteria>
+        <Verification><Command>node --test tests/search-routing.test.mjs</Command><Command>npx playwright test tests/browser/search-routing.spec.mjs</Command></Verification>
+      </T-005>
+    </ImplementationPlan>
+  </C-R5-SEARCH-ROUTING-323>
+</GraceChangePlan>
