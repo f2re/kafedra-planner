@@ -3,7 +3,7 @@
 [Русский](README.md) · [English](README.en.md)
 
 [![Проверка](https://github.com/f2re/kafedra-planner/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/f2re/kafedra-planner/actions/workflows/ci.yml)
-[![Release gate](https://github.com/f2re/kafedra-planner/actions/workflows/release-gate.yml/badge.svg?branch=main)](https://github.com/f2re/kafedra-planner/actions/workflows/release-gate.yml)
+[![Release](https://github.com/f2re/kafedra-planner/actions/workflows/release.yml/badge.svg?branch=main)](https://github.com/f2re/kafedra-planner/actions/workflows/release.yml)
 [![GitHub Release](https://img.shields.io/github/v/release/f2re/kafedra-planner?display_name=tag&sort=semver)](https://github.com/f2re/kafedra-planner/releases)
 [![Лицензия MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 
@@ -146,7 +146,7 @@ npm run test:browser:academic
 npm run test:browser:release
 ```
 
-CI проверяет schema 31, backup/restore, forced rollback, desktop/mobile Chromium, интеграцию Оформлятора, full-offline Debian 12, additive APT policy, systemd и Project Control.
+Обычный GitHub CI выполняет только locked install, check, docs, unit/integration и smoke. Targeted Playwright запускается для затронутого UI-сценария. Полный browser, backup/restore и offline/systemd install-update-rollback относятся только к профильному риск-контуру или к явному ручному запуску workflow `Release`; обычный merge их не запускает.
 
 ## Эксплуатация и документация
 

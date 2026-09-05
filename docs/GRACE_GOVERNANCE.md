@@ -1,6 +1,6 @@
 # GRACE 4: проверки по риску
 
-GRACE используется в `kafedra-planner` как дополнительный fail-closed контур для изменений, где ошибка может повредить данные, безопасность, установку или сам механизм выпуска. Он не является обязательной оболочкой для каждой фичи и не дублирует обычные project tests.
+GRACE используется в `kafedra-planner` как дополнительный fail-closed контур для изменений, где ошибка может повредить данные, безопасность, установку или механизм выпуска. Он не является обязательной оболочкой для каждой фичи и не дублирует обычные project tests.
 
 ## Когда GRACE обязателен
 
@@ -80,9 +80,17 @@ Applied SQL migrations неизменяемы. Schema change получает с
 
 ## Release
 
-Release-scale проверка отделена от feature PR. `Release gate` запускается на `main`/явный release запуск и сохраняет полный unit/integration, критический browser и recovery evidence. Publisher не должен создавать второй набор тех же тестов: его задача — собрать один offline artifact, проверить install/update/rollback именно этого artifact и опубликовать его без пересборки.
+В репозитории один release workflow: `.github/workflows/release.yml`, имя `Release`. Он запускается только вручную через `workflow_dispatch` из текущего `main`; обычный pull request и обычный merge не запускают release-scale работу.
 
-Текущий release publisher до завершения #308 сохраняет совместимость с именем gate текущей версии; #308 переводит его на version-neutral build-once contract.
+Внутри одного workflow используются обычные зависимости jobs, без внешней оркестрации:
+
+1. `release-preflight` фиксирует exact current `main` SHA;
+2. `release-verify` один раз выполняет check, unit/integration, smoke и backup self-test;
+3. `release-browser-critical` один раз выполняет критические browser/PIN/ACL сценарии;
+4. внутренний `release-gate` требует успешность этих jobs;
+5. `release-build-verify-publish` собирает один offline artifact, проверяет install/update/forced rollback именно этого artifact, создаёт Project Control из него и только затем публикует проверенные assets.
+
+Release workflow не опрашивает другие Actions, не вызывает `gh workflow run`, не ждёт GRACE/organization/science jobs и не повторяет project/browser suites после gate. Если `main` изменился до публикации, выпуск старого SHA останавливается.
 
 ## Branch protection
 
@@ -94,7 +102,7 @@ Release-scale проверка отделена от feature PR. `Release gate` 
 
 ## Terminal archive
 
-Действующие lifecycle-правила GRACE по-прежнему защищают terminal archive от подмены содержимого: archived bundle сохраняет тот же набор артефактов, а `spec.xml`/`plan.xml` меняют только terminal status. Archive bookkeeping не заменяет продуктовую проверку и не должен приводить к повторному запуску полного release/deployment набора без отдельного риска.
+Действующие lifecycle-правила GRACE защищают terminal archive от подмены содержимого: archived bundle сохраняет тот же набор артефактов, а `spec.xml`/`plan.xml` меняют только terminal status. Archive bookkeeping не заменяет продуктовую проверку и не должен приводить к повторному запуску полного release/deployment набора без отдельного риска.
 
 ## Failure behavior
 

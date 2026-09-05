@@ -12,8 +12,9 @@ test('опубликованный 0.4.1 остаётся отдельным н�
   assert.match(note, /Tag и assets версии `0\.4\.0` не изменяются\./u);
 });
 
-test('publisher хранит 0.4.1 только как неактивный compatibility marker', async () => {
-  const publisher = await text('.github/workflows/release.yml');
-  assert.match(publisher, /^    # workflows: \["Release gate 0\.4\.1"\]$/mu);
-  assert.doesNotMatch(publisher, /^    workflows: \["Release gate 0\.4\.1"\]$/mu);
+test('текущий release workflow не привязан к исторической версии', async () => {
+  const source = await text('.github/workflows/release.yml');
+  assert.match(source, /^name: Release$/mu);
+  assert.doesNotMatch(source, /Release gate 0\.4\.1/u);
+  assert.doesNotMatch(source, /Release gate 0\.4\.2/u);
 });

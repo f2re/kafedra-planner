@@ -3,29 +3,52 @@ import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
 
 const text = (path) => readFile(path, 'utf8');
+const count = (source, pattern) => [...source.matchAll(pattern)].length;
 
-test('release gate and active publisher trigger use 0.4.2', async () => {
-  const gate = await text('.github/workflows/release-gate.yml');
-  const publisher = await text('.github/workflows/release.yml');
-  assert.match(gate, /^name: Release gate 0\.4\.2$/mu);
-  assert.match(publisher, /^    workflows: \["Release gate 0\.4\.2"\]$/mu);
-  assert.doesNotMatch(publisher, /^    workflows: \["Release gate 0\.4\.1"\]$/mu);
+async function expectMissing(path) {
+  await assert.rejects(text(path), (error) => error?.code === 'ENOENT');
+}
+
+test('release is one version-neutral manual workflow', async () => {
+  const source = await text('.github/workflows/release.yml');
+  assert.match(source, /^name: Release$/mu);
+  assert.match(source, /^on:\n  workflow_dispatch:\n/mu);
+  assert.doesNotMatch(source, /^  workflow_run:/mu);
+  assert.doesNotMatch(source, /^  pull_request:/mu);
+  assert.doesNotMatch(source, /^  push:/mu);
+  await expectMissing('.github/workflows/release-gate.yml');
 });
 
-test('publisher waits for exact-head GRACE and preserves safe draft publication', async () => {
+test('release uses native job dependencies and exact current main', async () => {
   const source = await text('.github/workflows/release.yml');
-  assert.match(source, /required=\(\n\s+"GRACE"/u);
-  assert.match(source, /\["GRACE"\]="grace\.yml"/u);
-  assert.match(source, /main уже изменился: ожидался \$SOURCE_SHA/u);
-  assert.match(source, /gh release create "\$TAG"/u);
-  assert.match(source, /--target "\$SOURCE_SHA"/u);
-  assert.match(source, /--draft/u);
-  assert.match(source, /-F draft=false -f make_latest=true/u);
-  assert.match(source, /\[\[ "\$OBJECT_SHA" == "\$SOURCE_SHA" \]\]/u);
+  assert.match(source, /^  release-gate:/mu);
+  assert.match(source, /needs: \[preflight, verify, browser\]/u);
+  assert.match(source, /^    needs: release-gate$/mu);
+  assert.match(source, /git\/ref\/heads\/main/u);
+  assert.match(source, /\[\[ "\$MAIN_SHA" == "\$GITHUB_SHA" \]\]/u);
+  assert.match(source, /\[\[ "\$MAIN_SHA" == "\$SOURCE_SHA" \]\]/u);
 });
 
-test('legacy 0.4.1 marker is documentation-only for the pre-0.4.2 recovery regression', async () => {
+test('release never polls or redispatches external Actions', async () => {
   const source = await text('.github/workflows/release.yml');
-  assert.match(source, /^    # Compatibility marker for the pre-0\.4\.2 recovery regression; not an active trigger\.$/mu);
-  assert.match(source, /^    # workflows: \["Release gate 0\.4\.1"\]$/mu);
+  for (const forbidden of [
+    /gh workflow run/u,
+    /actions\/runs/u,
+    /workflow_run:/u,
+    /required=\(/u,
+    /recovered_from/u,
+    /sleep\s+\d+/u,
+    /actions: write/u
+  ]) {
+    assert.doesNotMatch(source, forbidden);
+  }
+});
+
+test('release project verification is not duplicated inside the publisher', async () => {
+  const source = await text('.github/workflows/release.yml');
+  assert.equal(count(source, /npm run check/g), 1);
+  assert.equal(count(source, /npm test/g), 1);
+  assert.equal(count(source, /npm run smoke/g), 1);
+  assert.equal(count(source, /npm run backup:selftest/g), 1);
+  assert.equal(count(source, /npx playwright install --with-deps chromium/g), 1);
 });

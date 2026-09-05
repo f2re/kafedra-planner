@@ -22,7 +22,7 @@ SQLite schema остаётся `31`, новой migration нет. Применё
 
 ## Выпуск
 
-На одном exact head должны успешно завершиться GRACE, project CI, release gate, browser-контуры, full offline Debian 12, реальная systemd-установка, offline LLM/GGUF и Project Control. Publisher создаёт draft, проверяет exact tag SHA и семь assets, затем публикует non-prerelease Release.
+Обычная разработка проходит компактный `Проверка`; GRACE добавляется только для рискованного scope. Фактический выпуск запускается отдельно одним ручным workflow `Release` от exact текущего `main`. В нём project/unit/smoke и критический browser выполняются по одному разу, затем один full offline artifact проходит checksum, systemd clean install, repeated update и forced rollback. Project Control и семь GitHub Release assets создаются из этого же проверенного artifact без пересборки и без ожидания внешних Actions.
 
 ## Что остаётся до stable
 
