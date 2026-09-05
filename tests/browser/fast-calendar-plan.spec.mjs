@@ -70,7 +70,7 @@ test('клик + в дне сразу открывает короткую кал
   const body = request.postDataJSON();
   expect(body).toMatchObject({
     title: 'Короткая запись R7',
-    date,
+    startsAt: date,
     category: 'science',
     importance: 'high',
     reminderMinutes: 1440,
