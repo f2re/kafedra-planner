@@ -10,11 +10,14 @@
       <MustVerify><Module>M-DATABASE</Module></MustVerify>
     </BaselineAssertions>
     <TargetAssertions>
-      <MustContain><File>packages/protocols/src/meeting-core.mjs</File><Text>getMeetingSettings</Text></MustContain>
-      <MustContain><File>packages/protocols/src/meeting-documents.mjs</File><Text>explicitTemplateVersionId</Text></MustContain>
-      <MustContain><File>public/meetings-modals.js</File><Text>meeting-generate-form</Text></MustContain>
-      <MustContain><File>docs/MEETINGS.md</File><Text>дата и номер протокола</Text></MustContain>
+      <MustExist><Value>packages/protocols/src/meeting-create-flexible.mjs</Value></MustExist>
+      <MustExist><Value>packages/protocols/src/meeting-documents-flexible.mjs</Value></MustExist>
+      <MustExist><Value>public/meetings-modals-flow.js</Value></MustExist>
+      <MustExist><Value>tests/meeting-minimal-create.test.mjs</Value></MustExist>
       <MustExist><Value>tests/browser/meeting-minimal-create.spec.mjs</Value></MustExist>
+      <MustContain><File>packages/protocols/src/meeting-documents-flexible.mjs</File><Text>explicitTemplateVersionId</Text></MustContain>
+      <MustContain><File>public/meetings-modals-flow.js</File><Text>meeting-generate-form</Text></MustContain>
+      <MustContain><File>docs/MEETINGS.md</File><Text>дата и номер протокола</Text></MustContain>
       <MustVerify><Module>M-API</Module></MustVerify>
       <MustVerify><Module>M-DATABASE</Module></MustVerify>
     </TargetAssertions>
@@ -25,13 +28,13 @@
     </DurableScope>
     <ObservedWriteScope>
       <Glob>.grace/changes/active/C-R3-MINIMAL-MEETING-321/**</Glob>
-      <File>packages/protocols/src/meeting-core.mjs</File>
-      <File>packages/protocols/src/meeting-documents.mjs</File>
-      <File>public/meetings-modals.js</File>
+      <File>packages/protocols/src/meeting-create-flexible.mjs</File>
+      <File>packages/protocols/src/meeting-documents-flexible.mjs</File>
+      <File>packages/protocols/src/meetings.mjs</File>
+      <File>public/meetings-modals-flow.js</File>
       <File>public/meetings-actions.js</File>
       <File>public/meetings-events.js</File>
-      <File>public/meetings-render.js</File>
-      <File>tests/meeting-workflow.test.mjs</File>
+      <File>tests/meeting-minimal-create.test.mjs</File>
       <File>tests/browser/meeting-minimal-create.spec.mjs</File>
       <File>docs/MEETINGS.md</File>
     </ObservedWriteScope>
@@ -43,17 +46,17 @@
           <Criterion>Actor: staff member preparing a department meeting; trigger: New meeting; authoritative object: meeting; minimum create data: date and protocol number; agenda follows immediately; document-template exceptions are deferred to generation.</Criterion>
           <Criterion>The imported-protocol path remains separate and unchanged.</Criterion>
         </AcceptanceCriteria>
-        <Verification><Command>node --test tests/meeting-workflow.test.mjs</Command></Verification>
+        <Verification><Command>node --test tests/meeting-minimal-create.test.mjs tests/meeting-workflow.test.mjs</Command></Verification>
       </T-000>
       <T-001>
         <Title>kafedra-data: reuse nullable meeting snapshots without migration</Title>
         <DependsOn><T-000 /></DependsOn>
         <AcceptanceCriteria>
           <Criterion>No schema change is needed because chair, secretary, quorum and template-version meeting fields are already nullable.</Criterion>
-          <Criterion>Complete existing settings are copied as before; absent settings produce null optional meeting fields and null template-profile snapshots.</Criterion>
+          <Criterion>The configured create path is reused unchanged; only meeting_settings_incomplete falls back to available nullable defaults and null profile snapshots.</Criterion>
           <Criterion>Historical snapshots and generated meeting_documents are never rewritten.</Criterion>
         </AcceptanceCriteria>
-        <Verification><Command>node --test tests/meeting-workflow.test.mjs</Command></Verification>
+        <Verification><Command>node --test tests/meeting-minimal-create.test.mjs tests/meeting-workflow.test.mjs</Command></Verification>
       </T-001>
       <T-002>
         <Title>kafedra-design: keep create minimal and defer only the missing output template</Title>
@@ -77,12 +80,12 @@
         <Title>kafedra-feature: implement minimal meeting creation and per-kind template resolution</Title>
         <DependsOn><T-003 /></DependsOn>
         <AcceptanceCriteria>
-          <Criterion>createMeeting no longer requires complete settings and copies only available defaults/snapshots.</Criterion>
-          <Criterion>Generation resolves snapshot → explicit choice → saved setting → default catalog entry → single ready catalog entry for the requested kind.</Criterion>
+          <Criterion>The existing configured create/generate implementations remain the first path; flexible fallback is used only when full meeting settings or a deterministic output template are absent.</Criterion>
+          <Criterion>Generation fallback resolves meeting snapshot → explicit choice → saved setting → default catalog entry → single ready catalog entry for the requested kind.</Criterion>
           <Criterion>A missing extract template cannot block protocol generation and a missing protocol template cannot block extract generation.</Criterion>
           <Criterion>Existing request hash, meeting_documents.template_version_id and audit provenance remain authoritative.</Criterion>
         </AcceptanceCriteria>
-        <Verification><Command>node --test tests/meeting-workflow.test.mjs</Command></Verification>
+        <Verification><Command>node --test tests/meeting-minimal-create.test.mjs tests/meeting-workflow.test.mjs</Command></Verification>
       </T-004>
       <T-005>
         <Title>kafedra-design-audit: verify draft-to-agenda continuity</Title>
@@ -100,7 +103,7 @@
           <Criterion>Unit/integration covers empty settings create→agenda, existing complete-settings copy, protocol-only template generation and ambiguous template selection.</Criterion>
           <Criterion>Browser regression covers New meeting → date/number → open meeting → add agenda without opening Settings.</Criterion>
         </AcceptanceCriteria>
-        <Verification><Command>node --test tests/meeting-workflow.test.mjs</Command><Command>npx playwright test tests/browser/meeting-minimal-create.spec.mjs</Command></Verification>
+        <Verification><Command>node --test tests/meeting-minimal-create.test.mjs tests/meeting-workflow.test.mjs</Command><Command>npx playwright test tests/browser/meeting-minimal-create.spec.mjs</Command></Verification>
       </T-006>
     </ImplementationPlan>
   </C-R3-MINIMAL-MEETING-321>
