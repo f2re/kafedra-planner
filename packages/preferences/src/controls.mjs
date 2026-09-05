@@ -1,8 +1,5 @@
-import { newId } from '../../core/src/ids.mjs';
-
 const LEARNING_CONTEXT = '__control.learning__';
 const PIN_PREFIX = '__pin__:';
-const RESERVED_INTERACTIONS = new Set(['control', 'pin', 'explicit']);
 
 export const SAFE_PIN_KEYS = Object.freeze([
   'calendar.mode',
@@ -36,41 +33,47 @@ export const SAFE_PIN_KEYS = Object.freeze([
   'planfact.filter.period_kind'
 ]);
 
-function accountScope(accountId) {
-  return String(accountId || '__default__');
-}
-
 function pinContext(key) {
   return `${PIN_PREFIX}${key}`;
 }
 
-function candidateExists(database, workspaceId, scope, key, value) {
+function defaultControls() {
+  return { learningEnabled: true, pinned: {}, safePinKeys: [...SAFE_PIN_KEYS] };
+}
+
+function requireAccount(accountId) {
+  const value = String(accountId || '').trim();
+  if (!value) throw new Error('preference_account_required');
+  return value;
+}
+
+function candidateExists(database, workspaceId, accountId, key, value) {
   return Boolean(database.get(`
     SELECT 1 AS present
     FROM ui_choice_preferences
-    WHERE workspace_id = ? AND account_scope = ? AND context_key = ? AND choice_value = ?
+    WHERE workspace_id = ? AND account_id = ? AND context_key = ? AND choice_value = ?
       AND interaction_id NOT IN ('control', 'pin', 'explicit')
     LIMIT 1
-  `, workspaceId, scope, key, value));
+  `, workspaceId, accountId, key, value));
 }
 
 export function readPreferenceControls(database, workspaceId, accountId = null) {
-  const scope = accountScope(accountId);
+  if (!accountId) return defaultControls();
   const learning = database.get(`
     SELECT choice_value FROM ui_choice_preferences
-    WHERE workspace_id = ? AND account_scope = ? AND context_key = ? AND interaction_id = 'control'
+    WHERE workspace_id = ? AND account_id = ? AND context_key = ? AND interaction_id = 'control'
     ORDER BY selected_at DESC LIMIT 1
-  `, workspaceId, scope, LEARNING_CONTEXT);
+  `, workspaceId, accountId, LEARNING_CONTEXT);
   const pins = database.all(`
     SELECT context_key, choice_value FROM ui_choice_preferences
-    WHERE workspace_id = ? AND account_scope = ? AND interaction_id = 'pin'
+    WHERE workspace_id = ? AND account_id = ? AND interaction_id = 'pin'
       AND context_key LIKE '__pin__:%'
-    ORDER BY selected_at DESC, id DESC
-  `, workspaceId, scope);
+    ORDER BY selected_at DESC, context_key ASC
+  `, workspaceId, accountId);
   const pinned = {};
   for (const row of pins) {
     const key = String(row.context_key).slice(PIN_PREFIX.length);
-    if (SAFE_PIN_KEYS.includes(key) && !(key in pinned)) pinned[key] = row.choice_value;
+    if (SAFE_PIN_KEYS.includes(key)) pinned[key] = row.choice_value;
   }
   return {
     learningEnabled: learning?.choice_value !== '0',
@@ -80,71 +83,63 @@ export function readPreferenceControls(database, workspaceId, accountId = null) 
 }
 
 export function setPreferenceLearning(database, workspaceId, accountId, enabled, now = new Date().toISOString()) {
-  const scope = accountScope(accountId);
+  const account = requireAccount(accountId);
   const value = enabled === false ? '0' : '1';
   database.transaction(() => {
     database.run(`
       DELETE FROM ui_choice_preferences
-      WHERE workspace_id = ? AND account_scope = ? AND context_key = ? AND interaction_id = 'control'
-    `, workspaceId, scope, LEARNING_CONTEXT);
+      WHERE workspace_id = ? AND account_id = ? AND context_key = ? AND interaction_id = 'control'
+    `, workspaceId, account, LEARNING_CONTEXT);
     database.run(`
       INSERT INTO ui_choice_preferences(
-        id, workspace_id, account_scope, context_key, choice_value,
-        interaction_id, selected_at, last_selected_at
-      ) VALUES (?, ?, ?, ?, ?, 'control', ?, ?)
-    `, newId('prefctl'), workspaceId, scope, LEARNING_CONTEXT, value, now, now);
+        workspace_id, account_id, context_key, choice_value, interaction_id, selected_at
+      ) VALUES (?, ?, ?, ?, 'control', ?)
+    `, workspaceId, account, LEARNING_CONTEXT, value, now);
   });
-  return readPreferenceControls(database, workspaceId, accountId);
+  return readPreferenceControls(database, workspaceId, account);
 }
 
 export function setPinnedPreference(database, workspaceId, accountId, key, value, now = new Date().toISOString()) {
+  const account = requireAccount(accountId);
   const normalizedKey = String(key || '').trim();
   if (!SAFE_PIN_KEYS.includes(normalizedKey)) throw new Error('preference_pin_key_forbidden');
   const normalizedValue = value == null || value === '' ? null : String(value);
-  const scope = accountScope(accountId);
-  if (normalizedValue && !candidateExists(database, workspaceId, scope, normalizedKey, normalizedValue)) {
+  if (normalizedValue && !candidateExists(database, workspaceId, account, normalizedKey, normalizedValue)) {
     throw new Error('preference_pin_value_unknown');
   }
   const context = pinContext(normalizedKey);
   database.transaction(() => {
     database.run(`
       DELETE FROM ui_choice_preferences
-      WHERE workspace_id = ? AND account_scope = ? AND context_key = ? AND interaction_id = 'pin'
-    `, workspaceId, scope, context);
+      WHERE workspace_id = ? AND account_id = ? AND context_key = ? AND interaction_id = 'pin'
+    `, workspaceId, account, context);
     if (normalizedValue) {
       database.run(`
         INSERT INTO ui_choice_preferences(
-          id, workspace_id, account_scope, context_key, choice_value,
-          interaction_id, selected_at, last_selected_at
-        ) VALUES (?, ?, ?, ?, ?, 'pin', ?, ?)
-      `, newId('prefpin'), workspaceId, scope, context, normalizedValue, now, now);
+          workspace_id, account_id, context_key, choice_value, interaction_id, selected_at
+        ) VALUES (?, ?, ?, ?, 'pin', ?)
+      `, workspaceId, account, context, normalizedValue, now);
     }
   });
-  return readPreferenceControls(database, workspaceId, accountId);
+  return readPreferenceControls(database, workspaceId, account);
 }
 
 export function resetLearnedPreferences(database, workspaceId, accountId) {
-  const scope = accountScope(accountId);
+  const account = requireAccount(accountId);
   const before = Number(database.get(`
     SELECT COUNT(*) AS count FROM ui_choice_preferences
-    WHERE workspace_id = ? AND account_scope = ?
-  `, workspaceId, scope)?.count || 0);
+    WHERE workspace_id = ? AND account_id = ?
+  `, workspaceId, account)?.count || 0);
   database.run(`
     DELETE FROM ui_choice_preferences
-    WHERE workspace_id = ? AND account_scope = ?
+    WHERE workspace_id = ? AND account_id = ?
       AND interaction_id NOT IN ('control', 'pin', 'explicit')
       AND context_key NOT LIKE '__control.%'
       AND context_key NOT LIKE '__pin__:%'
-  `, workspaceId, scope);
+  `, workspaceId, account);
   const after = Number(database.get(`
     SELECT COUNT(*) AS count FROM ui_choice_preferences
-    WHERE workspace_id = ? AND account_scope = ?
-  `, workspaceId, scope)?.count || 0);
-  return { deleted: Math.max(0, before - after), controls: readPreferenceControls(database, workspaceId, accountId) };
-}
-
-export function preferenceControlRow(row) {
-  return RESERVED_INTERACTIONS.has(String(row?.interaction_id || ''))
-    || String(row?.context_key || '').startsWith('__control.')
-    || String(row?.context_key || '').startsWith(PIN_PREFIX);
+    WHERE workspace_id = ? AND account_id = ?
+  `, workspaceId, account)?.count || 0);
+  return { deleted: Math.max(0, before - after), controls: readPreferenceControls(database, workspaceId, account) };
 }
