@@ -92,19 +92,18 @@ test('Планы: ручной план → календарь → задача 
     await expect(page.locator('[data-view-panel="calendar"]')).toBeVisible();
     await expect(page.locator('[data-manual-calendar-add]')).toBeVisible();
     await page.locator('[data-manual-calendar-add]').click();
-    const planOption = page.locator('#manual-calendar-plan-select option')
-      .filter({ hasText: `Ручной план ${testInfo.project.name}` }).first();
-    const planValue = await planOption.getAttribute('value');
-    expect(planValue).toBeTruthy();
-    await page.locator('#manual-calendar-plan-select').selectOption(planValue);
-    await page.locator('[data-manual-calendar-plan-next]').click();
-    await page.locator('#manual-plan-item-form [name="title"]').fill(itemTitle);
-    await page.locator('#manual-plan-item-form [name="startsAt"]').fill('2026-09-10');
-    await page.locator('#manual-plan-item-form [name="dueDate"]').fill('2026-09-20');
-    await page.locator('#manual-plan-item-form [name="executionMode"]').selectOption('assigned');
-    await page.locator(`#manual-plan-item-form input[name="executorPersonIds"][value="${executor.id}"]`).check();
-    await page.locator('#manual-plan-item-form [name="expectedResult"]').fill('Годовой отчёт');
-    await page.locator('#manual-plan-item-form button[type="submit"]').click();
+    const itemForm = page.locator('#manual-plan-item-form');
+    await expect(itemForm).toBeVisible({ timeout: 10_000 });
+    await expect(page.locator('#manual-calendar-plan-select')).toHaveCount(0);
+    await itemForm.locator('[name="title"]').fill(itemTitle);
+    await itemForm.locator('[name="startsAt"]').fill('2026-09-10');
+    await itemForm.locator('[name="dueDate"]').fill('2026-09-20');
+    await itemForm.locator('[name="executionMode"]').selectOption('assigned');
+    const more = page.locator('#manual-plan-more-fields');
+    await more.locator('summary').click();
+    await itemForm.locator(`input[name="executorPersonIds"][value="${executor.id}"]`).check();
+    await itemForm.locator('[name="expectedResult"]').fill('Годовой отчёт');
+    await itemForm.locator('button[type="submit"]').click();
 
     await navigationButton(page, 'plans').click();
     await expect(page.locator('#plan-detail')).toContainText(itemTitle, { timeout: 15_000 });
