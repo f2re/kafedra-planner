@@ -1,0 +1,49 @@
+<GraceChangeSpec graceVersion="4.0" status="approved">
+  <C-CI-SIMPLIFY-309>
+    <Summary>Simplify Kafedra Planner development CI so ordinary pull requests run one compact project check, while GRACE and deployment-heavy verification run only for changes whose risk justifies them.</Summary>
+    <Problem>Issue 309 documents that an ordinary pull request currently fans out into project CI, GRACE, organization and three science workflows. The project CI itself repeats check/test/smoke across Node versions, runs the full browser matrix and builds/tests the full offline systemd bundle. GRACE then polls those independent checks for hours. This duplicates evidence, delays product work and makes CI orchestration rather than the affected user scenario the development bottleneck.</Problem>
+    <Goals>
+      <Goal>Make the ordinary automatic pull-request path one workflow named Проверка with locked dependencies, check, docs check, unit/integration tests and smoke.</Goal>
+      <Goal>Remove full browser, alternate-host, full offline bundle and systemd deployment verification from ordinary pull requests; keep those capabilities for release or explicitly targeted risk verification.</Goal>
+      <Goal>Make organization and science diagnostic workflows manual-only instead of independent automatic PR/main fan-out.</Goal>
+      <Goal>Run GRACE automatically only when a pull request or main commit touches GRACE, migration/storage/recovery, installer/update/rollback, auth/ACL/security or release/CI infrastructure; keep manual dispatch available.</Goal>
+      <Goal>Remove GRACE cross-workflow polling and use its aggregate job only to require the GRACE jobs selected for that risky change.</Goal>
+      <Goal>Remove obsolete one-off probe/archive and version-specific release-preparation workflows.</Goal>
+      <Goal>Keep the release gate off feature pull requests so release-scale browser/recovery evidence is evaluated on main or explicit release dispatch.</Goal>
+    </Goals>
+    <Constraints>
+      <Constraint>The exact base is main 81a419f6c8ea2a574d8478ffd33498c1d2a69285 and the governing issue is 309.</Constraint>
+      <Constraint>No production application behavior, SQLite schema, applied migration, immutable source/evidence, PIN/ACL semantics or release version changes in this change.</Constraint>
+      <Constraint>The existing release publisher is not redesigned here; open PR 308 remains responsible for the version-neutral build-once 0.4.3 publisher and must be rebuilt on the simplified main afterwards.</Constraint>
+      <Constraint>Release, installer/update, storage/recovery and security changes remain eligible for heavy risk-specific verification; simplification must not convert a required safety property into an unchecked release.</Constraint>
+      <Constraint>No temporary workflow, probe issue, dummy commit, external service, Docker production dependency or second CI orchestration layer is introduced.</Constraint>
+    </Constraints>
+    <NonGoals>
+      <NonGoal>Change annual protocol import, UI, API or domain/storage contracts.</NonGoal>
+      <NonGoal>Remove Playwright, backup/restore tests, systemd self-tests or offline bundle verification from the repository.</NonGoal>
+      <NonGoal>Publish 0.4.3 or modify release assets in this change.</NonGoal>
+      <NonGoal>Add path-to-test orchestration that tries to infer every affected feature automatically.</NonGoal>
+    </NonGoals>
+    <AcceptanceCriteria>
+      <Criterion>An ordinary feature/docs/test pull request automatically runs one main workflow, Проверка, containing npm ci, npm run check, npm run docs:check, npm test and npm run smoke.</Criterion>
+      <Criterion>The ordinary Проверка workflow no longer contains Playwright installation/full browser suites, alternate Node builder, full offline bundle, Project Control packaging or systemd deployment.</Criterion>
+      <Criterion>Release gate no longer has a pull_request trigger; its heavy browser/recovery checks remain available for main/release execution.</Criterion>
+      <Criterion>Organization and science workflows are workflow_dispatch-only diagnostics and do not run automatically on pull requests or main pushes.</Criterion>
+      <Criterion>GRACE has risk-scoped path triggers plus manual dispatch, does not run on every development branch push, and no longer polls GitHub Checks or waits for unrelated workflows.</Criterion>
+      <Criterion>GRACE database/recovery verification is conditional on database, migration, recovery, installer/update or release-risk paths rather than every governed change.</Criterion>
+      <Criterion>Server-side desired branch protection requires only the always-present ordinary Проверка check; conditional GRACE cannot become a missing required context on low-risk PRs.</Criterion>
+      <Criterion>Obsolete archive-dummy-probe-293-auto.yml and release-0.4.1-prep.yml are deleted, and the old GRACE cross-workflow polling helper is removed instead of left as dead code.</Criterion>
+      <Criterion>Repository instructions and validation documentation describe risk-selected CI rather than full browser/offline/GRACE evidence on every PR.</Criterion>
+      <Criterion>Focused CI-contract regression, npm run check, npm run docs:check, npm test, npm run smoke and GRACE final succeed on one unchanged PR head before exact-head squash merge.</Criterion>
+    </AcceptanceCriteria>
+    <AffectedAreas><M-CI-GATE /></AffectedAreas>
+    <VerificationIntent>
+      <ExpectedCommand>npm run check</ExpectedCommand>
+      <ExpectedCommand>npm run docs:check</ExpectedCommand>
+      <ExpectedCommand>npm test</ExpectedCommand>
+      <ExpectedCommand>npm run smoke</ExpectedCommand>
+      <ExpectedCommand>node --test tests/ci-simplification.test.mjs</ExpectedCommand>
+      <ExpectedEvidence>One compact ordinary PR workflow, conditional risk-selected GRACE without cross-workflow polling, manual-only specialized diagnostics and release-scale checks retained outside the feature PR path.</ExpectedEvidence>
+    </VerificationIntent>
+  </C-CI-SIMPLIFY-309>
+</GraceChangeSpec>
