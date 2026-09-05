@@ -34,21 +34,23 @@ GRACE запускается автоматически только для gove
 
 `Оргструктура`, `Массовый импорт науки`, `Научный жизненный цикл` и `Научные отчёты` сохранены для `workflow_dispatch`. Они используются, когда нужно отдельно воспроизвести соответствующий browser/integration контур, но не запускаются автоматически на каждом PR или push в `main`.
 
-## Release gate 0.4.2
+## Release
 
-Тяжёлый release gate не запускается на feature pull request. На `main` или при явном запуске он проверяет:
+Тяжёлый выпуск не является автоматической частью разработки. Единственный workflow `.github/workflows/release.yml` (`Release`) запускается вручную из текущего `main` и внутри одного запуска последовательно доказывает:
 
-1. `release-quality` — check, unit/integration и smoke;
-2. `release-migrations-backup` — release migration/recovery evidence;
-3. `release-browser-desktop-mobile` — критические пользовательские сценарии desktop/mobile.
+1. `release-preflight` — workflow запущен от exact текущего `main` SHA;
+2. `release-verify` — check, unit/integration, smoke и backup self-test выполняются один раз;
+3. `release-browser-critical` — критические browser/PIN/ACL сценарии выполняются один раз;
+4. внутренний `release-gate` — принимает результаты этих jobs без опроса внешних Actions;
+5. `release-build-verify-publish` — один full offline artifact проходит checksum, systemd clean install, repeated update и forced rollback; из этого же archive формируется Project Control и публикуются семь assets.
 
-Failure, cancelled, pending, missing или неожиданно skipped не считаются успешным результатом.
+Workflow не имеет `push`, `pull_request` или `workflow_run` trigger, не запускает `gh workflow run`, не восстанавливает отсутствующие Actions и не ждёт внешние проверки по таймеру. Если `main` изменился до сборки или публикации, выпуск старого SHA запрещён.
 
 ## Full offline и systemd
 
-Full offline bundle, systemd install/update/rollback, offline LLM/GGUF и Project Control относятся к поставке. Они запускаются перед release и при изменениях installer/update/offline, а не как часть обычного `Проверка`.
+Full offline bundle, systemd install/update/rollback, offline LLM/GGUF и Project Control относятся к поставке. Они выполняются при явном выпуске или при изменениях installer/update/offline, а не как часть обычного `Проверка`.
 
-Release publisher должен использовать один собранный artifact: checksum → install → update → forced rollback → публикация того же artifact. Пересборка между verification и upload запрещена.
+Release использует один собранный artifact: checksum → install → update → forced rollback → Project Control → публикация того же artifact. Пересборка между verification и upload запрещена.
 
 ## Что остаётся ручным
 
@@ -64,6 +66,8 @@ Release publisher должен использовать один собранн�
 
 ## Перед merge
 
-Проверяются exact PR head SHA, mergeability, актуальные review comments и только те checks, которые относятся к изменению. Для обычного PR обязательна `Проверка`; для governed risk PR дополнительно должен быть зелёным запустившийся `GRACE / gate`; для release/storage/security/deployment scope — соответствующий профильный gate.
+Проверяются exact PR head SHA, mergeability, актуальные review comments и только те checks, которые относятся к изменению. Для обычного PR обязательна `Проверка`; для governed risk PR дополнительно должен быть зелёным запустившийся `GRACE / gate`; для storage/security/deployment scope — соответствующий профильный gate.
+
+Workflow `Release` не запускается только ради merge изменения release/CI инфраструктуры: его контракт проверяется unit/regression tests и GRACE, а сам выпуск запускается отдельно из текущего `main` по явному решению о публикации.
 
 После squash merge достаточно короткого post-merge smoke/обычного CI. Повторять весь PR regression без нового риска не требуется.

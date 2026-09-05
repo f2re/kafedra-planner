@@ -27,14 +27,14 @@ test('0.4.2 синхронизирован в версии, lockfile и release-
   }
 });
 
-test('0.4.2 публикуется только через новый exact-head release gate', async () => {
-  const gate = await text('.github/workflows/release-gate.yml');
-  const publisher = await text('.github/workflows/release.yml');
-  assert.match(gate, /^name: Release gate 0\.4\.2$/mu);
-  assert.match(publisher, /^    workflows: \["Release gate 0\.4\.2"\]$/mu);
-  assert.match(publisher, /"Release gate 0\.4\.2"/u);
-  assert.match(publisher, /--target "\$SOURCE_SHA"/u);
-  assert.match(publisher, /\[\[ "\$OBJECT_SHA" == "\$SOURCE_SHA" \]\]/u);
+test('0.4.2 использует один ручной exact-main release workflow', async () => {
+  const release = await text('.github/workflows/release.yml');
+  assert.match(release, /^name: Release$/mu);
+  assert.match(release, /^on:\n  workflow_dispatch:\n/mu);
+  assert.match(release, /git\/ref\/heads\/main/u);
+  assert.match(release, /--target "\$SOURCE_SHA"/u);
+  assert.match(release, /\[\[ "\$OBJECT_SHA" == "\$SOURCE_SHA" \]\]/u);
+  await assert.rejects(text('.github/workflows/release-gate.yml'), (error) => error?.code === 'ENOENT');
 });
 
 test('операторский контракт 0.4.2 содержит прямой URL, безопасное обновление и команды systemd', async () => {

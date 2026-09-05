@@ -55,13 +55,16 @@ test('specialized browser workflows are manual diagnostics', async () => {
   }
 });
 
-test('release-scale gate is not a feature pull-request workflow', async () => {
-  const source = await read('.github/workflows/release-gate.yml');
-  assert.match(source, /^  push:\n    branches: \[main\]$/mu);
-  assert.match(source, /^  workflow_dispatch:$/mu);
+test('release-scale work is one explicit manual workflow', async () => {
+  const source = await read('.github/workflows/release.yml');
+  assert.match(source, /^name: Release$/mu);
+  assert.match(source, /^on:\n  workflow_dispatch:\n/mu);
+  assert.doesNotMatch(source, /^  push:/mu);
   assert.doesNotMatch(source, /^  pull_request:/mu);
-  assert.match(source, /release-browser-desktop-mobile/u);
-  assert.match(source, /release-migrations-backup/u);
+  assert.doesNotMatch(source, /^  workflow_run:/mu);
+  assert.match(source, /^  release-gate:/mu);
+  assert.match(source, /systemd-deploy-selftest\.sh "\$OUT"/u);
+  await expectMissing('.github/workflows/release-gate.yml');
 });
 
 test('GRACE is selected by governed risk and never polls external checks', async () => {

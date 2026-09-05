@@ -1,4 +1,4 @@
-<GraceChangeSpec graceVersion="4.0" status="approved">
+<GraceChangeSpec graceVersion="4.0" status="applied">
   <C-CI-SIMPLIFY-309>
     <Summary>Simplify Kafedra Planner development CI so ordinary pull requests run one compact project check, while GRACE and deployment-heavy verification run only for changes whose risk justifies them.</Summary>
     <Problem>Issue 309 documents that an ordinary pull request currently fans out into project CI, GRACE, organization and three science workflows. The project CI itself repeats check/test/smoke across Node versions, runs the full browser matrix and builds/tests the full offline systemd bundle. GRACE then polls those independent checks for hours. This duplicates evidence, delays product work and makes CI orchestration rather than the affected user scenario the development bottleneck.</Problem>

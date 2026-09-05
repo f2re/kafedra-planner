@@ -3,7 +3,7 @@
 [Русский](README.md) · [English](README.en.md)
 
 [![CI](https://github.com/f2re/kafedra-planner/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/f2re/kafedra-planner/actions/workflows/ci.yml)
-[![Release gate](https://github.com/f2re/kafedra-planner/actions/workflows/release-gate.yml/badge.svg?branch=main)](https://github.com/f2re/kafedra-planner/actions/workflows/release-gate.yml)
+[![Release](https://github.com/f2re/kafedra-planner/actions/workflows/release.yml/badge.svg?branch=main)](https://github.com/f2re/kafedra-planner/actions/workflows/release.yml)
 [![GitHub Release](https://img.shields.io/github/v/release/f2re/kafedra-planner?display_name=tag&sort=semver)](https://github.com/f2re/kafedra-planner/releases)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 
@@ -81,4 +81,6 @@ npm test
 npm run smoke
 ```
 
-See the complete browser, release, deployment, and target-acceptance commands in the [Russian README](README.md#разработка-и-проверка). The primary engineering contracts are [Architecture](docs/ARCHITECTURE.md), [Roadmap](docs/ROADMAP.md), [User workflows](docs/UX_FLOWS.md), [Release candidate](docs/RELEASE_CANDIDATE.md), and [Target acceptance](docs/TARGET_ACCEPTANCE.md).
+Ordinary GitHub CI runs only the locked install, check, documentation consistency, unit/integration tests, and smoke. Targeted Playwright is used for the UI scenario being changed. Full browser, backup/restore, and offline systemd install/update/rollback verification run only for the corresponding risk or an explicit manual `Release` workflow; an ordinary merge does not start release-scale work.
+
+The primary engineering contracts are [Architecture](docs/ARCHITECTURE.md), [Roadmap](docs/ROADMAP.md), [User workflows](docs/UX_FLOWS.md), [Release candidate](docs/RELEASE_CANDIDATE.md), and [Target acceptance](docs/TARGET_ACCEPTANCE.md).

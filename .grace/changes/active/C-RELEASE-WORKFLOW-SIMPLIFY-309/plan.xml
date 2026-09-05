@@ -1,0 +1,108 @@
+<GraceChangePlan graceVersion="4.0" status="approved">
+  <C-RELEASE-WORKFLOW-SIMPLIFY-309>
+    <IntentSummary>Collapse release automation into one explicit version-neutral workflow, remove cross-workflow orchestration and allow immutable GRACE bookkeeping to ride with the next governed change, while preserving exact-main, build-once, checksum, install/update/rollback and publication guarantees.</IntentSummary>
+    <BaselineAssertions>
+      <MustExist><Value>.github/workflows/release-gate.yml</Value></MustExist>
+      <MustExist><Value>.github/workflows/release.yml</Value></MustExist>
+      <MustExist><Value>scripts/offline/systemd-deploy-selftest.sh</Value></MustExist>
+      <MustContain><File>.github/workflows/release-gate.yml</File><Text>Release gate 0.4.2</Text></MustContain>
+      <MustContain><File>.github/workflows/release.yml</File><Text>workflow_run:</Text></MustContain>
+      <MustContain><File>.github/workflows/release.yml</File><Text>gh workflow run</Text></MustContain>
+      <MustVerify><Module>M-CI-GATE</Module></MustVerify>
+      <MustVerify><Module>M-OFFLINE-BUNDLE</Module></MustVerify>
+    </BaselineAssertions>
+    <TargetAssertions>
+      <MustExist><Value>.github/workflows/release.yml</Value></MustExist>
+      <MustExist><Value>tests/release-workflow.test.mjs</Value></MustExist>
+      <MustExist><Value>tests/release-recovery-workflow.test.mjs</Value></MustExist>
+      <MustExist><Value>tests/grace-policy-combined-transition.test.mjs</Value></MustExist>
+      <MustContain><File>.github/workflows/release.yml</File><Text>name: Release</Text></MustContain>
+      <MustContain><File>.github/workflows/release.yml</File><Text>workflow_dispatch:</Text></MustContain>
+      <MustContain><File>.github/workflows/release.yml</File><Text>systemd-deploy-selftest.sh "$OUT"</Text></MustContain>
+      <MustContain><File>.github/workflows/release.yml</File><Text>build-full-bundle.sh</Text></MustContain>
+      <MustContain><File>scripts/github/grace-policy-gate.mjs</File><Text>avoids a separate bookkeeping PR</Text></MustContain>
+      <MustVerify><Module>M-CI-GATE</Module></MustVerify>
+      <MustVerify><Module>M-OFFLINE-BUNDLE</Module></MustVerify>
+    </TargetAssertions>
+    <DurableScope>
+      <GraphAnchors><M-CI-GATE /><M-OFFLINE-BUNDLE /><DF-GRACE-BRANCH /></GraphAnchors>
+      <VerificationAnchors><V-M-CI-GATE /><V-M-OFFLINE-BUNDLE /></VerificationAnchors>
+      <ContextArtifacts><ContextArtifact>deployment.xml</ContextArtifact><ContextArtifact>principles.xml</ContextArtifact></ContextArtifacts>
+    </DurableScope>
+    <ObservedWriteScope>
+      <Glob>.grace/changes/active/C-RELEASE-WORKFLOW-SIMPLIFY-309/**</Glob>
+      <Glob>.grace/changes/active/C-CI-SIMPLIFY-309/**</Glob>
+      <Glob>.grace/changes/archive/C-CI-SIMPLIFY-309/**</Glob>
+      <File>.github/workflows/release.yml</File>
+      <File>.github/workflows/release-gate.yml</File>
+      <File>README.md</File>
+      <File>README.en.md</File>
+      <File>docs/GRACE_GOVERNANCE.md</File>
+      <File>docs/VALIDATION.md</File>
+      <File>docs/RELEASE_CANDIDATE.md</File>
+      <File>scripts/docs-consistency.mjs</File>
+      <File>scripts/github/grace-policy-gate.mjs</File>
+      <File>tests/docs-consistency.test.mjs</File>
+      <File>tests/ci-simplification.test.mjs</File>
+      <File>tests/grace-policy-combined-transition.test.mjs</File>
+      <File>tests/release-workflow.test.mjs</File>
+      <File>tests/release-recovery-workflow.test.mjs</File>
+      <File>tests/release-assets-contract.test.mjs</File>
+      <File>tests/release-decision.test.mjs</File>
+      <File>tests/release-0.4.1.test.mjs</File>
+      <File>tests/release-0.4.2.test.mjs</File>
+    </ObservedWriteScope>
+    <ImplementationPlan>
+      <T-001>
+        <Title>kafedra-release: freeze exact main and retire the completed CI change</Title>
+        <DependsOn></DependsOn>
+        <AcceptanceCriteria>
+          <Criterion>Base is exactly 12f93755be01e5f4dccec7b18d418db7ec119abd.</Criterion>
+          <Criterion>C-CI-SIMPLIFY-309 moves from active approved to archive applied without changing its accepted content.</Criterion>
+          <Criterion>The previous immutable terminal move may accompany this new governed change; a standalone archive-only PR is not required.</Criterion>
+        </AcceptanceCriteria>
+        <Verification><Command>node --test tests/grace-policy-combined-transition.test.mjs</Command></Verification>
+      </T-001>
+      <T-002>
+        <Title>kafedra-release: replace chained release Actions with one workflow</Title>
+        <DependsOn><T-001 /></DependsOn>
+        <AcceptanceCriteria>
+          <Criterion>Release is manual-only, exact-main and version-neutral.</Criterion>
+          <Criterion>Release gate is an internal job dependency, not another workflow.</Criterion>
+          <Criterion>No external workflow polling, redispatch or sleep loop remains.</Criterion>
+        </AcceptanceCriteria>
+        <Verification><Command>node --test tests/release-workflow.test.mjs tests/release-recovery-workflow.test.mjs tests/release-decision.test.mjs</Command></Verification>
+      </T-002>
+      <T-003>
+        <Title>kafedra-release: preserve build-once deployment evidence and publication safety</Title>
+        <DependsOn><T-002 /></DependsOn>
+        <AcceptanceCriteria>
+          <Criterion>One full offline archive is built and verified.</Criterion>
+          <Criterion>The same OUT directory passes systemd install/update/rollback before Project Control and upload.</Criterion>
+          <Criterion>Tag/release creation is guarded by exact current main and seven checked assets.</Criterion>
+        </AcceptanceCriteria>
+        <Verification><Command>node --test tests/release-assets-contract.test.mjs</Command></Verification>
+      </T-003>
+      <T-004>
+        <Title>kafedra-tests: align docs and regression contracts with the single release workflow</Title>
+        <DependsOn><T-003 /></DependsOn>
+        <AcceptanceCriteria>
+          <Criterion>No current documentation or badge references deleted release-gate.yml.</Criterion>
+          <Criterion>Historical 0.4.1/0.4.2 release notes remain historical and tests no longer force version-specific current workflow names.</Criterion>
+          <Criterion>Ordinary CI contract still proves that release-scale work is absent from feature PRs.</Criterion>
+        </AcceptanceCriteria>
+        <Verification><Command>npm run check</Command><Command>npm run docs:check</Command><Command>npm test</Command><Command>npm run smoke</Command></Verification>
+      </T-004>
+      <T-005>
+        <Title>kafedra-release: exact-head PR validation and squash merge</Title>
+        <DependsOn><T-004 /></DependsOn>
+        <AcceptanceCriteria>
+          <Criterion>Only Проверка and risk-selected GRACE are required on the PR head.</Criterion>
+          <Criterion>No manual Release workflow is started merely to merge the pipeline change.</Criterion>
+          <Criterion>Exact-head mergeability and review comments are rechecked before squash merge.</Criterion>
+        </AcceptanceCriteria>
+        <Verification><Command>npm run smoke</Command></Verification>
+      </T-005>
+    </ImplementationPlan>
+  </C-RELEASE-WORKFLOW-SIMPLIFY-309>
+</GraceChangePlan>

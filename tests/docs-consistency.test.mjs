@@ -27,8 +27,7 @@ async function fixture() {
   await writeFile(join(root, 'docs', 'RELEASE_CANDIDATE.md'), '# Release candidate 0.3.4\n');
   await writeFile(join(root, 'docs', 'VALIDATION.md'), 'Актуальный рубеж: `0.3.4`\n');
   await writeFile(join(root, 'docs', 'UX_FLOWS.md'), 'Статус: рабочие контуры версии `0.3.4`\n');
-  await writeFile(join(root, '.github', 'workflows', 'release-gate.yml'), 'name: Release gate 0.3.4\n');
-  await writeFile(join(root, '.github', 'workflows', 'release.yml'), 'workflows: ["Release gate 0.3.4"]\n');
+  await writeFile(join(root, '.github', 'workflows', 'release.yml'), 'name: Release\n\non:\n  workflow_dispatch:\n');
   return root;
 }
 
@@ -77,4 +76,21 @@ test('documentation checker reports drift between VERSION and current release ma
   assert.equal(releaseErrors.length, 2);
   assert.ok(errors.some((item) => item.file === 'README.md' && item.target === '0.3.2'));
   assert.ok(errors.some((item) => item.file === 'docs/ROADMAP.md' && item.target === '0.3.2'));
+});
+
+test('documentation checker rejects obsolete automatic release orchestration', async () => {
+  const root = await fixture();
+  await writeFile(join(root, 'README.md'), '> Текущий рубеж: **`0.3.4`**\n');
+  await writeFile(join(root, '.github', 'workflows', 'release.yml'), [
+    'name: Release',
+    '',
+    'on:',
+    '  workflow_dispatch:',
+    '  workflow_run:'
+  ].join('\n'));
+  await writeFile(join(root, '.github', 'workflows', 'release-gate.yml'), 'name: old\n');
+  const errors = await checkDocumentation({ root });
+  const releaseErrors = errors.filter((item) => item.kind === 'release-workflow');
+  assert.ok(releaseErrors.some((item) => item.target === 'workflow_run'));
+  assert.ok(releaseErrors.some((item) => item.target === 'release-gate.yml'));
 });

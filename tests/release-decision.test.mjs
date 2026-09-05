@@ -73,12 +73,16 @@ test('release из другой истории не скрывается как 
   })), (error) => error?.code === 'release_tag_not_ancestor');
 });
 
-test('workflow публикует только при явном решении publish=true и успешном main-контексте', async () => {
+test('workflow публикует только при явном publish=true после внутреннего gate и exact-main проверок', async () => {
   const workflow = await readFile(resolve('.github/workflows/release.yml'), 'utf8');
   assert.match(workflow, /scripts\/release\/release-decision\.mjs/u);
   assert.match(workflow, /contents\/VERSION\?ref=\$PARENT_SHA/u);
   assert.match(workflow, /steps\.release\.outputs\.publish == 'true'/u);
-  assert.match(workflow, /steps\.context\.outputs\.should_run == 'true'/u);
-  assert.match(workflow, /SOURCE_EVENT" == push && "\$SOURCE_BRANCH" == main && "\$SOURCE_CONCLUSION" == success/u);
+  assert.match(workflow, /^  publish:/mu);
+  assert.match(workflow, /^    needs: release-gate$/mu);
+  assert.match(workflow, /Require exact current main before build/u);
+  assert.match(workflow, /Require exact current main before publication/u);
+  assert.doesNotMatch(workflow, /steps\.context\.outputs\.should_run/u);
+  assert.doesNotMatch(workflow, /gh workflow run/u);
   assert.doesNotMatch(workflow, /steps\.release\.outputs\.exists != 'true'/u);
 });

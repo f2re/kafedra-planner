@@ -47,13 +47,33 @@ function stripFragmentAndQuery(target) {
 }
 
 function record(errors, file, text, index, kind, target, message) {
-  errors.push({
-    file,
-    line: lineNumber(text, Math.max(0, index || 0)),
-    kind,
-    target,
-    message
-  });
+  errors.push({ file, line: lineNumber(text, Math.max(0, index || 0)), kind, target, message });
+}
+
+async function checkReleaseWorkflow({ absoluteRoot, errors }) {
+  const relativeFile = '.github/workflows/release.yml';
+  const absoluteFile = join(absoluteRoot, relativeFile);
+  if (!(await exists(absoluteFile))) {
+    record(errors, relativeFile, '', 0, 'release-workflow', 'Release', 'Отсутствует единый release workflow.');
+    return;
+  }
+
+  const text = await readFile(absoluteFile, 'utf8');
+  if (!/^name:\s*Release\s*$/mu.test(text)) {
+    record(errors, relativeFile, text, 0, 'release-workflow', 'Release', 'Release workflow должен иметь version-neutral имя Release.');
+  }
+  if (!/^\s{2}workflow_dispatch:\s*$/mu.test(text)) {
+    record(errors, relativeFile, text, 0, 'release-workflow', 'workflow_dispatch', 'Release должен запускаться явно через workflow_dispatch.');
+  }
+  const automatic = text.match(/^\s{2}(workflow_run|pull_request|push):/mu);
+  if (automatic) {
+    record(errors, relativeFile, text, automatic.index || 0, 'release-workflow', automatic[1], 'Release не должен автоматически запускаться из другого workflow, PR или push.');
+  }
+
+  const obsolete = '.github/workflows/release-gate.yml';
+  if (await exists(join(absoluteRoot, obsolete))) {
+    record(errors, obsolete, '', 0, 'release-workflow', 'release-gate.yml', 'Отдельный release gate устарел: gate должен быть job внутри release.yml.');
+  }
 }
 
 async function checkReleaseVersion({ absoluteRoot, pkg, packageText, errors }) {
@@ -87,46 +107,12 @@ async function checkReleaseVersion({ absoluteRoot, pkg, packageText, errors }) {
   }
 
   const markers = [
-    {
-      file: 'README.md',
-      pattern: /Текущий рубеж:\s+\*\*`([^`]+)`\*\*/u,
-      description: 'русский README'
-    },
-    {
-      file: 'README.en.md',
-      pattern: /Current milestone:\s+\*\*`([^`]+)`\*\*/u,
-      description: 'английский README'
-    },
-    {
-      file: 'docs/ROADMAP.md',
-      pattern: /^## Текущий рубеж — `([^`]+)`\s*$/mu,
-      description: 'ROADMAP'
-    },
-    {
-      file: 'docs/RELEASE_CANDIDATE.md',
-      pattern: /^# Release candidate (\d+\.\d+\.\d+)\s*$/mu,
-      description: 'release candidate'
-    },
-    {
-      file: 'docs/VALIDATION.md',
-      pattern: /Актуальный рубеж:\s*`([^`]+)`/u,
-      description: 'validation contract'
-    },
-    {
-      file: 'docs/UX_FLOWS.md',
-      pattern: /Статус: рабочие контуры версии `([^`]+)`/u,
-      description: 'UX contract'
-    },
-    {
-      file: '.github/workflows/release-gate.yml',
-      pattern: /^name:\s*Release gate (\d+\.\d+\.\d+)\s*$/mu,
-      description: 'release gate workflow'
-    },
-    {
-      file: '.github/workflows/release.yml',
-      pattern: /workflows:\s*\["Release gate (\d+\.\d+\.\d+)"\]/u,
-      description: 'release publication workflow'
-    }
+    { file: 'README.md', pattern: /Текущий рубеж:\s+\*\*`([^`]+)`\*\*/u, description: 'русский README' },
+    { file: 'README.en.md', pattern: /Current milestone:\s+\*\*`([^`]+)`\*\*/u, description: 'английский README' },
+    { file: 'docs/ROADMAP.md', pattern: /^## Текущий рубеж — `([^`]+)`\s*$/mu, description: 'ROADMAP' },
+    { file: 'docs/RELEASE_CANDIDATE.md', pattern: /^# Release candidate (\d+\.\d+\.\d+)\s*$/mu, description: 'release candidate' },
+    { file: 'docs/VALIDATION.md', pattern: /Актуальный рубеж:\s*`([^`]+)`/u, description: 'validation contract' },
+    { file: 'docs/UX_FLOWS.md', pattern: /Статус: рабочие контуры версии `([^`]+)`/u, description: 'UX contract' }
   ];
 
   for (const marker of markers) {
@@ -142,6 +128,8 @@ async function checkReleaseVersion({ absoluteRoot, pkg, packageText, errors }) {
         `${marker.description}: указан рубеж ${match[1]}, ожидается ${version}.`);
     }
   }
+
+  await checkReleaseWorkflow({ absoluteRoot, errors });
 }
 
 export async function checkDocumentation({ root = process.cwd() } = {}) {
@@ -199,33 +187,25 @@ export async function checkDocumentation({ root = process.cwd() } = {}) {
     const npmRun = /\bnpm\s+run(?:\s+--silent)?\s+([A-Za-z0-9][A-Za-z0-9:._-]*)/g;
     for (const match of text.matchAll(npmRun)) {
       const name = match[1];
-      if (!scripts.has(name)) {
-        record(errors, file, text, match.index, 'npm-script', name, 'В package.json нет такого npm script.');
-      }
+      if (!scripts.has(name)) record(errors, file, text, match.index, 'npm-script', name, 'В package.json нет такого npm script.');
     }
 
     const repoPath = /\b((?:scripts|deploy|config)\/[A-Za-z0-9._@+/-]+\.(?:mjs|js|sh|py|service|txt|json|md|ya?ml|env))\b/g;
     for (const match of text.matchAll(repoPath)) {
       const target = match[1];
-      if (!(await exists(join(absoluteRoot, target)))) {
-        record(errors, file, text, match.index, 'repo-path', target, 'Указанного файла в репозитории нет.');
-      }
+      if (!(await exists(join(absoluteRoot, target)))) record(errors, file, text, match.index, 'repo-path', target, 'Указанного файла в репозитории нет.');
     }
 
     const installedScript = /\/opt\/kafedra-planner\/current\/(scripts\/[A-Za-z0-9._@+/-]+\.(?:mjs|js|sh|py))\b/g;
     for (const match of text.matchAll(installedScript)) {
       const target = match[1];
-      if (!(await exists(join(absoluteRoot, target)))) {
-        record(errors, file, text, match.index, 'installed-script', target, 'Путь установленной системы не соответствует существующему repository script.');
-      }
+      if (!(await exists(join(absoluteRoot, target)))) record(errors, file, text, match.index, 'installed-script', target, 'Путь установленной системы не соответствует существующему repository script.');
     }
 
     const systemdUnit = /\b(kafedra-planner-[A-Za-z0-9_-]+\.service)\b/g;
     for (const match of text.matchAll(systemdUnit)) {
       const target = join('deploy', 'systemd', match[1]);
-      if (!(await exists(join(absoluteRoot, target)))) {
-        record(errors, file, text, match.index, 'systemd-unit', match[1], 'Указанный systemd unit отсутствует в deploy/systemd.');
-      }
+      if (!(await exists(join(absoluteRoot, target)))) record(errors, file, text, match.index, 'systemd-unit', match[1], 'Указанный systemd unit отсутствует в deploy/systemd.');
     }
   }
 
@@ -233,9 +213,7 @@ export async function checkDocumentation({ root = process.cwd() } = {}) {
 }
 
 export function formatDocumentationErrors(errors) {
-  return errors
-    .map((error) => `${error.file}:${error.line} [${error.kind}] ${error.target}: ${error.message}`)
-    .join('\n');
+  return errors.map((error) => `${error.file}:${error.line} [${error.kind}] ${error.target}: ${error.message}`).join('\n');
 }
 
 const isCli = process.argv[1] && import.meta.url === pathToFileURL(resolve(process.argv[1])).href;
