@@ -41,19 +41,21 @@ class MemoryPreferenceDb {
       const groups = new Map();
       for (const row of this.rows) {
         if (row.workspace_id !== workspaceId || row.account_id !== accountId || !keys.includes(row.context_key)) continue;
-        const key = `${row.context_key}\u0000${row.choice_value}`;
-        const current = groups.get(key) || {
-          context_key: row.context_key,
-          choice_value: row.choice_value,
+        const groupKey = `${row.context_key}\u0000${row.choice_value}`;
+        const current = groups.get(groupKey) || {
+          key: row.context_key,
+          value: row.choice_value,
           count: 0,
           last_selected_at: row.selected_at
         };
         current.count += 1;
         if (String(row.selected_at) > String(current.last_selected_at)) current.last_selected_at = row.selected_at;
-        groups.set(key, current);
+        groups.set(groupKey, current);
       }
-      return [...groups.values()].sort((a, b) => b.count - a.count
-        || String(b.last_selected_at).localeCompare(String(a.last_selected_at)));
+      return [...groups.values()].sort((a, b) => String(a.key).localeCompare(String(b.key))
+        || b.count - a.count
+        || String(b.last_selected_at).localeCompare(String(a.last_selected_at))
+        || String(a.value).localeCompare(String(b.value)));
     }
     return [];
   }
