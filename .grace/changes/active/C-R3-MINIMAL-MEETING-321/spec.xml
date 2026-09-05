@@ -1,0 +1,45 @@
+<GraceChangeSpec graceVersion="4.0" status="approved">
+  <C-R3-MINIMAL-MEETING-321>
+    <Summary>Allow a working meeting draft and agenda before document-generation setup, while preserving available defaults and binding only the template needed for the generated document.</Summary>
+    <Problem>Manual meeting creation currently calls requireCompleteSettings and the UI redirects to Settings unless both protocol and extract templates, quorum, chair and secretary are configured. Document generation also resolves its template only through the meeting snapshot or the all-or-nothing settings row, so an absent extract template can unnecessarily block protocol work.</Problem>
+    <Goals>
+      <Goal>Create a draft meeting from date and protocol number only, using a deterministic title and immediately allowing agenda work.</Goal>
+      <Goal>If complete saved settings already exist, copy their chair, secretary, quorum, template versions and exact profile snapshots exactly as before; otherwise keep the existing nullable meeting fields empty.</Goal>
+      <Goal>Resolve a template independently for each generated document kind from meeting snapshot, explicit generation choice, saved settings, catalog default or one unambiguous ready catalog entry.</Goal>
+      <Goal>Ask for a template only when that document kind has no deterministic choice; protocol generation must not require an extract template and vice versa.</Goal>
+      <Goal>Preserve exact template/profile provenance in meeting_documents and audit without mutating historical meeting snapshots.</Goal>
+    </Goals>
+    <Constraints>
+      <Constraint>Exact base is main 39cccfa1922a002bc843555f08451515117973ac.</Constraint>
+      <Constraint>The existing nullable meetings columns are sufficient; no SQLite migration or destructive rewrite is introduced.</Constraint>
+      <Constraint>Existing meetings, generated documents, profile snapshots and imported protocol provenance are not rewritten.</Constraint>
+      <Constraint>Meeting settings remain a convenience for reusable defaults; this change does not make a partially populated meeting_settings row.</Constraint>
+      <Constraint>No LLM, Internet, Docker or new runtime dependency is required.</Constraint>
+      <Constraint>Generation stays idempotent and records the exact template version actually used.</Constraint>
+    </Constraints>
+    <NonGoals>
+      <NonGoal>Redesign the meeting template editor or template library.</NonGoal>
+      <NonGoal>Relax visual template readiness or profile provenance requirements.</NonGoal>
+      <NonGoal>Change the imported-protocol materialization flow from R1/R2.</NonGoal>
+      <NonGoal>Remove legacy title storage or applied migrations.</NonGoal>
+      <NonGoal>Change VERSION, installer, release or deployment behavior.</NonGoal>
+    </NonGoals>
+    <AcceptanceCriteria>
+      <Criterion>On a workspace with no meeting settings and no templates, the user creates a draft from date and protocol number and can immediately add agenda items.</Criterion>
+      <Criterion>The create form does not force title, template, chair, secretary or quorum; the stored title uses the deterministic fallback.</Criterion>
+      <Criterion>When complete settings exist, their current chair, secretary, quorum, template versions and ready profile snapshots are still copied into the new meeting.</Criterion>
+      <Criterion>A ready protocol template can generate a protocol even when no extract template exists; the reverse dependency is also absent.</Criterion>
+      <Criterion>If the requested kind has no snapshot/settings/default and exactly one ready active catalog entry, that template is used automatically; multiple possible templates require an explicit choice for that kind only.</Criterion>
+      <Criterion>The generated record and audit retain exact template version and profile provenance, and repeated identical generation remains idempotent.</Criterion>
+      <Criterion>Desktop and mobile creation/generation preserve keyboard focus and existing layout, add no animation, and remain compatible with prefers-reduced-motion.</Criterion>
+      <Criterion>Targeted meeting workflow and browser regression pass with ordinary project CI and risk-scoped GRACE on one exact PR head.</Criterion>
+    </AcceptanceCriteria>
+    <AffectedAreas><M-API /><M-DATABASE /></AffectedAreas>
+    <VerificationIntent>
+      <ExpectedCommand>node --test tests/meeting-workflow.test.mjs</ExpectedCommand>
+      <ExpectedCommand>npx playwright test tests/browser/meeting-minimal-create.spec.mjs</ExpectedCommand>
+      <ExpectedCommand>npm run check</ExpectedCommand>
+      <ExpectedEvidence>Exact-head evidence shows empty-install draft→agenda, unchanged complete-settings snapshot behavior, per-kind generation without cross-template dependency and exact template provenance.</ExpectedEvidence>
+    </VerificationIntent>
+  </C-R3-MINIMAL-MEETING-321>
+</GraceChangeSpec>
