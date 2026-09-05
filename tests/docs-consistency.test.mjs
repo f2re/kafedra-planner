@@ -78,6 +78,32 @@ test('documentation checker reports drift between VERSION and current release ma
   assert.ok(errors.some((item) => item.file === 'docs/ROADMAP.md' && item.target === '0.3.2'));
 });
 
+test('documentation checker accepts only the reusable release-run push trigger', async () => {
+  const root = await fixture();
+  await writeFile(join(root, 'README.md'), '> Текущий рубеж: **`0.3.4`**\n');
+  await writeFile(join(root, '.github', 'workflows', 'release.yml'), [
+    'name: Release',
+    '',
+    'on:',
+    '  workflow_dispatch:',
+    '  push:',
+    '    branches: [release-run]'
+  ].join('\n'));
+  let errors = await checkDocumentation({ root });
+  assert.equal(errors.filter((item) => item.kind === 'release-workflow').length, 0);
+
+  await writeFile(join(root, '.github', 'workflows', 'release.yml'), [
+    'name: Release',
+    '',
+    'on:',
+    '  workflow_dispatch:',
+    '  push:',
+    '    branches: [main]'
+  ].join('\n'));
+  errors = await checkDocumentation({ root });
+  assert.ok(errors.some((item) => item.kind === 'release-workflow' && item.target === 'push'));
+});
+
 test('documentation checker rejects obsolete automatic release orchestration', async () => {
   const root = await fixture();
   await writeFile(join(root, 'README.md'), '> Текущий рубеж: **`0.3.4`**\n');
