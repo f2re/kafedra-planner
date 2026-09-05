@@ -1,0 +1,114 @@
+<GraceChangePlan graceVersion="4.0" status="approved">
+  <C-CI-SIMPLIFY-309>
+    <IntentSummary>Replace the current many-workflow, all-risk PR path with one compact ordinary CI workflow and explicit risk-selected GRACE/release verification, without removing the heavy checks from the repository.</IntentSummary>
+    <BaselineAssertions>
+      <MustExist><Value>.github/workflows/ci.yml</Value></MustExist>
+      <MustExist><Value>.github/workflows/grace.yml</Value></MustExist>
+      <MustExist><Value>.github/workflows/release-gate.yml</Value></MustExist>
+      <MustExist><Value>.github/workflows/organization.yml</Value></MustExist>
+      <MustExist><Value>.github/workflows/science-import.yml</Value></MustExist>
+      <MustExist><Value>.github/workflows/science-lifecycle.yml</Value></MustExist>
+      <MustExist><Value>.github/workflows/science-reports.yml</Value></MustExist>
+      <MustExist><Value>.github/workflows/archive-dummy-probe-293-auto.yml</Value></MustExist>
+      <MustExist><Value>.github/workflows/release-0.4.1-prep.yml</Value></MustExist>
+      <MustExist><Value>scripts/github/grace-merge-gate.mjs</Value></MustExist>
+      <MustExist><Value>scripts/github/grace-required-checks.mjs</Value></MustExist>
+      <MustContain><File>.github/workflows/ci.yml</File><Text>Full offline Debian 12 + Project Control</Text></MustContain>
+      <MustContain><File>.github/workflows/grace.yml</File><Text>Require every exact-SHA project check</Text></MustContain>
+      <MustContain><File>.github/workflows/release-gate.yml</File><Text>pull_request:</Text></MustContain>
+      <MustContain><File>.github/workflows/organization.yml</File><Text>pull_request:</Text></MustContain>
+      <MustContain><File>.github/workflows/science-import.yml</File><Text>pull_request:</Text></MustContain>
+      <MustVerify><Module>M-CI-GATE</Module></MustVerify>
+    </BaselineAssertions>
+    <TargetAssertions>
+      <MustExist><Value>.github/workflows/ci.yml</Value></MustExist>
+      <MustExist><Value>.github/workflows/grace.yml</Value></MustExist>
+      <MustExist><Value>scripts/github/required-checks.mjs</Value></MustExist>
+      <MustExist><Value>tests/ci-simplification.test.mjs</Value></MustExist>
+      <MustContain><File>.github/workflows/ci.yml</File><Text>npm run docs:check</Text></MustContain>
+      <MustContain><File>.github/workflows/grace.yml</File><Text>workflow_dispatch:</Text></MustContain>
+      <MustContain><File>.github/workflows/organization.yml</File><Text>workflow_dispatch:</Text></MustContain>
+      <MustContain><File>.github/workflows/science-import.yml</File><Text>workflow_dispatch:</Text></MustContain>
+      <MustContain><File>.github/workflows/science-lifecycle.yml</File><Text>workflow_dispatch:</Text></MustContain>
+      <MustContain><File>.github/workflows/science-reports.yml</File><Text>workflow_dispatch:</Text></MustContain>
+      <MustVerify><Module>M-CI-GATE</Module></MustVerify>
+    </TargetAssertions>
+    <DurableScope>
+      <GraphAnchors><M-CI-GATE /></GraphAnchors>
+      <VerificationAnchors><V-M-CI-GATE /></VerificationAnchors>
+      <ContextArtifacts><ContextArtifact>deployment.xml</ContextArtifact><ContextArtifact>principles.xml</ContextArtifact></ContextArtifacts>
+    </DurableScope>
+    <ObservedWriteScope>
+      <Glob>.grace/changes/active/C-CI-SIMPLIFY-309/**</Glob>
+      <File>AGENTS.md</File>
+      <File>docs/GRACE_GOVERNANCE.md</File>
+      <File>docs/VALIDATION.md</File>
+      <File>.grace/context/deployment.xml</File>
+      <File>.grace/graph/main.xml</File>
+      <File>.github/workflows/ci.yml</File>
+      <File>.github/workflows/grace.yml</File>
+      <File>.github/workflows/release-gate.yml</File>
+      <File>.github/workflows/organization.yml</File>
+      <File>.github/workflows/science-import.yml</File>
+      <File>.github/workflows/science-lifecycle.yml</File>
+      <File>.github/workflows/science-reports.yml</File>
+      <File>.github/workflows/archive-dummy-probe-293-auto.yml</File>
+      <File>.github/workflows/release-0.4.1-prep.yml</File>
+      <File>scripts/github/grace-merge-gate.mjs</File>
+      <File>scripts/github/grace-required-checks.mjs</File>
+      <File>scripts/github/required-checks.mjs</File>
+      <File>scripts/github/configure-main-protection.sh</File>
+      <File>tests/ci-simplification.test.mjs</File>
+    </ObservedWriteScope>
+    <ImplementationPlan>
+      <T-001>
+        <Title>kafedra-release: define the minimal ordinary CI and risk boundaries</Title>
+        <DependsOn></DependsOn>
+        <AcceptanceCriteria>
+          <Criterion>The exact base is 81a419f6c8ea2a574d8478ffd33498c1d2a69285 and issue 309 defines the reduction.</Criterion>
+          <Criterion>Release/storage/security safety properties remain assigned to explicit heavy gates instead of being removed.</Criterion>
+        </AcceptanceCriteria>
+        <Verification><Command>npm run check</Command></Verification>
+      </T-001>
+      <T-002>
+        <Title>kafedra-tests: collapse ordinary PR CI and specialized fan-out</Title>
+        <DependsOn><T-001 /></DependsOn>
+        <AcceptanceCriteria>
+          <Criterion>Проверка is one compact job with npm ci, check, docs, unit/integration and smoke.</Criterion>
+          <Criterion>Organization/science workflows are manual diagnostics and Release gate is not a feature-PR workflow.</Criterion>
+          <Criterion>Obsolete one-off workflows are deleted.</Criterion>
+        </AcceptanceCriteria>
+        <Verification><Command>node --test tests/ci-simplification.test.mjs</Command></Verification>
+      </T-002>
+      <T-003>
+        <Title>kafedra-release: make GRACE risk-selected and remove cross-workflow polling</Title>
+        <DependsOn><T-002 /></DependsOn>
+        <AcceptanceCriteria>
+          <Criterion>GRACE triggers only for explicit high-risk path families or manual dispatch.</Criterion>
+          <Criterion>The database/recovery job performs heavy DB evidence only when the diff touches its risk families.</Criterion>
+          <Criterion>The aggregate job checks only GRACE prerequisites and never calls GitHub Checks API or waits for unrelated workflows.</Criterion>
+          <Criterion>Conditional GRACE is not configured as an always-required branch-protection context.</Criterion>
+        </AcceptanceCriteria>
+        <Verification><Command>node --test tests/ci-simplification.test.mjs</Command><Command>bash -n scripts/github/configure-main-protection.sh</Command></Verification>
+      </T-003>
+      <T-004>
+        <Title>kafedra-release: align repository governance and validation docs</Title>
+        <DependsOn><T-003 /></DependsOn>
+        <AcceptanceCriteria>
+          <Criterion>AGENTS, GRACE governance, deployment context and validation explain the same risk-based contract.</Criterion>
+          <Criterion>The GRACE graph describes a risk-selected gate rather than an all-PR fan-in.</Criterion>
+        </AcceptanceCriteria>
+        <Verification><Command>npm run docs:check</Command></Verification>
+      </T-004>
+      <T-005>
+        <Title>kafedra-tests: run focused exact-head regression</Title>
+        <DependsOn><T-004 /></DependsOn>
+        <AcceptanceCriteria>
+          <Criterion>CI contract regression, check, docs, unit/integration, smoke and GRACE final are green on one unchanged head.</Criterion>
+          <Criterion>No full browser/offline deployment suite is rerun merely to prove this low-level workflow shape beyond the release/CI risk evidence explicitly required by the change.</Criterion>
+        </AcceptanceCriteria>
+        <Verification><Command>npm run check</Command><Command>npm run docs:check</Command><Command>npm test</Command><Command>npm run smoke</Command></Verification>
+      </T-005>
+    </ImplementationPlan>
+  </C-CI-SIMPLIFY-309>
+</GraceChangePlan>

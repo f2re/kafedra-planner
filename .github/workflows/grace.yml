@@ -1,10 +1,14 @@
 name: GRACE
 
 on:
-  push:
-    branches: ['**']
   pull_request:
     branches: [main]
+    paths:
+      - '.grace/**'
+  push:
+    branches: [main]
+    paths:
+      - '.grace/**'
   workflow_dispatch:
 
 concurrency:
@@ -13,14 +17,12 @@ concurrency:
 
 permissions:
   contents: read
-  checks: read
-  actions: read
 
 jobs:
   contract:
-    name: ${{ github.event_name == 'pull_request' && 'GRACE / contract' || github.ref_name == 'main' && 'GRACE post-merge / contract' || 'GRACE branch / contract' }}
+    name: ${{ github.event_name == 'pull_request' && 'GRACE / contract' || github.ref_name == 'main' && 'GRACE post-merge / contract' || 'GRACE manual / contract' }}
     runs-on: ubuntu-24.04
-    timeout-minutes: 25
+    timeout-minutes: 15
     steps:
       - uses: actions/checkout@v4
         with:
@@ -73,34 +75,7 @@ jobs:
           --base "$GRACE_BASE_REF"
           --mode "$GRACE_POLICY_MODE"
           --github-output
-      - name: Inspect executable assertion environment
-        id: assertion_env
-        env:
-          CHANGE_ID: ${{ steps.policy.outputs.change_id }}
-          ASSERTION_MODE: ${{ steps.policy.outputs.assertion_mode }}
-        shell: bash
-        run: |
-          set -Eeuo pipefail
-          if [[ "$ASSERTION_MODE" == "baseline" || "$ASSERTION_MODE" == "final" ]]; then
-            node scripts/ci/grace-assertion-env.mjs --change "$CHANGE_ID" --github-output
-          else
-            printf 'playwright=false\ncommand_count=0\n' >> "$GITHUB_OUTPUT"
-          fi
-      - name: Install exact project dependencies for executable assertions
-        env:
-          ASSERTION_MODE: ${{ steps.policy.outputs.assertion_mode }}
-        shell: bash
-        run: |
-          set -Eeuo pipefail
-          if [[ "$ASSERTION_MODE" == "baseline" || "$ASSERTION_MODE" == "final" ]]; then
-            npm ci --ignore-scripts --no-audit --no-fund
-          else
-            echo "Project dependencies are not required for current assertions."
-          fi
-      - name: Install Chromium for approved browser assertions
-        if: steps.assertion_env.outputs.playwright == 'true'
-        run: npx playwright install --with-deps chromium
-      - name: Run selected GRACE assertion gate
+      - name: Run selected GRACE lint and scope gate
         env:
           CHANGE_ID: ${{ steps.policy.outputs.change_id }}
           ASSERTION_MODE: ${{ steps.policy.outputs.assertion_mode }}
@@ -113,11 +88,7 @@ jobs:
                 echo "assertion_mode=$ASSERTION_MODE requires change_id" >&2
                 exit 1
               }
-              grace lint \
-                --path . \
-                --change "$CHANGE_ID" \
-                --assertions "$ASSERTION_MODE" \
-                --run-commands
+              grace lint --path . --change "$CHANGE_ID" --assertions "$ASSERTION_MODE"
               ;;
             current)
               grace lint --path . --assertions current
@@ -131,7 +102,7 @@ jobs:
         run: grace status --path . --json
 
   database:
-    name: ${{ github.event_name == 'pull_request' && 'GRACE / database' || github.ref_name == 'main' && 'GRACE post-merge / database' || 'GRACE branch / database' }}
+    name: ${{ github.event_name == 'pull_request' && 'GRACE / database' || github.ref_name == 'main' && 'GRACE post-merge / database' || 'GRACE manual / database' }}
     runs-on: ubuntu-24.04
     timeout-minutes: 25
     steps:
@@ -139,10 +110,25 @@ jobs:
         with:
           fetch-depth: 0
           ref: ${{ github.event.pull_request.head.sha || github.sha }}
+      - name: Detect database or recovery risk
+        id: risk
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          shopt -s nullglob
+          specs=(.grace/changes/active/C-*/spec.xml)
+          database=false
+          if [[ ${#specs[@]} -eq 1 ]] && grep -Eq '<M-(DATABASE|BACKUP|MIGRATION-RUNNER)[[:space:]/>]' "${specs[0]}"; then
+            database=true
+          fi
+          echo "database=$database" >> "$GITHUB_OUTPUT"
+          echo "database/recovery risk: $database"
       - uses: actions/setup-node@v4
+        if: steps.risk.outputs.database == 'true'
         with:
           node-version-file: .nvmrc
       - name: Resolve immutable comparison base
+        if: steps.risk.outputs.database == 'true'
         id: base
         shell: bash
         env:
@@ -161,22 +147,24 @@ jobs:
           printf 'base_ref=%s\n' "$BASE_REF" >> "$GITHUB_OUTPUT"
           printf 'base=%s head=%s\n' "$(git rev-parse "$BASE_REF")" "$(git rev-parse HEAD)"
       - name: Enforce append-only migration policy
+        if: steps.risk.outputs.database == 'true'
         env:
           GRACE_BASE_REF: ${{ steps.base.outputs.base_ref }}
         run: node scripts/grace-governance.mjs migrations --base "$GRACE_BASE_REF"
       - name: Prove clean install, exact-base upgrade, repeated migration and recovery
+        if: steps.risk.outputs.database == 'true'
         env:
           GRACE_BASE_REF: ${{ steps.base.outputs.base_ref }}
         run: bash scripts/ci/grace-db-gate.sh "$GRACE_BASE_REF"
 
   gate:
-    name: ${{ github.event_name == 'pull_request' && 'GRACE / merge-gate' || github.ref_name == 'main' && 'GRACE post-merge / merge-gate' || 'GRACE branch / merge-gate' }}
+    name: ${{ github.event_name == 'pull_request' && 'GRACE / gate' || github.ref_name == 'main' && 'GRACE post-merge / gate' || 'GRACE manual / gate' }}
     if: ${{ always() }}
     needs: [contract, database]
     runs-on: ubuntu-24.04
-    timeout-minutes: 360
+    timeout-minutes: 5
     steps:
-      - name: Require GRACE prerequisite jobs
+      - name: Require selected GRACE jobs
         env:
           CONTRACT: ${{ needs.contract.result }}
           DATABASE: ${{ needs.database.result }}
@@ -184,19 +172,3 @@ jobs:
           printf 'contract=%s\ndatabase=%s\n' "$CONTRACT" "$DATABASE"
           test "$CONTRACT" = success
           test "$DATABASE" = success
-      - uses: actions/checkout@v4
-        if: ${{ github.event_name == 'pull_request' || github.ref == 'refs/heads/main' }}
-        with:
-          ref: ${{ github.event.pull_request.head.sha || github.sha }}
-      - uses: actions/setup-node@v4
-        if: ${{ github.event_name == 'pull_request' || github.ref == 'refs/heads/main' }}
-        with:
-          node-version-file: .nvmrc
-      - name: Require every exact-SHA project check
-        if: ${{ github.event_name == 'pull_request' || github.ref == 'refs/heads/main' }}
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          GRACE_CONTRACT_RESULT: ${{ needs.contract.result }}
-          GRACE_DATABASE_RESULT: ${{ needs.database.result }}
-          GRACE_HEAD_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
-        run: node scripts/github/grace-merge-gate.mjs

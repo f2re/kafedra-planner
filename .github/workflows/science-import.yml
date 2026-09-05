@@ -1,14 +1,10 @@
 name: Массовый импорт науки
 
 on:
-  push:
-    branches: [main]
-  pull_request:
-    branches: [main]
   workflow_dispatch:
 
 concurrency:
-  group: science-import-${{ github.workflow }}-${{ github.ref }}
+  group: science-import-${{ github.ref }}
   cancel-in-progress: true
 
 permissions:

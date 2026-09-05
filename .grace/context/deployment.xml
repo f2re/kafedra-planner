@@ -1,5 +1,5 @@
 <GraceDeployment graceVersion="4.0">
   <Applicability>applicable</Applicability>
   <Target>Offline Debian/Astra Linux installation with systemd API/worker services, SQLite data directory, verified backups and rollback-capable updates.</Target>
-  <Notes>Every merge candidate must pass project CI and GRACE gates. Release promotion additionally follows the repository release gate, full offline bundle verification, backup/restore requirements and target-system acceptance. GitHub main must require pull requests, strict status checks and linear history; direct/force pushes are not part of the supported delivery path.</Notes>
+  <Notes>Every merge candidate passes the compact project check. GRACE is added only for governed high-risk changes. Release promotion additionally follows the release gate, full offline bundle verification, backup/restore requirements and target-system acceptance. GitHub main should require pull requests, the always-present project check and linear history; conditional risk workflows are verified when applicable rather than configured as permanently required contexts.</Notes>
 </GraceDeployment>

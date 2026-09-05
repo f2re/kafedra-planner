@@ -1,14 +1,10 @@
 name: Научные отчёты
 
 on:
-  push:
-    branches: [main]
-  pull_request:
-    branches: [main]
   workflow_dispatch:
 
 concurrency:
-  group: science-reports-${{ github.workflow }}-${{ github.ref }}
+  group: science-reports-${{ github.ref }}
   cancel-in-progress: true
 
 permissions:

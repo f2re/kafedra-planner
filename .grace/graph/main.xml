@@ -26,13 +26,13 @@
       <M-BACKUP />
     </M-MIGRATION-RUNNER>
     <M-GRACE-GOVERNANCE>
-      <Summary>Fail-closed branch policy, observed write scope enforcement, migration immutability and SQLite integrity checks.</Summary>
+      <Summary>Fail-closed policy for governed high-risk changes, observed write scope enforcement, migration immutability and SQLite integrity checks.</Summary>
       <Path>scripts/grace-governance.mjs</Path>
       <M-DATABASE />
       <M-MIGRATION-RUNNER />
     </M-GRACE-GOVERNANCE>
     <M-DESIGN-GOVERNANCE>
-      <Summary>Repository-level UI governance that requires design, motion decision, implementation, independent design audit and tests for public UI changes.</Summary>
+      <Summary>Repository-level UI governance that requires design, motion decision, implementation, independent design audit and tests when a GRACE plan explicitly scopes public UI.</Summary>
       <Path>scripts/design-governance.mjs</Path>
       <M-GRACE-GOVERNANCE />
       <M-MOTION-KB />
@@ -42,23 +42,23 @@
       <Path>docs/design/reactiive-motion-catalog.md</Path>
     </M-MOTION-KB>
     <M-CI-GATE>
-      <Summary>GitHub Actions gate that validates GRACE contracts and database upgrades for branches, pull requests and main.</Summary>
+      <Summary>Risk-selected GitHub Actions gate: ordinary changes use one compact project check, while GRACE and database/recovery verification run only for explicitly governed risk.</Summary>
       <Path>.github/workflows/grace.yml</Path>
       <M-GRACE-GOVERNANCE />
       <M-DESIGN-GOVERNANCE />
       <M-MIGRATION-RUNNER />
     </M-CI-GATE>
     <M-OFFLINE-BUNDLE>
-      <Summary>Full offline distribution build used by the existing release and CI contract.</Summary>
+      <Summary>Full offline distribution build verified for release and installer/update risk rather than every feature pull request.</Summary>
       <Path>scripts/offline/build-full-bundle.sh</Path>
     </M-OFFLINE-BUNDLE>
     <DF-GRACE-BRANCH>
-      <Summary>Issue to exact-main branch, approved C-* spec/plan, scoped implementation, GRACE final gate, project CI and squash merge.</Summary>
+      <Summary>High-risk flow from issue and exact-main branch through approved C-* scope, GRACE final lint, relevant risk evidence, compact project CI and squash merge.</Summary>
       <M-GRACE-GOVERNANCE />
       <M-CI-GATE />
     </DF-GRACE-BRANCH>
     <DF-DESIGN-CHANGE>
-      <Summary>UI-scoped GRACE flow from product design and motion/no-motion brief through implementation, independent design audit, responsive/reduced-motion tests and release gates.</Summary>
+      <Summary>UI flow from product design and motion/no-motion decision through implementation, independent design audit and targeted responsive/reduced-motion tests; GRACE wraps it only when the change is otherwise high-risk.</Summary>
       <M-DESIGN-GOVERNANCE />
       <M-MOTION-KB />
       <M-CI-GATE />
