@@ -80,7 +80,9 @@ Applied SQL migrations неизменяемы. Schema change получает с
 
 ## Release
 
-В репозитории один release workflow: `.github/workflows/release.yml`, имя `Release`. Он запускается только вручную через `workflow_dispatch` из текущего `main`; обычный pull request и обычный merge не запускают release-scale работу.
+В репозитории один release workflow: `.github/workflows/release.yml`, имя `Release`. Его можно запустить вручную через `workflow_dispatch` из текущего `main` либо переместить служебную ветку `release-run` на exact текущий SHA `main`. Обычный pull request и обычный push/merge в `main` release-scale работу не запускают.
+
+`release-run` — только переиспользуемый release pointer, а не ветка разработки. Workflow принимает push этой ветки лишь когда её SHA в точности равен текущему `main`; stale SHA, другая ветка или запуск не из `main` отклоняются в `release-preflight`. Это позволяет GitHub write connector запускать тот же универсальный Release без временных workflows, polling и version-specific automation.
 
 Внутри одного workflow используются обычные зависимости jobs, без внешней оркестрации:
 
@@ -90,7 +92,7 @@ Applied SQL migrations неизменяемы. Schema change получает с
 4. внутренний `release-gate` требует успешность этих jobs;
 5. `release-build-verify-publish` собирает один offline artifact, проверяет install/update/forced rollback именно этого artifact, создаёт Project Control из него и только затем публикует проверенные assets.
 
-Release workflow не опрашивает другие Actions, не вызывает `gh workflow run`, не ждёт GRACE/organization/science jobs и не повторяет project/browser suites после gate. Если `main` изменился до публикации, выпуск старого SHA останавливается.
+Release workflow не опрашивает другие Actions, не вызывает `gh workflow run`, не ждёт GRACE/organization/science jobs и не повторяет project/browser suites после gate. Если `main` изменился до сборки или публикации, выпуск старого SHA останавливается.
 
 ## Branch protection
 
