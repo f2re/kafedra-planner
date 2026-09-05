@@ -2,6 +2,8 @@ name: Release
 
 on:
   workflow_dispatch:
+  push:
+    branches: [release-run]
 
 concurrency:
   group: release-${{ github.repository }}
@@ -24,16 +26,19 @@ jobs:
         shell: bash
         run: |
           set -Eeuo pipefail
-          [[ "$GITHUB_REF" == refs/heads/main ]] || {
-            echo "Release разрешён только из main; фактически $GITHUB_REF" >&2
-            exit 1
-          }
+          case "$GITHUB_EVENT_NAME:$GITHUB_REF" in
+            workflow_dispatch:refs/heads/main|push:refs/heads/release-run) ;;
+            *)
+              echo "Release разрешён только вручную из main или через release-run; event=$GITHUB_EVENT_NAME ref=$GITHUB_REF" >&2
+              exit 1
+              ;;
+          esac
           MAIN_SHA="$(gh api "repos/$GITHUB_REPOSITORY/git/ref/heads/main" --jq '.object.sha')"
           [[ "$MAIN_SHA" == "$GITHUB_SHA" ]] || {
             echo "main изменился: workflow=$GITHUB_SHA main=$MAIN_SHA" >&2
             exit 1
           }
-          echo "Release source: $GITHUB_SHA"
+          echo "Release source: $GITHUB_SHA ($GITHUB_EVENT_NAME:$GITHUB_REF)"
 
   verify:
     name: release-verify
