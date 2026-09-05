@@ -1,4 +1,4 @@
-<GraceChangePlan graceVersion="4.0" status="applied">
+<GraceChangePlan graceVersion="4.0" status="approved">
   <C-R1-OCR-REPROCESS-319>
     <IntentSummary>Repair the existing intake pipeline vertically from page provenance through worker/API to a minimal retry action, reusing extraction_runs and existing idempotent protocol materialization instead of adding schema or a second document flow.</IntentSummary>
     <BaselineAssertions>

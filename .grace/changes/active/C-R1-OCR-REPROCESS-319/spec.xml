@@ -1,4 +1,4 @@
-<GraceChangeSpec graceVersion="4.0" status="applied">
+<GraceChangeSpec graceVersion="4.0" status="approved">
   <C-R1-OCR-REPROCESS-319>
     <Summary>Make document recognition page-faithful and recoverable: absolute OCR locators, page-aware mixed-PDF extraction, explicit partial coverage, and idempotent reprocessing of the same immutable document version.</Summary>
     <Problem>Single-page Tesseract runs report TSV page_num=1 and currently override the source page supplied by the PDF renderer. PDF OCR is skipped when the document as a whole has enough native text, so a text cover can hide scanned later pages. OCR returns success when any page produced blocks even if another page failed or processing was limited. Finalized documents cannot be reprocessed from the saved source after OCR/runtime recovery.</Problem>
