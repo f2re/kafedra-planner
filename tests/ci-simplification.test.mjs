@@ -55,11 +55,11 @@ test('specialized browser workflows are manual diagnostics', async () => {
   }
 });
 
-test('release-scale work is one explicit manual workflow', async () => {
+test('release-scale work is one explicit workflow and never follows ordinary main pushes', async () => {
   const source = await read('.github/workflows/release.yml');
   assert.match(source, /^name: Release$/mu);
-  assert.match(source, /^on:\n  workflow_dispatch:\n/mu);
-  assert.doesNotMatch(source, /^  push:/mu);
+  assert.match(source, /^on:\n  workflow_dispatch:\n  push:\n    branches: \[release-run\]$/mu);
+  assert.doesNotMatch(source, /^    branches: \[main\]$/mu);
   assert.doesNotMatch(source, /^  pull_request:/mu);
   assert.doesNotMatch(source, /^  workflow_run:/mu);
   assert.match(source, /^  release-gate:/mu);
