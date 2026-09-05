@@ -1,6 +1,7 @@
 import { installUnicodeSafeHeaders } from './http-headers.js';
 
 installUnicodeSafeHeaders(window);
+await import('./upload-feedback-next.js');
 
 await import('./auth-next.js');
 await import('./notification-delivery.js');

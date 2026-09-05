@@ -7,6 +7,7 @@ import {
   showMeetingNotice
 } from './meetings-state.js';
 import { loadMeeting, loadMeetings } from './meetings-data.js';
+import { protocolUploadCounts, uploadCountsText, uploadStateDescription } from './upload-feedback.js';
 
 let pollTimer = null;
 let loadToken = 0;
@@ -16,7 +17,7 @@ const stateLabels = {
   needs_review: 'Нужно проверить',
   failed: 'Ошибка',
   processing: 'Обрабатывается',
-  uploading: 'Сохраняется'
+  uploading: 'Загружается'
 };
 
 async function uploadIdentity(file, year) {
@@ -54,8 +55,8 @@ function reviewText(item) {
   const reviews = Array.isArray(item.reviews) ? item.reviews : [];
   if (reviews.length) return reviews.slice(0, 2).map((review) => review.title).join(' · ');
   if (item.extraction_error) return item.extraction_error;
-  if (item.state === 'processing' || item.state === 'uploading') return 'Исходный файл сохранён; идёт локальный разбор.';
-  if (item.state === 'ready') return `${item.agenda_count || 0} вопросов распознано`;
+  const stateDescription = uploadStateDescription(item);
+  if (stateDescription) return stateDescription;
   return 'Откройте заседание и исправьте только сомнительные поля.';
 }
 
@@ -87,9 +88,10 @@ export function renderProtocolImports() {
     return;
   }
   const processing = summary.processing + summary.uploading;
+  const batchState = uploadCountsText(protocolUploadCounts(summary));
   root.innerHTML = `
     <div class="protocol-import-head">
-      <div><strong>Импорт за ${escMeeting(meetingsState.selectedYear)} год</strong><span>${summary.total} файлов</span></div>
+      <div><strong>Импорт за ${escMeeting(meetingsState.selectedYear)} год</strong><span>${summary.total} файлов · ${escMeeting(batchState)}</span></div>
       <div class="protocol-import-counters" aria-label="Состояние импорта">
         <span class="protocol-counter ready">${summary.ready} готово</span>
         <span class="protocol-counter review">${summary.needs_review} проверить</span>
