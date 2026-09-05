@@ -1,4 +1,4 @@
-<GraceChangeSpec graceVersion="4.0" status="approved">
+<GraceChangeSpec graceVersion="4.0" status="applied">
   <C-RELEASE-WORKFLOW-SIMPLIFY-309>
     <Summary>Simplify release and deployment automation to one explicit, version-neutral GitHub Actions workflow that verifies only release-critical properties and publishes the same offline artifact it installs, updates and rolls back.</Summary>
     <Problem>Issue 309 removed the ordinary PR fan-out, but the current release publisher still chains from a separate version-specific gate, polls multiple unrelated workflows, redispatches failed/missing Actions and reruns project/browser tests before building. The GRACE policy also forces a separate archive-only integration when a completed change is retired before the next governed change. These waiting and bookkeeping loops make automation rather than product risk the development bottleneck.</Problem>

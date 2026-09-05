@@ -1,4 +1,4 @@
-<GraceChangePlan graceVersion="4.0" status="approved">
+<GraceChangePlan graceVersion="4.0" status="applied">
   <C-RELEASE-WORKFLOW-SIMPLIFY-309>
     <IntentSummary>Collapse release automation into one explicit version-neutral workflow, remove cross-workflow orchestration and allow immutable GRACE bookkeeping to ride with the next governed change, while preserving exact-main, build-once, checksum, install/update/rollback and publication guarantees.</IntentSummary>
     <BaselineAssertions>

@@ -1,0 +1,86 @@
+<GraceChangePlan graceVersion="4.0" status="approved">
+  <C-RELEASE-CONNECTOR-TRIGGER-306>
+    <IntentSummary>Expose one connector-safe release trigger without reintroducing release fan-out: release-run is fast-forwarded to exact current main, the existing Release workflow performs the same verification and publication, and ordinary main development remains unchanged.</IntentSummary>
+    <BaselineAssertions>
+      <MustExist><Value>.github/workflows/release.yml</Value></MustExist>
+      <MustExist><Value>tests/release-workflow.test.mjs</Value></MustExist>
+      <MustExist><Value>scripts/docs-consistency.mjs</Value></MustExist>
+      <MustContain><File>.github/workflows/release.yml</File><Text>workflow_dispatch:</Text></MustContain>
+      <MustContain><File>docs/VALIDATION.md</File><Text>запускается вручную из текущего `main`</Text></MustContain>
+      <MustVerify><Module>M-CI-GATE</Module></MustVerify>
+      <MustVerify><Module>M-OFFLINE-BUNDLE</Module></MustVerify>
+    </BaselineAssertions>
+    <TargetAssertions>
+      <MustExist><Value>.github/workflows/release.yml</Value></MustExist>
+      <MustExist><Value>tests/release-workflow.test.mjs</Value></MustExist>
+      <MustExist><Value>tests/docs-consistency.test.mjs</Value></MustExist>
+      <MustContain><File>.github/workflows/release.yml</File><Text>branches: [release-run]</Text></MustContain>
+      <MustContain><File>.github/workflows/release.yml</File><Text>push:refs/heads/release-run</Text></MustContain>
+      <MustContain><File>.github/workflows/release.yml</File><Text>systemd-deploy-selftest.sh "$OUT"</Text></MustContain>
+      <MustContain><File>scripts/docs-consistency.mjs</File><Text>release-run</Text></MustContain>
+      <MustContain><File>docs/VALIDATION.md</File><Text>release-run</Text></MustContain>
+      <MustVerify><Module>M-CI-GATE</Module></MustVerify>
+      <MustVerify><Module>M-OFFLINE-BUNDLE</Module></MustVerify>
+    </TargetAssertions>
+    <DurableScope>
+      <GraphAnchors><M-CI-GATE /><M-OFFLINE-BUNDLE /><DF-GRACE-BRANCH /></GraphAnchors>
+      <VerificationAnchors><V-M-CI-GATE /><V-M-OFFLINE-BUNDLE /></VerificationAnchors>
+      <ContextArtifacts><ContextArtifact>deployment.xml</ContextArtifact><ContextArtifact>principles.xml</ContextArtifact></ContextArtifacts>
+    </DurableScope>
+    <ObservedWriteScope>
+      <Glob>.grace/changes/active/C-RELEASE-CONNECTOR-TRIGGER-306/**</Glob>
+      <Glob>.grace/changes/active/C-RELEASE-WORKFLOW-SIMPLIFY-309/**</Glob>
+      <Glob>.grace/changes/archive/C-RELEASE-WORKFLOW-SIMPLIFY-309/**</Glob>
+      <File>.github/workflows/release.yml</File>
+      <File>docs/GRACE_GOVERNANCE.md</File>
+      <File>docs/VALIDATION.md</File>
+      <File>scripts/docs-consistency.mjs</File>
+      <File>tests/docs-consistency.test.mjs</File>
+      <File>tests/ci-simplification.test.mjs</File>
+      <File>tests/release-workflow.test.mjs</File>
+      <File>tests/release-0.4.3.test.mjs</File>
+    </ObservedWriteScope>
+    <ImplementationPlan>
+      <T-001>
+        <Title>kafedra-release: retire completed release simplification change</Title>
+        <DependsOn></DependsOn>
+        <AcceptanceCriteria>
+          <Criterion>Base is exactly 51bf56d2690d3bf1d44e3d5f8f67e041288d04d7.</Criterion>
+          <Criterion>C-RELEASE-WORKFLOW-SIMPLIFY-309 moves to archive applied with only root lifecycle status changed.</Criterion>
+        </AcceptanceCriteria>
+        <Verification><Command>node --test tests/grace-policy-combined-transition.test.mjs tests/grace-governance.test.mjs</Command></Verification>
+      </T-001>
+      <T-002>
+        <Title>kafedra-release: add reusable exact-main release-run trigger</Title>
+        <DependsOn><T-001 /></DependsOn>
+        <AcceptanceCriteria>
+          <Criterion>Release supports workflow_dispatch and push only for release-run.</Criterion>
+          <Criterion>release-preflight rejects every trigger/ref combination except manual main and release-run, and rejects stale release-run SHA.</Criterion>
+          <Criterion>Ordinary main push and PR do not start Release.</Criterion>
+          <Criterion>No polling, redispatch, sleep loop or extra workflow is introduced.</Criterion>
+        </AcceptanceCriteria>
+        <Verification><Command>node --test tests/release-workflow.test.mjs tests/ci-simplification.test.mjs</Command></Verification>
+      </T-002>
+      <T-003>
+        <Title>kafedra-tests: align documentation validation with release-run</Title>
+        <DependsOn><T-002 /></DependsOn>
+        <AcceptanceCriteria>
+          <Criterion>Documentation describes release-run as a reusable pointer, not a development branch.</Criterion>
+          <Criterion>Documentation checker accepts release-run push and rejects Release push for main.</Criterion>
+          <Criterion>0.4.3 regression still proves build-once and protocol-import release coverage.</Criterion>
+        </AcceptanceCriteria>
+        <Verification><Command>node --test tests/docs-consistency.test.mjs tests/release-0.4.3.test.mjs</Command></Verification>
+      </T-003>
+      <T-004>
+        <Title>kafedra-release: exact-head merge then trigger 0.4.3 from release-run</Title>
+        <DependsOn><T-003 /></DependsOn>
+        <AcceptanceCriteria>
+          <Criterion>Ordinary Проверка and GRACE / gate are successful on the exact PR head.</Criterion>
+          <Criterion>After squash merge, release-run is fast-forwarded to exact current main.</Criterion>
+          <Criterion>The resulting Release run publishes v0.4.3 only after its own verification, build, install/update/rollback and asset checks succeed.</Criterion>
+        </AcceptanceCriteria>
+        <Verification><Command>npm run check</Command><Command>npm run docs:check</Command><Command>npm test</Command><Command>npm run smoke</Command></Verification>
+      </T-004>
+    </ImplementationPlan>
+  </C-RELEASE-CONNECTOR-TRIGGER-306>
+</GraceChangePlan>

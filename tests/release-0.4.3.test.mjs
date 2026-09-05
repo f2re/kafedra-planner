@@ -41,11 +41,13 @@ test('0.4.3 включает годовой импорт протоколов б
   assert.equal(migrations.some((name) => /^032_/u.test(name)), false);
 });
 
-test('0.4.3 выпускается текущим ручным build-once workflow без внешней оркестрации', async () => {
+test('0.4.3 выпускается build-once workflow без внешней оркестрации', async () => {
   const release = await text('.github/workflows/release.yml');
   assert.match(release, /^name: Release$/mu);
-  assert.match(release, /^on:\n  workflow_dispatch:\n/mu);
-  assert.doesNotMatch(release, /^  (?:push|pull_request|workflow_run):/mu);
+  assert.match(release, /^on:\n  workflow_dispatch:\n  push:\n    branches: \[release-run\]$/mu);
+  assert.doesNotMatch(release, /^  (?:pull_request|workflow_run):/mu);
+  assert.doesNotMatch(release, /^    branches: \[main\]$/mu);
+  assert.match(release, /push:refs\/heads\/release-run/u);
   assert.match(release, /tests\/browser\/protocol-import\.spec\.mjs/u);
   assert.match(release, /build-full-bundle\.sh/u);
   assert.match(release, /systemd-deploy-selftest\.sh "\$OUT"/u);
