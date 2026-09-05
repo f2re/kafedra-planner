@@ -19,7 +19,8 @@ export function markPreferenceOrigin(element, origin) {
   if (!element?.dataset) return element;
   const normalized = String(origin || 'static');
   element.dataset.uiPreferenceOrigin = normalized;
-  if (normalized === 'explicit') element.dataset.uiPreferenceDirty = '1';
+  if (['saved', 'explicit', 'domain'].includes(normalized)) element.dataset.uiPreferenceDirty = '1';
+  else if (normalized === 'suggested') delete element.dataset.uiPreferenceDirty;
   return element;
 }
 
