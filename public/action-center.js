@@ -502,6 +502,7 @@ async function clickDatasetValue(id, timeout = 4500) {
 }
 
 async function openExactRoute(route) {
+  if (!route?.id) return false;
   if (route.kind === 'plan') {
     if (await callGlobal(['kafedraOpenPlan'], route.id)) return true;
     await openFirstExistingView(['plans']);
@@ -512,8 +513,17 @@ async function openExactRoute(route) {
     await openFirstExistingView(['meetings']);
     return clickDatasetValue(route.id);
   }
+  if (route.kind === 'assignment') {
+    if (await callGlobal(['kafedraOpenStandaloneAssignment', 'kafedraOpenAssignment'], route.id)) return true;
+    await openFirstExistingView(['work']);
+    return clickDatasetValue(route.id);
+  }
+  if (route.kind === 'periodic_task') {
+    await openFirstExistingView(['work']);
+    return clickDatasetValue(route.id);
+  }
   if (route.kind === 'directive') {
-    if (await callGlobal(['kafedraOpenDirective', 'kafedraOpenWorkItem'], route.id)) return true;
+    if (await callGlobal(['kafedraOpenDirective', 'kafedraOpenWorkItem', 'kafedraOpenDirectiveArchive'], route.id)) return true;
     await openFirstExistingView(['work']);
     return clickDatasetValue(route.id);
   }
@@ -690,4 +700,5 @@ dropzone?.addEventListener('keydown', (event) => {
 });
 
 window.kafedraOpenActionCenter = openCenter;
+window.kafedraOpenExactRoute = openExactRoute;
 window.dispatchEvent(new CustomEvent('kafedra:action-center-ready'));
