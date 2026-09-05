@@ -2,7 +2,6 @@ import { AppError } from '../../../packages/core/src/errors.mjs';
 import { managesPerson } from '../../../packages/auth/src/policy.mjs';
 import { getPeriodicTaskV2 } from '../../../packages/work-management/src/periodic-tasks.mjs';
 import { transitionPeriodicTaskV2 } from '../../../packages/work-management/src/periodic-task-completion.mjs';
-import { createPeriodicTaskEvidenceRouter } from './periodic-task-evidence-router.mjs';
 import { readJson, sendJson } from './http-utils.mjs';
 
 function workspaceId(database, request) {
@@ -14,7 +13,7 @@ function workspaceId(database, request) {
   return database.get('SELECT id FROM workspaces ORDER BY created_at LIMIT 1')?.id || null;
 }
 
-function canTransition(database, workspaceIdValue, context, task) {
+export function canTransitionPeriodicTask(database, workspaceIdValue, context, task) {
   if (!context?.enabled || context.role === 'admin') return true;
   if (task.owner_person_id === context.personId || task.manager_person_id === context.personId) return true;
   return context.role === 'manager' && task.owner_person_id
@@ -36,10 +35,7 @@ function transitionError(error) {
 }
 
 export function createPeriodicTaskCompletionRouter({ database }) {
-  const evidenceRouter = createPeriodicTaskEvidenceRouter({ database });
-  return async function routePeriodicTaskCompletion(request, response, url, requestId) {
-    const evidenceHandled = await evidenceRouter(request, response, url, requestId);
-    if (evidenceHandled || response.headersSent) return evidenceHandled;
+  return async function routePeriodicTaskCompletion(request, response, url) {
     if ((request.method || 'GET') !== 'POST') return false;
     const match = url.pathname.match(/^\/api\/periodic-tasks\/([^/]+)\/transition$/u);
     if (!match) return false;
@@ -49,7 +45,7 @@ export function createPeriodicTaskCompletionRouter({ database }) {
     const task = getPeriodicTaskV2(database, workspace, taskId);
     if (!task) throw new AppError('periodic_task_not_found', 'Периодическая задача не найдена.', 404);
     const context = request.auth || { enabled: false };
-    if (!canTransition(database, workspace, context, task)) {
+    if (!canTransitionPeriodicTask(database, workspace, context, task)) {
       throw new AppError('periodic_task_transition_forbidden', 'Завершить эту задачу может исполнитель или его руководитель.', 403);
     }
     try {
