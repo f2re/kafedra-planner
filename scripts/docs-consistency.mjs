@@ -63,11 +63,23 @@ async function checkReleaseWorkflow({ absoluteRoot, errors }) {
     record(errors, relativeFile, text, 0, 'release-workflow', 'Release', 'Release workflow должен иметь version-neutral имя Release.');
   }
   if (!/^\s{2}workflow_dispatch:\s*$/mu.test(text)) {
-    record(errors, relativeFile, text, 0, 'release-workflow', 'workflow_dispatch', 'Release должен запускаться явно через workflow_dispatch.');
+    record(errors, relativeFile, text, 0, 'release-workflow', 'workflow_dispatch', 'Release должен поддерживать явный запуск через workflow_dispatch.');
   }
-  const automatic = text.match(/^\s{2}(workflow_run|pull_request|push):/mu);
+  const automatic = text.match(/^\s{2}(workflow_run|pull_request):/mu);
   if (automatic) {
-    record(errors, relativeFile, text, automatic.index || 0, 'release-workflow', automatic[1], 'Release не должен автоматически запускаться из другого workflow, PR или push.');
+    record(errors, relativeFile, text, automatic.index || 0, 'release-workflow', automatic[1], 'Release не должен автоматически запускаться из другого workflow или PR.');
+  }
+  const pushBlock = text.match(/^  push:\s*\n(?:    [^\n]*\n?)*/mu);
+  if (pushBlock && !/^  push:\s*\n    branches:\s*\[release-run\]\s*\n?$/u.test(pushBlock[0])) {
+    record(
+      errors,
+      relativeFile,
+      text,
+      pushBlock.index || 0,
+      'release-workflow',
+      'push',
+      'Push-trigger Release разрешён только для служебной ветки release-run, которая должна указывать на exact current main.'
+    );
   }
 
   const obsolete = '.github/workflows/release-gate.yml';
