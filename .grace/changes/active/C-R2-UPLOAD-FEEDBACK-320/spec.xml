@@ -1,0 +1,35 @@
+<GraceChangeSpec graceVersion="4.0" status="approved">
+  <C-R2-UPLOAD-FEEDBACK-320>
+    <Summary>Make document upload feedback truthful and file-specific without changing storage or processing semantics.</Summary>
+    <Problem>Generic batch upload always ends with «Документы приняты» even when individual requests failed, while protocol import uses the same saved-source explanation for both in-flight upload and already-saved processing.</Problem>
+    <Goals>
+      <Goal>Distinguish client upload from server-confirmed saved/processing state.</Goal>
+      <Goal>Summarize batch results from confirmed HTTP outcomes so one failed file does not turn the whole batch into success or block good files.</Goal>
+      <Goal>Keep successful documents available immediately while exposing retry/error only for the failed item.</Goal>
+    </Goals>
+    <Constraints>
+      <Constraint>Exact base is main 87394114dd85692e015bf05b257fe98d4d424bb2.</Constraint>
+      <Constraint>No SQLite schema, OCR contract, immutable source, ACL, installer or version change.</Constraint>
+      <Constraint>No modal or extra confirmation is added.</Constraint>
+      <Constraint>One failed request must not stop later files in the same batch.</Constraint>
+    </Constraints>
+    <NonGoals>
+      <NonGoal>Change OCR/reprocess behavior from R1.</NonGoal>
+      <NonGoal>Redesign document or meeting screens.</NonGoal>
+      <NonGoal>Add a new workflow or release gate.</NonGoal>
+    </NonGoals>
+    <AcceptanceCriteria>
+      <Criterion>While bytes are still being sent, UI says the file is uploading and does not claim the source is saved.</Criterion>
+      <Criterion>After a successful server response but before processing finishes, UI says the source is saved and processing continues.</Criterion>
+      <Criterion>One successful and one rejected file produce a visible summary equivalent to «1 сохранён, 1 ошибка».</Criterion>
+      <Criterion>Successful files remain usable and failed files retain their error without blocking the batch.</Criterion>
+      <Criterion>Ready and needs-review states keep their existing meaning.</Criterion>
+    </AcceptanceCriteria>
+    <AffectedAreas><M-API /></AffectedAreas>
+    <VerificationIntent>
+      <ExpectedCommand>node --test tests/upload-feedback.test.mjs tests/protocol-year-import.test.mjs</ExpectedCommand>
+      <ExpectedCommand>npm run check</ExpectedCommand>
+      <ExpectedEvidence>Exact-head CI proves the batch summary helper and existing protocol import regressions; browser spec contains the mixed success/error UI path without adding a dedicated workflow.</ExpectedEvidence>
+    </VerificationIntent>
+  </C-R2-UPLOAD-FEEDBACK-320>
+</GraceChangeSpec>

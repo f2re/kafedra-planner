@@ -1,0 +1,64 @@
+<GraceChangePlan graceVersion="4.0" status="approved">
+  <C-R2-UPLOAD-FEEDBACK-320>
+    <IntentSummary>Reuse the existing upload APIs and processing states, changing only presentation and batch accounting so the UI never reports success before the server confirms each file.</IntentSummary>
+    <BaselineAssertions>
+      <MustExist><Value>public/app.js</Value></MustExist>
+      <MustExist><Value>public/protocol-import.js</Value></MustExist>
+      <MustVerify><Module>M-API</Module></MustVerify>
+    </BaselineAssertions>
+    <TargetAssertions>
+      <MustExist><Value>public/upload-feedback.js</Value></MustExist>
+      <MustExist><Value>public/upload-feedback-next.js</Value></MustExist>
+      <MustExist><Value>tests/upload-feedback.test.mjs</Value></MustExist>
+      <MustContain><File>public/protocol-import.js</File><Text>Файл загружается</Text></MustContain>
+      <MustContain><File>public/upload-feedback-next.js</File><Text>batchUploadMessage</Text></MustContain>
+      <MustVerify><Module>M-API</Module></MustVerify>
+    </TargetAssertions>
+    <DurableScope>
+      <GraphAnchors><M-API /><DF-GRACE-BRANCH /></GraphAnchors>
+      <VerificationAnchors><V-M-API /></VerificationAnchors>
+      <ContextArtifacts><ContextArtifact>principles.xml</ContextArtifact></ContextArtifacts>
+    </DurableScope>
+    <ObservedWriteScope>
+      <Glob>.grace/changes/active/C-R2-UPLOAD-FEEDBACK-320/**</Glob>
+      <File>public/ux-next.js</File>
+      <File>public/upload-feedback.js</File>
+      <File>public/upload-feedback-next.js</File>
+      <File>public/protocol-import.js</File>
+      <File>tests/upload-feedback.test.mjs</File>
+      <File>tests/browser/protocol-import.spec.mjs</File>
+    </ObservedWriteScope>
+    <ImplementationPlan>
+      <T-001>
+        <Title>kafedra-design: define honest compact upload states</Title>
+        <DependsOn></DependsOn>
+        <AcceptanceCriteria><Criterion>Uploading, saved/processing, ready, needs-review and failed use short Russian labels without modal confirmation.</Criterion></AcceptanceCriteria>
+        <Verification><Command>node --test tests/upload-feedback.test.mjs</Command></Verification>
+      </T-001>
+      <T-002>
+        <Title>kafedra-motion: use no-motion for upload feedback</Title>
+        <DependsOn><T-001 /></DependsOn>
+        <AcceptanceCriteria><Criterion>No animation is added; existing live progress text remains the feedback surface.</Criterion></AcceptanceCriteria>
+        <Verification><Command>node --test tests/upload-feedback.test.mjs</Command></Verification>
+      </T-002>
+      <T-003>
+        <Title>kafedra-feature: account for each HTTP upload result</Title>
+        <DependsOn><T-002 /></DependsOn>
+        <AcceptanceCriteria><Criterion>Generic upload and protocol import count server-confirmed success/error independently and continue after a failed file.</Criterion></AcceptanceCriteria>
+        <Verification><Command>node --test tests/upload-feedback.test.mjs tests/protocol-year-import.test.mjs</Command></Verification>
+      </T-003>
+      <T-004>
+        <Title>kafedra-design-audit: verify primary work stays available</Title>
+        <DependsOn><T-003 /></DependsOn>
+        <AcceptanceCriteria><Criterion>Good files remain visible immediately, failed file text is local to that row, and no extra step is introduced.</Criterion></AcceptanceCriteria>
+        <Verification><Command>npx playwright test tests/browser/protocol-import.spec.mjs</Command></Verification>
+      </T-004>
+      <T-005>
+        <Title>kafedra-tests: cover mixed success and state wording</Title>
+        <DependsOn><T-004 /></DependsOn>
+        <AcceptanceCriteria><Criterion>One saved and one failed item render a truthful summary; uploading is never described as already saved.</Criterion></AcceptanceCriteria>
+        <Verification><Command>node --test tests/upload-feedback.test.mjs tests/protocol-year-import.test.mjs</Command></Verification>
+      </T-005>
+    </ImplementationPlan>
+  </C-R2-UPLOAD-FEEDBACK-320>
+</GraceChangePlan>
