@@ -2,6 +2,7 @@ import { AppError } from '../../../packages/core/src/errors.mjs';
 import { managesPerson } from '../../../packages/auth/src/policy.mjs';
 import { getPeriodicTaskV2 } from '../../../packages/work-management/src/periodic-tasks.mjs';
 import { transitionPeriodicTaskV2 } from '../../../packages/work-management/src/periodic-task-completion.mjs';
+import { createPeriodicTaskEvidenceRouter } from './periodic-task-evidence-router.mjs';
 import { readJson, sendJson } from './http-utils.mjs';
 
 function workspaceId(database, request) {
@@ -35,7 +36,10 @@ function transitionError(error) {
 }
 
 export function createPeriodicTaskCompletionRouter({ database }) {
-  return async function routePeriodicTaskCompletion(request, response, url) {
+  const evidenceRouter = createPeriodicTaskEvidenceRouter({ database });
+  return async function routePeriodicTaskCompletion(request, response, url, requestId) {
+    const evidenceHandled = await evidenceRouter(request, response, url, requestId);
+    if (evidenceHandled || response.headersSent) return evidenceHandled;
     if ((request.method || 'GET') !== 'POST') return false;
     const match = url.pathname.match(/^\/api\/periodic-tasks\/([^/]+)\/transition$/u);
     if (!match) return false;
