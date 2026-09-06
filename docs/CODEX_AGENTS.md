@@ -13,16 +13,16 @@ Repository-local roles live in `codex/skills/`. They are specialists, not mandat
 | `kafedra-tests` | Unit/integration/browser regression | Targeted executable evidence |
 | `kafedra-release` | CI, installer, update, offline, rollback, release | Go/no-go evidence for deployment/release risk |
 
-## Kafedra profile preflight
+## Автоматический Kafedra profile preflight
 
-Every substantial change reads `codex/skills/kafedra-workspace-orchestrator/SKILL.md`. The orchestrator is a classifier, not a second authority. It chooses the minimum relevant skills from the pinned profile; project-local `AGENTS.md`, architecture, GRACE and domain contracts remain authoritative.
+Every substantial change reads `codex/skills/kafedra-workspace-orchestrator/SKILL.md`. The orchestrator is a classifier, not a second authority. Its rule is: **select minimum focused profile skills** from the pinned profile, while project-local `AGENTS.md`, architecture, GRACE and domain contracts remain authoritative.
 
 ```text
 repository preflight
       ↓
 classify actual risk / user flow
       ↓
-select only necessary roles and focused skills
+select minimum focused profile skills (or none)
       ↓
 implementation → targeted evidence → integration audit
 ```
@@ -59,7 +59,7 @@ One contract has one primary executor. Parallel specialists own bounded scopes; 
 
 `scripts/design-governance.mjs` checks these durable contracts. It deliberately does not validate a style slogan, an exact catalog count or GRACE task choreography. It still fails closed if a required design source disappears, the motion safety contract loses `prefers-reduced-motion`/`no-motion`, or the reference catalog becomes unusable or loses its redistribution boundary.
 
-When a reference is used, upstream source-derived facts and project recommendations remain distinguishable. The catalog is inspiration and navigation, not vendored source code.
+When a reference is used, upstream source-derived facts and project recommendations remain distinguishishable. The catalog is inspiration and navigation, not vendored source code.
 
 ## UI acceptance
 
