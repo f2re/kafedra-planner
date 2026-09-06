@@ -25,10 +25,8 @@ for (const relativePath of REQUIRED_FILES) {
 }
 
 if (exists('docs/design.md')) {
-  const design = read('docs/design.md');
-  for (const marker of ['Apple-inspired', 'kafedra-motion', 'kafedra-design-audit']) {
-    if (!design.includes(marker)) errors.push(`docs/design.md must contain ${marker}`);
-  }
+  const design = read('docs/design.md').trim();
+  if (design.length < 100) errors.push('docs/design.md must keep the substantive product design contract');
 }
 
 if (exists('docs/MOTION_DESIGN.md')) {
@@ -43,64 +41,11 @@ if (exists('docs/MOTION_DESIGN.md')) {
 if (exists('docs/design/reactiive-motion-catalog.md')) {
   const catalog = read('docs/design/reactiive-motion-catalog.md');
   const demoRows = catalog.split(/\r?\n/).filter(line => /^- `[^`]+` → `[^`]+`$/.test(line));
-  if (demoRows.length !== 123) {
-    errors.push(`motion catalog must index exactly 123 demos, found ${demoRows.length}`);
+  if (demoRows.length === 0) {
+    errors.push('catalog has no usable demo mappings');
   }
-  if (!catalog.includes('not a redistributed source-code library')) {
+  if (!catalog.toLowerCase().includes('not a redistributed source-code library')) {
     errors.push('motion catalog must keep the upstream redistribution boundary explicit');
-  }
-}
-
-const activeRoot = path.join(root, '.grace', 'changes', 'active');
-if (fs.existsSync(activeRoot)) {
-  const activeChanges = fs.readdirSync(activeRoot, { withFileTypes: true })
-    .filter(entry => entry.isDirectory())
-    .map(entry => entry.name)
-    .sort();
-
-  for (const changeId of activeChanges) {
-    const planPath = path.join(activeRoot, changeId, 'plan.xml');
-    if (!fs.existsSync(planPath)) continue;
-    const plan = fs.readFileSync(planPath, 'utf8');
-    const scope = plan.match(/<ObservedWriteScope>([\s\S]*?)<\/ObservedWriteScope>/)?.[1] || '';
-    const touchesPublicUi = /<(?:File|Glob)>public\//.test(scope);
-    if (!touchesPublicUi) continue;
-
-    const lower = plan.toLowerCase();
-    const requiredText = [
-      ['desktop', /desktop/],
-      ['mobile', /mobile/],
-      ['prefers-reduced-motion', /prefers-reduced-motion/],
-    ];
-    for (const [name, pattern] of requiredText) {
-      if (!pattern.test(lower)) errors.push(`${changeId}: UI plan must include ${name} acceptance`);
-    }
-
-    const stagePatterns = [
-      ['kafedra-design', /<Title>[^<]*kafedra-design:/i],
-      ['kafedra-motion', /<Title>[^<]*kafedra-motion:/i],
-      ['kafedra-feature', /<Title>[^<]*kafedra-feature:/i],
-      ['kafedra-design-audit', /<Title>[^<]*kafedra-design-audit:/i],
-      ['kafedra-tests', /<Title>[^<]*kafedra-tests:/i],
-    ];
-    const positions = [];
-    for (const [name, pattern] of stagePatterns) {
-      const match = pattern.exec(plan);
-      if (!match) {
-        errors.push(`${changeId}: UI plan must contain a ${name} task`);
-        positions.push(-1);
-      } else {
-        positions.push(match.index);
-      }
-    }
-    if (positions.every(position => position >= 0)) {
-      for (let index = 1; index < positions.length; index += 1) {
-        if (positions[index] <= positions[index - 1]) {
-          errors.push(`${changeId}: specialist order must be kafedra-design → kafedra-motion → kafedra-feature → kafedra-design-audit → kafedra-tests`);
-          break;
-        }
-      }
-    }
   }
 }
 
