@@ -1,119 +1,92 @@
 # Codex project roles
 
-These roles are implemented as repository-local skills in `codex/skills/`. Invoke the named role for focused work, or use the handoff sequence below for a feature that crosses layers. Roles advise or implement only within the user’s authorization; release and production actions always require explicit confirmation.
+Repository-local roles live in `codex/skills/`. They are specialists, not mandatory ceremony. The task is first classified by repository rules and `kafedra-workspace-orchestrator`; then only the roles that own a real risk or contract are involved.
 
-| Role / skill | Owns | Produces | Must involve next |
-|---|---|---|---|
-| Flow intake & UX acceptance / `kafedra-flow-intake` | Problem framing, navigation fit, UX acceptance | A short accept / revise / reject decision with evidence and risks | Designer before UI work; feature delivery after acceptance |
-| Product designer / `kafedra-design` | Interaction design, information hierarchy, Apple-inspired visual character, responsive states | Flow specification and UI acceptance criteria | `kafedra-motion` for every UI-scoped GRACE change; data steward if a new fact/state is implied |
-| Motion advisor / `kafedra-motion` | Motion intent, reference retrieval, timing/geometry/material, gestures, reduced motion, performance | A measurable motion brief or explicit `no-motion` decision | Feature delivery; design audit after implementation |
-| Data steward / `kafedra-data` | Entity ownership, schema, migrations, data invariants | Schema decision, migration plan, verification/rollback impact | Feature delivery and test engineer |
-| Feature delivery / `kafedra-feature` | Minimal end-to-end implementation and integration | Working vertical slice with docs and focused verification | `kafedra-design-audit` after UI implementation; other relevant specialist roles before merge |
-| Design audit / `kafedra-design-audit` | Independent post-implementation UX, motion, accessibility and responsive review | `PASS`, `REVISE`, or `BLOCK` with evidence and regression consequences | Test engineer after PASS; feature/design roles for REVISE/BLOCK |
-| Test engineer / `kafedra-tests` | Risk-based unit, integration, browser, and release regression coverage | Executable test plan and test changes | Feature delivery for gaps; release operator for release-surface changes |
-| Release operator / `kafedra-release` | Versioning, artifact, migration rollout, backup/restore, deployment and rollback gates | Go / no-go evidence and an operator runbook delta | Test engineer and data steward before a release-impacting merge |
+| Role / skill | Owns | Typical evidence |
+|---|---|---|
+| `kafedra-flow-intake` | User flow, navigation fit, acceptance | Short accept/revise decision for a materially changed flow |
+| `kafedra-design` | Interaction hierarchy, responsive behavior, usability | UI acceptance criteria for material interface work |
+| `kafedra-motion` | Motion, gestures, continuity, reduced motion | Motion brief or explicit `no-motion` when motion is actually relevant |
+| `kafedra-design-audit` | Independent implemented UI audit | PASS / REVISE / BLOCK on the actual result |
+| `kafedra-data` | Storage, schema, migrations, recovery | Data invariants, migration/recovery evidence |
+| `kafedra-feature` | End-to-end implementation | Working vertical slice and focused verification |
+| `kafedra-tests` | Unit/integration/browser regression | Targeted executable evidence |
+| `kafedra-release` | CI, installer, update, offline, rollback, release | Go/no-go evidence for deployment/release risk |
 
-## Автоматический Kafedra profile preflight
+## Kafedra profile preflight
 
-Every substantial change first passes the repository/GRACE preflight and then reads `kafedra-workspace-orchestrator`. The orchestrator is a classifier, not a new authority: it chooses the minimum relevant focused skills from `codex/skills/kafedra-profile.json`, while the eight project-local roles in the table above continue to own decisions and implementation inside the approved GRACE scope.
-
-```text
-repository + GRACE preflight
-        ↓
-kafedra-workspace-orchestrator
-        ↓
-select minimum focused profile skills (or none)
-        ↓
-existing project-local role handoff
-        ↓
-implementation / independent audit / tests / release gates
-```
-
-Typical focused routes are: upload/import → `kafedra-document-intake` + `kafedra-states-and-recovery`; workspace/detail → `kafedra-document-workspace` + `kafedra-provenance-and-inspector`; clutter → `kafedra-action-recomposition`; ambiguity → `kafedra-review-by-exception`; search → `kafedra-search-and-navigation`; responsive inspector → `kafedra-responsive-inspector`; adaptive values → `kafedra-adaptive-controls`; plan/calendar → `kafedra-plan-calendar-continuity`; templates → `kafedra-template-and-structured-document-flow`; motion → `kafedra-motion-continuity`; final document-workspace UX audit → `kafedra-ux-acceptance`.
-
-A backend/infrastructure/release change with no document-workspace or UX concern may route to no focused profile skill after classification. Generic helper names referenced by the upstream snapshot are optional library hints, not Kafedra Planner dependencies. The pinned source, exact blob hashes and governed update procedure are documented in `docs/AI_SKILLS_PROFILE.md`.
-
-## Default handoff
-
-For a non-UI change:
+Every substantial change reads `codex/skills/kafedra-workspace-orchestrator/SKILL.md`. The orchestrator is a classifier, not a second authority. It chooses the minimum relevant skills from the pinned profile; project-local `AGENTS.md`, architecture, GRACE and domain contracts remain authoritative.
 
 ```text
-request → flow intake (when needed) → data/design (when needed) → feature delivery → tests → release gate
+repository preflight
+      ↓
+classify actual risk / user flow
+      ↓
+select only necessary roles and focused skills
+      ↓
+implementation → targeted evidence → integration audit
 ```
 
-For any GRACE plan whose `ObservedWriteScope` touches `public/**`:
+A backend/infrastructure/release task may legitimately return `focused profile skills: none`. A local UI fix may need only `kafedra-feature` and `kafedra-tests`; a material UX redesign normally needs `kafedra-design` and independent `kafedra-design-audit`; `kafedra-motion` is added only when motion, gestures or transitions are materially affected. Schema/recovery work routes to `kafedra-data`; CI/release work routes to `kafedra-release`.
+
+Typical document-workspace routes remain available: intake → `kafedra-document-intake`; ambiguity → `kafedra-review-by-exception`; search → `kafedra-search-and-navigation`; responsive inspector → `kafedra-responsive-inspector`; adaptive defaults → `kafedra-adaptive-controls`; plan/calendar → `kafedra-plan-calendar-continuity`; templates → `kafedra-template-and-structured-document-flow`; final material UX audit → `kafedra-ux-acceptance`.
+
+The pinned source and governed update procedure are documented in `docs/AI_SKILLS_PROFILE.md`.
+
+## Handoff rule
+
+There is no universal role pipeline. Handoff follows ownership of the changed contract:
 
 ```text
-request
-  → flow intake (when flow changes)
-  → kafedra-design
-  → kafedra-motion
-  → kafedra-feature
-  → kafedra-design-audit
-  → kafedra-tests
-  → kafedra-release / GRACE final
+problem
+  → domain owner(s) needed for this change
+  → implementation
+  → independent audit when the change warrants one
+  → targeted tests
+  → release gate only when deployment/release is affected
 ```
 
-`kafedra-motion` is a mandatory decision point for UI changes but may return `no-motion`; this prevents decorative animation from becoming a default. `kafedra-design-audit` is intentionally after implementation and must inspect the actual result rather than approving its own design brief.
+The repository **не требует фиксированного порядка ролей** merely because a file under `public/**` changed. A static text/style fix must not be inflated into design → motion → feature → audit → tests. Conversely, a material change to navigation, responsive geometry, gestures or accessibility must involve the specialist that owns that risk.
 
-Small internal fixes may skip design intake only when they do not alter user flow, rendered UI, schema, deployment, or a product contract. The feature role still checks that the change does not duplicate an existing entity or projection.
+One contract has one primary executor. Parallel specialists own bounded scopes; the integrator checks interactions after their work. Roles never widen `ObservedWriteScope`, alter approved acceptance criteria or create a second source of truth.
 
 ## Design sources of truth
 
-- `docs/design.md` — product hierarchy, Apple-inspired visual/interaction language, responsive/accessibility rules.
-- `docs/MOTION_DESIGN.md` — timing, continuity, direct manipulation, materials, reduced-motion and performance policy.
-- `docs/design/reactiive-motion-catalog.md` — semantic retrieval index of 123 reference demos; inspiration only, not upstream source redistribution.
-- `docs/ADAPTIVE_UX.md` — safe-default/rank-only/domain-derived/never-learn boundary.
+- `docs/design.md` — product hierarchy, interaction and responsive/accessibility principles;
+- `docs/MOTION_DESIGN.md` — causality, continuity, direct manipulation, `no-motion`, reduced motion and performance;
+- `docs/design/reactiive-motion-catalog.md` — semantic reference index; its usefulness is not defined by an exact number of rows;
+- `docs/ADAPTIVE_UX.md` — `safe-default`, `rank-only`, `domain-derived`, `never-learn` boundaries.
 
-When a Reactiive reference is selected, the motion advisor must inspect the current upstream source before presenting exact constants. Source-derived facts and Kafedra recommendations must remain distinguishable.
+`scripts/design-governance.mjs` checks these durable contracts. It deliberately does not validate a style slogan, an exact catalog count or GRACE task choreography. It still fails closed if a required design source disappears, the motion safety contract loses `prefers-reduced-motion`/`no-motion`, or the reference catalog becomes unusable or loses its redistribution boundary.
 
-## UI plan contract
+When a reference is used, upstream source-derived facts and project recommendations remain distinguishable. The catalog is inspiration and navigation, not vendored source code.
 
-`scripts/design-governance.mjs` runs through `npm run design:check` and as part of `npm run check`. For an active GRACE plan that writes `public/**`, it fails closed unless:
+## UI acceptance
 
-- tasks explicitly include `kafedra-design`, `kafedra-motion`, `kafedra-feature`, `kafedra-design-audit`, and `kafedra-tests` in that order;
-- desktop and mobile acceptance is explicit;
-- `prefers-reduced-motion` behavior is explicit.
+For UI work, verify what actually changed:
 
-The check validates routing, not aesthetics. The audit role remains responsible for evidence-backed quality decisions.
+- obvious primary action and stable geometry;
+- keyboard/focus behavior;
+- only the affected desktop/mobile layout, or both when both changed;
+- `prefers-reduced-motion` when motion/transition/gesture changed;
+- source/provenance and authoritative-object boundaries when the UI edits domain data.
+
+A material UI change should receive independent implemented-result audit. A local non-material fix does not need a fabricated audit stage merely to satisfy governance.
 
 ## Shared definition of done
 
-- The change advances the department-planning workflow, not merely a local screen or table.
-- One authoritative domain record remains identifiable; projections, search, calendar, and reports are synchronized safely.
-- Offline-first, ACL, provenance, immutable document, audit, transaction, and idempotency invariants hold.
-- UI changes preserve obvious primary action, stable geometry, desktop/mobile parity, keyboard/focus behavior and a reduced-motion path.
-- Motion explains causality/orientation/feedback and does not delay routine work; static state remains understandable without animation.
-- A material UI change has an independent `kafedra-design-audit` PASS before final test/release handoff.
-- Relevant unit/integration tests and browser coverage (for UI) pass; `npm run check` and `npm run docs:check` pass when contracts or docs change.
-- Migration and release consequences are explicit. A release-impacting change has backup/restore and rollback evidence before promotion.
+- The change solves the user or operational problem end to end.
+- One authoritative domain record remains identifiable; projections do not become competing editors.
+- Offline-first, ACL, provenance, immutable source, audit, transaction and idempotency invariants hold where applicable.
+- Error/partial-success/recovery behavior is explicit.
+- Relevant targeted regression passes.
+- `npm run check`, documentation validation, project tests and smoke pass on the PR head.
+- Schema/storage/security/deployment/release risks receive their specific heavier gate; ordinary changes do not.
 
-## GRACE orchestration
+## GRACE and CI
 
-GRACE 4 owns the outer lifecycle. A significant request is represented by one approved active `C-*`; the specialist roles above are routed to `T-*` tasks in its approved `GraceChangePlan`.
+GRACE is the outer lifecycle only for governed risk: schema/storage/recovery, immutable evidence/history, auth/security, installer/update/rollback, CI/release infrastructure or other dangerous architectural changes. Ordinary UI/API/test/docs work does not require GRACE just because a role exists.
 
-```text
-GraceChangeSpec
-      ↓
-GraceChangePlan
-      ↓
-T-* flow-intake (when needed)
-      ↓
-T-* design
-      ↓
-T-* motion decision/brief   [UI scope]
-      ↓
-T-* data (when needed)
-      ↓
-T-* feature
-      ↓
-T-* independent design audit [UI scope]
-      ↓
-T-* tests
-      ↓
-T-* release
-      ↓
-GRACE target/final → GitHub required checks → exact-head squash merge
-```
+A governed change has one approved active `C-*`, scoped implementation and exact-head GRACE lint/scope plus the relevant risk gate. GRACE does not rerun project unit/browser tests already proved by CI and does not poll other workflows.
 
-Specialist handoffs never widen `ObservedWriteScope`, rewrite approved assertions, push directly to `main`, or replace the selected GRACE final gate with focused tests. Schema work owned by `kafedra-data` must also satisfy the repository migration gate described in `docs/GRACE_GOVERNANCE.md`. Release work owned by `kafedra-release` consumes the successful GRACE/project/release checks; it cannot declare a go decision while any mandatory check is pending, failed, cancelled, missing or unexpectedly skipped.
+The ordinary PR workflow `Проверка` supplies the complete project evidence. After squash merge, `main` gets only a short post-merge smoke rather than a second full project suite. Release remains a separate explicit version-neutral workflow from exact `main`, builds the offline artifact once and verifies install/update/forced rollback before publication.
