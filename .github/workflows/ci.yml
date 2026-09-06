@@ -15,6 +15,7 @@ permissions:
 
 jobs:
   quality:
+    if: github.event_name != 'push'
     name: Проверка
     runs-on: ubuntu-24.04
     timeout-minutes: 25
@@ -28,4 +29,18 @@ jobs:
       - run: npm run check
       - run: npm run docs:check
       - run: npm test
+      - run: npm run smoke
+
+  post-merge-smoke:
+    if: github.event_name == 'push'
+    name: Post-merge smoke
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+      - run: npm ci --ignore-scripts --no-audit --no-fund
       - run: npm run smoke

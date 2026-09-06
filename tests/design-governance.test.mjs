@@ -8,7 +8,7 @@ import test from 'node:test';
 const scriptPath = path.resolve('scripts/design-governance.mjs');
 
 const requiredFiles = {
-  'docs/design.md': 'Apple-inspired\nkafedra-motion\nkafedra-design-audit\n',
+  'docs/design.md': '# Product design contract\nCalm document workspace with clear hierarchy, predictable responsive behavior, keyboard access and obvious primary actions. The interface remains understandable without decorative effects.\n',
   'docs/MOTION_DESIGN.md': 'prefers-reduced-motion\nno-motion\ndirect manipulation\n',
   'codex/skills/kafedra-design/SKILL.md': 'design',
   'codex/skills/kafedra-motion/SKILL.md': 'motion',
@@ -18,19 +18,23 @@ const requiredFiles = {
 const catalog = [
   '# catalog',
   'This is not a redistributed source-code library.',
-  ...Array.from({ length: 123 }, (_, index) => `- \`demo-${index + 1}\` → \`family\``),
+  '- `demo-one` → `continuity`',
+  '- `demo-two` → `direct-manipulation`',
 ].join('\n');
 
-function makeRoot(plan) {
+function makeRoot({ plan = null, files = {}, catalogContent = catalog } = {}) {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), 'kafedra-design-'));
-  for (const [relativePath, content] of Object.entries(requiredFiles)) {
+  for (const [relativePath, content] of Object.entries({ ...requiredFiles, ...files })) {
+    if (content === null) continue;
     const destination = path.join(root, relativePath);
     fs.mkdirSync(path.dirname(destination), { recursive: true });
     fs.writeFileSync(destination, content);
   }
-  const catalogPath = path.join(root, 'docs/design/reactiive-motion-catalog.md');
-  fs.mkdirSync(path.dirname(catalogPath), { recursive: true });
-  fs.writeFileSync(catalogPath, catalog);
+  if (catalogContent !== null) {
+    const catalogPath = path.join(root, 'docs/design/reactiive-motion-catalog.md');
+    fs.mkdirSync(path.dirname(catalogPath), { recursive: true });
+    fs.writeFileSync(catalogPath, catalogContent);
+  }
   if (plan !== null) {
     const planPath = path.join(root, '.grace/changes/active/C-UI/plan.xml');
     fs.mkdirSync(path.dirname(planPath), { recursive: true });
@@ -48,50 +52,43 @@ function run(root) {
   });
 }
 
-function validPlan() {
-  return `<GraceChangePlan graceVersion="4.0" status="approved">
-  <C-UI>
-    <ObservedWriteScope><Glob>public/**</Glob></ObservedWriteScope>
-    <ImplementationPlan>
-      <T-001><Title>kafedra-design: define desktop and mobile interaction</Title><AcceptanceCriteria><Criterion>Desktop and mobile states are explicit and static state is clear.</Criterion></AcceptanceCriteria></T-001>
-      <T-002><Title>kafedra-motion: define restrained transition</Title><AcceptanceCriteria><Criterion>prefers-reduced-motion fallback is explicit.</Criterion></AcceptanceCriteria></T-002>
-      <T-003><Title>kafedra-feature: implement UI</Title></T-003>
-      <T-004><Title>kafedra-design-audit: independently review implementation</Title></T-004>
-      <T-005><Title>kafedra-tests: verify browser behavior</Title></T-005>
-    </ImplementationPlan>
-  </C-UI>
-</GraceChangePlan>`;
-}
-
-test('passes when repository artifacts exist and no active UI change is present', () => {
-  const root = makeRoot(null);
-  assert.match(run(root), /\[design-governance\] ok/);
-});
-
-test('passes a complete UI-scoped GRACE specialist handoff', () => {
-  const root = makeRoot(validPlan());
-  assert.match(run(root), /\[design-governance\] ok/);
-});
-
-test('fails closed when a UI plan omits motion/audit and reduced-motion acceptance', () => {
-  const broken = `<GraceChangePlan graceVersion="4.0" status="approved"><C-UI>
+function compactUiPlan() {
+  return `<GraceChangePlan graceVersion="4.0" status="approved"><C-UI>
     <ObservedWriteScope><File>public/app.js</File></ObservedWriteScope>
     <ImplementationPlan>
-      <T-001><Title>kafedra-design: desktop and mobile design</Title></T-001>
-      <T-002><Title>kafedra-feature: implement</Title></T-002>
-      <T-003><Title>kafedra-tests: test</Title></T-003>
+      <T-001><Title>kafedra-feature: simplify one existing control</Title></T-001>
+      <T-002><Title>kafedra-tests: verify the affected layout</Title></T-002>
     </ImplementationPlan>
   </C-UI></GraceChangePlan>`;
-  const root = makeRoot(broken);
+}
+
+test('passes when substantive design artifacts exist without style slogans or fixed catalog size', () => {
+  const root = makeRoot();
+  assert.match(run(root), /\[design-governance\] ok/);
+});
+
+test('a local UI change does not require a fixed five-role GRACE choreography', () => {
+  const root = makeRoot({ plan: compactUiPlan() });
+  assert.match(run(root), /\[design-governance\] ok/);
+});
+
+test('fails closed when a required design source disappears', () => {
+  const root = makeRoot({ files: { 'codex/skills/kafedra-design-audit/SKILL.md': null } });
+  assert.throws(() => run(root), error => /missing required design artifact/.test(error.stderr));
+});
+
+test('fails closed when the motion safety contract loses reduced-motion or no-motion guidance', () => {
+  const root = makeRoot({ files: { 'docs/MOTION_DESIGN.md': 'direct manipulation only\n' } });
   assert.throws(
     () => run(root),
-    error => /kafedra-motion task/.test(error.stderr) && /kafedra-design-audit task/.test(error.stderr) && /prefers-reduced-motion/.test(error.stderr),
+    error => /prefers-reduced-motion/.test(error.stderr) && /no-motion/.test(error.stderr),
   );
 });
 
-test('rejects the wrong specialist order', () => {
-  const broken = validPlan()
-    .replace('<T-002><Title>kafedra-motion: define restrained transition</Title><AcceptanceCriteria><Criterion>prefers-reduced-motion fallback is explicit.</Criterion></AcceptanceCriteria></T-002>\n      <T-003><Title>kafedra-feature: implement UI</Title></T-003>', '<T-002><Title>kafedra-feature: implement UI</Title></T-002>\n      <T-003><Title>kafedra-motion: define restrained transition</Title><AcceptanceCriteria><Criterion>prefers-reduced-motion fallback is explicit.</Criterion></AcceptanceCriteria></T-003>');
-  const root = makeRoot(broken);
-  assert.throws(() => run(root), error => /specialist order/.test(error.stderr));
+test('catalog size may change but usable mappings and redistribution boundary remain required', () => {
+  const noMappings = makeRoot({ catalogContent: '# catalog\nThis is not a redistributed source-code library.\n' });
+  assert.throws(() => run(noMappings), error => /catalog has no usable demo mappings/.test(error.stderr));
+
+  const noBoundary = makeRoot({ catalogContent: '# catalog\n- `demo` → `family`\n' });
+  assert.throws(() => run(noBoundary), error => /redistribution boundary/.test(error.stderr));
 });

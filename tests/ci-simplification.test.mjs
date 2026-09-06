@@ -14,20 +14,27 @@ async function expectMissing(path) {
   );
 }
 
-test('ordinary CI is one compact project check', async () => {
+function occurrences(source, value) {
+  return source.split(value).length - 1;
+}
+
+test('pull request keeps one complete project check and main push repeats only smoke', async () => {
   const source = await read('.github/workflows/ci.yml');
   assert.match(source, /^name: Проверка$/mu);
+  assert.match(source, /^  quality:\n    if: github\.event_name != 'push'\n    name: Проверка$/mu);
+  assert.match(source, /^  post-merge-smoke:\n    if: github\.event_name == 'push'\n    name: Post-merge smoke$/mu);
+
   for (const command of [
-    'npm ci --ignore-scripts --no-audit --no-fund',
     'npm run check',
     'npm run docs:check',
-    'npm test',
-    'npm run smoke'
+    'npm test'
   ]) {
-    assert.ok(source.includes(command), `ci.yml must contain ${command}`);
+    assert.equal(occurrences(source, command), 1, `${command} must run only in PR/manual quality`);
   }
-  const jobs = [...source.matchAll(/^  ([a-zA-Z0-9_-]+):\n    name:/gmu)].map((match) => match[1]);
-  assert.deepEqual(jobs, ['quality']);
+  assert.equal(occurrences(source, 'npm run smoke'), 2, 'smoke runs in PR evidence and once after merge');
+  assert.equal(occurrences(source, 'npm ci --ignore-scripts --no-audit --no-fund'), 2,
+    'both isolated jobs use locked dependencies');
+
   for (const forbidden of [
     /playwright/iu,
     /Full offline/iu,
@@ -67,9 +74,11 @@ test('release-scale work is one explicit workflow and never follows ordinary mai
   await expectMissing('.github/workflows/release-gate.yml');
 });
 
-test('GRACE is selected by governed risk and never polls external checks', async () => {
+test('GRACE runs on governed PRs or manually and never repeats after merge', async () => {
   const source = await read('.github/workflows/grace.yml');
-  assert.match(source, /paths:\n\s+- '\.grace\/\*\*'/u);
+  assert.match(source, /^on:\n  pull_request:\n    branches: \[main\]\n    paths:\n      - '\.grace\/\*\*'\n  workflow_dispatch:$/mu);
+  assert.doesNotMatch(source, /^  push:/mu);
+  assert.doesNotMatch(source, /post-merge/iu);
   assert.match(source, /M-\(DATABASE\|BACKUP\|MIGRATION-RUNNER\)/u);
   assert.match(source, /Run selected GRACE lint and scope gate/u);
   assert.match(source, /Require selected GRACE jobs/u);
@@ -87,7 +96,7 @@ test('GRACE is selected by governed risk and never polls external checks', async
   }
 });
 
-test('branch protection requires only the always-present ordinary check', async () => {
+test('branch protection requires only the always-present pull request check', async () => {
   assert.deepEqual(REQUIRED_MAIN_CHECKS, ['Проверка']);
   assert.deepEqual(mainProtectionPayload().required_status_checks.contexts, ['Проверка']);
   const source = await read('scripts/github/configure-main-protection.sh');

@@ -1,4 +1,4 @@
-<GraceChangeSpec graceVersion="4.0" status="approved">
+<GraceChangeSpec graceVersion="4.0" status="applied">
   <C-R8-PROTOCOL-PROFILE-326>
     <Summary>Extend the existing deterministic department-protocol parser with optional reusable profile fields while preserving immutable source, machine evidence and manual working corrections.</Summary>
     <Problem>Recognized protocols currently bypass generic document templates, so a stable local protocol format cannot add narrowly defined fields without changing the base parser. A profile must add evidence-backed facts without becoming a second parser, overwriting manual corrections or making optional adapter errors fatal.</Problem>
