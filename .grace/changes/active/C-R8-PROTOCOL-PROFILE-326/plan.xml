@@ -1,0 +1,90 @@
+<GraceChangePlan graceVersion="4.0" status="approved">
+  <C-R8-PROTOCOL-PROFILE-326>
+    <IntentSummary>Add a narrowly scoped protocol-profile extension after deterministic base processing, keeping machine provenance and manual corrections separate while reusing existing document templates and reprocess history.</IntentSummary>
+    <BaselineAssertions>
+      <MustExist><Value>packages/protocols/src/extractor.mjs</Value></MustExist>
+      <MustExist><Value>packages/protocols/src/persist.mjs</Value></MustExist>
+      <MustExist><Value>packages/protocols/src/meeting-core.mjs</Value></MustExist>
+      <MustExist><Value>packages/templates/src/extractor.mjs</Value></MustExist>
+      <MustExist><Value>apps/worker/src/processor.mjs</Value></MustExist>
+      <MustExist><Value>packages/storage/src/documents.mjs</Value></MustExist>
+      <MustVerify><Module>M-WORKER</Module></MustVerify>
+      <MustVerify><Module>M-DATABASE</Module></MustVerify>
+    </BaselineAssertions>
+    <TargetAssertions>
+      <MustExist><Value>packages/protocols/src/profile-extension.mjs</Value></MustExist>
+      <MustExist><Value>apps/worker/src/protocol-profile-job.mjs</Value></MustExist>
+      <MustExist><Value>tests/protocol-profile-extension.test.mjs</Value></MustExist>
+      <MustExist><Value>tests/fixtures/protocol-profile-synthetic-1.txt</Value></MustExist>
+      <MustExist><Value>tests/fixtures/protocol-profile-synthetic-2.txt</Value></MustExist>
+      <MustExist><Value>docs/PROTOCOL_PROFILES.md</Value></MustExist>
+      <MustContain><File>packages/protocols/src/profile-extension.mjs</File><Text>canonicalProtocolProfileField</Text></MustContain>
+      <MustContain><File>apps/worker/src/protocol-profile-job.mjs</File><Text>profileFields</Text></MustContain>
+      <MustContain><File>apps/worker/src/protocol-profile-job.mjs</File><Text>protocol_profile_working_conflict</Text></MustContain>
+      <MustContain><File>docs/PROTOCOL_PROFILES.md</File><Text>двух обезличенных реальных документов</Text></MustContain>
+      <MustVerify><Module>M-WORKER</Module></MustVerify>
+      <MustVerify><Module>M-DATABASE</Module></MustVerify>
+    </TargetAssertions>
+    <DurableScope>
+      <GraphAnchors><M-WORKER /><M-DATABASE /><DF-GRACE-BRANCH /></GraphAnchors>
+      <VerificationAnchors><V-M-WORKER /><V-M-DATABASE /></VerificationAnchors>
+      <ContextArtifacts><ContextArtifact>principles.xml</ContextArtifact><ContextArtifact>technology.xml</ContextArtifact></ContextArtifacts>
+    </DurableScope>
+    <ObservedWriteScope>
+      <Glob>.grace/changes/active/C-R8-PROTOCOL-PROFILE-326/**</Glob>
+      <Glob>.grace/changes/archive/C-R6-PREFERENCE-CONTROLS-324/**</Glob>
+      <File>apps/worker/src/main.mjs</File>
+      <File>apps/worker/src/protocol-profile-job.mjs</File>
+      <File>packages/protocols/src/profile-extension.mjs</File>
+      <File>docs/PROTOCOL_PROFILES.md</File>
+      <File>docs/MEETINGS-R8.md</File>
+      <File>tests/protocol-profile-extension.test.mjs</File>
+      <File>tests/protocol-profile-docs.test.mjs</File>
+      <File>tests/fixtures/protocol-profile-synthetic-1.txt</File>
+      <File>tests/fixtures/protocol-profile-synthetic-2.txt</File>
+    </ObservedWriteScope>
+    <ImplementationPlan>
+      <T-001>
+        <Title>kafedra-feature: add deterministic protocol profile extension</Title>
+        <DependsOn></DependsOn>
+        <AcceptanceCriteria>
+          <Criterion>Only active department_protocol templates are considered and the base parser remains sufficient without them.</Criterion>
+          <Criterion>Explicit aliases map profile fields to canonical meeting properties only when the base parser left those properties empty.</Criterion>
+          <Criterion>Unknown profile fields remain evidence-backed machine fields and do not become confirmed domain properties automatically.</Criterion>
+          <Criterion>A bad profile is isolated from the successful base protocol and other matching profiles.</Criterion>
+        </AcceptanceCriteria>
+        <Verification><Command>node --test tests/protocol-profile-extension.test.mjs</Command></Verification>
+      </T-001>
+      <T-002>
+        <Title>kafedra-data: preserve provenance and manual correction history</Title>
+        <DependsOn><T-001 /></DependsOn>
+        <AcceptanceCriteria>
+          <Criterion>Materialized profile fields append documentVersionId, extractionRunId, template identity and locator to meeting evidence without changing immutable source.</Criterion>
+          <Criterion>Reprocess writes a new extraction run and never rewrites an older run.</Criterion>
+          <Criterion>A conflicting existing working value remains unchanged and produces review-by-exception with incoming machine evidence.</Criterion>
+        </AcceptanceCriteria>
+        <Verification><Command>node --test tests/protocol-profile-extension.test.mjs tests/document-reprocess.test.mjs tests/protocol-year-import.test.mjs</Command></Verification>
+      </T-002>
+      <T-003>
+        <Title>kafedra-tests: prove two synthetic same-format documents, correction and partial failure</Title>
+        <DependsOn><T-002 /></DependsOn>
+        <AcceptanceCriteria>
+          <Criterion>Both synthetic fixtures use one profile and produce distinct protocol numbers with exact source locators.</Criterion>
+          <Criterion>Manual correction plus same-version reprocess preserves the working value and both machine runs.</Criterion>
+          <Criterion>A malformed sibling profile creates review but does not mark the base protocol failed.</Criterion>
+          <Criterion>Documentation and tests explicitly label the fixtures synthetic and leave real two-document acceptance pending.</Criterion>
+        </AcceptanceCriteria>
+        <Verification><Command>node --test tests/protocol-profile-extension.test.mjs tests/protocol-profile-docs.test.mjs tests/protocol-year-import.test.mjs tests/document-reprocess.test.mjs</Command></Verification>
+      </T-003>
+      <T-004>
+        <Title>kafedra-data audit: verify no schema or evidence regression</Title>
+        <DependsOn><T-003 /></DependsOn>
+        <AcceptanceCriteria>
+          <Criterion>No migration, blob mutation, document_version replacement, ACL change or LLM dependency is introduced.</Criterion>
+          <Criterion>GRACE scope and project CI prove the worker/database changes on the exact PR head.</Criterion>
+        </AcceptanceCriteria>
+        <Verification><Command>npm run check</Command></Verification>
+      </T-004>
+    </ImplementationPlan>
+  </C-R8-PROTOCOL-PROFILE-326>
+</GraceChangePlan>
