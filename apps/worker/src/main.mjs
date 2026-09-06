@@ -9,6 +9,10 @@ import {
   processNotificationDeliveryJob
 } from '../../../packages/notifications/src/service.mjs';
 import { dispatchJob } from './processor.mjs';
+import {
+  applyProtocolProfileForJob,
+  shouldApplyProtocolProfileForJob
+} from './protocol-profile-job.mjs';
 
 const config = loadConfig();
 const logger = createLogger(config.logLevel, { service: 'worker' });
@@ -51,7 +55,9 @@ while (!stopping) {
     if (job.kind === 'deliver_notification') {
       await processNotificationDeliveryJob(database, job, jobLogger, config);
     } else {
+      const applyProtocolProfile = shouldApplyProtocolProfileForJob(database, job);
       await dispatchJob(database, job, jobLogger, config);
+      if (applyProtocolProfile) await applyProtocolProfileForJob(database, job, jobLogger);
     }
     completeJob(database, job.id);
     jobLogger.info('job completed');
