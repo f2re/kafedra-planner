@@ -5,10 +5,6 @@ on:
     branches: [main]
     paths:
       - '.grace/**'
-  push:
-    branches: [main]
-    paths:
-      - '.grace/**'
   workflow_dispatch:
 
 concurrency:
@@ -20,7 +16,7 @@ permissions:
 
 jobs:
   contract:
-    name: ${{ github.event_name == 'pull_request' && 'GRACE / contract' || github.ref_name == 'main' && 'GRACE post-merge / contract' || 'GRACE manual / contract' }}
+    name: ${{ github.event_name == 'pull_request' && 'GRACE / contract' || 'GRACE manual / contract' }}
     runs-on: ubuntu-24.04
     timeout-minutes: 15
     steps:
@@ -46,9 +42,6 @@ jobs:
           if [[ "${GITHUB_EVENT_NAME}" == "pull_request" ]]; then
             BASE_REF="$PR_BASE_SHA"
             POLICY_MODE=pr
-          elif [[ "${GITHUB_REF}" == "refs/heads/main" ]]; then
-            BASE_REF="${GITHUB_SHA}^"
-            POLICY_MODE=main
           else
             git fetch --no-tags origin main:refs/remotes/origin/main
             BASE_REF="origin/main"
@@ -102,7 +95,7 @@ jobs:
         run: grace status --path . --json
 
   database:
-    name: ${{ github.event_name == 'pull_request' && 'GRACE / database' || github.ref_name == 'main' && 'GRACE post-merge / database' || 'GRACE manual / database' }}
+    name: ${{ github.event_name == 'pull_request' && 'GRACE / database' || 'GRACE manual / database' }}
     runs-on: ubuntu-24.04
     timeout-minutes: 25
     steps:
@@ -137,8 +130,6 @@ jobs:
           set -Eeuo pipefail
           if [[ "${GITHUB_EVENT_NAME}" == "pull_request" ]]; then
             BASE_REF="$PR_BASE_SHA"
-          elif [[ "${GITHUB_REF}" == "refs/heads/main" ]]; then
-            BASE_REF="${GITHUB_SHA}^"
           else
             git fetch --no-tags origin main:refs/remotes/origin/main
             BASE_REF="origin/main"
@@ -158,7 +149,7 @@ jobs:
         run: bash scripts/ci/grace-db-gate.sh "$GRACE_BASE_REF"
 
   gate:
-    name: ${{ github.event_name == 'pull_request' && 'GRACE / gate' || github.ref_name == 'main' && 'GRACE post-merge / gate' || 'GRACE manual / gate' }}
+    name: ${{ github.event_name == 'pull_request' && 'GRACE / gate' || 'GRACE manual / gate' }}
     if: ${{ always() }}
     needs: [contract, database]
     runs-on: ubuntu-24.04
