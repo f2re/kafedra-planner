@@ -124,11 +124,12 @@ test('профиль дополняет два синтетических про
     const numberField = firstRun.result.protocol.profileFields.find((field) => field.key === 'nomer_protokola');
     const extraField = firstRun.result.protocol.profileFields.find((field) => field.key === 'kontrolnyi_kod');
     assert.equal(numberField.canonicalField, 'protocolNumber');
-    assert.equal(numberField.evidence.locator.kind, 'text_line');
-    assert.equal(numberField.evidence.locator.line, 2);
+    assert.equal(numberField.evidence.locator.startLine, 2);
+    assert.equal(numberField.evidence.locator.endLine, 2);
     assert.equal(extraField.canonicalField, null);
     assert.equal(extraField.value, 'КФ-01');
-    assert.equal(extraField.evidence.locator.line, 3);
+    assert.equal(extraField.evidence.locator.startLine, 3);
+    assert.equal(extraField.evidence.locator.endLine, 3);
 
     const firstMeeting = getMeeting(database, workspace.id, firstRun.result.protocol.id);
     const secondMeeting = getMeeting(database, workspace.id, secondRun.result.protocol.id);
@@ -136,7 +137,8 @@ test('профиль дополняет два синтетических про
     assert.equal(secondMeeting.protocol_number, 'RP-2026-02');
     const profileEvidence = JSON.parse(firstMeeting.evidence_json).profileFields.protocolNumber[0];
     assert.equal(profileEvidence.documentVersionId, first.versionId);
-    assert.equal(profileEvidence.locator.line, 2);
+    assert.equal(profileEvidence.locator.startLine, 2);
+    assert.equal(profileEvidence.locator.endLine, 2);
     assert.equal(database.get('SELECT processing_status FROM document_versions WHERE id=?', first.versionId).processing_status, 'processed');
     assert.equal(database.get(`SELECT COUNT(*) count FROM review_items WHERE source_id=? AND status='open'`, first.versionId).count, 0);
   }
@@ -174,7 +176,9 @@ test('ручная правка сильнее профиля, а reprocess со
     const newMachine = JSON.parse(runs[1].result_json).protocol;
     assert.equal(oldMachine.protocolNumber, 'RP-2026-01');
     assert.equal(newMachine.protocolNumber, 'RP-2026-01');
-    assert.equal(newMachine.profileFields.find((field) => field.key === 'nomer_protokola').evidence.locator.line, 2);
+    const newNumberLocator = newMachine.profileFields.find((field) => field.key === 'nomer_protokola').evidence.locator;
+    assert.equal(newNumberLocator.startLine, 2);
+    assert.equal(newNumberLocator.endLine, 2);
 
     const after = getMeeting(database, workspace.id, meeting.id);
     assert.equal(after.protocol_number, 'MANUAL-01');
@@ -185,7 +189,9 @@ test('ручная правка сильнее профиля, а reprocess со
       WHERE source_id=? AND issue_code LIKE 'protocol_profile_working_conflict_protocolNumber_%' AND status='open'`,
     record.versionId);
     assert.ok(conflict);
-    assert.equal(JSON.parse(conflict.context_json).evidence.locator.line, 2);
+    const conflictLocator = JSON.parse(conflict.context_json).evidence.locator;
+    assert.equal(conflictLocator.startLine, 2);
+    assert.equal(conflictLocator.endLine, 2);
     assert.equal(database.get('SELECT COUNT(*) count FROM document_versions WHERE id=?', record.versionId).count, 1);
   }
 ));
