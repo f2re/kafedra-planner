@@ -11,7 +11,7 @@
 5. Создать короткую branch от проверенного `main`.
 6. Выполнить Kafedra workspace preflight и выбрать только реально нужные роли/skills.
 
-## Kafedra workspace preflight
+## Обязательный Kafedra workspace preflight
 
 Для существенной работы прочитать `codex/skills/kafedra-workspace-orchestrator/SKILL.md`. Он классифицирует задачу и выбирает минимальный набор repository-local ролей и профильных skills. Pinned snapshot и обновление описаны в `docs/AI_SKILLS_PROFILE.md`. Для чистого backend/infrastructure/release изменения допустим результат `focused profile skills: none`.
 
