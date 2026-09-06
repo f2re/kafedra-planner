@@ -1,0 +1,42 @@
+<GraceChangeSpec graceVersion="4.0" status="approved">
+  <C-R8-PROTOCOL-PROFILE-326>
+    <Summary>Extend the existing deterministic department-protocol parser with optional reusable profile fields while preserving immutable source, machine evidence and manual working corrections.</Summary>
+    <Problem>Recognized protocols currently bypass generic document templates, so a stable local protocol format cannot add narrowly defined fields without changing the base parser. A profile must add evidence-backed facts without becoming a second parser, overwriting manual corrections or making optional adapter errors fatal.</Problem>
+    <Goals>
+      <Goal>Reuse active document templates with document_type department_protocol as an optional deterministic profile layer after the base parser.</Goal>
+      <Goal>Persist each profile field in the current extraction run with its exact document-version locator and materialize only safe canonical fields that the base parser left empty.</Goal>
+      <Goal>Keep manual working values authoritative on reprocess; conflicting machine values remain queryable and create review-by-exception instead of overwrite.</Goal>
+      <Goal>Keep one broken profile local so the saved source and successful base protocol remain usable.</Goal>
+      <Goal>Prove the mechanism on two explicitly synthetic same-format fixtures while leaving real two-document acceptance open in Issue 326.</Goal>
+    </Goals>
+    <Constraints>
+      <Constraint>Exact base is main 2587290bc44a54087b7976eaec515a93c184ec5b.</Constraint>
+      <Constraint>No SQLite schema or migration change, no VERSION change and no new form-builder.</Constraint>
+      <Constraint>Base department_protocol extraction remains the primary deterministic parser and works without any profile or LLM.</Constraint>
+      <Constraint>Profile materialization never changes blob SHA-256 or document_version and never rewrites an older extraction run.</Constraint>
+      <Constraint>Profile aliases are explicit and narrow; generic date/number guesses are forbidden.</Constraint>
+      <Constraint>Synthetic fixtures are regression evidence only and cannot satisfy the real-sample acceptance criterion of Issue 326.</Constraint>
+    </Constraints>
+    <NonGoals>
+      <NonGoal>Build a universal no-code parser, ML classifier or mandatory LLM workflow.</NonGoal>
+      <NonGoal>Add new storage tables for profile definitions or profile runs.</NonGoal>
+      <NonGoal>Close Issue 326 without two anonymized real recurring protocol documents.</NonGoal>
+      <NonGoal>Replace the existing protocol correction, review or reprocess UI.</NonGoal>
+    </NonGoals>
+    <AcceptanceCriteria>
+      <Criterion>One department_protocol template extracts the synthetic recurring field from both regression documents and each machine field carries a source locator.</Criterion>
+      <Criterion>A profile-filled canonical protocol number is materialized only when the base parser and working meeting field are empty, and meeting evidence records its document version and locator.</Criterion>
+      <Criterion>After an operator changes the working protocol number, reprocess creates a new extraction run on the same immutable document version, preserves the operator value, retains the new machine value and opens a conflict review.</Criterion>
+      <Criterion>A malformed second profile produces a local review while the good profile and base meeting remain available and the document is not marked failed solely for that adapter error.</Criterion>
+      <Criterion>Without a matching profile, the existing department_protocol flow is unchanged and requires no LLM.</Criterion>
+      <Criterion>Documentation explicitly states that real two-document acceptance is pending and Issue 326 remains open after this mechanism PR.</Criterion>
+      <Criterion>Targeted protocol-profile tests, ordinary project CI and GRACE final scope/lint pass on one exact PR head.</Criterion>
+    </AcceptanceCriteria>
+    <AffectedAreas><M-WORKER /><M-DATABASE /></AffectedAreas>
+    <VerificationIntent>
+      <ExpectedCommand>node --test tests/protocol-profile-extension.test.mjs tests/protocol-profile-docs.test.mjs tests/protocol-year-import.test.mjs tests/document-reprocess.test.mjs</ExpectedCommand>
+      <ExpectedCommand>npm run check</ExpectedCommand>
+      <ExpectedEvidence>Exact-head tests prove same-format reuse, field locator provenance, same-version reprocess history, manual-value precedence and profile partial failure without schema changes; real-world format quality remains explicitly unproven.</ExpectedEvidence>
+    </VerificationIntent>
+  </C-R8-PROTOCOL-PROFILE-326>
+</GraceChangeSpec>
