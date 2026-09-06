@@ -1,4 +1,4 @@
-<GraceChangeSpec graceVersion="4.0" status="approved">
+<GraceChangeSpec graceVersion="4.0" status="applied">
   <C-R6-PREFERENCE-CONTROLS-324>
     <Summary>Make adaptive defaults subordinate to saved, explicit and domain-derived values, and give each account direct control over learning, reset and safe pinned defaults.</Summary>
     <Problem>The current preference layer ignores synthetic events when recording choices but does not preserve value origin. A late MutationObserver or async helper can therefore reapply a learned default after a saved view or a manual choice. Users also cannot disable learning, clear learned frequency or explicitly pin a safe default without affecting work data.</Problem>

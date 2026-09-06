@@ -1,4 +1,4 @@
-<GraceChangePlan graceVersion="4.0" status="approved">
+<GraceChangePlan graceVersion="4.0" status="applied">
   <C-R6-PREFERENCE-CONTROLS-324>
     <IntentSummary>Add explicit account controls and a single value-origin contract so adaptive suggestions remain subordinate to saved state, user intent and domain facts.</IntentSummary>
     <BaselineAssertions>
