@@ -1,6 +1,6 @@
 # Целевая эксплуатационная приёмка Astra Linux / Debian
 
-Автоматический GitHub CI проверяет код, migrations, browser-сценарии и поставочный bundle, но не заменяет испытание на реальной целевой ОС. Этот документ дополняет issue #27 и применяется к **Kafedra Planner 0.4.3, schema SQLite 31** на Astra Linux и контрольной Debian.
+Автоматический GitHub CI проверяет код, migrations, browser-сценарии и поставочный bundle, но не заменяет испытание на реальной целевой ОС. Этот документ дополняет issue #27 и применяется к **Kafedra Planner 0.4.4, schema SQLite 31** на Astra Linux и контрольной Debian.
 
 Проверяется тот же неизменяемый release bundle, который опубликован для exact tagged commit. Интернет, Docker, облачные сервисы, Оформлятор и LLM не являются обязательными для основного функционала.
 
@@ -9,12 +9,12 @@
 Оператор получает ровно семь файлов:
 
 ```text
-kafedra-planner-0.4.3-debian-12-amd64.tar.gz
-kafedra-planner-0.4.3-debian-12-amd64.tar.gz.sha256
+kafedra-planner-0.4.4-debian-12-amd64.tar.gz
+kafedra-planner-0.4.4-debian-12-amd64.tar.gz.sha256
 install-kafedra-planner.sh
 README-INSTALL.txt
-kafedra-planner-0.4.3-project-control.f2re.zip
-kafedra-planner-0.4.3-project-control.f2re.zip.sha256
+kafedra-planner-0.4.4-project-control.f2re.zip
+kafedra-planner-0.4.4-project-control.f2re.zip.sha256
 SHA256SUMS
 ```
 
@@ -22,28 +22,29 @@ SHA256SUMS
 
 ```bash
 sha256sum -c --strict SHA256SUMS
-sha256sum -c --strict kafedra-planner-0.4.3-debian-12-amd64.tar.gz.sha256
-sha256sum -c --strict kafedra-planner-0.4.3-project-control.f2re.zip.sha256
+sha256sum -c --strict kafedra-planner-0.4.4-debian-12-amd64.tar.gz.sha256
+sha256sum -c --strict kafedra-planner-0.4.4-project-control.f2re.zip.sha256
 ```
 
-Tag `v0.4.3` обязан указывать на exact commit выпуска. Имена, размеры и SHA-256 скачанных файлов должны совпадать с опубликованными assets.
+Tag `v0.4.4` обязан указывать на exact commit выпуска. Имена, размеры и SHA-256 скачанных файлов должны совпадать с опубликованными assets.
 
 ## Матрица испытаний
 
 Минимально выполняются независимые сценарии:
 
-1. чистая установка `0.4.3 / schema 31` на поддерживаемой Debian/Astra;
-2. обновление существующей `0.4.2 / schema 31` до `0.4.3 / schema 31` без потери данных;
-3. обновление контрольной копии `0.3.4 / schema 30` до `0.4.3 / schema 31` с применением migration `031`;
+1. чистая установка `0.4.4 / schema 31` на поддерживаемой Debian/Astra;
+2. обновление существующей `0.4.3 / schema 31` до `0.4.4 / schema 31` без потери данных;
+3. обновление контрольной копии `0.3.4 / schema 30` до `0.4.4 / schema 31` с применением migration `031`;
 4. восстановление проверенного backup на чистом контрольном узле;
 5. forced rollback после контролируемого сбоя migration, active UI verification или post-update health-check;
-6. пакетная загрузка реальных протоколов за год с исправлением неоднозначностей;
-7. прямое подключение к реальному Оформлятору по URL и по IP;
-8. проверка обновления интерфейса без stale browser/proxy cache.
+6. реальный PDF/скан: Tesseract `rus+eng`, Poppler и сохранение page/locator/evidence;
+7. пакетная загрузка реальных протоколов за год с исправлением неоднозначностей;
+8. прямое подключение к реальному Оформлятору по URL и по IP;
+9. проверка обновления интерфейса без stale browser/proxy cache.
 
 Отдельно на одноразовой машине проверяется конфликтный APT. Система не должна выполнять `apt --fix-broken`, upgrade, downgrade, remove или иное изменение уже установленных пакетов ОС.
 
-## Чистая установка 0.4.3
+## Чистая установка 0.4.4
 
 До установки:
 
@@ -58,17 +59,21 @@ Release files размещаются в обычной папке пользов
 sudo KAFEDRA_APT_MODE=bundle ./install-kafedra-planner.sh
 ```
 
-Wrapper обязан:
+Wrapper и внутренний installer обязаны:
 
 - проверить внешний digest до распаковки;
 - проверить безопасные пути архива;
 - извлечь содержимое в приватный root staging с `--no-same-owner --no-same-permissions`;
 - не выполнять `chown` исходной пользовательской папки;
+- запросить только отсутствующие document capabilities из локального bundle;
+- не делать target package version pin, upgrade/downgrade/remove или `apt --fix-broken`;
+- до переключения `current` выполнить strict full preflight и `ocr.py doctor --languages rus+eng --self-test`;
+- не активировать новый release, если Tesseract/Poppler/LibreOffice не проходят full preflight;
 - оставить installed release `root:root` и non-writable для service user;
 - оставить рабочие данные `kafedra-planner:kafedra-planner`;
 - создать и проверить backup до изменяющего обновления;
 - атомарно переключить `/opt/kafedra-planner/current`;
-- проверить health и обязательные active UI files.
+- проверить health, `doctor.sh` и обязательные active UI files.
 
 После установки:
 
@@ -80,7 +85,7 @@ systemctl is-active kafedra-planner-api.service
 systemctl is-active kafedra-planner-worker.service
 ```
 
-Ожидается `0.4.3`, versioned release directory и активные API/worker.
+Ожидается `0.4.4`, versioned release directory, рабочие `smoke_pdf/smoke_tesseract` и активные API/worker.
 
 ## Функциональная проверка
 
@@ -90,10 +95,14 @@ systemctl is-active kafedra-planner-worker.service
 - API и worker восстанавливаются после перезапуска systemd;
 - загружаются PDF, DOCX, ODT, XLSX, ODS и сканы с русскими, смешанными, emoji и длинными именами;
 - исходное имя, bytes, SHA-256 и `document_version` сохраняются;
-- недоступность OCR/Office-адаптера не блокирует остальные документы;
+- OCR скана сохраняет абсолютную страницу и locator, а reprocess создаёт новый machine run того же immutable source;
+- частичный OCR не выдаётся за полный и не теряет успешно распознанные страницы;
 - план создаётся из загруженного документа и открывается именно созданный объект;
 - одна проблемная строка плана не блокирует остальные;
 - `Выполнено` синхронизирует задачу, календарь и `План / факт`;
+- периодическая задача завершается без обязательного отчётного файла;
+- поиск открывает точный рабочий объект;
+- календарь → план сохраняет выбранную дату и не требует лишнего промежуточного экрана;
 - отчётный файл остаётся необязательным;
 - поиск, заседания, наука и учебные ведомости ведут к source/evidence;
 - на desktop/mobile доступен один и тот же предметный сценарий.
@@ -114,6 +123,8 @@ systemctl is-active kafedra-planner-worker.service
 10. повторно загрузить тот же набор в тот же год и подтвердить отсутствие document/meeting duplicates;
 11. загрузить протокол с датой другого года и подтвердить отдельный review вместо автоматической подмены даты;
 12. загрузить скан/файл без текстового слоя и подтвердить сохранение исходника и возможность ручного восстановления карточки.
+
+Reusable protocol profile из `0.4.4` считается реально принятым отдельно по #326 только после проверки двух обезличенных реальных документов одного повторяющегося формата; синтетические fixtures этот пункт не закрывают.
 
 ## Проверка интеграции с Оформлятором
 
@@ -138,7 +149,7 @@ systemctl is-active kafedra-planner-worker.service
 
 Отдельно воспроизводятся DNS, refused port, timeout, TLS, wrong service, not-ready, denied code и incompatible protocol. Сообщения не должны содержать code/cookie/stack/raw body.
 
-## Проверка обновления 0.4.2 → 0.4.3
+## Проверка обновления 0.4.3 → 0.4.4
 
 Перед обновлением установка должна содержать документы и версии, импортированный и ручной план, задачи, завершённые факты, архивный объект, заседания, научные материалы, ведомость, оргструктуру и настроенную интеграцию Оформлятора.
 
@@ -146,17 +157,17 @@ systemctl is-active kafedra-planner-worker.service
 
 1. создать и проверить encrypted backup;
 2. снять `before` evidence и logical digest;
-3. поместить files `0.4.3` в обычный user-owned каталог;
+3. поместить files `0.4.4` в обычный user-owned каталог;
 4. запустить wrapper;
 5. подтвердить, что source directory ownership не изменился;
-6. подтвердить `VERSION=0.4.3`, schema `31` и неизменность applied migrations;
+6. подтвердить `VERSION=0.4.4`, schema `31` и неизменность applied migrations;
 7. выполнить `PRAGMA quick_check` и `PRAGMA foreign_key_check`;
 8. сравнить blobs, SHA-256, `document_version`, source rows, evidence, PIN, ACL и историю;
-9. проверить новый годовой импорт протоколов и active UI files;
-10. открыть сайт в браузере, ранее использовавшем `0.4.2`, без очистки cache вручную и убедиться, что показан новый интерфейс;
+9. проверить reprocess OCR, прямое выполнение периодической задачи, точный search routing и календарь → план;
+10. открыть сайт в браузере, ранее использовавшем `0.4.3`, без очистки cache вручную и убедиться, что показан новый интерфейс;
 11. снять `after` evidence и сравнить.
 
-## Обновление 0.3.4 / schema 30 → 0.4.3 / schema 31
+## Обновление 0.3.4 / schema 30 → 0.4.4 / schema 31
 
 Проверяются:
 
@@ -169,13 +180,13 @@ systemctl is-active kafedra-planner-worker.service
 - отсутствие потери документов, планов, задач, заседаний, науки и связей Оформлятора;
 - корректный новый UI и static `no-store` после upgrade.
 
-Никакая migration специально для `0.4.3` не добавляется.
+Никакая migration специально для `0.4.4` не добавляется.
 
 ## Restore и forced rollback
 
 Restore выполняется по [`BACKUP_RESTORE.md`](BACKUP_RESTORE.md). Forced failure должен доказать:
 
-- новый release не активируется при failed migration, обязательном UI-file mismatch или health-check;
+- новый release не активируется при failed migration, обязательном UI-file mismatch, OCR/full-preflight failure или health-check;
 - verified pre-update backup восстанавливается автоматически;
 - прежняя версия API/worker снова активна;
 - database, blobs, configuration и PIN не остаются в промежуточном состоянии;
@@ -210,4 +221,4 @@ LLM-служба проверяется и перезапускается отд
 
 ## Критерий завершения #27
 
-Целевая приёмка считается успешной только при наличии подписанных evidence для чистой установки, обоих upgrade-маршрутов, годового набора реальных протоколов, реального Оформлятора, stale-cache проверки, restore и forced rollback. GitHub Release `v0.4.3` остаётся эксплуатационным release candidate до этого результата, но опубликованный patch release и его assets должны быть полноценными и устанавливаемыми.
+Целевая приёмка считается успешной только при наличии подписанных evidence для чистой установки, обоих upgrade-маршрутов, реального OCR, годового набора реальных протоколов, реального Оформлятора, stale-cache проверки, restore и forced rollback. GitHub Release `v0.4.4` остаётся эксплуатационным release candidate до этого результата, но опубликованный patch release и его assets должны быть полноценными и устанавливаемыми.
