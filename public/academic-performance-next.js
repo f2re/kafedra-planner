@@ -24,7 +24,41 @@ import {
   saveAcademicUpload
 } from './academic-performance-import.js';
 
+function markSelectedAcademicFile(input) {
+  const form = input?.closest?.('[data-academic-upload-form]');
+  const file = input?.files?.[0];
+  if (!form || !file) return;
+
+  if (academicState.documentId) {
+    academicState.documentId = null;
+    academicState.analysis = null;
+    academicState.uploadedName = '';
+    academicState.mappingDraft = null;
+  }
+
+  input.closest('.academic-file-drop')?.classList.add('hidden');
+  const state = $ap('[data-academic-upload-state]', form);
+  if (!state) return;
+
+  const name = document.createElement('span');
+  name.textContent = `Выбран файл: ${file.name} · `;
+  const reselect = document.createElement('button');
+  reselect.type = 'button';
+  reselect.className = 'quiet-button';
+  reselect.dataset.academicFileReselect = '1';
+  reselect.textContent = 'Выбрать другой';
+  state.replaceChildren(name, reselect);
+  state.classList.remove('hidden');
+}
+
 document.addEventListener('click', (event) => {
+  const reselect = event.target.closest('[data-academic-file-reselect]');
+  if (reselect) {
+    event.preventDefault();
+    const form = reselect.closest('[data-academic-upload-form]');
+    $ap('input[name="file"]', form)?.click();
+    return;
+  }
   const navigation = event.target.closest('[data-view="academic-performance"]');
   if (navigation) {
     event.preventDefault();
@@ -87,6 +121,11 @@ document.addEventListener('click', (event) => {
 }, true);
 
 document.addEventListener('change', (event) => {
+  const fileInput = event.target.closest('[data-academic-upload-form] input[name="file"]');
+  if (fileInput) {
+    markSelectedAcademicFile(fileInput);
+    return;
+  }
   const group = event.target.closest('[data-academic-total-import]');
   if (!group) return;
   group.closest('.academic-group-selector')?.classList.toggle('selected', group.checked);
