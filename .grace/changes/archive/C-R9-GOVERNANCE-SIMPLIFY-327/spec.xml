@@ -1,4 +1,4 @@
-<GraceChangeSpec graceVersion="4.0" status="approved">
+<GraceChangeSpec graceVersion="4.0" status="applied">
   <C-R9-GOVERNANCE-SIMPLIFY-327>
     <Summary>Simplify design, CI and GRACE governance so ordinary development proves the product once on the PR head and repeats only a short smoke after merge, while retaining risk-scoped and release safety guarantees.</Summary>
     <Problem>The repository already has one compact ordinary CI and one universal release workflow, but three residual rules still add ritual without a new guarantee: main pushes rerun the complete PR suite, GRACE reruns its contract after merge, and design governance validates exact wording, an exact reference count and a formal five-role order instead of durable design contracts.</Problem>

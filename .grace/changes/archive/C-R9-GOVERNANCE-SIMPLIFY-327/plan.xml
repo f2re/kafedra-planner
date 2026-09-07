@@ -1,4 +1,4 @@
-<GraceChangePlan graceVersion="4.0" status="approved">
+<GraceChangePlan graceVersion="4.0" status="applied">
   <C-R9-GOVERNANCE-SIMPLIFY-327>
     <IntentSummary>Remove duplicate post-merge verification and brittle design ritual while preserving one complete PR project check, risk-scoped GRACE and the existing build-once release contract.</IntentSummary>
     <BaselineAssertions>
