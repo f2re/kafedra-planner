@@ -1,0 +1,44 @@
+<GraceChangeSpec graceVersion="4.0" status="applied">
+  <C-R9-GOVERNANCE-SIMPLIFY-327>
+    <Summary>Simplify design, CI and GRACE governance so ordinary development proves the product once on the PR head and repeats only a short smoke after merge, while retaining risk-scoped and release safety guarantees.</Summary>
+    <Problem>The repository already has one compact ordinary CI and one universal release workflow, but three residual rules still add ritual without a new guarantee: main pushes rerun the complete PR suite, GRACE reruns its contract after merge, and design governance validates exact wording, an exact reference count and a formal five-role order instead of durable design contracts.</Problem>
+    <Goals>
+      <Goal>Run locked install, check, docs, unit/integration and smoke once for pull requests; run only locked install plus smoke on a merged main commit.</Goal>
+      <Goal>Keep GRACE automatic on governed pull requests and manual diagnostics, but remove automatic post-merge GRACE duplication.</Goal>
+      <Goal>Make design governance validate durable source-of-truth artifacts, reduced-motion/no-motion safety and a usable reference catalog without exact style slogans, exact demo counts or mandatory specialist choreography.</Goal>
+      <Goal>Preserve the existing version-neutral build-once Release workflow and prove its install/update/rollback guarantees through existing regression tests rather than rewriting it.</Goal>
+      <Goal>Close only backlog items and PRs whose obsolescence is confirmed by current main, merged PRs or published GitHub releases.</Goal>
+    </Goals>
+    <Constraints>
+      <Constraint>Exact base is main 0a9c8eb2269b3a7779170ee781a7b07cc05d815d.</Constraint>
+      <Constraint>No product UI/API/storage/schema/migration/VERSION change.</Constraint>
+      <Constraint>Branch protection continues to require only the ordinary PR check named Проверка.</Constraint>
+      <Constraint>Risk-scoped database, auth/ACL, installer/update/offline and release verification guarantees are not weakened.</Constraint>
+      <Constraint>No polling, workflow_run fan-out, version-specific workflow or archive-only follow-up PR is introduced.</Constraint>
+      <Constraint>Release workflow bytes remain unchanged unless a failing regression proves a necessary correction.</Constraint>
+    </Constraints>
+    <NonGoals>
+      <NonGoal>Remove GRACE or design governance.</NonGoal>
+      <NonGoal>Make full browser/offline/release regression mandatory for ordinary feature PRs.</NonGoal>
+      <NonGoal>Change release publication, artifact format, installer or rollback implementation.</NonGoal>
+      <NonGoal>Close open product work merely because it is old.</NonGoal>
+    </NonGoals>
+    <AcceptanceCriteria>
+      <Criterion>On pull_request and workflow_dispatch, Проверка contains locked install, check, docs, npm test and smoke; on push main the workflow executes only locked install and npm run smoke.</Criterion>
+      <Criterion>GRACE has pull_request path selection for .grace/** and workflow_dispatch, but no automatic push main trigger or post-merge contract/database jobs.</Criterion>
+      <Criterion>Design governance passes when semantic design/motion artifacts are intact even if Apple-inspired wording changes, the catalog count changes, or a UI GRACE plan does not enumerate five specialist task titles in a fixed order.</Criterion>
+      <Criterion>Design governance still fails when a required design/skill source disappears, the motion contract loses reduced-motion/no-motion guidance, the catalog loses its reference boundary, or the catalog has no usable mappings.</Criterion>
+      <Criterion>CI regression proves branch protection still requires only Проверка and forbids browser/offline/systemd/backup fan-out in ordinary CI.</Criterion>
+      <Criterion>Existing release regression still proves one explicit version-neutral workflow, exact-main preflight, build-once artifact and install/update/forced-rollback path.</Criterion>
+      <Criterion>Issues 266, 269, 270, 273, 286, 288 and PRs 298, 299 are closed or explicitly retained only after GitHub evidence is checked.</Criterion>
+      <Criterion>npm run check, docs check, full ordinary project tests, smoke and GRACE contract/scope pass on one exact PR head.</Criterion>
+    </AcceptanceCriteria>
+    <AffectedAreas><M-CI-GATE /><M-GRACE-GOVERNANCE /><M-DESIGN-GOVERNANCE /></AffectedAreas>
+    <VerificationIntent>
+      <ExpectedCommand>node --test tests/ci-simplification.test.mjs tests/design-governance.test.mjs</ExpectedCommand>
+      <ExpectedCommand>npm run check</ExpectedCommand>
+      <ExpectedCommand>npm test</ExpectedCommand>
+      <ExpectedEvidence>Exact-head project CI plus GRACE prove that PR verification remains complete, post-merge work is reduced to smoke, design safety remains semantic, release guarantees remain unchanged and no new orchestration fan-out is introduced.</ExpectedEvidence>
+    </VerificationIntent>
+  </C-R9-GOVERNANCE-SIMPLIFY-327>
+</GraceChangeSpec>
