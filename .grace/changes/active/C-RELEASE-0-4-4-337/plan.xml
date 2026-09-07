@@ -1,0 +1,107 @@
+<GraceChangePlan graceVersion="4.0" status="approved">
+  <C-RELEASE-0-4-4-337>
+    <IntentSummary>Version and publish the already merged R1-R9 work as 0.4.4 while treating the installer, full offline builder and universal Release workflow as read-only contracts that must be proven by regression and the real exact-main release run.</IntentSummary>
+    <BaselineAssertions>
+      <MustExist><Value>VERSION</Value></MustExist>
+      <MustExist><Value>package.json</Value></MustExist>
+      <MustExist><Value>config/offline/os-packages.txt</Value></MustExist>
+      <MustExist><Value>deploy/install-core.sh</Value></MustExist>
+      <MustExist><Value>scripts/offline/install-from-archive.sh</Value></MustExist>
+      <MustExist><Value>scripts/offline/build-full-bundle.sh</Value></MustExist>
+      <MustExist><Value>scripts/offline/systemd-deploy-selftest.sh</Value></MustExist>
+      <MustExist><Value>.github/workflows/release.yml</Value></MustExist>
+      <MustVerify><Module>M-CI-GATE</Module></MustVerify>
+      <MustVerify><Module>M-OFFLINE-BUNDLE</Module></MustVerify>
+    </BaselineAssertions>
+    <TargetAssertions>
+      <MustContain><File>VERSION</File><Text>0.4.4</Text></MustContain>
+      <MustContain><File>package.json</File><Text>"version": "0.4.4"</Text></MustContain>
+      <MustExist><Value>docs/releases/0.4.4.md</Value></MustExist>
+      <MustExist><Value>tests/release-0.4.4.test.mjs</Value></MustExist>
+      <MustContain><File>config/offline/os-packages.txt</File><Text>tesseract-ocr-rus</Text></MustContain>
+      <MustContain><File>config/offline/os-packages.txt</File><Text>libreoffice-writer</Text></MustContain>
+      <MustContain><File>deploy/install-core.sh</File><Text>--self-test</Text></MustContain>
+      <MustContain><File>deploy/install-core.sh</File><Text>smoke_tesseract</Text></MustContain>
+      <MustContain><File>scripts/offline/install-from-archive.sh</File><Text>--no-same-owner</Text></MustContain>
+      <MustContain><File>.github/workflows/release.yml</File><Text>build-full-bundle.sh</Text></MustContain>
+      <MustContain><File>.github/workflows/release.yml</File><Text>systemd-deploy-selftest.sh "$OUT"</Text></MustContain>
+      <MustVerify><Module>M-CI-GATE</Module></MustVerify>
+      <MustVerify><Module>M-OFFLINE-BUNDLE</Module></MustVerify>
+    </TargetAssertions>
+    <DurableScope>
+      <GraphAnchors><M-CI-GATE /><M-OFFLINE-BUNDLE /><DF-GRACE-BRANCH /></GraphAnchors>
+      <VerificationAnchors><V-M-CI-GATE /><V-M-OFFLINE-BUNDLE /></VerificationAnchors>
+      <ContextArtifacts><ContextArtifact>principles.xml</ContextArtifact><ContextArtifact>technology.xml</ContextArtifact></ContextArtifacts>
+    </DurableScope>
+    <ObservedWriteScope>
+      <Glob>.grace/changes/active/C-RELEASE-0-4-4-337/**</Glob>
+      <Glob>.grace/changes/archive/C-R9-GOVERNANCE-SIMPLIFY-327/**</Glob>
+      <File>VERSION</File>
+      <File>package.json</File>
+      <File>package-lock.json</File>
+      <File>README.md</File>
+      <File>README.en.md</File>
+      <File>docs/ROADMAP.md</File>
+      <File>docs/UX_FLOWS.md</File>
+      <File>docs/VALIDATION.md</File>
+      <File>docs/RELEASE_CANDIDATE.md</File>
+      <File>docs/TARGET_ACCEPTANCE.md</File>
+      <File>docs/releases/0.4.4.md</File>
+      <File>tests/release-0.4.3.test.mjs</File>
+      <File>tests/release-0.4.4.test.mjs</File>
+    </ObservedWriteScope>
+    <ImplementationPlan>
+      <T-001>
+        <Title>kafedra-release: synchronize 0.4.4 version and release notes</Title>
+        <DependsOn></DependsOn>
+        <AcceptanceCriteria>
+          <Criterion>VERSION, package manifests and current documentation markers agree on 0.4.4.</Criterion>
+          <Criterion>Release notes describe only merged changes after v0.4.3 and state schema 31/no migration.</Criterion>
+          <Criterion>Historical 0.4.3 notes remain unchanged.</Criterion>
+        </AcceptanceCriteria>
+        <Verification><Command>node --test tests/release-0.4.4.test.mjs</Command></Verification>
+      </T-001>
+      <T-002>
+        <Title>kafedra-tests: prove simplified bundle, OCR and installer contract</Title>
+        <DependsOn><T-001 /></DependsOn>
+        <AcceptanceCriteria>
+          <Criterion>Required Poppler/Tesseract rus+eng/LibreOffice/font capabilities remain in the full bundle profile without target version pins.</Criterion>
+          <Criterion>Full activation requires strict preflight and OCR self-test before current is switched.</Criterion>
+          <Criterion>User-owned source directory stays unchanged and private root staging is used.</Criterion>
+          <Criterion>No migration 032 or dependency graph change is introduced.</Criterion>
+        </AcceptanceCriteria>
+        <Verification><Command>node --test tests/release-0.4.4.test.mjs</Command></Verification>
+      </T-002>
+      <T-003>
+        <Title>kafedra-release: prove universal build-once release path</Title>
+        <DependsOn><T-002 /></DependsOn>
+        <AcceptanceCriteria>
+          <Criterion>The existing Release workflow remains version-neutral and is not modified by the version bump.</Criterion>
+          <Criterion>Exactly one full bundle build feeds checksum, systemd install/update/rollback, Project Control and publication.</Criterion>
+          <Criterion>No external Actions polling, workflow_run fan-out or version-specific workflow is introduced.</Criterion>
+        </AcceptanceCriteria>
+        <Verification><Command>node --test tests/release-0.4.4.test.mjs tests/release-workflow.test.mjs tests/release-recovery-workflow.test.mjs</Command></Verification>
+      </T-003>
+      <T-004>
+        <Title>kafedra-tests: exact-head project and GRACE integration audit</Title>
+        <DependsOn><T-003 /></DependsOn>
+        <AcceptanceCriteria>
+          <Criterion>npm run check, docs, all unit/integration tests, smoke and GRACE final scope/lint pass on the same PR head.</Criterion>
+          <Criterion>Review threads are resolved and main has not moved before exact-head squash merge.</Criterion>
+        </AcceptanceCriteria>
+        <Verification><Command>npm run check</Command><Command>npm test</Command><Command>npm run smoke</Command></Verification>
+      </T-004>
+      <T-005>
+        <Title>kafedra-release: publish and verify exact-main 0.4.4</Title>
+        <DependsOn><T-004 /></DependsOn>
+        <AcceptanceCriteria>
+          <Criterion>After squash merge, Post-merge smoke succeeds on the new exact main and no full duplicate PR suite runs.</Criterion>
+          <Criterion>release-run points to exact current main and the universal Release workflow succeeds.</Criterion>
+          <Criterion>Tag v0.4.4 points to exact current main and public release is non-draft/non-prerelease.</Criterion>
+          <Criterion>Exactly seven expected assets are uploaded, non-empty and associated with the verified archive.</Criterion>
+        </AcceptanceCriteria>
+        <Verification><Command>GitHub API release/tag/assets verification</Command></Verification>
+      </T-005>
+    </ImplementationPlan>
+  </C-RELEASE-0-4-4-337>
+</GraceChangePlan>
