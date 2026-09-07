@@ -14,11 +14,48 @@
 }
 
 .academic-upload-actions {
+  position: relative;
+  z-index: 4;
   flex: 0 0 auto;
+  flex-wrap: wrap;
   margin: 0;
   padding: 14px 22px 18px;
   border-top: 1px solid var(--border-color);
   background: var(--surface);
+}
+
+.academic-upload-feedback {
+  display: grid;
+  flex: 1 1 100%;
+  gap: 8px;
+  min-width: 0;
+}
+
+.academic-upload-feedback .academic-upload-state {
+  padding: 0;
+  text-align: left;
+}
+
+.academic-upload-feedback .academic-inline-error {
+  width: 100%;
+}
+
+.academic-upload-reselect {
+  margin-right: auto;
+}
+
+.academic-upload-reselect.hidden {
+  display: none;
+}
+
+.academic-upload-form.academic-file-selected .academic-upload-body {
+  flex: 0 0 0;
+  min-height: 0;
+  max-height: 0;
+  padding-top: 0;
+  padding-bottom: 0;
+  overflow: hidden;
+  pointer-events: none;
 }
 
 @media (max-width: 680px) {

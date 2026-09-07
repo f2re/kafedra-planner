@@ -46,6 +46,22 @@ function stabilizeAcademicUploadLayout() {
     if (node !== actions) body.append(node);
   }
 
+  const feedback = document.createElement('div');
+  feedback.className = 'academic-upload-feedback';
+  const state = $ap('[data-academic-upload-state]', body);
+  const error = $ap('[data-academic-error]', body);
+  if (state) feedback.append(state);
+  if (error) feedback.append(error);
+  actions.prepend(feedback);
+
+  const reselect = document.createElement('button');
+  reselect.type = 'button';
+  reselect.className = 'quiet-button academic-upload-reselect hidden';
+  reselect.dataset.academicFileReselect = '1';
+  reselect.textContent = 'Выбрать другой';
+  const cancel = $ap('[data-academic-close]', actions);
+  actions.insertBefore(reselect, cancel || actions.firstChild);
+
   form.classList.remove('academic-modal-body');
   form.classList.add('academic-upload-form');
   actions.classList.add('academic-upload-actions');
@@ -76,19 +92,12 @@ function markSelectedAcademicFile(input) {
     academicState.mappingDraft = null;
   }
 
-  input.closest('.academic-file-drop')?.classList.add('hidden');
   const state = $ap('[data-academic-upload-state]', form);
   if (!state) return;
-
-  const name = document.createElement('span');
-  name.textContent = `Выбран файл: ${file.name} · `;
-  const reselect = document.createElement('button');
-  reselect.type = 'button';
-  reselect.className = 'quiet-button';
-  reselect.dataset.academicFileReselect = '1';
-  reselect.textContent = 'Выбрать другой';
-  state.replaceChildren(name, reselect);
+  state.textContent = `Выбран файл: ${file.name}`;
   state.classList.remove('hidden');
+  $ap('[data-academic-file-reselect]', form)?.classList.remove('hidden');
+  form.classList.add('academic-file-selected');
 }
 
 document.addEventListener('click', (event) => {
