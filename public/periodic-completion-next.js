@@ -1,3 +1,5 @@
+import { periodicPanelKey } from './dom-stability.js';
+
 let selectedPeriodicId = null;
 let selectedTask = null;
 let loadToken = 0;
@@ -41,13 +43,19 @@ function ensureStyles() {
 function renderAction() {
   const body = document.querySelector('#ux-inspector-body');
   if (!body) return;
-  body.querySelector('.periodic-completion-panel')?.remove();
-  if (!selectedPeriodicId || !selectedTask || !canTransition(selectedTask)) return;
-  if (selectedTask.status === 'cancelled') return;
+  const existing = body.querySelector('.periodic-completion-panel');
+  if (!selectedPeriodicId || !selectedTask || !canTransition(selectedTask) || selectedTask.status === 'cancelled') {
+    existing?.remove();
+    return;
+  }
+  const key = periodicPanelKey(selectedTask);
+  if (existing?.dataset.periodicCompletionKey === key) return;
+  existing?.remove();
   const completed = selectedTask.status === 'completed';
   const panel = document.createElement('div');
   panel.className = 'periodic-completion-panel';
   panel.dataset.periodicCompletionPanel = selectedTask.id;
+  panel.dataset.periodicCompletionKey = key;
   panel.innerHTML = `
     <span>${completed ? 'Задача выполнена. При необходимости её можно снова открыть.' : 'Файл и комментарий не обязательны.'}</span>
     <button class="${completed ? 'secondary-button' : 'primary-button'}" type="button" data-periodic-transition="${completed ? 'reopen' : 'complete'}" data-periodic-id="${selectedTask.id}">${completed ? 'Вернуть в работу' : 'Выполнено'}</button>
