@@ -27,8 +27,10 @@
       <MustContain><File>.github/workflows/release.yml</File><Text>systemd-deploy-selftest.sh "$OUT"</Text></MustContain>
       <MustExist><Value>public/dom-stability.js</Value></MustExist>
       <MustExist><Value>tests/ui-mutation-stability.test.mjs</Value></MustExist>
+      <MustExist><Value>tests/academic-mobile-hit-area.test.mjs</Value></MustExist>
       <MustContain><File>public/fast-form-disclosure.js</File><Text>setTextIfChanged</Text></MustContain>
       <MustContain><File>public/periodic-completion-next.js</File><Text>periodicCompletionKey === key</Text></MustContain>
+      <MustContain><File>public/academic-performance-next.css</File><Text>.academic-modal-actions { position: relative; z-index: 2;</Text></MustContain>
       <MustVerify><Module>M-CI-GATE</Module></MustVerify>
       <MustVerify><Module>M-OFFLINE-BUNDLE</Module></MustVerify>
     </TargetAssertions>
@@ -56,7 +58,9 @@
       <File>public/dom-stability.js</File>
       <File>public/fast-form-disclosure.js</File>
       <File>public/periodic-completion-next.js</File>
+      <File>public/academic-performance-next.css</File>
       <File>tests/ui-mutation-stability.test.mjs</File>
+      <File>tests/academic-mobile-hit-area.test.mjs</File>
     </ObservedWriteScope>
     <ImplementationPlan>
       <T-001>
@@ -121,8 +125,19 @@
         <Verification><Command>node --test tests/ui-mutation-stability.test.mjs</Command></Verification>
       </T-006>
       <T-007>
-        <Title>kafedra-release: publish and verify exact-main 0.4.4</Title>
+        <Title>kafedra-design: keep mobile academic upload action outside the file-drop hit layer</Title>
         <DependsOn><T-006 /></DependsOn>
+        <AcceptanceCriteria>
+          <Criterion>On mobile, the file-drop is a bounded clipped layer and cannot capture the submit action below it.</Criterion>
+          <Criterion>The action block has its own higher stacking context and opaque surface while retaining the existing Cancel/Проверить файл order and wording.</Criterion>
+          <Criterion>Desktop geometry, file selection behavior, keyboard submission, reduced motion and import semantics are unchanged.</Criterion>
+          <Criterion>The original mobile browser test clicks the submit button normally; force click, timeout increase and test skip are prohibited.</Criterion>
+        </AcceptanceCriteria>
+        <Verification><Command>node --test tests/academic-mobile-hit-area.test.mjs</Command><Command>npx playwright test tests/browser/academic-performance.spec.mjs</Command></Verification>
+      </T-007>
+      <T-008>
+        <Title>kafedra-release: publish and verify exact-main 0.4.4</Title>
+        <DependsOn><T-007 /></DependsOn>
         <AcceptanceCriteria>
           <Criterion>After squash merge, Post-merge smoke succeeds on the new exact main and no full duplicate PR suite runs.</Criterion>
           <Criterion>release-run points to exact current main and the universal Release workflow succeeds, including the unchanged critical browser gate.</Criterion>
@@ -130,7 +145,7 @@
           <Criterion>Exactly seven expected assets are uploaded, non-empty and associated with the verified archive.</Criterion>
         </AcceptanceCriteria>
         <Verification><Command>GitHub API release/tag/assets verification</Command></Verification>
-      </T-007>
+      </T-008>
     </ImplementationPlan>
   </C-RELEASE-0-4-4-337>
 </GraceChangePlan>
