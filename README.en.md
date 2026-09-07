@@ -9,13 +9,13 @@
 
 Kafedra Planner is an offline-first daily work system for an academic department: calendar, annual plans, assignments, documents, meetings, reporting, research activity, grade sheets, and auditable evidence.
 
-> Current milestone: **`0.4.3`**, SQLite schema **31**. Core workflows do not require Internet access, Docker, an LLM, Docomator, or cloud services. The project remains a release candidate until the real Astra Linux/Debian installation, upgrade, restoration, and rollback acceptance in [TARGET_ACCEPTANCE.md](docs/TARGET_ACCEPTANCE.md) and issue #27 is complete.
+> Current milestone: **`0.4.4`**, SQLite schema **31**. Core workflows do not require Internet access, Docker, an LLM, Docomator, or cloud services. The project remains a release candidate until the real Astra Linux/Debian installation, upgrade, restoration, and rollback acceptance in [TARGET_ACCEPTANCE.md](docs/TARGET_ACCEPTANCE.md) and issue #27 is complete.
 
-Patch release `0.4.3` adds annual multi-file protocol intake, independent per-file processing, persistent `ready / review / failed / processing` status, and review-by-exception editing without destroying raw extraction or source evidence. Publication uses one manual `Release` workflow and the same offline artifact that passed install, update, and forced rollback verification.
+Patch release `0.4.4` reduces routine work after `0.4.3`: OCR keeps absolute page provenance and can reprocess the same immutable source, upload feedback reflects real partial success, meetings and calendar-to-plan flows need fewer preliminary fields, periodic tasks complete directly, search opens the exact working object, and adaptive defaults remain user-controlled. Development and release governance is also leaner without weakening the offline install/update/rollback contract.
 
 **[Download an offline bundle](https://github.com/f2re/kafedra-planner/releases)** · **[Install guide](docs/GITHUB_RELEASES.md)** · **[Security policy](SECURITY.md)** · **[Russian documentation](README.md#эксплуатация-и-документация)**
 
-Published releases are immutable. `v0.4.1` and `v0.4.2` remain historical bundles; annual protocol intake is delivered in `v0.4.3`.
+Published releases are immutable. `v0.4.1`–`v0.4.3` remain historical bundles; the R1–R9 automation and simplification cycle is delivered in `v0.4.4`.
 
 ## Operating model
 
@@ -89,6 +89,6 @@ npm test
 npm run smoke
 ```
 
-Ordinary GitHub CI runs only the locked install, check, documentation consistency, unit/integration tests, and smoke. Targeted Playwright is used for the UI scenario being changed. Full browser, backup/restore, and offline systemd install/update/rollback verification run only for the corresponding risk or an explicit manual `Release` workflow; an ordinary merge does not start release-scale work.
+Ordinary pull requests run the complete locked install, check, documentation consistency, unit/integration tests, and smoke once. A merged `main` commit runs only the post-merge smoke. Targeted Playwright is used for the UI scenario being changed. Full browser, backup/restore, and offline systemd install/update/rollback verification run only for the corresponding risk or an explicit `Release` workflow.
 
 The primary engineering contracts are [Architecture](docs/ARCHITECTURE.md), [Roadmap](docs/ROADMAP.md), [User workflows](docs/UX_FLOWS.md), [Release candidate](docs/RELEASE_CANDIDATE.md), and [Target acceptance](docs/TARGET_ACCEPTANCE.md).
