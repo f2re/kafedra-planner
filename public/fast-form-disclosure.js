@@ -1,3 +1,5 @@
+import { setTextIfChanged } from './dom-stability.js';
+
 const one = (selector, root = document) => root.querySelector(selector);
 const all = (selector, root = document) => [...root.querySelectorAll(selector)];
 
@@ -22,7 +24,7 @@ function syncEventSummary() {
   const summary = one('[data-r7-event-context]');
   if (!summary) return;
   const date = one('#event-date')?.value || 'дата не выбрана';
-  summary.textContent = `${eventKindLabel()} · ${date}`;
+  setTextIfChanged(summary, `${eventKindLabel()} · ${date}`);
 }
 
 function patchEventForm() {
