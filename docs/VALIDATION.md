@@ -1,6 +1,6 @@
 # Проверка изменений
 
-Актуальный рубеж: `0.4.3`, SQLite schema **31**. Проверки выбираются по риску изменения; полный release/deployment regression не запускается на каждый feature PR.
+Актуальный рубеж: `0.4.4`, SQLite schema **31**. Проверки выбираются по риску изменения; полный release/deployment regression не запускается на каждый feature PR.
 
 ## Обычный pull request
 
@@ -30,7 +30,7 @@ GRACE после merge автоматически не запускается. �
 | --- | --- |
 | SQLite schema/storage/recovery | migration + clean install + base→HEAD upgrade + repeated migration + integrity + backup/restore |
 | PIN/auth/ACL/security | targeted auth/ACL regression |
-| installer/update/offline | full bundle + systemd install/update/rollback |
+| installer/update/offline | full bundle + systemd install/update/rollback + document runtime self-test |
 | release/CI infrastructure | GRACE contract/scope и релевантный release/CI regression |
 | обычный UI/API/docs/test | без полного GRACE/deployment gate |
 
@@ -58,9 +58,11 @@ Release не использует `pull_request` или `workflow_run`, не п�
 
 ## Full offline и systemd
 
-Full offline bundle, systemd install/update/rollback, offline LLM/GGUF и Project Control относятся к поставке. Они выполняются при явном выпуске либо когда изменение напрямую затрагивает installer/update/offline, а не как часть обычного `Проверка`.
+Full bundle содержит managed Node.js/CPython и air-gap closure для document capabilities из `config/offline/os-packages.txt`: `unzip`, Poppler, Tesseract `rus+eng`, LibreOffice и шрифты. На target устанавливаются только отсутствующие возможности. Version pin для установленного системного пакета, upgrade/downgrade/remove и автоматический `apt --fix-broken` запрещены.
 
-Публикуется тот же artifact, который прошёл checksum → install → update → forced rollback. Пересборка между verification и upload запрещена.
+До переключения `/opt/kafedra-planner/current` установщик выполняет strict full preflight и `scripts/recognition/ocr.py doctor --languages rus+eng --self-test`. Неработающий PDF/OCR/Office runtime останавливает активацию и оставляет предыдущий release active.
+
+Release проверяет тот же archive в сетево изолированной Debian 12 reference target: systemd API/worker, managed runtimes, `doctor.sh`, repeated install/update, backup/PIN/config preservation и forced rollback. Публикуется тот же artifact, который прошёл checksum → install → update → forced rollback. Пересборка между verification и upload запрещена.
 
 ## Что остаётся ручным
 
