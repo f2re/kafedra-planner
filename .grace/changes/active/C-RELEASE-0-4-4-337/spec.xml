@@ -1,0 +1,44 @@
+<GraceChangeSpec graceVersion="4.0" status="approved">
+  <C-RELEASE-0-4-4-337>
+    <Summary>Publish Kafedra Planner 0.4.4 from the exact current main, carrying only already merged R1-R9 product changes while proving that the existing simplified full-offline installer, OCR runtime and build-once release path remain deployable.</Summary>
+    <Problem>The product changes after v0.4.3 are already merged, but they need a new immutable release. Before publication the current installer and bundle contract must be proven rather than modified speculatively: an ordinary user-owned source directory must work, missing OCR/PDF/Office capabilities must come from the full bundle, OCR rus+eng must pass a real self-test before activation, and the same archive must pass install, update and rollback.</Problem>
+    <Goals>
+      <Goal>Synchronize VERSION, package metadata, current documentation and release notes to 0.4.4 without changing dependencies or SQLite schema 31.</Goal>
+      <Goal>Preserve the existing additive-only offline package contract with Poppler, Tesseract rus+eng, LibreOffice and fonts and no target package version pins.</Goal>
+      <Goal>Prove the existing installer blocks activation when full preflight or OCR self-test fails and leaves the previous release active.</Goal>
+      <Goal>Preserve one version-neutral Release workflow that builds the full archive once and verifies that same artifact through checksum, Debian 12 systemd install, repeated update and forced rollback before publication.</Goal>
+      <Goal>Publish exactly the canonical seven v0.4.4 assets from the verified artifact and verify tag/release/assets through GitHub API.</Goal>
+    </Goals>
+    <Constraints>
+      <Constraint>Exact base is main a128e71549c08dbd8a7afd336c6445bf4bd8256a.</Constraint>
+      <Constraint>No SQLite migration or schema change; schema remains 31.</Constraint>
+      <Constraint>No dependency graph, runtime version, installer, offline bundle implementation or release workflow change unless an exact-head regression demonstrates a real defect.</Constraint>
+      <Constraint>Release notes describe only the actual diff from v0.4.3 to the release head.</Constraint>
+      <Constraint>Real Astra Linux/Debian stable acceptance remains issue 27 and real two-document protocol-profile acceptance remains issue 326.</Constraint>
+      <Constraint>No version-specific workflow, polling, workflow_run fan-out, temporary release workflow or archive-only follow-up PR.</Constraint>
+    </Constraints>
+    <NonGoals>
+      <NonGoal>Add new product functionality, schema, dependencies or deployment architecture during the version bump.</NonGoal>
+      <NonGoal>Claim real Astra or real recurring-protocol acceptance from CI fixtures.</NonGoal>
+      <NonGoal>Rebuild the release artifact after install/update/rollback verification.</NonGoal>
+    </NonGoals>
+    <AcceptanceCriteria>
+      <Criterion>VERSION, package.json, package-lock.json and current version markers agree on 0.4.4 and docs/releases/0.4.4.md is based on the actual v0.4.3..release-head changes.</Criterion>
+      <Criterion>config/offline/os-packages.txt contains unzip, Poppler, Tesseract rus/eng, LibreOffice and fonts without target package version pins.</Criterion>
+      <Criterion>deploy/install-core.sh requires full preflight and ocr.py doctor with rus+eng self-test before activation and explicitly keeps the previous release active on OCR/PDF/Office failure.</Criterion>
+      <Criterion>scripts/offline/install-from-archive.sh preserves the user-owned source directory and uses safe private root staging without recursive chown of the source.</Criterion>
+      <Criterion>The existing Release workflow contains exactly one build-full-bundle invocation and passes the same output archive to checksum and systemd-deploy-selftest before Project Control/publication.</Criterion>
+      <Criterion>No migration 032 is introduced and schema remains 31.</Criterion>
+      <Criterion>Ordinary exact-head project CI and risk-scoped GRACE pass before squash merge; post-merge main performs only the short smoke.</Criterion>
+      <Criterion>The exact-main Release run passes project, backup, critical browser, bundle, clean install, repeated update and forced rollback verification.</Criterion>
+      <Criterion>GitHub Release v0.4.4 is non-draft/non-prerelease, tag points to exact release main and the seven canonical assets are uploaded and non-empty.</Criterion>
+    </AcceptanceCriteria>
+    <AffectedAreas><M-CI-GATE /><M-OFFLINE-BUNDLE /></AffectedAreas>
+    <VerificationIntent>
+      <ExpectedCommand>node --test tests/release-0.4.4.test.mjs tests/release-workflow.test.mjs tests/release-recovery-workflow.test.mjs</ExpectedCommand>
+      <ExpectedCommand>npm run check</ExpectedCommand>
+      <ExpectedCommand>npm test</ExpectedCommand>
+      <ExpectedEvidence>Exact-head PR CI and GRACE prove the version and release contract; the subsequent exact-main Release run proves the actual built archive and published assets.</ExpectedEvidence>
+    </VerificationIntent>
+  </C-RELEASE-0-4-4-337>
+</GraceChangeSpec>
