@@ -24,6 +24,46 @@ import {
   saveAcademicUpload
 } from './academic-performance-import.js';
 
+function ensureAcademicUploadStyles() {
+  if ($ap('#academic-upload-footer-styles')) return;
+  const link = document.createElement('link');
+  link.id = 'academic-upload-footer-styles';
+  link.rel = 'stylesheet';
+  link.href = '/academic-performance-upload.css';
+  document.head.append(link);
+}
+
+function stabilizeAcademicUploadLayout() {
+  ensureAcademicUploadStyles();
+  const form = $ap('[data-academic-upload-form]');
+  if (!form || form.dataset.academicUploadLayout === '1') return false;
+  const actions = [...form.children].find((node) => node.classList?.contains('academic-modal-actions'));
+  if (!actions) return false;
+
+  const body = document.createElement('div');
+  body.className = 'academic-modal-body academic-upload-body';
+  for (const node of [...form.childNodes]) {
+    if (node !== actions) body.append(node);
+  }
+
+  form.classList.remove('academic-modal-body');
+  form.classList.add('academic-upload-form');
+  actions.classList.add('academic-upload-actions');
+  form.insertBefore(body, actions);
+  form.dataset.academicUploadLayout = '1';
+  return true;
+}
+
+function openAcademicUpload() {
+  beginAcademicImport();
+  stabilizeAcademicUploadLayout();
+}
+
+function reopenAcademicUpload() {
+  backToAcademicUpload();
+  stabilizeAcademicUploadLayout();
+}
+
 function markSelectedAcademicFile(input) {
   const form = input?.closest?.('[data-academic-upload-form]');
   const file = input?.files?.[0];
@@ -67,7 +107,10 @@ document.addEventListener('click', (event) => {
     refreshAcademicPerformance();
     return;
   }
-  if (event.target.closest('[data-academic-import-open]')) return beginAcademicImport();
+  if (event.target.closest('[data-academic-import-open]')) {
+    openAcademicUpload();
+    return;
+  }
   if (event.target.closest('[data-academic-close]')) return closeModal();
   if (event.target.closest('[data-academic-details-close]')) return closeDetails();
   if (event.target === $ap('[data-academic-backdrop]')) {
@@ -75,7 +118,10 @@ document.addEventListener('click', (event) => {
     closeDetails();
     return;
   }
-  if (event.target.closest('[data-academic-back]')) return backToAcademicUpload();
+  if (event.target.closest('[data-academic-back]')) {
+    reopenAcademicUpload();
+    return;
+  }
   if (event.target.closest('[data-academic-finish]')) {
     closeModal();
     refreshAcademicPerformance(academicState.selectedId);
@@ -164,13 +210,18 @@ window.addEventListener('kafedra:view-changed', (event) => {
   }
 });
 
+function reconcileAcademicUi() {
+  ensureUi();
+  stabilizeAcademicUploadLayout();
+}
+
 let ensureTimer = null;
 new MutationObserver(() => {
   clearTimeout(ensureTimer);
-  ensureTimer = setTimeout(ensureUi, 40);
+  ensureTimer = setTimeout(reconcileAcademicUi, 40);
 }).observe(document.body, { childList: true, subtree: true });
 
-ensureUi();
+reconcileAcademicUi();
 window.kafedraAcademicPerformance = {
   refresh: refreshAcademicPerformance,
   open: () => {
@@ -179,6 +230,6 @@ window.kafedraAcademicPerformance = {
   },
   beginImport: () => {
     showView();
-    beginAcademicImport();
+    openAcademicUpload();
   }
 };

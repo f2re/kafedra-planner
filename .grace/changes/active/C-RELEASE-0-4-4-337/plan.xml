@@ -26,12 +26,14 @@
       <MustContain><File>.github/workflows/release.yml</File><Text>build-full-bundle.sh</Text></MustContain>
       <MustContain><File>.github/workflows/release.yml</File><Text>systemd-deploy-selftest.sh "$OUT"</Text></MustContain>
       <MustExist><Value>public/dom-stability.js</Value></MustExist>
+      <MustExist><Value>public/academic-performance-upload.css</Value></MustExist>
       <MustExist><Value>tests/ui-mutation-stability.test.mjs</Value></MustExist>
       <MustExist><Value>tests/academic-mobile-hit-area.test.mjs</Value></MustExist>
       <MustContain><File>public/fast-form-disclosure.js</File><Text>setTextIfChanged</Text></MustContain>
       <MustContain><File>public/periodic-completion-next.js</File><Text>periodicCompletionKey === key</Text></MustContain>
       <MustContain><File>public/academic-performance-next.css</File><Text>.academic-modal-actions { position: relative; z-index: 2;</Text></MustContain>
       <MustContain><File>public/academic-performance-next.js</File><Text>academicFileReselect</Text></MustContain>
+      <MustContain><File>public/academic-performance-next.js</File><Text>academicUploadLayout</Text></MustContain>
       <MustVerify><Module>M-CI-GATE</Module></MustVerify>
       <MustVerify><Module>M-OFFLINE-BUNDLE</Module></MustVerify>
     </TargetAssertions>
@@ -61,6 +63,7 @@
       <File>public/periodic-completion-next.js</File>
       <File>public/academic-performance-next.css</File>
       <File>public/academic-performance-next.js</File>
+      <File>public/academic-performance-upload.css</File>
       <File>tests/ui-mutation-stability.test.mjs</File>
       <File>tests/academic-mobile-hit-area.test.mjs</File>
     </ObservedWriteScope>
@@ -127,13 +130,13 @@
         <Verification><Command>node --test tests/ui-mutation-stability.test.mjs</Command></Verification>
       </T-006>
       <T-007>
-        <Title>kafedra-design: collapse the academic file drop after an explicit file choice</Title>
+        <Title>kafedra-design: separate academic upload scroll body from its action footer</Title>
         <DependsOn><T-006 /></DependsOn>
         <AcceptanceCriteria>
-          <Criterion>Immediately after a file is selected, the large academic file-drop label is removed from hit testing and replaced by a compact selected-file state.</Criterion>
-          <Criterion>The selected-file state keeps an explicit «Выбрать другой» action; a genuinely new file choice resets the pending document reference so the newly chosen source is used.</Criterion>
-          <Criterion>The action block retains the existing Cancel/Проверить файл order and wording; desktop import semantics, keyboard submission and reduced motion remain unchanged.</Criterion>
-          <Criterion>The original mobile browser test clicks the submit button normally; force click, timeout increase and test skip are prohibited.</Criterion>
+          <Criterion>The upload form remains one semantic form, but its variable-height source/status/error content lives in a dedicated scroll body and `Отмена / Проверить файл` live in a non-scrolling footer sibling.</Criterion>
+          <Criterion>Neither the file-drop nor the selected-file state can overlap or intercept the submit footer on desktop or mobile; the original normal Playwright click remains unchanged.</Criterion>
+          <Criterion>The selected-file state still keeps `Выбрать другой`; a genuinely new file choice resets the pending document reference so the newly chosen immutable source is used.</Criterion>
+          <Criterion>No motion, API, schema, import semantics, timeout increase, force click or skipped assertion is introduced.</Criterion>
         </AcceptanceCriteria>
         <Verification><Command>node --test tests/academic-mobile-hit-area.test.mjs</Command><Command>npx playwright test tests/browser/academic-performance.spec.mjs</Command></Verification>
       </T-007>
