@@ -22,6 +22,13 @@ async function expectActionInViewport(action) {
   }), { message: 'Действие должно целиком помещаться в видимой области экрана' }).toBe(true);
 }
 
+async function expectPageFits(page) {
+  await expect.poll(() => page.evaluate(() => {
+    const root = document.documentElement;
+    return root.scrollWidth - root.clientWidth;
+  }), { message: 'Страница не должна расширяться за границы экрана' }).toBeLessThanOrEqual(1);
+}
+
 test.beforeEach(async ({ page }, testInfo) => {
   page.on('pageerror', (error) => console.log(`[academic:${testInfo.project.name}:pageerror] ${error.stack || error.message}`));
   page.on('console', (message) => {
@@ -35,6 +42,7 @@ test('Успеваемость: ячейки метаполей → ручная
   await expect(navigationButton(page)).toBeVisible({ timeout: 15_000 });
   await navigationButton(page).click();
   await expect(page.getByRole('heading', { name: 'Успеваемость' })).toBeVisible();
+  await expectPageFits(page);
   await page.locator('[data-academic-import-open]').click();
 
   const name = `academic-${testInfo.project.name}.csv`;
@@ -89,6 +97,7 @@ test('Успеваемость: ячейки метаполей → ручная
   await expect(totalSelector).toBeChecked();
   await expect(page.locator('.academic-period-totals')).toContainText('Итоги по выбранным группам');
   await expect(page.locator('.academic-totals-table')).toContainText('3,67');
+  await expectPageFits(page);
   await totalSelector.uncheck();
   await expect(page.locator('.academic-period-totals')).toContainText('Выберите хотя бы одну группу');
   await totalSelector.check();
@@ -108,6 +117,14 @@ test('Успеваемость: ячейки метаполей → ручная
   expect(report).toContain('ИТОГИ ПО ДИСЦИПЛИНАМ');
   expect(report).toContain('2026/2027;1;ИВТ-31;Математика');
   expect(report).toContain('3,67');
+
+  const calendarNav = Number(page.viewportSize()?.width || 0) <= 720
+    ? page.locator('.mobile-tab[data-view="calendar"]')
+    : page.locator('.nav-item[data-view="calendar"]');
+  await calendarNav.click();
+  await expect(page.locator('[data-view-panel="calendar"]')).toBeVisible();
+  await expect(page.locator('#calendar-mode-switch')).toBeVisible();
+  await expectPageFits(page);
 });
 
 test('Успеваемость: длинное имя файла, повторный выбор и отмена на мобильном экране', async ({ page }) => {
@@ -117,6 +134,7 @@ test('Успеваемость: длинное имя файла, повторн
   await expect(navigationButton(page)).toBeVisible({ timeout: 15_000 });
   await navigationButton(page).click();
   await expect(page.getByRole('heading', { name: 'Успеваемость' })).toBeVisible();
+  await expectPageFits(page);
   await expect(page.locator('[data-academic-import-open]')).toBeVisible();
   await expect(page.locator('.academic-layout')).toHaveCSS('grid-template-columns', /.+/u);
   await page.locator('[data-academic-import-open]').click();

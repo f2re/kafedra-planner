@@ -345,7 +345,13 @@ body.sidebar-hidden .mobile-only { display: inline-grid !important; }
   body.mobile-sidebar-open .sidebar { transform: translateX(0); }
   .sidebar-collapse { display: none; }
   .workspace { padding: 12px 10px 24px; }
-  .topbar { grid-template-columns: 1fr auto; gap: 8px; }
+  .topbar { grid-template-columns: minmax(0, 1fr); gap: 8px; }
+  .topbar-leading { grid-column: 1; grid-row: 1; }
+  .topbar-leading > div { min-width: 0; }
+  .topbar-leading > .icon-button { flex-shrink: 0; }
+  .topbar h1 { overflow-wrap: anywhere; }
+  .topbar-actions { grid-column: 1; grid-row: 2; min-width: 0; max-width: 100%; flex-wrap: wrap; justify-content: flex-end; }
+  .topbar > .segmented { grid-column: 1; grid-row: 3; }
   .mobile-only { display: inline-grid !important; }
   .topbar p { display: none; }
   h1 { font-size: 23px; }
