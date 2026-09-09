@@ -54,19 +54,18 @@ function ensureUi() {
   if (!anchor) return;
   anchor.insertAdjacentHTML('beforebegin', `
     <div class="preference-controls-anchor">
-      <button id="preference-controls-button" class="icon-button" type="button" aria-haspopup="dialog" aria-expanded="false" title="Личные подсказки">Подсказки</button>
+      <button id="preference-controls-button" class="icon-button" type="button" aria-haspopup="dialog" aria-expanded="false" aria-label="Личные подсказки" title="Личные подсказки">⚙</button>
       <section id="preference-controls-popover" class="preference-controls-popover hidden" role="dialog" aria-label="Личные подсказки">
         <div class="preference-controls-head"><div><strong>Подсказки</strong><span>Только безопасные личные defaults</span></div><button type="button" class="icon-button" data-pref-close aria-label="Закрыть">×</button></div>
         <div id="preference-controls-body" class="preference-controls-body"><span>Загрузка…</span></div>
       </section>
     </div>`);
   if (!$p('#preference-controls-styles')) {
-    const style = document.createElement('style');
-    style.id = 'preference-controls-styles';
-    style.textContent = `
-      .preference-controls-anchor{position:relative;display:inline-flex}.preference-controls-popover{position:absolute;z-index:80;right:0;top:calc(100% + 8px);width:min(390px,calc(100vw - 24px));max-height:min(70vh,620px);overflow:auto;padding:14px;border:1px solid var(--border,#d2d2d7);border-radius:16px;background:var(--surface,#fff);box-shadow:0 14px 44px rgba(0,0,0,.14)}.preference-controls-popover.hidden{display:none}.preference-controls-head{display:flex;align-items:flex-start;justify-content:space-between;gap:12px}.preference-controls-head>div{display:grid;gap:3px}.preference-controls-head span,.preference-controls-note{font-size:12px;color:var(--muted,#6e6e73)}.preference-controls-body{display:grid;gap:12px;margin-top:12px}.preference-learning-row{display:flex;gap:10px;align-items:flex-start;padding:10px 0;border-top:1px solid var(--border,#e5e7eb);border-bottom:1px solid var(--border,#e5e7eb)}.preference-learning-row input{margin-top:3px}.preference-pin-list{display:grid;gap:8px}.preference-pin-row{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:7px;align-items:end}.preference-pin-row label{display:grid;gap:4px;min-width:0}.preference-pin-row label span{font-size:12px;color:var(--muted,#6e6e73)}.preference-pin-row select{min-width:0;width:100%;min-height:36px;border:1px solid var(--border,#d2d2d7);border-radius:9px;background:var(--surface,#fff);padding:0 8px}.preference-controls-actions{display:flex;justify-content:space-between;gap:8px;padding-top:4px}.preference-controls-status{font-size:12px;color:var(--muted,#6e6e73)}@media(max-width:720px){.preference-controls-popover{position:fixed;top:72px;right:12px;left:12px;width:auto}.preference-pin-row{grid-template-columns:1fr}.preference-pin-row button{width:100%}}
-    `;
-    document.head.append(style);
+    const link = document.createElement('link');
+    link.id = 'preference-controls-styles';
+    link.rel = 'stylesheet';
+    link.href = '/preference-controls.css';
+    document.head.append(link);
   }
 }
 
