@@ -7,6 +7,21 @@ function navigationButton(page) {
     : page.locator('.nav-item[data-view="academic-performance"]');
 }
 
+async function expectActionInViewport(action) {
+  await expect(action).toBeVisible();
+  await expect.poll(() => action.evaluate((element) => {
+    const rect = element.getBoundingClientRect();
+    const viewport = window.visualViewport;
+    const left = viewport?.offsetLeft ?? 0;
+    const top = viewport?.offsetTop ?? 0;
+    const width = viewport?.width ?? window.innerWidth;
+    const height = viewport?.height ?? window.innerHeight;
+    return rect.width > 0 && rect.height > 0
+      && rect.left >= left - 1 && rect.top >= top - 1
+      && rect.right <= left + width + 1 && rect.bottom <= top + height + 1;
+  }), { message: 'Действие должно целиком помещаться в видимой области экрана' }).toBe(true);
+}
+
 test.beforeEach(async ({ page }, testInfo) => {
   page.on('pageerror', (error) => console.log(`[academic:${testInfo.project.name}:pageerror] ${error.stack || error.message}`));
   page.on('console', (message) => {
@@ -39,6 +54,7 @@ test('Успеваемость: ячейки метаполей → ручная
     mimeType: 'text/csv',
     buffer: Buffer.from(csv, 'utf8')
   });
+  await expectActionInViewport(upload.locator('button[type="submit"]'));
   await upload.locator('button[type="submit"]').click();
 
   const mapping = page.locator('[data-academic-mapping-form]');
@@ -94,7 +110,7 @@ test('Успеваемость: ячейки метаполей → ручная
   expect(report).toContain('3,67');
 });
 
-test('Успеваемость: мобильный экран сохраняет иерархию и основное действие', async ({ page }) => {
+test('Успеваемость: длинное имя файла, повторный выбор и отмена на мобильном экране', async ({ page }) => {
   await page.setViewportSize({ width: 390, height: 844 });
   await page.goto('/');
   await page.waitForFunction(() => typeof window.kafedraSetView === 'function', null, { timeout: 12_000 });
@@ -105,7 +121,26 @@ test('Успеваемость: мобильный экран сохраняет
   await expect(page.locator('.academic-layout')).toHaveCSS('grid-template-columns', /.+/u);
   await page.locator('[data-academic-import-open]').click();
   await expect(page.locator('[data-academic-modal]')).toBeVisible();
-  await expect(page.locator('[data-academic-upload-form]')).toBeVisible();
+  const upload = page.locator('[data-academic-upload-form]');
+  await expect(upload).toBeVisible();
+  const name = `vedomost_${'uchebnaya_gruppa_'.repeat(8)}2026.csv`;
+  const buffer = Buffer.from('ФИО;Математика\nИванов Иван;5', 'utf8');
+  await upload.locator('[name="file"]').setInputFiles({ name, mimeType: 'text/csv', buffer });
+  await expect(upload.locator('[data-academic-upload-state]')).toHaveText(`Выбран файл: ${name}`);
+  await expectActionInViewport(upload.locator('[data-academic-upload-state]'));
+  await expectActionInViewport(upload.locator('button[type="submit"]'));
+
+  const reselect = upload.locator('[data-academic-file-reselect]');
+  await expectActionInViewport(reselect);
+  const [chooser] = await Promise.all([page.waitForEvent('filechooser'), reselect.click()]);
+  await chooser.setFiles({ name: 'replacement.csv', mimeType: 'text/csv', buffer });
+  await expect(upload.locator('[data-academic-upload-state]')).toHaveText('Выбран файл: replacement.csv');
+  await expectActionInViewport(upload.locator('button[type="submit"]'));
+  await upload.locator('[data-academic-close]').click();
+  await expect(page.locator('[data-academic-modal]')).toBeHidden();
+  await page.locator('[data-academic-import-open]').click();
+  await expect(upload.locator('[name="file"]')).toHaveValue('');
+  await expect(upload.locator('[data-academic-file-reselect]')).toBeHidden();
 });
 
 

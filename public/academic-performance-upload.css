@@ -29,6 +29,7 @@
   flex: 1 1 100%;
   gap: 8px;
   min-width: 0;
+  overflow-wrap: anywhere;
 }
 
 .academic-upload-feedback .academic-upload-state {
@@ -59,6 +60,6 @@
 }
 
 @media (max-width: 680px) {
-  .academic-upload-form { max-height: calc(92vh - 76px); }
+  .academic-upload-form { max-height: calc(92vh - 76px); max-height: calc(92dvh - 76px); }
   .academic-upload-actions { padding: 12px 18px max(14px, env(safe-area-inset-bottom)); }
 }
