@@ -35,6 +35,13 @@ test('Успеваемость: ячейки метаполей → ручная
   await expect(navigationButton(page)).toBeVisible({ timeout: 15_000 });
   await navigationButton(page).click();
   await expect(page.getByRole('heading', { name: 'Успеваемость' })).toBeVisible();
+  await expect(page.locator('#preference-controls-button')).toHaveAccessibleName('Личные подсказки');
+  await expect(page.locator('.preference-controls-anchor')).toHaveCSS('position', 'relative');
+  if (Number(page.viewportSize()?.width || 0) <= 720) {
+    await expect.poll(() => page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth), {
+      message: 'Шапка с личными подсказками не должна расширять мобильную страницу'
+    }).toBeLessThanOrEqual(1);
+  }
   await page.locator('[data-academic-import-open]').click();
 
   const name = `academic-${testInfo.project.name}.csv`;
