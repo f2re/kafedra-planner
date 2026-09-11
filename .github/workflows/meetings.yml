@@ -4,11 +4,20 @@ on:
   pull_request:
     paths:
       - 'packages/protocols/**'
+      - 'packages/templates/src/service.mjs'
       - 'apps/api/src/meetings-router.mjs'
+      - 'apps/api/src/protocol-import-router.mjs'
+      - 'apps/api/src/app.mjs'
+      - 'apps/worker/src/main.mjs'
+      - 'apps/worker/src/protocol-recognition-job.mjs'
       - 'public/meeting*.js'
       - 'public/meeting*.css'
+      - 'public/protocol*.js'
+      - 'public/protocol*.css'
       - 'tests/meeting*.test.mjs'
+      - 'tests/protocol*.test.mjs'
       - 'tests/browser/meeting*.spec.mjs'
+      - 'tests/browser/protocol*.spec.mjs'
       - '.github/workflows/meetings.yml'
   workflow_dispatch:
 
@@ -34,13 +43,13 @@ jobs:
           cache: npm
       - run: npm ci --ignore-scripts --no-audit --no-fund
       - run: npx playwright install --with-deps chromium
-      - name: Создание, перенос, смена даты и выгрузка — компьютер и телефон
+      - name: Импорт, правка, перенос и выгрузка — компьютер и телефон
         run: |
           status=0
           # Each layout gets a fresh server and SQLite database; the settings
           # scenario must not preconfigure the next layout's first-run scenario.
           for project in desktop mobile; do
-            npx playwright test tests/browser/meeting-continuity.spec.mjs tests/browser/meetings.spec.mjs tests/browser/meeting-minimal-create.spec.mjs \
+            npx playwright test tests/browser/meeting-continuity.spec.mjs tests/browser/meetings.spec.mjs tests/browser/meeting-minimal-create.spec.mjs tests/browser/protocol-import.spec.mjs tests/browser/protocol-batch.spec.mjs \
               --project="$project" --output="test-results/$project" || status=$?
             if [[ -d playwright-report ]]; then
               mv playwright-report "playwright-report-$project"

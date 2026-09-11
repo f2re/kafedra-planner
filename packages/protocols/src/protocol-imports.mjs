@@ -22,7 +22,7 @@ function latestExtraction(database, versionId) {
     SELECT status, result_json, error_code, error_message, started_at, completed_at
     FROM extraction_runs
     WHERE document_version_id = ?
-    ORDER BY started_at DESC, id DESC
+    ORDER BY started_at DESC, rowid DESC
     LIMIT 1
   `, versionId);
   if (!row) return null;
@@ -70,9 +70,10 @@ function itemState(row, meeting, reviews) {
   return 'processing';
 }
 
-export function listProtocolImports(database, workspaceId, yearValue, limit = 500) {
+export function listProtocolImports(database, workspaceId, yearValue, limit = 500, offset = 0) {
   const year = normalizeProtocolImportYear(yearValue);
-  const safeLimit = Math.min(1000, Math.max(1, Number(limit) || 500));
+  const safeLimit = Math.min(1000, Math.max(1, Math.trunc(Number(limit)) || 500));
+  const safeOffset = Math.max(0, Number.isSafeInteger(Number(offset)) ? Number(offset) : 0);
   const rows = database.all(`
     SELECT d.id AS document_id, d.title, d.document_type, d.status AS document_status,
       dv.id AS version_id, dv.original_name, dv.processing_status,
@@ -84,8 +85,8 @@ export function listProtocolImports(database, workspaceId, yearValue, limit = 50
     JOIN file_blobs fb ON fb.sha256 = dv.blob_sha256
     WHERE d.workspace_id = ? AND dv.upload_key LIKE ?
     ORDER BY dv.uploaded_at DESC, dv.id DESC
-    LIMIT ?
-  `, workspaceId, `protocol-year:${year}:%`, safeLimit);
+    LIMIT ? OFFSET ?
+  `, workspaceId, `protocol-year:${year}:%`, safeLimit, safeOffset);
 
   const items = rows.map((row) => {
     const extraction = latestExtraction(database, row.version_id);
@@ -97,9 +98,9 @@ export function listProtocolImports(database, workspaceId, yearValue, limit = 50
       import_year: year,
       state,
       meeting_id: meeting?.id || null,
-      protocol_number: meeting?.protocol_number || extraction?.result?.protocol?.protocolNumber || null,
-      meeting_date: meeting?.meeting_date || extraction?.result?.protocol?.meetingDate || null,
-      agenda_count: Number(extraction?.result?.protocol?.agendaItems?.length || 0),
+      protocol_number: meeting ? meeting.protocol_number : extraction?.result?.protocol?.protocolNumber || null,
+      meeting_date: meeting ? meeting.meeting_date : extraction?.result?.protocol?.meetingDate || null,
+      agenda_count: meeting ? Number(database.get('SELECT COUNT(*) AS n FROM agenda_items WHERE meeting_id=?', meeting.id)?.n || 0) : 0,
       review_count: reviews.length,
       reviews,
       extraction_status: extraction?.status || null,
@@ -113,5 +114,7 @@ export function listProtocolImports(database, workspaceId, yearValue, limit = 50
 
   const summary = { total: items.length, ready: 0, needs_review: 0, failed: 0, processing: 0 };
   for (const item of items) summary[item.state] += 1;
-  return { year, items, summary };
+  const totalFiles = Number(database.get(`SELECT COUNT(*) AS n FROM documents d JOIN document_versions dv ON dv.id=d.current_version_id
+    WHERE d.workspace_id=? AND dv.upload_key LIKE ?`, workspaceId, `protocol-year:${year}:%`)?.n || 0);
+  return { year, workspaceId, items, summary, totalFiles, offset:safeOffset, hasMore:safeOffset + items.length < totalFiles };
 }

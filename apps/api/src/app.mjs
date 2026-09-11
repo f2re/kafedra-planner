@@ -7,7 +7,7 @@ import { createPlansRouter } from './plans-router.mjs';
 import { createPlanItemsRouter } from './plan-items-router.mjs';
 import { createPlanSourceRowsRouter } from './plan-source-rows-router.mjs';
 import { createManualPlansRouter } from './manual-plans-router.mjs';
-import { createMeetingsRouter } from './meetings-router.mjs';
+import { createMeetingsRouter } from './protocol-import-router.mjs';
 import { createUiPreferencesRouter } from './ui-preferences-router.mjs';
 import { createNotificationDeliveryRouter } from './notification-delivery-router.mjs';
 import { createAssignmentResponsibilityRouter } from './assignment-responsibility-router.mjs';

@@ -87,6 +87,14 @@ function yearOf(value) {
 function canResolve(row, data, context, change) {
   const code = String(row.issue_code || '');
   const meeting = context.meeting;
+  if (code.startsWith('protocol_recognition_')) {
+    if (change?.scope !== 'agenda' || data.agendaId !== change.agendaItemId || !touched(change, data.recognitionField)) return false;
+    const field = data.recognitionField;
+    // A different field, opening the editor, or a blank title does not resolve a missing fact.
+    if (['title', 'heardText', 'decisionText'].includes(field)) return Boolean(String(change.values?.[field] || '').trim());
+    if (field === 'dueDate') return Boolean(data.decisionId && data.decisionId === change.decisionId);
+    return false;
+  }
   if (code === 'protocol_number_missing') return Boolean(meeting.protocol_number);
   if (code === 'meeting_date_missing') return Boolean(meeting.meeting_date);
   if (code === 'agenda_missing') return context.agenda.length > 0;

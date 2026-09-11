@@ -1,0 +1,44 @@
+<GraceChangePlan graceVersion="4.0" status="approved">
+  <C-PROTOCOL-IMPORT-349>
+    <IntentSummary>Finish one vertical source-to-meeting import workflow on current main, reusing storage, editors, permissions and CI.</IntentSummary>
+    <BaselineAssertions>
+      <MustExist><Value>packages/protocols/src/persist.mjs</Value></MustExist>
+      <MustExist><Value>packages/protocols/src/meeting-transfer-origin.mjs</Value></MustExist>
+      <MustExist><Value>public/protocol-import.js</Value></MustExist>
+      <MustExist><Value>.github/workflows/meetings.yml</Value></MustExist>
+    </BaselineAssertions>
+    <TargetAssertions>
+      <MustExist><Value>packages/protocols/src/recognition-markers.mjs</Value></MustExist>
+      <MustExist><Value>packages/protocols/src/recognition-materialize.mjs</Value></MustExist>
+      <MustExist><Value>packages/protocols/src/recognition-profiles.mjs</Value></MustExist>
+      <MustExist><Value>packages/protocols/src/import-corrections.mjs</Value></MustExist>
+      <MustContain><File>apps/api/src/app.mjs</File><Text>protocol-import-router.mjs</Text></MustContain>
+      <MustContain><File>apps/worker/src/main.mjs</File><Text>applyProtocolRecognitionForJob</Text></MustContain>
+      <MustContain><File>packages/protocols/src/recognition-materialize.mjs</File><Text>hasRelocatedAgendaSource</Text></MustContain>
+      <MustContain><File>public/protocol-import.js</File><Text>enhanceProtocolBatch</Text></MustContain>
+      <MustExist><Value>tests/protocol-batch-recognition.test.mjs</Value></MustExist>
+      <MustExist><Value>tests/browser/protocol-batch.spec.mjs</Value></MustExist>
+      <MustVerify><Module>M-API</Module></MustVerify><MustVerify><Module>M-WORKER</Module></MustVerify><MustVerify><Module>M-CI-GATE</Module></MustVerify>
+    </TargetAssertions>
+    <DurableScope>
+      <GraphAnchors><M-API /><M-WORKER /><M-CI-GATE /></GraphAnchors>
+      <VerificationAnchors><V-M-API /><V-M-WORKER /><V-M-CI-GATE /></VerificationAnchors>
+      <ContextArtifacts><ContextArtifact>principles.xml</ContextArtifact><ContextArtifact>technology.xml</ContextArtifact></ContextArtifacts>
+    </DurableScope>
+    <ObservedWriteScope>
+      <Glob>.grace/changes/active/C-PROTOCOL-IMPORT-349/**</Glob>
+      <Glob>packages/protocols/src/**</Glob><File>packages/templates/src/service.mjs</File>
+      <File>apps/api/src/app.mjs</File><File>apps/api/src/protocol-import-router.mjs</File>
+      <File>apps/worker/src/main.mjs</File><File>apps/worker/src/protocol-recognition-job.mjs</File>
+      <Glob>public/protocol-*.js</Glob><Glob>public/protocol-*.css</Glob>
+      <Glob>tests/protocol*.test.mjs</Glob><Glob>tests/browser/protocol*.spec.mjs</Glob><Glob>tests/fixtures/protocol*</Glob>
+      <File>docs/PROTOCOL_IMPORT.md</File><File>.github/workflows/meetings.yml</File>
+    </ObservedWriteScope>
+    <ImplementationPlan>
+      <T-001><Title>Recognition and provenance</Title><DependsOn></DependsOn><AcceptanceCriteria><Criterion>Bounded fuzzy labels and explicit structure preserve text and evidence; invalid dates and missing decisions are exceptions.</Criterion></AcceptanceCriteria><Verification><Command>node --test tests/protocol-fuzzy-extractor.test.mjs</Command></Verification></T-001>
+      <T-002><Title>Versioned format and safe materialization</Title><DependsOn><T-001 /></DependsOn><AcceptanceCriteria><Criterion>Profiles preview/version correctly; worker updates only owned machine fields and keeps manual/moved/deleted identities, prior runs and rollback.</Criterion></AcceptanceCriteria><Verification><Command>node --test tests/protocol-batch-recognition.test.mjs tests/protocol-profile-extension.test.mjs tests/meeting-continuity.test.mjs</Command></Verification></T-002>
+      <T-003><Title>Batch correction and responsive acceptance</Title><DependsOn><T-002 /></DependsOn><AcceptanceCriteria><Criterion>One shared form edits exceptions with independent row errors, visible sources and retry; both layouts exercise normal clicks and real API/worker.</Criterion></AcceptanceCriteria><Verification><Command>Existing meetings.yml: protocol import and batch desktop/mobile regression</Command></Verification></T-003>
+      <T-004><Title>Exact-head audit and integration</Title><DependsOn><T-003 /></DependsOn><AcceptanceCriteria><Criterion>Ordinary check/docs/unit/smoke, targeted browser and GRACE final lint/scope pass; current main, reviews and expected head are checked before merge.</Criterion></AcceptanceCriteria><Verification><Command>GitHub API exact-head checks and post-merge smoke</Command></Verification></T-004>
+    </ImplementationPlan>
+  </C-PROTOCOL-IMPORT-349>
+</GraceChangePlan>

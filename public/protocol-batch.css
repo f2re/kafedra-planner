@@ -1,0 +1,29 @@
+.protocol-import-item[hidden] { display:none; }
+.protocol-batch-bar { display:flex; flex-wrap:wrap; align-items:center; gap:8px; padding:12px; border-bottom:1px solid var(--border); }
+.protocol-batch-bar button,.protocol-batch-bar select,.protocol-tools-dialog button { min-height:40px; padding:8px 12px; border:1px solid var(--border); border-radius:8px; background:var(--surface-solid); color:var(--text); font:inherit; font-size:12px; cursor:pointer; }
+.protocol-batch-bar button:disabled,.protocol-tools-dialog button:disabled { opacity:.5; cursor:default; }
+.protocol-batch-bar label,.protocol-batch-bar span { font-size:12px; }
+.protocol-batch-notice { flex-basis:100%; font-size:12px; color:var(--muted); overflow-wrap:anywhere; }
+.protocol-batch-notice:empty { display:none; }
+.protocol-select { display:flex; align-items:center; gap:5px; min-height:32px; margin-bottom:5px; cursor:pointer; }
+.protocol-select input { width:18px; height:18px; }
+.protocol-tools-dialog { width:min(960px,94vw); box-sizing:border-box; max-height:90vh; overflow:auto; padding:22px; border:1px solid var(--border); border-radius:16px; background:var(--surface-solid); color:var(--text); }
+.protocol-tools-dialog::backdrop { background:rgba(0,0,0,.35); }
+.protocol-tools-dialog form { display:grid; gap:12px; }
+.protocol-tools-dialog h2 { margin:0 0 8px; font-size:20px; }
+.protocol-tools-dialog h3 { margin:6px 0; font-size:15px; overflow-wrap:anywhere; }
+.protocol-tools-dialog p { font-size:13px; }
+.protocol-tools-dialog fieldset { border:0; padding:0; margin:0; min-width:0; }
+.protocol-tools-fields { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:12px; }
+.protocol-tools-fields label { display:grid; gap:5px; font-size:13px; min-width:0; }
+.protocol-tools-fields input,.protocol-tools-fields textarea,.protocol-tools-dialog select { box-sizing:border-box; width:100%; padding:9px; min-width:0; border:1px solid var(--border); border-radius:8px; background:var(--surface-solid); color:var(--text); font:inherit; }
+.protocol-tools-source,.protocol-tools-result { white-space:pre-wrap; overflow-wrap:anywhere; max-height:300px; overflow:auto; padding:12px; background:var(--surface-muted); font-size:13px; }
+.protocol-tools-result:empty { display:none; }
+.protocol-tools-actions { display:flex; flex-wrap:wrap; gap:10px; }
+.protocol-tools-actions .primary-button { background:var(--accent-strong); color:var(--surface-solid); }
+.protocol-bulk-row { padding:12px 0; border-bottom:1px solid var(--border); }
+.protocol-bulk-row [role=status],.protocol-bulk-row [role=alert] { margin-top:8px; font-size:13px; overflow-wrap:anywhere; }
+.protocol-tools-dialog a { color:var(--accent-strong); }
+.protocol-tools-dialog summary { cursor:pointer; min-height:28px; padding:6px 0; font-size:13px; }
+.protocol-tools-dialog :focus-visible,.protocol-batch-bar :focus-visible { outline:2px solid var(--accent-strong); outline-offset:2px; }
+@media(max-width:720px) { .protocol-tools-fields { grid-template-columns:1fr; } .protocol-batch-bar button,.protocol-tools-dialog button { min-height:44px; } .protocol-tools-dialog { padding:16px; } }
