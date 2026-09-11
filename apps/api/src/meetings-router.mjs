@@ -18,6 +18,7 @@ import {
   meetingSettingsResources,
   meetingTemplateImpact,
   moveAgendaItem,
+  transferAgendaItem,
   registerMeetingTemplateCatalogEntry,
   restoreMeetingTemplateCatalogEntry,
   saveMeetingSettings,
@@ -89,6 +90,11 @@ function mappedError(cause) {
     agenda_source_not_found: ['Исходная задача или пункт плана не найдены.', 404],
     agenda_source_duplicate: ['Этот пункт уже включён в повестку данного заседания.', 409],
     agenda_item_not_found: ['Вопрос повестки не найден.', 404],
+    agenda_transfer_target_required: ['Выберите заседание назначения.', 400],
+    agenda_transfer_request_invalid: ['Откройте перенос вопроса заново.', 400],
+    agenda_transfer_same_meeting: ['Выберите другое заседание.', 400],
+    agenda_transfer_conflict: ['Вопрос уже перемещён. Обновите заседание перед новым переносом.', 409],
+    agenda_transfer_request_conflict: ['Этот перенос уже выполнен с другим назначением. Откройте вопрос заново.', 409],
     agenda_move_invalid: ['Не удалось изменить порядок вопроса.', 400],
     protocol_import_year_invalid: ['Укажите календарный год от 2000 до 2100.', 400],
     meeting_document_kind_invalid: ['Можно сформировать только протокол или выписку.', 400],
@@ -116,6 +122,7 @@ export function createMeetingsRouter({ database, config }) {
     const agendaCollectionMatch = path.match(/^\/api\/meetings\/([^/]+)\/agenda$/u);
     const agendaItemMatch = path.match(/^\/api\/meetings\/([^/]+)\/agenda\/([^/]+)$/u);
     const agendaMoveMatch = path.match(/^\/api\/meetings\/([^/]+)\/agenda\/([^/]+)\/move$/u);
+    const agendaTransferMatch = path.match(/^\/api\/meetings\/([^/]+)\/agenda\/([^/]+)\/transfer$/u);
     const documentsMatch = path.match(/^\/api\/meetings\/([^/]+)\/documents$/u);
     const templateAnalysisMatch = path.match(/^\/api\/meeting-templates\/([^/]+)\/analysis$/u);
     const templateProfilesMatch = path.match(/^\/api\/meeting-templates\/([^/]+)\/profiles$/u);
@@ -127,7 +134,7 @@ export function createMeetingsRouter({ database, config }) {
       || path === '/api/meeting-template-library'
       || path === '/api/protocol-imports'
       || path === '/api/meetings'
-      || meetingMatch || agendaCollectionMatch || agendaItemMatch || agendaMoveMatch || documentsMatch
+      || meetingMatch || agendaCollectionMatch || agendaItemMatch || agendaMoveMatch || agendaTransferMatch || documentsMatch
       || templateAnalysisMatch || templateProfilesMatch || libraryActionMatch;
     if (!recognized) return false;
 
@@ -234,6 +241,7 @@ export function createMeetingsRouter({ database, config }) {
       if (method === 'GET' && path === '/api/meetings') {
         return sendJson(response, 200, { items: listMeetings(database, workspace.id, {
           year: url.searchParams.get('year'),
+          query: url.searchParams.get('q'),
           limit: url.searchParams.get('limit') || 200
         }) });
       }
@@ -257,6 +265,16 @@ export function createMeetingsRouter({ database, config }) {
         const meetingId = decodeURIComponent(agendaCollectionMatch[1]);
         const body = await readJson(request);
         return sendJson(response, 201, meetingWithTemplateMetadata(database, addAgendaItem(database, workspace.id, meetingId, body, actorPersonId)));
+      }
+      if (agendaTransferMatch && method === 'POST') {
+        const result = transferAgendaItem(database, workspace.id,
+          decodeURIComponent(agendaTransferMatch[1]), decodeURIComponent(agendaTransferMatch[2]),
+          await readJson(request), actorPersonId);
+        return sendJson(response, 200, {
+          ...result,
+          sourceMeeting: meetingWithTemplateMetadata(database, result.sourceMeeting),
+          targetMeeting: meetingWithTemplateMetadata(database, result.targetMeeting)
+        });
       }
       if (agendaMoveMatch && method === 'POST') {
         const meetingId = decodeURIComponent(agendaMoveMatch[1]);

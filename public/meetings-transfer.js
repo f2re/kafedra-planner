@@ -76,6 +76,11 @@ export function openAgendaTransferModal(item) {
       }
       if (item.source_kind === 'plan_item') invalidatePlanMeetingLink(item.source_id);
       schedulePlanMeetingLinks();
+      if (!form.isConnected || $m('#meeting-modal')?.classList.contains('hidden')) {
+        window.dispatchEvent(new CustomEvent('kafedra:meeting-updated', { detail: { meetingId: result.currentMeetingId } }));
+        showMeetingNotice('Перенос сохранён. Решения и сроки сохранены.');
+        return;
+      }
       meetingsState.selectedForExtract.clear();
       const destination = result.currentMeetingId === result.targetMeeting.id ? result.targetMeeting
         : await meetingApi(`/api/meetings/${encodeURIComponent(result.currentMeetingId)}`);
@@ -88,7 +93,8 @@ export function openAgendaTransferModal(item) {
       if (completed) {
         closeMeetingModal();
         showMeetingNotice('Перенос сохранён. Не удалось обновить экран — откройте заседание повторно.');
-      } else showError(error.message);
+      } else showError(error instanceof TypeError
+        ? 'Ответ сервера не получен. Повторите перенос — вопрос не продублируется.' : error.message);
     } finally {
       pending = false;
       search.disabled = completed;

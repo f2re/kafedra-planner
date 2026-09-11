@@ -31,5 +31,6 @@ export {
 export {
   addAgendaItem, deleteAgendaItem, listAgendaSources, moveAgendaItem, updateAgendaItem
 } from './meeting-agenda.mjs';
+export { transferAgendaItem } from './meeting-transfer.mjs';
 export { listProtocolImports, normalizeProtocolImportYear, protocolImportYear } from './protocol-imports.mjs';
 export { generateMeetingDocument } from './meeting-documents-flexible.mjs';

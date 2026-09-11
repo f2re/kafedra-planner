@@ -14,11 +14,12 @@ export function renderSettingsSummary() {
 }
 
 function meetingCard(meeting) {
-  const reviews = Number(meeting.open_review_count || 0);
+  const reviews = Number(meeting.id === meetingsState.meeting?.id
+    ? meetingsState.meeting.open_review_count || 0 : meeting.open_review_count || 0);
   const state = reviews
     ? `<span class="meeting-review-badge">Проверить · ${reviews}</span>`
-    : '<span class="meeting-ready-badge">Готово</span>';
-  const outside = meeting.outside_selected_year ? '<small>Открыто из импорта другого года</small>' : '';
+    : `<span class="meeting-ready-badge">${meeting.status === 'draft' ? 'Повестка' : 'Готово'}</span>`;
+  const outside = meeting.outside_selected_year ? '<small>Заседание другого года</small>' : '';
   return `<button class="meeting-card ${meeting.id === meetingsState.selectedMeetingId ? 'active' : ''} ${reviews ? 'needs-review' : ''}" type="button" data-meeting-id="${escMeeting(meeting.id)}">
     <span class="meeting-card-date">${escMeeting(meetingDate(meeting.meeting_date))}</span>
     <strong>Протокол №${escMeeting(meeting.protocol_number || '—')}</strong>
@@ -72,6 +73,7 @@ function agendaItemHtml(item, index, total) {
     <div class="agenda-actions">
       <button type="button" class="icon-button" data-agenda-move="up" ${index === 0 ? 'disabled' : ''} aria-label="Поднять вопрос">↑</button>
       <button type="button" class="icon-button" data-agenda-move="down" ${index === total - 1 ? 'disabled' : ''} aria-label="Опустить вопрос">↓</button>
+      <button type="button" class="secondary-button agenda-transfer" data-agenda-transfer>Перенести</button>
       <button type="button" class="secondary-button agenda-edit" data-agenda-edit>${review ? 'Исправить' : 'Изменить'}</button>
     </div>
   </article>`;
@@ -107,6 +109,7 @@ export function renderMeetingDetail() {
     return;
   }
   const agenda = meeting.agenda || [];
+  const decidedCount = agenda.filter((item) => item.decision_text?.trim() || item.decisions?.some((decision) => decision.text?.trim())).length;
   const selectedCount = [...meetingsState.selectedForExtract].filter((id) => agenda.some((item) => item.id === id)).length;
   const hasReviews = Number(meeting.open_review_count || 0) > 0;
   target.innerHTML = `
@@ -127,7 +130,7 @@ export function renderMeetingDetail() {
     </div>
     <div class="agenda-list">${agenda.length ? agenda.map((item, index) => agendaItemHtml(item, index, agenda.length)).join('') : '<div class="empty-state">Повестка не распознана. Добавьте вопросы вручную; исходный протокол останется доступен.</div>'}</div>
     <div class="meeting-document-actions">
-      <div><strong>Документы заседания</strong><span>Протокол содержит всю повестку. Выписка — только отмеченные вопросы с исходными номерами.</span></div>
+      <div><strong>Документы заседания</strong><span>Протокол содержит все ${agenda.length} вопросов. Решения заполнены: ${decidedCount} из ${agenda.length}. Выписка — отмеченные вопросы. После правок сформируйте новый файл; прежние останутся в истории.</span></div>
       <div><button type="button" class="secondary-button" data-generate-protocol ${agenda.length ? '' : 'disabled'}>Сформировать протокол</button><button type="button" class="primary-button" data-generate-extract ${selectedCount ? '' : 'disabled'}>Выписка · ${selectedCount}</button></div>
     </div>
     <div class="meeting-documents">${(meeting.documents || []).length ? meeting.documents.map(documentHtml).join('') : '<span class="meeting-documents-empty">Сформированных документов пока нет.</span>'}</div>

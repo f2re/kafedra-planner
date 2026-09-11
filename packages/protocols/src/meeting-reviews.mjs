@@ -33,6 +33,10 @@ function meetingReviewContext(database, workspaceId, meetingId) {
 
 function relatedToMeeting(row, context, meetingId) {
   const data = parseJson(row.context_json, {});
+  const agendaRefs = [data.agendaId, data.existingAgendaId].filter(Boolean);
+  if (agendaRefs.length || data.decisionId) {
+    return agendaRefs.some((id) => context.agendaIds.has(id)) || context.decisionIds.has(data.decisionId);
+  }
   if (context.sourceIds.has(row.source_id)) return true;
   if (data.meetingId === meetingId) return true;
   if (Array.isArray(data.candidates) && data.candidates.includes(meetingId)) return true;

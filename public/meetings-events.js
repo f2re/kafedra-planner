@@ -1,3 +1,4 @@
+import { openAgendaTransferModal } from './meetings-transfer.js';
 import { meetingsState, $m, ensureMeetingsUi, closeMeetingModal, showMeetingNotice } from './meetings-state.js';
 import { activateMeetingsView } from './meetings-view.js';
 import { openAgendaModal, openCreateMeetingModal, openEditMeetingModal, openSettingsModal, openSourceModal, renderSources } from './meetings-modals-flow.js';
@@ -35,6 +36,11 @@ document.addEventListener('click', (event) => {
     const item = meetingsState.meeting?.agenda?.find((candidate) => candidate.id === id);
     if (item) openAgendaModal(item);
     return;
+  }
+  const transfer = event.target.closest('[data-agenda-transfer]');
+  if (transfer) {
+    const id = transfer.closest('[data-agenda-item]')?.dataset.agendaItem;
+    return openAgendaTransferModal(meetingsState.meeting?.agenda?.find((item) => item.id === id));
   }
   const move = event.target.closest('[data-agenda-move]');
   if (move) return moveAgenda(move).catch((error) => showMeetingNotice(error.message));

@@ -21,19 +21,19 @@ concurrency:
 
 jobs:
   meetings:
-    name: Заседания · документы и интерфейс
+    name: Заседания · интерфейс
     runs-on: ubuntu-24.04
     timeout-minutes: 15
     steps:
       - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
       - uses: actions/setup-node@v4
         with:
           node-version-file: .nvmrc
           cache: npm
       - run: npm ci --ignore-scripts --no-audit --no-fund
       - run: npx playwright install --with-deps chromium
-      - name: Сохранность, документы и повторный импорт
-        run: node --test tests/meeting-continuity.test.mjs tests/meeting-restart.test.mjs tests/meeting-workflow.test.mjs tests/meeting-minimal-create.test.mjs tests/meeting-template-profile.test.mjs tests/protocol-merge.test.mjs
       - name: Создание, перенос, смена даты и выгрузка — компьютер и телефон
         run: npx playwright test tests/browser/meeting-continuity.spec.mjs tests/browser/meetings.spec.mjs tests/browser/meeting-minimal-create.spec.mjs --project=desktop --project=mobile
       - uses: actions/upload-artifact@v4

@@ -1,4 +1,4 @@
-import { meetingsState, $m, meetingApi, closeMeetingModal, showMeetingNotice } from './meetings-state.js';
+import { meetingsState, $m, meetingApi, closeMeetingModal, showMeetingNotice, selectMeetingYear } from './meetings-state.js';
 import { loadMeeting, loadMeetings } from './meetings-data.js';
 import { renderMeetingDetail, renderSettingsSummary } from './meetings-render.js';
 import { invalidatePlanMeetingLink } from './meetings-plan-links.js';
@@ -65,6 +65,7 @@ export async function createMeetingFromForm(form) {
   });
   closeMeetingModal();
   meetingsState.selectedForExtract.clear();
+  selectMeetingYear(created.meeting_date);
   await loadMeetings(created.id);
   announceMeetingUpdated(created.id);
   showMeetingNotice('Заседание создано. Добавьте вопросы повестки.');
@@ -77,6 +78,10 @@ export async function editMeetingFromForm(form) {
   });
   closeMeetingModal();
   meetingsState.meeting = updated;
+  selectMeetingYear(updated.meeting_date);
+  for (const item of updated.agenda || []) {
+    if (item.source_kind === 'plan_item') invalidatePlanMeetingLink(item.source_id);
+  }
   await loadMeetings(updated.id);
   announceMeetingUpdated(updated.id);
   showMeetingNotice('Реквизиты сохранены, устранённые сомнения закрыты.');
