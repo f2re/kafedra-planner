@@ -35,12 +35,24 @@ jobs:
       - run: npm ci --ignore-scripts --no-audit --no-fund
       - run: npx playwright install --with-deps chromium
       - name: Создание, перенос, смена даты и выгрузка — компьютер и телефон
-        run: npx playwright test tests/browser/meeting-continuity.spec.mjs tests/browser/meetings.spec.mjs tests/browser/meeting-minimal-create.spec.mjs --project=desktop --project=mobile
+        run: |
+          status=0
+          # Each layout gets a fresh server and SQLite database; the settings
+          # scenario must not preconfigure the next layout's first-run scenario.
+          for project in desktop mobile; do
+            npx playwright test tests/browser/meeting-continuity.spec.mjs tests/browser/meetings.spec.mjs tests/browser/meeting-minimal-create.spec.mjs \
+              --project="$project" --output="test-results/$project" || status=$?
+            if [[ -d playwright-report ]]; then
+              mv playwright-report "playwright-report-$project"
+            fi
+          done
+          exit "$status"
       - uses: actions/upload-artifact@v4
         if: always()
         with:
           name: meeting-workflow-evidence
           path: |
-            playwright-report/
+            playwright-report-desktop/
+            playwright-report-mobile/
             test-results/
           retention-days: 14
