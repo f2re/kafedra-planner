@@ -196,7 +196,8 @@ export function updateAgendaItem(database, workspaceId, meetingId, itemId, input
   const existingDecision = firstDecision(database, itemId);
   const requestedDecision = Object.prototype.hasOwnProperty.call(input || {}, 'decisionText')
     ? clean(input.decisionText) : current.decision_text;
-  const decisionText = requestedDecision || existingDecision?.text || null;
+  const decisionText = Object.prototype.hasOwnProperty.call(input || {}, 'decisionText')
+    ? requestedDecision : requestedDecision || existingDecision?.text || null;
   const responsibleRaw = Object.prototype.hasOwnProperty.call(input || {}, 'responsibleRaw')
     ? clean(input.responsibleRaw) : existingDecision?.responsible_raw || null;
   const dueDate = Object.prototype.hasOwnProperty.call(input || {}, 'dueDate')
@@ -224,7 +225,7 @@ export function updateAgendaItem(database, workspaceId, meetingId, itemId, input
       WHERE id = ?
     `, title, heard, discussed, decisionText, JSON.stringify(agendaEvidence), now, itemId);
 
-    if (decisionText) {
+    if (decisionText || existingDecision) {
       if (existingDecision) {
         const decisionEvidence = appendManualCorrection(existingDecision.evidence_json, {
           at: now,
@@ -239,9 +240,9 @@ export function updateAgendaItem(database, workspaceId, meetingId, itemId, input
         });
         database.run(`
           UPDATE decisions
-          SET text = ?, responsible_raw = ?, due_date = ?, status = 'confirmed', evidence_json = ?
+          SET text = ?, responsible_raw = ?, due_date = ?, status = ?, evidence_json = ?
           WHERE id = ?
-        `, decisionText, responsibleRaw, dueDate, JSON.stringify(decisionEvidence), existingDecision.id);
+        `, decisionText || '', responsibleRaw, dueDate, decisionText ? 'confirmed' : 'proposed', JSON.stringify(decisionEvidence), existingDecision.id);
       } else {
         const created = createManualDecision(database, workspaceId, itemId, title, {
           decisionText, responsibleRaw, dueDate
