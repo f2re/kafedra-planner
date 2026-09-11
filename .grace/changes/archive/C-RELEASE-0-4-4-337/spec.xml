@@ -1,4 +1,4 @@
-<GraceChangeSpec graceVersion="4.0" status="approved">
+<GraceChangeSpec graceVersion="4.0" status="applied">
   <C-RELEASE-0-4-4-337>
     <Summary>Publish Kafedra Planner 0.4.4 from the exact current main, carrying only already merged R1-R9 product changes while proving that the existing simplified full-offline installer, OCR runtime and build-once release path remain deployable.</Summary>
     <Problem>The product changes after v0.4.3 are already merged, but they need a new immutable release. Before publication the current installer and bundle contract must be proven rather than modified speculatively: an ordinary user-owned source directory must work, missing OCR/PDF/Office capabilities must come from the full bundle, OCR rus+eng must pass a real self-test before activation, and the same archive must pass install, update and rollback.</Problem>

@@ -1,4 +1,4 @@
-<GraceChangePlan graceVersion="4.0" status="approved">
+<GraceChangePlan graceVersion="4.0" status="applied">
   <C-RELEASE-0-4-4-337>
     <IntentSummary>Version and publish the already merged R1-R9 work as 0.4.4; if the exact-main Release gate exposes a real regression, repair only that release blocker before publication while keeping installer, bundle and universal release architecture unchanged.</IntentSummary>
     <BaselineAssertions>

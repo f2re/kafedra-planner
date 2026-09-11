@@ -1,0 +1,51 @@
+<GraceChangePlan graceVersion="4.0" status="approved">
+  <C-MEETING-CONTINUITY-347>
+    <IntentSummary>Restore the complete meeting feature on top of exact main, preserve persistence contracts, then audit and merge one coherent change.</IntentSummary>
+    <BaselineAssertions>
+      <MustExist><Value>packages/protocols/src/persist.mjs</Value></MustExist>
+      <MustExist><Value>packages/protocols/src/meeting-core.mjs</Value></MustExist>
+      <MustExist><Value>apps/api/src/meetings-router.mjs</Value></MustExist>
+      <MustExist><Value>public/meetings-state.js</Value></MustExist>
+    </BaselineAssertions>
+    <TargetAssertions>
+      <MustExist><Value>packages/protocols/src/meeting-transfer.mjs</Value></MustExist>
+      <MustExist><Value>packages/protocols/src/meeting-transfer-origin.mjs</Value></MustExist>
+      <MustContain><File>apps/api/src/meetings-router.mjs</File><Text>agendaTransferMatch</Text></MustContain>
+      <MustContain><File>packages/protocols/src/persist.mjs</File><Text>hasRelocatedAgendaSource</Text></MustContain>
+      <MustContain><File>packages/protocols/src/meeting-transfer.mjs</File><Text>database.transaction</Text></MustContain>
+      <MustContain><File>packages/protocols/src/meeting-docx.mjs</File><Text>decisionContent</Text></MustContain>
+      <MustContain><File>public/meetings-events.js</File><Text>data-agenda-transfer</Text></MustContain>
+      <MustContain><File>public/meetings-state.js</File><Text>selectMeetingYear</Text></MustContain>
+      <MustExist><Value>tests/meeting-continuity.test.mjs</Value></MustExist>
+      <MustExist><Value>tests/meeting-restart.test.mjs</Value></MustExist>
+      <MustExist><Value>tests/browser/meeting-continuity.spec.mjs</Value></MustExist>
+      <MustExist><Value>.github/workflows/meetings.yml</Value></MustExist>
+      <MustVerify><Module>M-API</Module></MustVerify>
+      <MustVerify><Module>M-WORKER</Module></MustVerify>
+      <MustVerify><Module>M-CI-GATE</Module></MustVerify>
+    </TargetAssertions>
+    <DurableScope>
+      <GraphAnchors><M-API /><M-WORKER /><M-CI-GATE /></GraphAnchors>
+      <VerificationAnchors><V-M-API /><V-M-WORKER /><V-M-CI-GATE /></VerificationAnchors>
+      <ContextArtifacts><ContextArtifact>principles.xml</ContextArtifact><ContextArtifact>technology.xml</ContextArtifact></ContextArtifacts>
+    </DurableScope>
+    <ObservedWriteScope>
+      <Glob>.grace/changes/active/C-MEETING-CONTINUITY-347/**</Glob>
+      <Glob>.grace/changes/archive/C-RELEASE-0-4-4-337/**</Glob>
+      <Glob>packages/protocols/src/**</Glob>
+      <File>apps/api/src/meetings-router.mjs</File>
+      <Glob>public/meetings-*.js</Glob>
+      <File>public/meetings-next.css</File>
+      <File>.github/workflows/meetings.yml</File>
+      <Glob>tests/meeting*.test.mjs</Glob>
+      <Glob>tests/browser/meeting*.spec.mjs</Glob>
+      <File>docs/MEETING_CONTINUITY.md</File>
+    </ObservedWriteScope>
+    <ImplementationPlan>
+      <T-001><Title>kafedra-feature: complete transfer and date/year navigation</Title><DependsOn></DependsOn><AcceptanceCriteria><Criterion>API, UI, storage transaction, review ownership and source links implement one coherent transfer; no source evidence is overwritten.</Criterion></AcceptanceCriteria><Verification><Command>npm run check</Command></Verification></T-001>
+      <T-002><Title>kafedra-tests: prove persistence, rollback, import and document history</Title><DependsOn><T-001 /></DependsOn><AcceptanceCriteria><Criterion>Targeted continuity and restart suites pass, including lost-response retry, cross-workspace rejection, forced failure rollback, repeat import and all-resolution DOCX.</Criterion></AcceptanceCriteria><Verification><Command>node --test tests/meeting-continuity.test.mjs tests/meeting-restart.test.mjs</Command></Verification></T-002>
+      <T-003><Title>kafedra-tests: desktop/mobile integration audit</Title><DependsOn><T-001 /></DependsOn><AcceptanceCriteria><Criterion>Normal clicks exercise creation, transfer, error recovery, date change, reload and export on both layouts. No forced click, skipped check or timeout increase is introduced.</Criterion></AcceptanceCriteria><Verification><Command>GitHub Actions meetings.yml: isolated desktop and mobile browser regression</Command></Verification></T-003>
+      <T-004><Title>kafedra-release: exact-head integration and squash merge</Title><DependsOn><T-002 /><T-003 /></DependsOn><AcceptanceCriteria><Criterion>One ordinary CI and browser-only targeted workflow pass with GRACE final scope/lint; current main, review comments and expected head are checked before merge.</Criterion></AcceptanceCriteria><Verification><Command>GitHub API: exact-head checks, review threads, expected-head squash merge and post-merge smoke</Command></Verification></T-004>
+    </ImplementationPlan>
+  </C-MEETING-CONTINUITY-347>
+</GraceChangePlan>

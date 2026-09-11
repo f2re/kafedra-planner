@@ -1,3 +1,4 @@
+import { hasRelocatedAgendaSource } from './meeting-transfer-origin.mjs';
 import { newId } from '../../core/src/ids.mjs';
 import { addSearchFragment } from '../../storage/src/search.mjs';
 
@@ -298,6 +299,7 @@ function mergeAgenda(database, {
   now
 }) {
   for (const item of items) {
+    if (hasRelocatedAgendaSource(database, workspaceId, meetingId, documentVersionId, item)) continue;
     const rows = database.all(`
       SELECT * FROM agenda_items WHERE meeting_id = ? ORDER BY item_no, created_at
     `, meetingId);

@@ -170,8 +170,9 @@ export function listMeetings(database, workspaceId, options = 200) {
       )`;
     params.push(from, to, `protocol-year:${year}:%`);
   }
-  params.push(safeLimit);
-  return database.all(`
+  const query = clean(input.query)?.toLocaleLowerCase('ru-RU') || '';
+  if (!query) params.push(safeLimit);
+  const rows = database.all(`
     SELECT m.*,
       (SELECT COUNT(*) FROM agenda_items ai WHERE ai.meeting_id = m.id) AS agenda_count,
       (SELECT COUNT(*) FROM meeting_documents md WHERE md.meeting_id = m.id) AS document_count,
@@ -182,8 +183,10 @@ export function listMeetings(database, workspaceId, options = 200) {
     FROM meetings m
     WHERE m.workspace_id = ?${periodWhere}
     ORDER BY COALESCE(m.meeting_date, '') DESC, m.created_at DESC
-    LIMIT ?
+    ${query ? '' : 'LIMIT ?'}
   `, ...params);
+  return query ? rows.filter((row) => [row.protocol_number, row.meeting_date, row.title]
+    .join(' ').toLocaleLowerCase('ru-RU').includes(query)).slice(0, safeLimit) : rows;
 }
 
 function meetingDocuments(database, meetingId) {

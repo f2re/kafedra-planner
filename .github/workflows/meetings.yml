@@ -1,0 +1,58 @@
+name: Заседания
+
+on:
+  pull_request:
+    paths:
+      - 'packages/protocols/**'
+      - 'apps/api/src/meetings-router.mjs'
+      - 'public/meeting*.js'
+      - 'public/meeting*.css'
+      - 'tests/meeting*.test.mjs'
+      - 'tests/browser/meeting*.spec.mjs'
+      - '.github/workflows/meetings.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: meetings-${{ github.event.pull_request.number || github.ref_name }}
+  cancel-in-progress: true
+
+jobs:
+  meetings:
+    name: Заседания · интерфейс
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+      - run: npm ci --ignore-scripts --no-audit --no-fund
+      - run: npx playwright install --with-deps chromium
+      - name: Создание, перенос, смена даты и выгрузка — компьютер и телефон
+        run: |
+          status=0
+          # Each layout gets a fresh server and SQLite database; the settings
+          # scenario must not preconfigure the next layout's first-run scenario.
+          for project in desktop mobile; do
+            npx playwright test tests/browser/meeting-continuity.spec.mjs tests/browser/meetings.spec.mjs tests/browser/meeting-minimal-create.spec.mjs \
+              --project="$project" --output="test-results/$project" || status=$?
+            if [[ -d playwright-report ]]; then
+              mv playwright-report "playwright-report-$project"
+            fi
+          done
+          exit "$status"
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: meeting-workflow-evidence
+          path: |
+            playwright-report-desktop/
+            playwright-report-mobile/
+            test-results/
+          retention-days: 14

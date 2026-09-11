@@ -22,6 +22,16 @@ export const meetingsState = {
   localProtocolUploads: []
 };
 
+export function selectMeetingYear(date) {
+  const year = Number(String(date || '').slice(0, 4));
+  if (!Number.isInteger(year) || year < 2000 || year > 2100) return;
+  if (meetingsState.selectedYear !== year) meetingsState.localProtocolUploads = [];
+  meetingsState.selectedYear = year;
+  const input = document.querySelector('#meeting-year-filter');
+  if (input) input.value = String(year);
+  try { window.localStorage.setItem('kafedra-meetings-year', String(year)); } catch {}
+}
+
 export const $m = (selector, root = document) => root.querySelector(selector);
 export const $$m = (selector, root = document) => [...root.querySelectorAll(selector)];
 
@@ -148,6 +158,7 @@ export function openMeetingModal(html) {
   previous.replaceWith(modal);
   modal.innerHTML = html;
   modal.className = 'meeting-modal';
+  modal.removeAttribute('aria-labelledby');
   modal.classList.remove('hidden');
   $m('#meeting-modal-backdrop')?.classList.remove('hidden');
   document.body.classList.add('meeting-modal-open');

@@ -125,3 +125,7 @@ body.meeting-modal-open { overflow:hidden; }
   .meeting-modal-head { background:rgba(28,28,30,.92); }
   .agenda-item { background:rgba(44,44,46,.55); }
 }
+
+.agenda-actions .agenda-transfer { grid-column:1 / -1; min-height:34px; padding:6px 9px; }
+#meeting-transfer-form .field, #meeting-transfer-form select { min-width:0; max-width:100%; }
+@media (max-width:720px) { .agenda-actions .agenda-transfer { grid-column:1 / 3; } }
