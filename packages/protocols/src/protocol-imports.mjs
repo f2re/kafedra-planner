@@ -76,6 +76,7 @@ export function listProtocolImports(database, workspaceId, yearValue, limit = 50
   const safeOffset = Math.max(0, Number.isSafeInteger(Number(offset)) ? Number(offset) : 0);
   const rows = database.all(`
     SELECT d.id AS document_id, d.title, d.document_type, d.status AS document_status,
+      d.lifecycle_status, d.archived_at, d.archive_reason,
       dv.id AS version_id, dv.original_name, dv.processing_status,
       dv.extraction_error, dv.upload_key, dv.uploaded_at,
       dv.preview_status, dv.preview_error,
@@ -100,6 +101,7 @@ export function listProtocolImports(database, workspaceId, yearValue, limit = 50
       meeting_id: meeting?.id || null,
       protocol_number: meeting ? meeting.protocol_number : extraction?.result?.protocol?.protocolNumber || null,
       meeting_date: meeting ? meeting.meeting_date : extraction?.result?.protocol?.meetingDate || null,
+      meeting_date_raw: extraction?.result?.protocol?.meetingDateRaw || null,
       agenda_count: meeting ? Number(database.get('SELECT COUNT(*) AS n FROM agenda_items WHERE meeting_id=?', meeting.id)?.n || 0) : 0,
       review_count: reviews.length,
       reviews,

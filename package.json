@@ -1,6 +1,6 @@
 {
   "name": "kafedra-planner",
-  "version": "0.4.4",
+  "version": "0.4.5",
   "private": true,
   "license": "MIT",
   "description": "Автономная платформа календаря, документов, решений, сроков и деятельности кафедры.",

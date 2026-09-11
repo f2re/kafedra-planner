@@ -10,6 +10,10 @@ import { loadMeeting, loadMeetings } from './meetings-data.js';
 import { protocolUploadCounts, uploadCountsText, uploadStateDescription } from './upload-feedback.js';
 import { enhanceProtocolBatch } from './protocol-batch.js';
 import { protocolUploadIdentity } from './protocol-upload-identity.js';
+import {
+  archivedUploadNotice, protocolImportIsArchived, protocolImportView,
+  renderProtocolImportLifecycle, resetProtocolImportView, selectProtocolImportItems
+} from './protocol-import-lifecycle.js';
 
 let pollTimer = null;
 let loadToken = 0;
@@ -53,7 +57,7 @@ function itemActions(item) {
   if (item.meeting_id) {
     actions.push(`<button class="link-button" type="button" data-open-import-meeting="${escMeeting(item.meeting_id)}">${item.state === 'needs_review' ? 'Исправить' : 'Открыть'}</button>`);
   }
-  if (item.document_id && ['failed', 'needs_review'].includes(item.state)) {
+  if (item.document_id && !protocolImportIsArchived(item) && ['failed', 'needs_review'].includes(item.state)) {
     actions.push(`<button class="link-button" type="button" data-reprocess-document="${escMeeting(item.document_id)}">Повторить распознавание</button>`);
   }
   if (!item.document_id && item.state === 'failed' && item.file) {
@@ -68,27 +72,35 @@ function itemActions(item) {
 export function renderProtocolImports() {
   const root = $m('#protocol-import-summary');
   if (!root) return;
-  const items = mergeItems();
+  const allItems = mergeItems();
+  const items = selectProtocolImportItems(allItems, meetingsState.selectedYear);
+  const archiveView = protocolImportView() === 'archived';
+  const callbacks = {
+    render: renderProtocolImports,
+    refresh: async () => { await Promise.all([loadProtocolImports(), loadMeetings()]); },
+    dismissLocal: (id) => { meetingsState.localProtocolUploads = meetingsState.localProtocolUploads.filter((item) => item.id !== id); }
+  };
   const summary = summaryFor(items);
   if (!items.length) {
     root.innerHTML = `
       <div class="protocol-import-empty">
-        <strong>Протоколы за ${escMeeting(meetingsState.selectedYear)} год ещё не загружены</strong>
-        <span>Можно выбрать сразу все DOCX, ODT, PDF и TXT. Ошибка одного файла не остановит остальные.</span>
+        <strong>${archiveView ? `Архив за ${escMeeting(meetingsState.selectedYear)} год пуст` : `Протоколы за ${escMeeting(meetingsState.selectedYear)} год: нет активных загрузок`}</strong>
+        <span>${archiveView ? 'Убранные файлы сохраняются здесь и могут быть восстановлены.' : 'Можно выбрать сразу все DOCX, ODT, PDF и TXT. Ошибка одного файла не остановит остальные.'}</span>
       </div>`;
+    renderProtocolImportLifecycle(root, allItems, items, callbacks);
     return;
   }
   const processing = summary.processing + summary.uploading;
   const batchState = uploadCountsText(protocolUploadCounts(summary));
   root.innerHTML = `
     <div class="protocol-import-head">
-      <div><strong>Импорт за ${escMeeting(meetingsState.selectedYear)} год</strong><span>${summary.total} файлов · ${escMeeting(batchState)}</span></div>
-      <div class="protocol-import-counters" aria-label="Состояние импорта">
+      <div><strong>${archiveView ? 'Архив протоколов' : 'Импорт'} за ${escMeeting(meetingsState.selectedYear)} год</strong><span>${summary.total} файлов${archiveView ? '' : ` · ${escMeeting(batchState)}`}</span></div>
+      ${archiveView ? '' : `<div class="protocol-import-counters" aria-label="Состояние импорта">
         <span class="protocol-counter ready">${summary.ready} готово</span>
         <span class="protocol-counter review">${summary.needs_review} проверить</span>
         ${summary.failed ? `<span class="protocol-counter failed">${summary.failed} ошибок</span>` : ''}
         ${processing ? `<span class="protocol-counter processing">${processing} в работе</span>` : ''}
-      </div>
+      </div>`}
     </div>
     <div class="protocol-import-list">
       ${items.map((item) => `
@@ -96,13 +108,14 @@ export function renderProtocolImports() {
           <span class="protocol-import-state">${escMeeting(stateLabels[item.state] || stateLabels.processing)}</span>
           <div class="protocol-import-main">
             <strong>${escMeeting(item.original_name || item.title || 'Протокол')}</strong>
-            <span>${escMeeting(item.protocol_number ? `Протокол №${item.protocol_number}` : 'Номер не определён')} · ${escMeeting(meetingDate(item.meeting_date))}</span>
+            <span>${escMeeting(item.protocol_number ? `Протокол №${item.protocol_number}` : 'Номер не определён')} · ${escMeeting(item.meeting_date ? meetingDate(item.meeting_date) : item.meeting_date_raw || 'Дата не указана')}</span>
             <small>${escMeeting(reviewText(item))}</small>
           </div>
           <div class="protocol-import-actions">${itemActions(item)}</div>
         </article>`).join('')}
     </div>`;
-  enhanceProtocolBatch(items, {render:renderProtocolImports, refresh:async () => {await Promise.all([loadProtocolImports(),loadMeetings()]);}});
+  if (!archiveView) enhanceProtocolBatch(items, callbacks);
+  renderProtocolImportLifecycle(root, allItems, items, callbacks);
 }
 
 function schedulePoll() {
@@ -155,6 +168,7 @@ async function uploadProtocol(local, workspaceId) {
     local.version_id = data.versionId;
     local.state = ['processed', 'needs_review', 'failed'].includes(data.status)
       ? (data.status === 'processed' ? 'ready' : data.status) : 'processing';
+    if ((meetingsState.protocolImports.items || []).some((item) => item.document_id === data.documentId && protocolImportIsArchived(item))) archivedUploadNotice();
   } catch (error) {
     local.state = 'failed';
     local.extraction_error = error.message;
@@ -166,6 +180,7 @@ async function uploadSelectedProtocols(input) {
   const files = [...(input.files || [])];
   input.value = '';
   if (!files.length) return;
+  resetProtocolImportView();
   const year = Number(meetingsState.selectedYear);
   const rows=files.map((file,index)=>({id:`upload-${Date.now()}-${index}-${Math.random().toString(16).slice(2)}`,file,year,original_name:file.name,state:'uploading',agenda_count:0,review_count:0}));
   meetingsState.localProtocolUploads.push(...rows);renderProtocolImports();

@@ -9,13 +9,13 @@
 
 Kafedra Planner is an offline-first daily work system for an academic department: calendar, annual plans, assignments, documents, meetings, reporting, research activity, grade sheets, and auditable evidence.
 
-> Current milestone: **`0.4.4`**, SQLite schema **31**. Core workflows do not require Internet access, Docker, an LLM, Docomator, or cloud services. The project remains a release candidate until the real Astra Linux/Debian installation, upgrade, restoration, and rollback acceptance in [TARGET_ACCEPTANCE.md](docs/TARGET_ACCEPTANCE.md) and issue #27 is complete.
+> Current milestone: **`0.4.5`**, SQLite schema **31**. Core workflows do not require Internet access, Docker, an LLM, Docomator, or cloud services. The project remains a release candidate until the real Astra Linux/Debian installation, upgrade, restoration, and rollback acceptance in [TARGET_ACCEPTANCE.md](docs/TARGET_ACCEPTANCE.md) and issue #27 is complete.
 
-Patch release `0.4.4` reduces routine work after `0.4.3`: OCR keeps absolute page provenance and can reprocess the same immutable source, upload feedback reflects real partial success, meetings and calendar-to-plan flows need fewer preliminary fields, periodic tasks complete directly, search opens the exact working object, and adaptive defaults remain user-controlled. Development and release governance is also leaner without weakening the offline install/update/rollback contract.
+Patch release `0.4.5` extends meetings and protocol imports after `0.4.4`: tolerant structural recognition, bulk metadata correction, versioned recognition formats and safe reprocessing. Dates come from each uploaded document, never from the sample. Failed uploads can be dismissed or reversibly archived without losing original sources and history. Agenda transfers retain plan links; generated DOCX files include all decisions. Operator acceptance of real documents follows installation of the published release.
 
 **[Download an offline bundle](https://github.com/f2re/kafedra-planner/releases)** · **[Install guide](docs/GITHUB_RELEASES.md)** · **[Security policy](SECURITY.md)** · **[Russian documentation](README.md#эксплуатация-и-документация)**
 
-Published releases are immutable. `v0.4.1`–`v0.4.3` remain historical bundles; the R1–R9 automation and simplification cycle is delivered in `v0.4.4`.
+Published releases are immutable. `v0.4.1`–`v0.4.4` remain historical bundles; the R1–R9 automation and simplification cycle is delivered in `v0.4.4`, and protocol import improvements in `v0.4.5`.
 
 ## Operating model
 
@@ -29,7 +29,7 @@ Open **Meetings**, select a calendar year and choose multiple DOCX, ODT, PDF, or
 
 The annual summary is reconstructed from durable document, extraction, meeting, and review state after reload. A questionable protocol number, date, agenda item, decision, responsible person, or due date opens the exact meeting and original source for correction. Manual changes update working meeting/decision/calendar/search projections but keep the machine result, source locator, blob, and SHA-256 intact.
 
-See [MEETINGS.md](docs/MEETINGS.md).
+See [MEETINGS.md](docs/MEETINGS.md) and [PROTOCOL_IMPORT.md](docs/PROTOCOL_IMPORT.md).
 
 ## Docomator employee import
 
