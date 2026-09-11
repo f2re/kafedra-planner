@@ -67,6 +67,22 @@ function agendaLines(item) {
   return lines;
 }
 
+function decisionContent(item) {
+  const primary = clean(item.decision_text);
+  const decisions = Array.isArray(item.decisions) ? item.decisions : item.decision ? [item.decision] : [];
+  if (!decisions.length) return primary;
+  const blocks = [];
+  if (primary && !decisions.some((decision) => clean(decision.text) === primary)) blocks.push(primary);
+  for (const decision of decisions) {
+    blocks.push([
+      clean(decision.text) || 'Решение не заполнено.',
+      clean(decision.responsible_raw) ? `Ответственный: ${clean(decision.responsible_raw)}` : '',
+      clean(decision.due_date) ? `Срок: ${russianDate(decision.due_date)}` : ''
+    ].filter(Boolean).join('\n'));
+  }
+  return blocks.filter(Boolean).join('\n');
+}
+
 export function meetingDocumentModel({ meeting, items, kind }) {
   const documentKind = kind === 'extract' ? 'ВЫПИСКА ИЗ ПРОТОКОЛА' : 'ПРОТОКОЛ';
   return {
@@ -83,7 +99,7 @@ export function meetingDocumentModel({ meeting, items, kind }) {
       title: clean(item.title),
       heard_text: clean(item.heard_text),
       discussed_text: clean(item.discussed_text),
-      decision_text: clean(item.decision_text)
+      decision_text: decisionContent(item)
     }))
   };
 }
