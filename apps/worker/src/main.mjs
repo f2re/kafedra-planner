@@ -9,6 +9,7 @@ import {
   processNotificationDeliveryJob
 } from '../../../packages/notifications/src/service.mjs';
 import { dispatchJob } from './processor.mjs';
+import { applyProtocolRecognitionForJob } from './protocol-recognition-job.mjs';
 import {
   applyProtocolProfileForJob,
   shouldApplyProtocolProfileForJob
@@ -58,6 +59,7 @@ while (!stopping) {
       const applyProtocolProfile = shouldApplyProtocolProfileForJob(database, job);
       await dispatchJob(database, job, jobLogger, config);
       if (applyProtocolProfile) await applyProtocolProfileForJob(database, job, jobLogger);
+      applyProtocolRecognitionForJob(database, job, jobLogger);
     }
     completeJob(database, job.id);
     jobLogger.info('job completed');

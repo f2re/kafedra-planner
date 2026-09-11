@@ -1,4 +1,4 @@
-<GraceChangePlan graceVersion="4.0" status="approved">
+<GraceChangePlan graceVersion="4.0" status="applied">
   <C-MEETING-CONTINUITY-347>
     <IntentSummary>Restore the complete meeting feature on top of exact main, preserve persistence contracts, then audit and merge one coherent change.</IntentSummary>
     <BaselineAssertions>

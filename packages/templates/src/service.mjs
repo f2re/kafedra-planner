@@ -95,7 +95,7 @@ export function listTemplates(database, workspaceId) {
     FROM document_templates t
     LEFT JOIN document_versions dv ON dv.id = t.source_document_version_id
     LEFT JOIN documents d ON d.id = dv.document_id
-    WHERE t.workspace_id = ?
+    WHERE t.workspace_id = ? AND t.document_type <> 'protocol_recognition'
     ORDER BY t.status = 'active' DESC, t.updated_at DESC
   `, workspaceId).map((row) => ({
     ...row,
@@ -201,7 +201,7 @@ export function applyMatchingTemplates(database, {
 }) {
   const templates = database.all(`
     SELECT * FROM document_templates
-    WHERE workspace_id = ? AND status = 'active'
+    WHERE workspace_id = ? AND status = 'active' AND document_type <> 'protocol_recognition'
     ORDER BY version DESC, updated_at DESC
   `, workspaceId);
   const applied = [];

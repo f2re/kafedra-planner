@@ -1,4 +1,4 @@
-<GraceChangeSpec graceVersion="4.0" status="approved">
+<GraceChangeSpec graceVersion="4.0" status="applied">
   <C-MEETING-CONTINUITY-347>
     <Summary>Complete issue 347: durable transfer and editing of department meetings, complete template exports and targeted desktop/mobile acceptance.</Summary>
     <Problem>The published branch is incomplete: transfer UI and API wiring are missing, and an accidental rewrite of protocol persistence must be replaced with the exact main implementation plus the narrowly scoped transfer guard.</Problem>

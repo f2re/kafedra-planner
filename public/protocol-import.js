@@ -8,6 +8,8 @@ import {
 } from './meetings-state.js';
 import { loadMeeting, loadMeetings } from './meetings-data.js';
 import { protocolUploadCounts, uploadCountsText, uploadStateDescription } from './upload-feedback.js';
+import { enhanceProtocolBatch } from './protocol-batch.js';
+import { protocolUploadIdentity } from './protocol-upload-identity.js';
 
 let pollTimer = null;
 let loadToken = 0;
@@ -20,25 +22,11 @@ const stateLabels = {
   uploading: 'Загружается'
 };
 
-async function uploadIdentity(file, year) {
-  if (window.crypto?.subtle) {
-    const digest = await window.crypto.subtle.digest('SHA-256', await file.arrayBuffer());
-    const hex = [...new Uint8Array(digest)].map((value) => value.toString(16).padStart(2, '0')).join('');
-    return `protocol-year:${year}:${hex}`;
-  }
-  const source = `${year}\u0000${file.name}\u0000${file.size}\u0000${file.lastModified}`;
-  let hash = 0x811c9dc5;
-  for (let index = 0; index < source.length; index += 1) {
-    hash ^= source.charCodeAt(index);
-    hash = Math.imul(hash, 0x01000193) >>> 0;
-  }
-  return `protocol-year:${year}:${hash.toString(16).padStart(8, '0')}`;
-}
-
 function mergeItems() {
   const server = meetingsState.protocolImports.items || [];
   const serverDocuments = new Set(server.map((item) => item.document_id).filter(Boolean));
-  const local = meetingsState.localProtocolUploads.filter((item) => !item.document_id || !serverDocuments.has(item.document_id));
+  const local = meetingsState.localProtocolUploads.filter((item) => (!item.year || item.year === meetingsState.selectedYear)
+    && (!item.document_id || !serverDocuments.has(item.document_id)));
   return [...local, ...server];
 }
 
@@ -67,6 +55,9 @@ function itemActions(item) {
   }
   if (item.document_id && ['failed', 'needs_review'].includes(item.state)) {
     actions.push(`<button class="link-button" type="button" data-reprocess-document="${escMeeting(item.document_id)}">Повторить распознавание</button>`);
+  }
+  if (!item.document_id && item.state === 'failed' && item.file) {
+    actions.push(`<button class="link-button" type="button" data-retry-protocol-upload="${escMeeting(item.id)}">Повторить загрузку</button>`);
   }
   if (item.original_url) {
     actions.push(`<a class="link-button" href="${escMeeting(item.original_url)}" target="_blank" rel="noopener">Исходник</a>`);
@@ -111,52 +102,52 @@ export function renderProtocolImports() {
           <div class="protocol-import-actions">${itemActions(item)}</div>
         </article>`).join('')}
     </div>`;
+  enhanceProtocolBatch(items, {render:renderProtocolImports, refresh:async () => {await Promise.all([loadProtocolImports(),loadMeetings()]);}});
 }
 
 function schedulePoll() {
   clearTimeout(pollTimer);
   const active = (meetingsState.protocolImports.items || []).some((item) => item.state === 'processing')
-    || meetingsState.localProtocolUploads.some((item) => ['uploading', 'processing'].includes(item.state));
+    || meetingsState.localProtocolUploads.some((item) => item.year === meetingsState.selectedYear && ['uploading', 'processing'].includes(item.state));
   if (!active || !meetingsState.active) return;
   pollTimer = setTimeout(() => {
-    loadProtocolImports().catch((error) => showMeetingNotice(error.message));
+    loadProtocolImports().catch((error) => {showMeetingNotice(error.message);schedulePoll();});
   }, 1200);
 }
 
 export async function loadProtocolImports() {
   const token = ++loadToken;
   const year = meetingsState.selectedYear;
-  const data = await meetingApi(`/api/protocol-imports?year=${encodeURIComponent(year)}&limit=1000`);
-  if (token !== loadToken || year !== meetingsState.selectedYear) return;
+  const items = new Map();let offset=0;let data;
+  do {
+    data = await meetingApi(`/api/protocol-imports?year=${encodeURIComponent(year)}&limit=1000&offset=${offset}`);
+    if (token !== loadToken || year !== meetingsState.selectedYear) return;
+    for (const item of data.items || []) items.set(item.version_id || item.document_id,item);
+    offset += (data.items || []).length;
+  } while (data.hasMore && data.items?.length);
+  data={...data,items:[...items.values()]};data.summary=summaryFor(data.items);
   meetingsState.protocolImports = data;
   const serverDocuments = new Set((data.items || []).map((item) => item.document_id));
   meetingsState.localProtocolUploads = meetingsState.localProtocolUploads
-    .filter((item) => item.state === 'failed' || !item.document_id || !serverDocuments.has(item.document_id));
+    .filter((item) => item.year !== year || item.state === 'failed' || !item.document_id || !serverDocuments.has(item.document_id));
   renderProtocolImports();
   schedulePoll();
 }
 
-async function uploadProtocol(file, year) {
-  const idempotencyKey = await uploadIdentity(file, year);
-  const local = {
-    id: idempotencyKey,
-    original_name: file.name,
-    state: 'uploading',
-    agenda_count: 0,
-    review_count: 0
-  };
-  meetingsState.localProtocolUploads.push(local);
-  renderProtocolImports();
+async function uploadProtocol(local, workspaceId) {
+  local.state='uploading';local.extraction_error='';renderProtocolImports();
   try {
+    const idempotencyKey = await protocolUploadIdentity(local.file,local.year,workspaceId,meetingsState.protocolImports.items || []);
     const response = await window.fetch('/api/documents', {
       method: 'POST',
       headers: {
-        'content-type': file.type || 'application/octet-stream',
-        'x-file-name': encodeURIComponent(file.name),
+        'content-type': local.file.type || 'application/octet-stream',
+        'x-file-name': encodeURIComponent(local.file.name),
         'x-document-type': 'protocol',
+        'x-workspace-id': workspaceId,
         'idempotency-key': idempotencyKey
       },
-      body: file
+      body: local.file
     });
     const data = await response.json().catch(() => ({}));
     if (!response.ok) throw new Error(data?.error?.message || `Ошибка HTTP ${response.status}`);
@@ -176,7 +167,14 @@ async function uploadSelectedProtocols(input) {
   input.value = '';
   if (!files.length) return;
   const year = Number(meetingsState.selectedYear);
-  for (const file of files) await uploadProtocol(file, year);
+  const rows=files.map((file,index)=>({id:`upload-${Date.now()}-${index}-${Math.random().toString(16).slice(2)}`,file,year,original_name:file.name,state:'uploading',agenda_count:0,review_count:0}));
+  meetingsState.localProtocolUploads.push(...rows);renderProtocolImports();
+  let workspaceId;
+  try {workspaceId=(await meetingApi('/api/protocol-imports/tools')).workspaceId;}
+  catch(error) {for(const row of rows){row.state='failed';row.extraction_error=error.message;}renderProtocolImports();return;}
+  if (meetingsState.selectedYear === year) await loadProtocolImports();
+  let next=0;
+  await Promise.all(Array.from({length:Math.min(3,rows.length)},async()=>{while(next<rows.length)await uploadProtocol(rows[next++],workspaceId);}));
   await Promise.all([loadProtocolImports(), loadMeetings()]);
 }
 
@@ -212,7 +210,6 @@ async function changeYear(input) {
   meetingsState.selectedYear = year;
   meetingsState.selectedMeetingId = null;
   meetingsState.meeting = null;
-  meetingsState.localProtocolUploads = [];
   try { window.localStorage.setItem('kafedra-meetings-year', String(year)); } catch {}
   renderProtocolImports();
   await Promise.all([loadProtocolImports(), loadMeetings()]);
@@ -229,6 +226,14 @@ document.addEventListener('change', (event) => {
 }, true);
 
 document.addEventListener('click', (event) => {
+  const retryUpload=event.target.closest('[data-retry-protocol-upload]');
+  if (retryUpload) {
+    retryUpload.disabled=true;
+    const row=meetingsState.localProtocolUploads.find((item)=>item.id===retryUpload.dataset.retryProtocolUpload);
+    if (row?.file) meetingApi('/api/protocol-imports/tools').then(async({workspaceId})=>{await uploadProtocol(row,workspaceId);await loadProtocolImports();})
+      .catch((error)=>{retryUpload.disabled=false;showMeetingNotice(error.message);});
+    return;
+  }
   const retry = event.target.closest('[data-reprocess-document]');
   if (retry) {
     reprocessDocument(retry).catch((error) => showMeetingNotice(error.message));

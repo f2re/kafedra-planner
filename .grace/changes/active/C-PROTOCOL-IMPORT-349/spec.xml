@@ -1,0 +1,31 @@
+<GraceChangeSpec graceVersion="4.0" status="approved">
+  <C-PROTOCOL-IMPORT-349>
+    <Summary>Complete issue 349: tolerant protocol recognition, batch correction and versioned format profiles.</Summary>
+    <Problem>Separate agenda and hearing blocks are confused with numbered resolutions. Bulk upload exists but has no shared correction or tested format editor.</Problem>
+    <Goals>
+      <Goal>Recognize numbered and ordinal references, section variants and bounded label typos without rewriting business text or inventing dates.</Goal>
+      <Goal>Import independent files, edit only exceptions, preview and version shared recognition formats, then reprocess selected sources safely.</Goal>
+      <Goal>Preserve originals, extracted history, manual overrides, transferred or removed questions and previously generated documents.</Goal>
+    </Goals>
+    <Constraints>
+      <Constraint>Exact base main is acb44aacf4084c2bbc0c0c79a032e63f098109eb; issue 349 is the acceptance authority.</Constraint>
+      <Constraint>Keep SQLite schema 31, applied migrations, dependency versions, release version and deployment unchanged. No mandatory LLM or network.</Constraint>
+      <Constraint>Keep persistProtocol and issue 348 transfer semantics; append final recognition to the existing worker pipeline and retain the base extraction.</Constraint>
+      <Constraint>Shared profile writes require manager/admin and source edit access; correction reads/writes retain document access and existing authentication/CSRF boundaries.</Constraint>
+      <Constraint>Use the existing templates table with a separate protocol_recognition kind, immutable profile versions and explicit scope matching; exclude these from generic template application.</Constraint>
+      <Constraint>No motion and no adaptive learning of consequential actions or document text. Preserve failed-row drafts and expected-update checks.</Constraint>
+      <Constraint>Reuse ordinary project CI and the existing meetings browser workflow; no temporary workflow, probe commit or duplicate unit gate.</Constraint>
+    </Constraints>
+    <NonGoals><NonGoal>New release or offline installer changes.</NonGoal><NonGoal>Replace the output DOCX template editor or automatically delete previously imported questions.</NonGoal></NonGoals>
+    <AcceptanceCriteria>
+      <Criterion>The representative document yields three questions with matching resolutions, preserves numbered sub-decisions and excludes signature rows. The invalid day 00 requires correction, not a date from the body.</Criterion>
+      <Criterion>Profile preview is read-only; save is versioned and idempotent, rejects stale/invalid inputs, and only matching files use aliases.</Criterion>
+      <Criterion>Batch metadata correction saves valid rows independently; errors and stale edits retain user input and have an actionable retry.</Criterion>
+      <Criterion>Reprocessing keeps source hashes and prior extraction JSON, protects manual changes and clears, does not recreate transferred/deleted questions and rolls back on forced failure.</Criterion>
+      <Criterion>Parser and real DOCX/API/worker regression pass; desktop and mobile exercise real upload, partial correction, profile preview/save and repeat import with normal actions.</Criterion>
+      <Criterion>Only exact-head relevant CI and GRACE gates are required before expected-head squash merge; main then runs its existing post-merge smoke.</Criterion>
+    </AcceptanceCriteria>
+    <AffectedAreas><M-API /><M-WORKER /><M-CI-GATE /></AffectedAreas>
+    <VerificationIntent><ExpectedEvidence>Protocol regression tests, existing meeting continuity tests, exact-head CI and an unchanged migration/dependency tree.</ExpectedEvidence></VerificationIntent>
+  </C-PROTOCOL-IMPORT-349>
+</GraceChangeSpec>

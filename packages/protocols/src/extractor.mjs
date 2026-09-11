@@ -1,149 +1,70 @@
-import { findRussianDates, firstRussianDate } from './russian-date.mjs';
+import { findRussianDates } from './russian-date.mjs';
+import { createMarkerMatcher, markerKey } from './recognition-markers.mjs';
+import { recognizeAgenda, questionHeading } from './agenda-recognition.mjs';
 
-const labels = ['СЛУШАЛИ', 'СЛУШАЛ', 'ВЫСТУПИЛИ', 'ВЫСТУПИЛ', 'ОБСУДИЛИ', 'РЕШИЛИ', 'ПОСТАНОВИЛИ'];
-const labelPattern = new RegExp(`^\\s*(${labels.join('|')})\\s*[:.]?\\s*(.*)$`, 'iu');
-
-function linesWithNumbers(text) {
-  return String(text || '')
-    .replace(/\r\n?/g, '\n')
-    .split('\n')
-    .map((raw, index) => ({
-      no: index + 1,
-      raw,
-      text: raw.replace(/\s+/g, ' ').trim()
-    }));
+function linesOf(text) {
+  return String(text || '').replace(/\r\n?/gu,'\n').split('\n')
+    .map((raw,index) => ({no:index+1,raw,text:raw.replace(/\s+/gu,' ').trim()}));
 }
-
-function findLabeledValue(lines, labelExpression, maxLines = 80) {
-  const pattern = new RegExp(`^\\s*(?:${labelExpression})\\s*[:–—-]?\\s*(.*)$`, 'iu');
-  for (const line of lines.slice(0, maxLines)) {
-    const match = line.text.match(pattern);
-    if (!match) continue;
-    const value = match[1]?.trim();
-    if (value) return { value, lineStart: line.no, lineEnd: line.no };
-    const following = lines.find((candidate) => candidate.no === line.no + 1 && candidate.text);
-    if (following) return { value: following.text, lineStart: line.no, lineEnd: following.no };
+function header(lines,match) {
+  const end=lines.findIndex((line) => match(line.text,['agenda','heard','discussed','decision']) || questionHeading(line.text) || /^\d{1,3}[.)]\s+\S/u.test(line.text));
+  return lines.slice(0,Math.min(end < 0 ? lines.length : end,80));
+}
+function labeled(lines,kind,match) {
+  for (let index=0;index<lines.length;index+=1) {
+    const line=lines[index];const found=match(line.text,[kind]);if (!found) continue;
+    const values=[];if (found.value) values.push(found.value);let end=line.no;
+    for (const next of lines.slice(index+1)) {
+      if (!next.text) continue;
+      if (match(next.text) || /^(?:сотрудников|кворум|дата|от\s+\d|протокол)/iu.test(next.text)) break;
+      if (values.length && kind !== 'attendees') break;
+      values.push(next.text);end=next.no;if (kind !== 'attendees') break;
+    }
+    if (values.length) return {value:values.join('\n'),evidence:{lineStart:line.no,lineEnd:end,raw:line.raw}};
   }
   return null;
 }
-
-function detectProtocolNumber(lines) {
-  const head = lines.slice(0, 40).map((line) => line.text).join('\n');
-  const direct = head.match(/протокол(?:\s+заседания[^\n]*)?\s*№\s*([\p{L}\d./-]+)/iu);
-  if (direct) return direct[1];
-  const isolated = head.match(/^\s*№\s*([\p{L}\d./-]+)\s*$/imu);
-  return isolated?.[1] ?? null;
-}
-
-function detectMeetingDate(lines) {
-  const topText = lines.slice(0, 60).map((line) => line.text).join('\n');
-  return firstRussianDate(topText)?.value ?? null;
-}
-
-function splitNumberedItems(lines) {
-  const startIndex = lines.findIndex((line) => /повестк[аи]\s+дня/iu.test(line.text));
-  const scan = startIndex >= 0 ? lines.slice(startIndex + 1) : lines;
-  const starts = [];
-  for (let index = 0; index < scan.length; index += 1) {
-    const match = scan[index].text.match(/^\s*(\d{1,3})[.)]\s+(.+)/u);
-    if (!match) continue;
-    if (Number(match[1]) === 1 || starts.length > 0) {
-      starts.push({ scanIndex: index, itemNo: Number(match[1]), heading: match[2].trim() });
-    }
+function numberOf(lines) {
+  for (const line of lines) {
+    const key=markerKey(line.text);
+    if (!/пр\S*токол|п\s*р\s*о\s*т\s*о\s*к\s*о\s*л/u.test(key) && !/^№/u.test(key)) continue;
+    const match=line.text.match(/(?:№|\bNo\.?|\bN(?:[oо°º.]|(?=\s*\d))?)\s*([\p{L}\d][\p{L}\d./-]*)/iu);
+    if (match) return match[1];
   }
-  if (starts.length === 0) return [];
-  return starts.map((start, index) => {
-    const next = starts[index + 1];
-    const segment = scan.slice(start.scanIndex, next?.scanIndex ?? scan.length);
-    return parseAgendaSegment(start.itemNo, start.heading, segment);
-  });
+  return null;
 }
-
-function appendField(fields, key, text) {
-  if (!text) return;
-  fields[key] = fields[key] ? `${fields[key]}\n${text}` : text;
-}
-
-function parseAgendaSegment(itemNo, heading, segment) {
-  const fields = { heardText: '', discussedText: '', decisionText: '' };
-  let current = 'title';
-  const titleLines = [heading];
-  for (let index = 1; index < segment.length; index += 1) {
-    const line = segment[index];
-    if (!line.text) continue;
-    const labelMatch = line.text.match(labelPattern);
-    if (labelMatch) {
-      const label = labelMatch[1].toUpperCase();
-      if (label.startsWith('СЛУШАЛ')) current = 'heardText';
-      else if (label.startsWith('ВЫСТУП') || label.startsWith('ОБСУД')) current = 'discussedText';
-      else current = 'decisionText';
-      appendField(fields, current, labelMatch[2]?.trim());
-      continue;
-    }
-    if (current === 'title' && titleLines.length < 4) titleLines.push(line.text);
-    else if (current !== 'title') appendField(fields, current, line.text);
+function dateOf(lines) {
+  const candidates=[];const raw=[];let invalid=false;
+  for (const line of lines) {
+    const normalized=line.text.replace(/[«»„“”"']/gu,'');
+    const resembles=/\d{1,2}[./-]\d{1,2}[./-](?:19|20)\d{2}|\d{1,2}\s+[а-яё]+\s+(?:19|20)\d{2}/iu.test(normalized);
+    const dates=findRussianDates(normalized);
+    if (resembles) {raw.push(line.raw);if (!dates.length) invalid=true;}
+    for (const date of dates) candidates.push({...date,line:line.no,source:line.raw});
   }
-  const decisionText = fields.decisionText.trim();
-  const dates = findRussianDates(decisionText);
-  const responsible = decisionText.match(/ответственн(?:ый|ая|ые|ого|ым|ыми)?\s*[:–—-]\s*([^\n]+)/iu)?.[1]?.trim().replace(/[;,]+$/u, '') ?? null;
-  return {
-    itemNo,
-    title: titleLines.join(' ').replace(/\s+/g, ' ').trim(),
-    heardText: fields.heardText.trim() || null,
-    discussedText: fields.discussedText.trim() || null,
-    decisionText: decisionText || null,
-    responsibleRaw: responsible,
-    dueDate: dates[0]?.value ?? null,
-    evidence: {
-      lineStart: segment[0]?.no ?? null,
-      lineEnd: segment.at(-1)?.no ?? null
-    }
-  };
+  const unique=[...new Set(candidates.map((date) => date.value))];
+  return {value:!invalid && unique.length === 1 ? unique[0] : null,raw:raw.join('\n') || null,candidates,
+    reason:invalid ? 'invalid' : unique.length > 1 ? 'ambiguous' : null};
 }
-
-function fallbackSingleItem(lines) {
-  const labelIndexes = lines
-    .map((line, index) => ({ line, index, match: line.text.match(labelPattern) }))
-    .filter((entry) => entry.match);
-  if (labelIndexes.length === 0) return [];
-  return [parseAgendaSegment(1, 'Вопрос заседания', lines.slice(Math.max(0, labelIndexes[0].index - 1)))];
-}
-
-function confidenceOf(result) {
-  let score = 0.2;
-  if (result.protocolNumber) score += 0.2;
-  if (result.meetingDate) score += 0.25;
-  if (result.agendaItems.length > 0) score += 0.2;
-  if (result.agendaItems.some((item) => item.decisionText)) score += 0.1;
-  if (result.chairperson || result.secretary) score += 0.05;
-  return Math.min(1, Number(score.toFixed(2)));
-}
-
 export function looksLikeDepartmentProtocol(text) {
-  const lines = linesWithNumbers(text).filter((line) => line.text);
-  const heading = lines.slice(0, 12).map((line) => line.text).join('\n');
-  const head = lines.slice(0, 80).map((line) => line.text).join('\n');
-  const hasProtocolHeading = /(^|\n)\s*протокол(?:\s+заседания[^\n]*)?(?:\s*№\s*[\p{L}\d./-]+)?\s*(?:$|\n)/imu.test(heading);
-  if (!hasProtocolHeading) return false;
-  return /повестк[аи]\s+дня|слушали|решили|постановили|председатель|секретарь|присутствовали/iu.test(head)
-    || /протокол\s+заседания\s+кафедр/iu.test(heading);
+  const lines=linesOf(text).filter((line) => line.text);
+  if (/^(?:план|отч[её]т|распоряжение)(?:\s|$)/iu.test(lines[0]?.text || '')) return false;
+  const heading=lines.slice(0,12).map((line) => markerKey(line.text)).join('\n');
+  if (!/(^|\n)\s*(?:протокол|протокл|протоко[лп]|п\s+р\s+о\s+т\s+о\s+к\s+о\s+л)(?:\s|№|$)/iu.test(heading)) return false;
+  const match=createMarkerMatcher();
+  return lines.slice(0,80).some((line) => match(line.text) || questionHeading(line.text)) || /заседани[ея].*кафедр/u.test(heading);
 }
-
-export function extractDepartmentProtocol(text) {
-  const lines = linesWithNumbers(text);
-  const agendaItems = splitNumberedItems(lines);
-  const result = {
-    protocolNumber: detectProtocolNumber(lines),
-    meetingDate: detectMeetingDate(lines),
-    title: 'Заседание кафедры',
-    chairperson: findLabeledValue(lines, 'председатель(?:ствовал)?')?.value ?? null,
-    secretary: findLabeledValue(lines, 'секретарь')?.value ?? null,
-    attendees: findLabeledValue(lines, 'присутствовали')?.value ?? null,
-    agendaItems: agendaItems.length > 0 ? agendaItems : fallbackSingleItem(lines),
-    evidence: {
-      lineStart: 1,
-      lineEnd: lines.length
-    }
-  };
-  return { ...result, confidence: confidenceOf(result) };
+export function extractDepartmentProtocol(text,options={}) {
+  const lines=linesOf(text);const match=createMarkerMatcher(options.aliases);const head=header(lines,match);
+  const date=dateOf(head);const metadata=Object.fromEntries(['chairperson','secretary','attendees'].map((kind) => [kind,labeled(head,kind,match)]));
+  const agenda=recognizeAgenda(lines,match);
+  const result={protocolNumber:numberOf(head),meetingDate:date.value,meetingDateRaw:date.raw,meetingDateIssue:date.reason,
+    title:'Заседание кафедры',chairperson:metadata.chairperson?.value || null,secretary:metadata.secretary?.value || null,attendees:metadata.attendees?.value || null,
+    agendaItems:agenda.agendaItems,diagnostics:agenda.diagnostics,unassigned:agenda.unassigned,
+    fieldEvidence:{...Object.fromEntries(Object.entries(metadata).filter(([,value]) => value).map(([kind,value]) => [kind,value.evidence])),meetingDate:date.candidates},
+    evidence:{lineStart:1,lineEnd:lines.length}};
+  let confidence=.2+(result.protocolNumber ? .2 : 0)+(result.meetingDate ? .25 : 0)+(result.agendaItems.length ? .2 : 0)
+    +(result.agendaItems.some((item) => item.decisionText) ? .1 : 0)+(result.chairperson || result.secretary ? .05 : 0);
+  if (date.reason || agenda.diagnostics.length) confidence=Math.min(confidence,.69);
+  return {...result,confidence:Math.min(1,Number(confidence.toFixed(2)))};
 }
