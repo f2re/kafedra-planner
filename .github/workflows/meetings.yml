@@ -1,0 +1,46 @@
+name: Заседания
+
+on:
+  pull_request:
+    paths:
+      - 'packages/protocols/**'
+      - 'apps/api/src/meetings-router.mjs'
+      - 'public/meeting*.js'
+      - 'public/meeting*.css'
+      - 'tests/meeting*.test.mjs'
+      - 'tests/browser/meeting*.spec.mjs'
+      - '.github/workflows/meetings.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: meetings-${{ github.event.pull_request.number || github.ref_name }}
+  cancel-in-progress: true
+
+jobs:
+  meetings:
+    name: Заседания · документы и интерфейс
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+      - run: npm ci --ignore-scripts --no-audit --no-fund
+      - run: npx playwright install --with-deps chromium
+      - name: Сохранность, документы и повторный импорт
+        run: node --test tests/meeting-continuity.test.mjs tests/meeting-restart.test.mjs tests/meeting-workflow.test.mjs tests/meeting-minimal-create.test.mjs tests/meeting-template-profile.test.mjs tests/protocol-merge.test.mjs
+      - name: Создание, перенос, смена даты и выгрузка — компьютер и телефон
+        run: npx playwright test tests/browser/meeting-continuity.spec.mjs tests/browser/meetings.spec.mjs tests/browser/meeting-minimal-create.spec.mjs --project=desktop --project=mobile
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: meeting-workflow-evidence
+          path: |
+            playwright-report/
+            test-results/
+          retention-days: 14
