@@ -1,184 +1,227 @@
+import { hasRelocatedAgendaSource } from './meeting-transfer-origin.mjs';
 import { newId } from '../../core/src/ids.mjs';
 import { addSearchFragment } from '../../storage/src/search.mjs';
+import { resolvePerson } from './person-resolver.mjs';
+import { syncDecisionCalendar } from './decision-calendar.mjs';
 
 function parseJson(value, fallback = {}) {
+  if (value && typeof value === 'object') return value;
   try { return JSON.parse(value); } catch { return fallback; }
 }
 
-function normalized(value) {
-  return String(value || '')
-    .toLocaleLowerCase('ru-RU')
-    .replace(/ё/gu, 'е')
-    .replace(/\s+/gu, ' ')
-    .trim();
+function normalize(value) {
+  return String(value || '').toLocaleLowerCase('ru-RU').replace(/ё/gu, 'е').replace(/\s+/gu, ' ').trim();
 }
 
 function same(left, right) {
-  return normalized(left) === normalized(right);
+  return normalize(left) === normalize(right);
 }
 
-function evidencePayload(raw) {
-  const parsed = typeof raw === 'string' ? parseJson(raw, {}) : (raw || {});
-  if (Array.isArray(parsed.sources)) return { ...parsed, sources: [...parsed.sources] };
-  return { locator: parsed, sources: [] };
+function sourceEvidence(raw, source) {
+  const evidence = parseJson(raw, {});
+  const sources = Array.isArray(evidence.sources) ? [...evidence.sources] : [];
+  const exists = sources.some((item) => item.documentVersionId === source.documentVersionId
+    && JSON.stringify(item.locator || null) === JSON.stringify(source.locator || null));
+  if (!exists) sources.push(source);
+  return { ...evidence, sources };
 }
 
-function sourceEvidence(raw, {
-  documentVersionId,
-  documentTitle,
-  locator,
-  relation
-}) {
-  const payload = evidencePayload(raw);
-  if (!payload.sources.some((item) => item.documentVersionId === documentVersionId)) {
-    payload.sources.push({
-      documentVersionId,
-      documentTitle,
-      relation,
-      locator: locator || null
-    });
-  }
-  return payload;
-}
-
-function review(database, workspaceId, sourceId, issueCode, title, explanation, proposedAction, context = {}) {
+function review(database, workspaceId, sourceId, issueCode, title, message, suggestedAction, context = {}) {
   const existing = database.get(`
     SELECT id FROM review_items
     WHERE workspace_id = ? AND source_kind = 'document_version'
       AND source_id = ? AND issue_code = ? AND status = 'open'
-    ORDER BY created_at DESC LIMIT 1
   `, workspaceId, sourceId, issueCode);
   if (existing) return existing.id;
   const id = newId('review');
   database.run(`
     INSERT INTO review_items(
-      id, workspace_id, source_kind, source_id, issue_code, title,
-      explanation, proposed_action, severity, status, context_json, created_at
-    ) VALUES (?, ?, 'document_version', ?, ?, ?, ?, ?, 'warning', 'open', ?, ?)
-  `, id, workspaceId, sourceId, issueCode, title, explanation, proposedAction,
+      id, workspace_id, source_kind, source_id, issue_code,
+      title, message, suggested_action, context_json, created_at
+    ) VALUES (?, ?, 'document_version', ?, ?, ?, ?, ?, ?, ?)
+  `, id, workspaceId, sourceId, issueCode, title, message, suggestedAction,
   JSON.stringify(context), new Date().toISOString());
   return id;
 }
 
-function exposeRoute(result, meetingId, materialization, matchedBy) {
-  result.id = meetingId;
-  result.materialization = materialization;
-  result.matchedBy = matchedBy;
+function matchingMeeting(database, workspaceId, documentVersionId, result) {
+  const direct = database.get(`
+    SELECT * FROM meetings WHERE workspace_id = ? AND source_document_version_id = ?
+  `, workspaceId, documentVersionId);
+  if (direct) return { meeting: direct, matchedBy: 'source_document_version' };
+  const sourceMatches = database.all(`
+    SELECT * FROM meetings WHERE workspace_id = ? AND evidence_json LIKE ?
+  `, workspaceId, `%${documentVersionId}%`).filter((meeting) => {
+    const evidence = parseJson(meeting.evidence_json, {});
+    return Array.isArray(evidence.sources)
+      && evidence.sources.some((source) => source.documentVersionId === documentVersionId);
+  });
+  if (sourceMatches.length === 1) return { meeting: sourceMatches[0], matchedBy: 'evidence_source' };
+  if (sourceMatches.length > 1) return { meeting: null, matchedBy: 'ambiguous', candidates: sourceMatches };
+  if (!result.protocolNumber || !result.meetingDate) return { meeting: null, matchedBy: 'none' };
+  const candidates = database.all(`
+    SELECT * FROM meetings
+    WHERE workspace_id = ? AND protocol_number = ? AND meeting_date = ?
+    ORDER BY created_at, id
+  `, workspaceId, result.protocolNumber, result.meetingDate);
+  if (candidates.length === 1) return { meeting: candidates[0], matchedBy: 'protocol_number_and_date' };
+  if (candidates.length > 1) return { meeting: null, matchedBy: 'ambiguous', candidates };
+  return { meeting: null, matchedBy: 'none' };
 }
 
-function addMeetingSearch(database, {
-  workspaceId,
-  meetingId,
-  documentVersionId,
-  documentTitle,
-  result
-}) {
+function ensureMeetingCalendar(database, workspaceId, meeting, documentTitle, now) {
+  const existing = database.get(`
+    SELECT id FROM calendar_items
+    WHERE workspace_id = ? AND source_kind = 'meeting' AND source_id = ?
+    ORDER BY created_at, id LIMIT 1
+  `, workspaceId, meeting.id);
+  if (existing) return existing.id;
+  const calendarId = newId('cal');
+  database.run(`
+    INSERT INTO calendar_items(
+      id, workspace_id, source_kind, source_id, title, starts_at,
+      category, importance, status, description, created_at, updated_at
+    ) VALUES (?, ?, 'meeting', ?, ?, ?, 'organizational', 'normal', ?, ?, ?, ?)
+  `, calendarId, workspaceId, meeting.id,
+  meeting.protocol_number ? `Заседание кафедры · протокол №${meeting.protocol_number}` : 'Заседание кафедры',
+  meeting.meeting_date, meeting.meeting_date ? 'confirmed' : 'needs_review', documentTitle, now, now);
+  return calendarId;
+}
+
+function addMeetingSearch(database, { workspaceId, meetingId, documentVersionId, documentTitle, result }) {
+  const existing = database.get(`
+    SELECT id FROM search_fragments
+    WHERE workspace_id = ? AND source_kind = 'meeting' AND source_id = ?
+      AND document_version_id = ?
+    LIMIT 1
+  `, workspaceId, meetingId, documentVersionId);
+  if (existing) return;
   addSearchFragment(database, {
     workspaceId,
     sourceKind: 'meeting',
     sourceId: meetingId,
     documentVersionId,
-    title: result.protocolNumber ? `Протокол № ${result.protocolNumber}` : documentTitle,
-    content: [result.title, result.chairperson, result.secretary, result.attendees]
-      .filter(Boolean).join('\n'),
+    title: result.title || documentTitle,
+    content: [result.title, result.chairperson, result.secretary, ...result.agendaItems.map((item) => item.title)].filter(Boolean).join('\n'),
     locator: result.evidence
   });
 }
 
-function ensureMeetingCalendar(database, workspaceId, meeting, documentTitle, now) {
-  if (!meeting.meeting_date) return;
-  const title = meeting.protocol_number
-    ? `Заседание кафедры · протокол № ${meeting.protocol_number}`
-    : 'Заседание кафедры';
+function addAgendaSearch(database, { workspaceId, agendaId, documentVersionId, item }) {
   const existing = database.get(`
-    SELECT id FROM calendar_items
-    WHERE workspace_id = ? AND source_kind = 'meeting' AND source_id = ?
-    ORDER BY created_at LIMIT 1
-  `, workspaceId, meeting.id);
-  if (existing) {
-    database.run(`
-      UPDATE calendar_items
-      SET title = ?, starts_at = ?, description = COALESCE(description, ?), updated_at = ?
-      WHERE id = ?
-    `, title, meeting.meeting_date, documentTitle, now, existing.id);
-    return;
-  }
-  database.run(`
-    INSERT INTO calendar_items(
-      id, workspace_id, source_kind, source_id, title, starts_at, ends_at,
-      all_day, category, importance, status, description, item_kind,
-      reminder_minutes, completed_at, created_at, updated_at
-    ) VALUES (?, ?, 'meeting', ?, ?, ?, NULL, 1, 'organizational', 'normal', ?, ?,
-      'event', NULL, NULL, ?, ?)
-  `, newId('cal'), workspaceId, meeting.id, title, meeting.meeting_date,
-  meeting.confidence >= 0.75 ? 'confirmed' : 'proposed', documentTitle, now, now);
+    SELECT id FROM search_fragments
+    WHERE workspace_id = ? AND source_kind = 'agenda_item' AND source_id = ?
+      AND document_version_id = ?
+    LIMIT 1
+  `, workspaceId, agendaId, documentVersionId);
+  if (existing) return;
+  addSearchFragment(database, {
+    workspaceId,
+    sourceKind: 'agenda_item',
+    sourceId: agendaId,
+    documentVersionId,
+    title: item.title,
+    content: [item.heardText, item.discussedText, item.decisionText].filter(Boolean).join('\n'),
+    locator: item.evidence
+  });
 }
 
-function ensureDecisionCalendar(database, workspaceId, decision, agendaTitle, now) {
-  if (!decision?.due_date) return;
-  const title = `Срок: ${agendaTitle}`;
+function attachResponsible(database, { workspaceId, documentVersionId, decisionId, raw, now }) {
+  if (!raw) return;
   const existing = database.get(`
-    SELECT id FROM calendar_items
-    WHERE workspace_id = ? AND source_kind = 'decision' AND source_id = ?
-    ORDER BY created_at LIMIT 1
-  `, workspaceId, decision.id);
-  if (existing) {
-    database.run(`
-      UPDATE calendar_items
-      SET title = ?, starts_at = ?, description = ?, updated_at = ?
-      WHERE id = ?
-    `, title, decision.due_date, decision.text, now, existing.id);
-    return;
-  }
+    SELECT id FROM action_assignments
+    WHERE owner_kind = 'decision' AND owner_id = ? AND original_text = ?
+    LIMIT 1
+  `, decisionId, raw);
+  if (existing) return;
+  const resolution = resolvePerson(database, workspaceId, raw);
   database.run(`
-    INSERT INTO calendar_items(
-      id, workspace_id, source_kind, source_id, title, starts_at, ends_at,
-      all_day, category, importance, status, description, item_kind,
-      reminder_minutes, completed_at, created_at, updated_at
-    ) VALUES (?, ?, 'decision', ?, ?, ?, NULL, 1, 'organizational', 'high', 'open', ?,
-      'task', 1440, NULL, ?, ?)
-  `, newId('cal'), workspaceId, decision.id, title, decision.due_date,
-  decision.text, now, now);
+    INSERT INTO action_assignments(
+      id, owner_kind, owner_id, person_id, original_text, resolution_status,
+      confidence, candidates_json, created_at
+    ) VALUES (?, 'decision', ?, ?, ?, ?, ?, ?, ?)
+  `, newId('assign'), decisionId, resolution.personId, raw,
+  resolution.status, resolution.confidence, JSON.stringify(resolution.candidates), now);
+  if (resolution.status !== 'resolved') {
+    review(database, workspaceId, documentVersionId, `responsible_person_unresolved_${decisionId}`,
+      'Ответственный требует уточнения',
+      `Не удалось однозначно определить сотрудника: «${raw}».`,
+      'Выберите сотрудника из списка. Исходная формулировка сохранится.',
+      { decisionId, originalText: raw, candidates: resolution.candidates });
+  }
 }
 
-function insertDecision(database, {
-  workspaceId,
-  sourceId,
-  agendaId,
-  agendaTitle,
-  item,
-  evidence,
-  now
-}) {
+function insertDecision(database, { workspaceId, documentVersionId, agendaId, agendaTitle, item, now }) {
   if (!item.decisionText) return null;
   const decisionId = newId('decision');
+  const evidence = sourceEvidence(item.evidence, {
+    documentVersionId,
+    locator: item.evidence,
+    relation: 'decision_source'
+  });
   database.run(`
     INSERT INTO decisions(
-      id, agenda_item_id, text, responsible_raw, due_date,
-      status, evidence_json, created_at
+      id, agenda_item_id, text, responsible_raw, due_date, status, evidence_json, created_at
     ) VALUES (?, ?, ?, ?, ?, 'proposed', ?, ?)
-  `, decisionId, agendaId, item.decisionText, item.responsibleRaw, item.dueDate,
-  JSON.stringify(evidence), now);
+  `, decisionId, agendaId, item.decisionText, item.responsibleRaw || null,
+  item.dueDate || null, JSON.stringify(evidence), now);
+  attachResponsible(database, {
+    workspaceId, documentVersionId, decisionId, raw: item.responsibleRaw, now
+  });
   const decision = database.get('SELECT * FROM decisions WHERE id = ?', decisionId);
-  ensureDecisionCalendar(database, workspaceId, decision, agendaTitle, now);
-  if (item.responsibleRaw) {
-    review(database, workspaceId, sourceId, `responsible_person_unresolved_${decisionId}`,
-      'Нужно сопоставить ответственного',
-      `В решении указан ответственный: «${item.responsibleRaw}».`,
-      'Выберите человека из справочника или оставьте значение как текст.',
-      { decisionId, responsibleRaw: item.responsibleRaw, evidence: item.evidence });
-  }
+  syncDecisionCalendar(database, workspaceId, decision, agendaTitle, now);
   return decisionId;
 }
 
-function insertAgenda(database, {
-  workspaceId,
-  meetingId,
-  documentVersionId,
-  documentTitle,
-  item,
-  now
-}) {
+function mergeDecision(database, { workspaceId, documentVersionId, agenda, item, now }) {
+  if (!item.decisionText) return;
+  const decisions = database.all(`
+    SELECT * FROM decisions WHERE agenda_item_id = ? ORDER BY created_at, id
+  `, agenda.id);
+  const exact = decisions.find((decision) => same(decision.text, item.decisionText));
+  if (!exact && decisions.length) {
+    review(database, workspaceId, documentVersionId, `protocol_decision_conflict_${agenda.id}`,
+      'Решение отличается от сохранённого',
+      'В загруженном протоколе для этого вопроса указано другое решение. Сохранённое решение и его срок не изменены.',
+      'Сравните формулировки и выберите нужное решение вручную.',
+      { agendaId: agenda.id, existing: decisions.map((decision) => ({ id: decision.id, text: decision.text })), incoming: item });
+    return;
+  }
+  if (!exact) {
+    insertDecision(database, {
+      workspaceId, documentVersionId, agendaId: agenda.id, agendaTitle: agenda.title, item, now
+    });
+    return;
+  }
+  const updates = {};
+  for (const [column, incoming] of [['responsible_raw', item.responsibleRaw], ['due_date', item.dueDate]]) {
+    if (!incoming) continue;
+    if (!exact[column]) updates[column] = incoming;
+    else if (!same(exact[column], incoming)) {
+      review(database, workspaceId, documentVersionId, `protocol_decision_${column}_conflict_${exact.id}`,
+        column === 'due_date' ? 'Срок решения отличается' : 'Ответственный отличается',
+        `Сохранено: «${exact[column]}». В новом документе: «${incoming}».`,
+        'Проверьте исходные документы; автоматическое изменение не выполнено.',
+        { decisionId: exact.id, field: column, existing: exact[column], incoming, evidence: item.evidence });
+    }
+  }
+  const evidence = sourceEvidence(exact.evidence_json, {
+    documentVersionId,
+    locator: item.evidence,
+    relation: 'matching_decision'
+  });
+  database.run(`
+    UPDATE decisions SET responsible_raw = COALESCE(?, responsible_raw),
+      due_date = COALESCE(?, due_date), evidence_json = ? WHERE id = ?
+  `, updates.responsible_raw || null, updates.due_date || null, JSON.stringify(evidence), exact.id);
+  const decision = database.get('SELECT * FROM decisions WHERE id = ?', exact.id);
+  attachResponsible(database, {
+    workspaceId, documentVersionId, decisionId: exact.id, raw: decision.responsible_raw, now
+  });
+  syncDecisionCalendar(database, workspaceId, decision, agenda.title, now);
+}
+
+function insertAgenda(database, { workspaceId, meetingId, documentVersionId, documentTitle, item, now }) {
   const agendaId = newId('agenda');
   const evidence = sourceEvidence(item.evidence, {
     documentVersionId,
@@ -188,104 +231,17 @@ function insertAgenda(database, {
   });
   database.run(`
     INSERT INTO agenda_items(
-      id, meeting_id, item_no, title, heard_text, discussed_text,
-      decision_text, evidence_json, created_at, source_kind, source_id,
-      source_label, updated_at
+      id, meeting_id, item_no, title, heard_text, discussed_text, decision_text,
+      evidence_json, created_at, source_kind, source_id, source_label, updated_at
     ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'document_agenda', ?, ?, ?)
   `, agendaId, meetingId, item.itemNo, item.title, item.heardText, item.discussedText,
   item.decisionText, JSON.stringify(evidence), now,
   `${documentVersionId}:${item.itemNo}`, documentTitle, now);
-
-  addSearchFragment(database, {
-    workspaceId,
-    sourceKind: 'agenda_item',
-    sourceId: agendaId,
-    documentVersionId,
-    title: `${item.itemNo}. ${item.title}`,
-    content: [item.heardText, item.discussedText, item.decisionText].filter(Boolean).join('\n'),
-    locator: item.evidence
+  addAgendaSearch(database, { workspaceId, agendaId, documentVersionId, item });
+  insertDecision(database, {
+    workspaceId, documentVersionId, agendaId, agendaTitle: item.title, item, now
   });
-  const decisionId = insertDecision(database, {
-    workspaceId,
-    sourceId: documentVersionId,
-    agendaId,
-    agendaTitle: item.title,
-    item,
-    evidence,
-    now
-  });
-  return { agendaId, decisionId };
-}
-
-function mergeDecision(database, {
-  workspaceId,
-  sourceId,
-  agendaId,
-  agendaTitle,
-  item,
-  documentVersionId,
-  documentTitle,
-  now
-}) {
-  if (!item.decisionText) return;
-  const decisions = database.all(`
-    SELECT * FROM decisions WHERE agenda_item_id = ? ORDER BY created_at
-  `, agendaId);
-  const exact = decisions.find((decision) => same(decision.text, item.decisionText));
-  if (!exact) {
-    if (decisions.length) {
-      review(database, workspaceId, sourceId, `protocol_decision_conflict_${agendaId}`,
-        'Решение по вопросу отличается',
-        'В загруженном протоколе найден другой текст решения для уже существующего вопроса.',
-        'Сравните оба текста и выберите итоговую формулировку в карточке заседания.',
-        { agendaId, existing: decisions.map((row) => row.text), incoming: item.decisionText, evidence: item.evidence });
-      return;
-    }
-    const evidence = sourceEvidence(item.evidence, {
-      documentVersionId,
-      documentTitle,
-      locator: item.evidence,
-      relation: 'decision_source'
-    });
-    insertDecision(database, {
-      workspaceId,
-      sourceId,
-      agendaId,
-      agendaTitle,
-      item,
-      evidence,
-      now
-    });
-    return;
-  }
-
-  const changes = {};
-  for (const [column, incoming] of [['responsible_raw', item.responsibleRaw], ['due_date', item.dueDate]]) {
-    if (!incoming) continue;
-    if (!exact[column]) changes[column] = incoming;
-    else if (!same(exact[column], incoming)) {
-      review(database, workspaceId, sourceId, `protocol_decision_${column}_conflict_${exact.id}`,
-        column === 'due_date' ? 'Срок решения отличается' : 'Ответственный по решению отличается',
-        `Сохранено: «${exact[column]}». В новом документе: «${incoming}».`,
-        'Проверьте исходники и исправьте значение вручную; автоматика ничего не перезаписала.',
-        { decisionId: exact.id, existing: exact[column], incoming, evidence: item.evidence });
-    }
-  }
-  const evidence = sourceEvidence(exact.evidence_json, {
-    documentVersionId,
-    documentTitle,
-    locator: item.evidence,
-    relation: 'decision_source'
-  });
-  database.run(`
-    UPDATE decisions
-    SET responsible_raw = COALESCE(?, responsible_raw),
-      due_date = COALESCE(?, due_date), evidence_json = ?
-    WHERE id = ?
-  `, changes.responsible_raw || null, changes.due_date || null,
-  JSON.stringify(evidence), exact.id);
-  const updated = database.get('SELECT * FROM decisions WHERE id = ?', exact.id);
-  ensureDecisionCalendar(database, workspaceId, updated, agendaTitle, now);
+  return agendaId;
 }
 
 function mergeAgenda(database, {
@@ -298,116 +254,74 @@ function mergeAgenda(database, {
   now
 }) {
   for (const item of items) {
+    if (hasRelocatedAgendaSource(database, workspaceId, meetingId, documentVersionId, item)) continue;
     const rows = database.all(`
-      SELECT * FROM agenda_items WHERE meeting_id = ? ORDER BY item_no, created_at
+      SELECT * FROM agenda_items WHERE meeting_id = ? ORDER BY item_no, created_at, id
     `, meetingId);
-    const titleMatches = rows.filter((row) => same(row.title, item.title));
-    if (titleMatches.length > 1) {
+    const sameTitle = rows.filter((row) => same(row.title, item.title));
+    const numbered = rows.find((row) => Number(row.item_no) === Number(item.itemNo));
+    let agenda = null;
+    if (sameTitle.length === 1) agenda = sameTitle[0];
+    else if (sameTitle.length > 1) {
       review(database, workspaceId, sourceId, `protocol_agenda_ambiguous_${item.itemNo}`,
         'Неоднозначное совпадение вопроса повестки',
-        `В заседании найдено несколько вопросов с названием «${item.title}».`,
-        'Выберите вопрос, к которому относится фрагмент нового протокола.',
-        { meetingId, item, candidates: titleMatches.map((row) => row.id) });
+        `В заседании несколько вопросов с названием «${item.title}».`,
+        'Выберите соответствующий вопрос вручную.',
+        { meetingId, item, candidates: sameTitle.map((row) => row.id) });
+      continue;
+    } else if (numbered) {
+      review(database, workspaceId, sourceId, `protocol_agenda_number_conflict_${numbered.id}`,
+        'Номер вопроса занят другим пунктом',
+        `Вопрос №${item.itemNo} уже содержит «${numbered.title}», а в документе указано «${item.title}».`,
+        'Проверьте, является ли это исправлением существующего вопроса или новым пунктом повестки.',
+        { meetingId, existingAgendaId: numbered.id, incoming: item });
       continue;
     }
-    if (titleMatches.length === 0) {
-      const numberConflict = rows.find((row) => Number(row.item_no) === Number(item.itemNo));
-      if (numberConflict) {
-        review(database, workspaceId, sourceId, `protocol_agenda_number_conflict_${item.itemNo}`,
-          'Номер вопроса уже занят',
-          `Пункт ${item.itemNo} уже называется «${numberConflict.title}», а в новом документе — «${item.title}».`,
-          'Сопоставьте вопросы вручную или добавьте новый вопрос с корректным номером.',
-          { meetingId, existingAgendaId: numberConflict.id, incoming: item, evidence: item.evidence });
-        continue;
-      }
+
+    if (!agenda) {
       insertAgenda(database, {
         workspaceId, meetingId, documentVersionId, documentTitle, item, now
       });
       continue;
     }
 
-    const existing = titleMatches[0];
     const updates = {};
-    let decisionConflict = false;
     for (const [column, incoming] of [
       ['heard_text', item.heardText],
       ['discussed_text', item.discussedText],
       ['decision_text', item.decisionText]
     ]) {
       if (!incoming) continue;
-      if (!existing[column]) updates[column] = incoming;
-      else if (!same(existing[column], incoming)) {
-        if (column === 'decision_text') decisionConflict = true;
-        review(database, workspaceId, sourceId, `protocol_agenda_${column}_conflict_${existing.id}`,
-          'Фрагмент вопроса повестки отличается',
-          `Поле «${column}» уже заполнено и отличается от нового протокола.`,
-          'Сравните исходные документы; сохранённое значение не изменено.',
-          { meetingId, agendaId: existing.id, field: column, existing: existing[column], incoming, evidence: item.evidence });
+      if (!agenda[column]) updates[column] = incoming;
+      else if (!same(agenda[column], incoming)) {
+        review(database, workspaceId, sourceId, `protocol_agenda_${column}_conflict_${agenda.id}`,
+          'Содержание вопроса отличается',
+          `В новом протоколе отличается поле ${column}. Ранее введённый текст сохранён.`,
+          'Сравните источники и внесите нужное исправление вручную.',
+          { meetingId, agendaId: agenda.id, field: column, existing: agenda[column], incoming, evidence: item.evidence });
       }
     }
-    const evidence = sourceEvidence(existing.evidence_json, {
+    const evidence = sourceEvidence(agenda.evidence_json, {
       documentVersionId,
       documentTitle,
       locator: item.evidence,
-      relation: 'agenda_source'
+      relation: 'matching_agenda'
     });
     database.run(`
       UPDATE agenda_items
-      SET heard_text = COALESCE(?, heard_text),
-        discussed_text = COALESCE(?, discussed_text),
-        decision_text = COALESCE(?, decision_text),
-        evidence_json = ?, updated_at = ?
+      SET heard_text = COALESCE(?, heard_text), discussed_text = COALESCE(?, discussed_text),
+        decision_text = COALESCE(?, decision_text), evidence_json = ?, updated_at = ?
       WHERE id = ?
-    `, updates.heard_text || null, updates.discussed_text || null,
-    updates.decision_text || null, JSON.stringify(evidence), now, existing.id);
-
-    addSearchFragment(database, {
-      workspaceId,
-      sourceKind: 'agenda_item',
-      sourceId: existing.id,
-      documentVersionId,
-      title: `${existing.item_no}. ${existing.title}`,
-      content: [item.heardText, item.discussedText, item.decisionText].filter(Boolean).join('\n'),
-      locator: item.evidence
-    });
-    if (!decisionConflict) {
-      mergeDecision(database, {
-        workspaceId,
-        sourceId,
-        agendaId: existing.id,
-        agendaTitle: existing.title,
-        item,
-        documentVersionId,
-        documentTitle,
-        now
-      });
-    }
+    `, updates.heard_text || null, updates.discussed_text || null, updates.decision_text || null,
+    JSON.stringify(evidence), now, agenda.id);
+    addAgendaSearch(database, { workspaceId, agendaId: agenda.id, documentVersionId, item });
+    mergeDecision(database, { workspaceId, documentVersionId, agenda, item, now });
   }
 }
 
-function matchingMeeting(database, workspaceId, documentVersionId, result) {
-  const bySource = database.get(`
-    SELECT * FROM meetings
-    WHERE workspace_id = ? AND source_document_version_id = ?
-  `, workspaceId, documentVersionId);
-  if (bySource) return { meeting: bySource, matchedBy: 'source_document_version' };
-
-  const byEvidence = database.all(`
-    SELECT * FROM meetings WHERE workspace_id = ? ORDER BY created_at
-  `, workspaceId).find((meeting) => {
-    const evidence = evidencePayload(meeting.evidence_json);
-    return evidence.sources.some((item) => item.documentVersionId === documentVersionId);
-  });
-  if (byEvidence) return { meeting: byEvidence, matchedBy: 'evidence_source' };
-
-  if (!result.protocolNumber || !result.meetingDate) return { meeting: null, matchedBy: null, candidates: [] };
-  const candidates = database.all(`
-    SELECT * FROM meetings
-    WHERE workspace_id = ? AND protocol_number = ? AND meeting_date = ?
-    ORDER BY created_at
-  `, workspaceId, result.protocolNumber, result.meetingDate);
-  if (candidates.length === 1) return { meeting: candidates[0], matchedBy: 'protocol_number_and_date', candidates };
-  return { meeting: null, matchedBy: candidates.length > 1 ? 'ambiguous' : null, candidates };
+function exposeRoute(result, meetingId, action, matchedBy) {
+  result.meetingId = meetingId;
+  result.persistence = { meetingId, action, matchedBy };
 }
 
 function createMeeting(database, {
