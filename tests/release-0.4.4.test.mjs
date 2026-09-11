@@ -1,33 +1,30 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { readdir, readFile } from 'node:fs/promises';
+import { readFile } from 'node:fs/promises';
 
 const text = (path) => readFile(path, 'utf8');
-const version = '0.4.4';
 
-test('0.4.4 синхронизирован в version authorities и текущих документах', async () => {
-  assert.equal((await text('VERSION')).trim(), version);
+test('текущий выпуск синхронизирован в version authorities и документах; 0.4.4 сохранён как исторический', async () => {
+  const version = (await text('VERSION')).trim();
+  assert.match(version, /^\d+\.\d+\.\d+(?:-[A-Za-z0-9.-]+)?$/u);
   assert.equal(JSON.parse(await text('package.json')).version, version);
   const lock = JSON.parse(await text('package-lock.json'));
   assert.equal(lock.version, version);
   assert.equal(lock.packages[''].version, version);
 
   const markers = [
-    ['README.md', 'Текущий рубеж: **`0.4.4`**'],
-    ['README.en.md', 'Current milestone: **`0.4.4`**'],
-    ['docs/ROADMAP.md', '## Текущий рубеж — `0.4.4`'],
-    ['docs/UX_FLOWS.md', 'Статус: рабочие контуры версии `0.4.4`'],
-    ['docs/VALIDATION.md', 'Актуальный рубеж: `0.4.4`'],
-    ['docs/RELEASE_CANDIDATE.md', '# Release candidate 0.4.4'],
-    ['docs/TARGET_ACCEPTANCE.md', 'Kafedra Planner 0.4.4, schema SQLite 31'],
-    ['docs/releases/0.4.4.md', '# Kafedra Planner 0.4.4']
+    ['README.md', `Текущий рубеж: **\`${version}\`**`],
+    ['README.en.md', `Current milestone: **\`${version}\`**`],
+    ['docs/ROADMAP.md', `## Текущий рубеж — \`${version}\``],
+    ['docs/UX_FLOWS.md', `Статус: рабочие контуры версии \`${version}\``],
+    ['docs/VALIDATION.md', `Актуальный рубеж: \`${version}\``],
+    ['docs/RELEASE_CANDIDATE.md', `# Release candidate ${version}`],
+    [`docs/releases/${version}.md`, `# Kafedra Planner ${version}`]
   ];
   for (const [path, marker] of markers) {
     assert.ok((await text(path)).includes(marker), `${path} должен содержать ${marker}`);
   }
-
-  const migrations = await readdir('migrations');
-  assert.equal(migrations.some((name) => /^032_/u.test(name)), false);
+  assert.match(await text('docs/releases/0.4.4.md'), /^# Kafedra Planner 0\.4\.4$/mu);
 });
 
 test('full bundle содержит document capabilities без target package version pins', async () => {
@@ -68,7 +65,7 @@ test('full installer проверяет OCR/PDF/Office до активации �
   assert.match(note, /не переоформляется на root/u);
 });
 
-test('release 0.4.4 собирает один archive и проверяет тот же artifact до публикации', async () => {
+test('release собирает один archive и проверяет тот же artifact до публикации', async () => {
   const release = await text('.github/workflows/release.yml');
   assert.match(release, /^name: Release$/mu);
   assert.match(release, /^on:\n  workflow_dispatch:\n  push:\n    branches: \[release-run\]$/mu);
