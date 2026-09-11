@@ -120,3 +120,65 @@ test('Протоколы за год: пакетная загрузка → по
     await rm(dir, { recursive: true, force: true });
   }
 });
+
+test('Протоколы: убрать неотправленный файл, архивировать и восстановить без потери исправлений и дублей', async ({ page }, testInfo) => {
+  test.setTimeout(120_000);
+  const year = testInfo.project.name === 'mobile' ? 2056 : 2055;
+  const original = Buffer.from(protocolText(year, '91'));
+  const savedFile = { name: `Архив ${year}.txt`, mimeType: 'text/plain', buffer: original };
+  const failedName = `Неотправленный ${year}.txt`;
+  const uploadFailure = async (route) => {
+    const request = route.request();
+    if (request.method() === 'POST' && decodeURIComponent(request.headers()['x-file-name'] || '') === failedName) {
+      await route.fulfill({ status: 503, contentType: 'application/json', body: JSON.stringify({ error: { message: 'Ошибка передачи файла' } }) });
+    } else await route.continue();
+  };
+  await page.route('**/api/documents', uploadFailure);
+  await page.goto('/');
+  await expect(navigationButton(page)).toBeVisible();
+  await navigationButton(page).click();
+  await page.locator('#meeting-year-filter').fill(String(year));
+  await page.locator('#meeting-year-filter').blur();
+  await page.locator('#protocol-import-input').setInputFiles([
+    savedFile,
+    { name: failedName, mimeType: 'text/plain', buffer: Buffer.from(protocolText(year, '92')) }
+  ]);
+  const failed = page.locator('[data-protocol-import-item]').filter({ hasText: failedName });
+  await expect(failed).toContainText('Ошибка передачи файла');
+  await expect.poll(() => annualSummary(page, year), { timeout: 60_000 }).toMatchObject({ total: 1, ready: 1 });
+  await page.unroute('**/api/documents', uploadFailure);
+  await failed.getByRole('button', { name: 'Убрать из списка', exact: true }).click();
+  await expect(page.locator('[data-protocol-import-item]')).toHaveCount(1);
+  const record = (await (await page.request.get(`/api/protocol-imports?year=${year}`)).json()).items[0];
+  const correction = await page.request.patch(`/api/meetings/${record.meeting_id}`, { data: { protocolNumber: '190' } });
+  expect(correction.ok()).toBeTruthy();
+  const saved = page.locator('[data-protocol-import-item]').filter({ hasText: savedFile.name });
+  page.once('dialog', (dialog) => dialog.dismiss());
+  await saved.getByRole('button', { name: 'В архив', exact: true }).click();
+  await expect(saved).toBeVisible();
+  page.once('dialog', (dialog) => dialog.accept());
+  await saved.getByRole('button', { name: 'В архив', exact: true }).click();
+  await expect(page.locator('[data-protocol-import-item]')).toHaveCount(0);
+  await expect(page.getByRole('button', { name: 'Архив (1)', exact: true })).toBeVisible();
+  await page.locator('#protocol-import-input').setInputFiles(savedFile);
+  await expect(page.locator('#protocol-import-summary')).toContainText('Файл уже сохранён в архиве');
+  await expect(page.locator('[data-protocol-import-item]')).toHaveCount(0);
+  await page.getByRole('button', { name: 'Архив (1)', exact: true }).click();
+  await expect(saved).toContainText('В архиве');
+  await expect(saved.getByRole('button', { name: 'Повторить распознавание' })).toHaveCount(0);
+  await expect(page.getByRole('button', { name: 'Повторить выбранные' })).toHaveCount(0);
+  const archivedList = await (await page.request.get(`/api/protocol-imports?year=${year}`)).json();
+  expect(archivedList.items).toHaveLength(1);
+  expect(archivedList.items[0]).toMatchObject({ document_id: record.document_id, version_id: record.version_id, sha256: record.sha256, lifecycle_status: 'archived' });
+  const bytes = await (await page.request.get(record.original_url)).body();
+  expect(bytes.equals(original)).toBeTruthy();
+  await saved.getByRole('button', { name: 'Восстановить', exact: true }).click();
+  await expect(page.locator('[data-protocol-import-item]')).toHaveCount(0);
+  await page.getByRole('button', { name: 'К загрузкам', exact: true }).click();
+  await expect(saved).toBeVisible();
+  const restored = await (await page.request.get(`/api/meetings/${record.meeting_id}`)).json();
+  expect(restored.protocol_number).toBe('190');
+  expect(restored.agenda).toHaveLength(1);
+  expect(restored.agenda[0].decision_text).toContain('Принять информацию к сведению');
+  await expect.poll(() => page.locator('#protocol-import-summary').evaluate((element) => element.scrollWidth <= element.clientWidth + 1)).toBeTruthy();
+});

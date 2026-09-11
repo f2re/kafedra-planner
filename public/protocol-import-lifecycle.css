@@ -1,0 +1,5 @@
+.protocol-import-actions { flex-wrap:wrap; }
+.protocol-import-actions .link-button { min-height:36px; }
+@media (max-width:720px) {
+  .protocol-import-actions .link-button { min-height:44px; }
+}
