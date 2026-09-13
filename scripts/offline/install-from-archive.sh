@@ -159,10 +159,17 @@ done < "$LIST"
 mapfile -t roots < <(sed 's#^\./##; s#/.*##' "$LIST" | sed '/^$/d' | LC_ALL=C sort -u)
 ((${#roots[@]} == 1)) || { echo 'Архив должен иметь один корневой каталог' >&2; exit 3; }
 
+# Сам staging root остаётся приватным (0700), но содержимое bundle и локальный
+# file: APT repository должны быть читаемы sandbox-пользователем _apt и service
+# user. Возвращаем штатный umask до распаковки; исходная пользовательская папка
+# при этом не изменяется.
 umask 022
 tar --no-same-owner --no-same-permissions -xzf "$ARCHIVE" -C "$WORK"
 ROOT="$WORK/${roots[0]}"
 [[ -f "$ROOT/install.sh" ]] || { echo 'В архиве отсутствует install.sh' >&2; exit 3; }
 chmod 0755 "$ROOT/install.sh"
 printf 'Архив проверен. Установка выполняется из приватного временного каталога root; владелец исходной папки не меняется.\n'
+
+# Не заменяем launcher через exec: его EXIT-trap обязан удалить private staging
+# и после успешной установки, и после ошибки внутреннего installer.
 "$ROOT/install.sh"
