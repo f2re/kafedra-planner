@@ -1,0 +1,49 @@
+<GraceChangeSpec graceVersion="4.0" status="approved">
+  <C-ASTRA-OCR-BUNDLE-353>
+    <Summary>Publish and verify target-specific Debian 12, Astra Linux 1.7 and Astra Linux 1.8 offline bundles so Tesseract rus+eng, Poppler and LibreOffice are actually present and recoverable on the target OS.</Summary>
+    <Problem>The runtime installer already requires document capabilities and persists a verified repair payload, but the universal GitHub Release workflow builds its only native archive inside node:24-bookworm. Release 0.4.5 therefore publishes only a Debian 12 package closure. On Astra Linux the installer correctly rejects that OS-package layer as incompatible, leaving no published matching bundle that can install Tesseract, language data, Poppler and LibreOffice offline.</Problem>
+    <Goals>
+      <Goal>Build one immutable full bundle per supported release series — Debian 12, Astra 1.7 and Astra 1.8 — from the same exact main SHA.</Goal>
+      <Goal>Build Astra package closures only inside official matching Astra Linux UBI reference environments and never relabel Debian packages as Astra.</Goal>
+      <Goal>Run the existing install/update/repeat/rollback systemd acceptance against the same matching target family before any archive is publishable.</Goal>
+      <Goal>Make the common installer choose the unique compatible archive when several target bundles are stored together, and fail before system mutation on no match or ambiguity.</Goal>
+      <Goal>Keep additive-only package installation, strict OCR/PDF/Office preflight and the immutable installer-owned repair cache unchanged.</Goal>
+    </Goals>
+    <Constraints>
+      <Constraint>The verified base is main commit 2a5cbef380745af52485e8b55642a916d4ad9dfd with tree f08a9c42c0704bb26374e3d3d47f0cb0d9db5645; issue 353 is the acceptance authority.</Constraint>
+      <Constraint>SQLite schema 31, applied migrations, document evidence, application dependencies and VERSION 0.4.5 are unchanged by this implementation PR.</Constraint>
+      <Constraint>Docker/container images are allowed only as disposable release/reference environments in CI; production deployment remains native systemd without Docker.</Constraint>
+      <Constraint>Astra builds use official registry.astralinux.ru UBI images for their own series; the archive records the actual source OS version and architecture in source-os.env.</Constraint>
+      <Constraint>Target package operations remain additive-only: no package pinning, upgrade, downgrade, removal, allow-downgrades or automatic apt --fix-broken.</Constraint>
+      <Constraint>The same archive that passes target install/update/rollback verification is the archive uploaded to the release; verification may not rebuild or substitute it.</Constraint>
+      <Constraint>Do not add a second or version-specific release workflow. Extend the existing universal Release workflow.</Constraint>
+      <Constraint>Do not weaken fail-closed full-bundle activation, strict Tesseract rus+eng/Poppler/LibreOffice doctor checks or package-cache checksum/profile validation.</Constraint>
+    </Constraints>
+    <NonGoals>
+      <NonGoal>Publish, replace or mutate an existing GitHub Release from this implementation PR.</NonGoal>
+      <NonGoal>Change OCR recognition algorithms, protocol parsing, document provenance or user data schema.</NonGoal>
+      <NonGoal>Make the deterministic application core depend on OCR, Internet, Docker, cloud services or an LLM.</NonGoal>
+      <NonGoal>Claim real workstation acceptance solely from container evidence; TARGET_ACCEPTANCE remains required before stable promotion.</NonGoal>
+    </NonGoals>
+    <AcceptanceCriteria>
+      <Criterion>The release workflow builds distinct Debian 12, Astra 1.7 and Astra 1.8 amd64 native archives from one exact source SHA and each archive passes verify-bundle before further use.</Criterion>
+      <Criterion>Each Astra archive contains a source-os.env with OS_FAMILY=astra, the matching normalized series, amd64 architecture, full-airgap-v2 dependency closure and additive-only-v2 target policy.</Criterion>
+      <Criterion>Each archive is installed with target networking disabled in a matching reference system; API/worker, strict doctor, Tesseract rus+eng, Poppler and LibreOffice pass, then repeated install/update and rollback regression run against that same artifact.</Criterion>
+      <Criterion>The successful installer-owned OS-package cache remains usable by doctor repair after the original installation directory is unavailable.</Criterion>
+      <Criterion>The generic installer selects exactly one compatible archive by embedded OS family/series/architecture; zero or multiple compatible archives fail before root package or application mutation and report the target plus available profiles.</Criterion>
+      <Criterion>An explicitly supplied incompatible archive still fails closed through the existing target profile validation and cannot switch current or migrate data.</Criterion>
+      <Criterion>Release checksum and asset verification operate on the complete dynamically generated verified asset set rather than assuming exactly seven Debian-only files.</Criterion>
+      <Criterion>Focused selector/unit tests, shell syntax, docs consistency, ordinary project tests, GRACE final scope and the release/deployment risk gate pass on the exact PR head before merge.</Criterion>
+    </AcceptanceCriteria>
+    <AffectedAreas><M-OFFLINE-BUNDLE /><M-CI-GATE /></AffectedAreas>
+    <VerificationIntent>
+      <ExpectedCommand>node --test tests/offline-release-selection.test.mjs tests/offline-package-policy.test.mjs tests/deploy-install-contract.test.mjs tests/deployment-flow.test.mjs</ExpectedCommand>
+      <ExpectedCommand>bash -n scripts/offline/*.sh deploy/install.sh deploy/install-core.sh</ExpectedCommand>
+      <ExpectedCommand>npm run check</ExpectedCommand>
+      <ExpectedCommand>npm run docs:check</ExpectedCommand>
+      <ExpectedCommand>npm test</ExpectedCommand>
+      <ExpectedCommand>grace lint --path . --change C-ASTRA-OCR-BUNDLE-353 --assertions final --run-commands</ExpectedCommand>
+      <ExpectedEvidence>Exact-head CI shows three target-specific full bundles, matching systemd install/update/rollback verification and deterministic installer archive selection while existing storage and package-safety invariants remain unchanged.</ExpectedEvidence>
+    </VerificationIntent>
+  </C-ASTRA-OCR-BUNDLE-353>
+</GraceChangeSpec>

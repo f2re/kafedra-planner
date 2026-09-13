@@ -1,0 +1,44 @@
+<GraceChangePlan graceVersion="4.0" status="approved">
+  <C-ASTRA-OCR-BUNDLE-353>
+    <IntentSummary>Close the gap between the existing strict document-runtime installer and published artifacts by producing and testing native packages for every supported OS series.</IntentSummary>
+    <BaselineAssertions>
+      <MustContain><File>.github/workflows/release.yml</File><Text>node:24-bookworm</Text></MustContain>
+      <MustContain><File>scripts/offline/build-full-bundle.sh</File><Text>Полный bundle собирается только на эталонной Debian/Astra Linux</Text></MustContain>
+      <MustContain><File>config/offline/os-packages.txt</File><Text>tesseract-ocr-rus</Text></MustContain>
+      <MustContain><File>deploy/install-core.sh</File><Text>cache-os-packages.sh</Text></MustContain>
+    </BaselineAssertions>
+    <TargetAssertions>
+      <MustContain><File>.github/workflows/release.yml</File><Text>registry.astralinux.ru/library/astra/ubi17:latest</Text></MustContain>
+      <MustContain><File>.github/workflows/release.yml</File><Text>registry.astralinux.ru/library/astra/ubi18:latest</Text></MustContain>
+      <MustContain><File>scripts/offline/install-from-archive.sh</File><Text>source-os.env</Text></MustContain>
+      <MustContain><File>scripts/offline/systemd-deploy-selftest.sh</File><Text>KAFEDRA_SELFTEST_BASE_IMAGE</Text></MustContain>
+      <MustExist><Value>tests/offline-release-selection.test.mjs</Value></MustExist>
+      <MustVerify><Module>M-OFFLINE-BUNDLE</Module></MustVerify><MustVerify><Module>M-CI-GATE</Module></MustVerify>
+    </TargetAssertions>
+    <DurableScope>
+      <GraphAnchors><M-OFFLINE-BUNDLE /><M-CI-GATE /></GraphAnchors>
+      <VerificationAnchors><V-M-OFFLINE-BUNDLE /><V-M-CI-GATE /></VerificationAnchors>
+      <ContextArtifacts><ContextArtifact>principles.xml</ContextArtifact><ContextArtifact>technology.xml</ContextArtifact></ContextArtifacts>
+    </DurableScope>
+    <ObservedWriteScope>
+      <Glob>.grace/changes/active/C-ASTRA-OCR-BUNDLE-353/**</Glob>
+      <Glob>.grace/changes/archive/C-PROTOCOL-IMPORT-349/**</Glob>
+      <File>scripts/offline/install-from-archive.sh</File>
+      <File>scripts/offline/systemd-deploy-selftest.sh</File>
+      <File>.github/workflows/release.yml</File>
+      <File>tests/offline-release-selection.test.mjs</File>
+      <File>docs/OFFLINE_INSTALL.md</File>
+      <File>docs/GITHUB_RELEASES.md</File>
+      <File>docs/TARGET_ACCEPTANCE.md</File>
+      <File>docs/PROJECT_CONTROL.md</File>
+      <File>docs/ROADMAP.md</File>
+      <File>README.md</File>
+    </ObservedWriteScope>
+    <ImplementationPlan>
+      <T-001><Title>Deterministic target archive selection</Title><DependsOn></DependsOn><AcceptanceCriteria><Criterion>The wrapper reads only embedded source-os.env metadata, normalizes Debian/Astra series and chooses one matching archive without mutating the host.</Criterion></AcceptanceCriteria><Verification><Command>node --test tests/offline-release-selection.test.mjs</Command></Verification></T-001>
+      <T-002><Title>Target-specific release build</Title><DependsOn><T-001 /></DependsOn><AcceptanceCriteria><Criterion>One universal workflow builds Debian 12 and official Astra 1.7/1.8 reference artifacts from the exact SHA and keeps a dynamic verified asset manifest.</Criterion></AcceptanceCriteria><Verification><Command>GitHub Release workflow build stage on exact head</Command></Verification></T-002>
+      <T-003><Title>Matching deployment acceptance</Title><DependsOn><T-002 /></DependsOn><AcceptanceCriteria><Criterion>The existing systemd acceptance can boot a caller-specified matching base image and verifies the same archive offline through install/repeat/update/rollback.</Criterion></AcceptanceCriteria><Verification><Command>KAFEDRA_SELFTEST_BASE_IMAGE=&lt;matching-image&gt; bash scripts/offline/systemd-deploy-selftest.sh &lt;target-out&gt;</Command></Verification></T-003>
+      <T-004><Title>Contract documentation and exact-head integration</Title><DependsOn><T-003 /></DependsOn><AcceptanceCriteria><Criterion>Operator docs describe target-specific assets and selection; exact-head targeted tests, ordinary CI and GRACE final checks pass before merge.</Criterion></AcceptanceCriteria><Verification><Command>npm run docs:check &amp;&amp; npm run check &amp;&amp; npm test</Command></Verification></T-004>
+    </ImplementationPlan>
+  </C-ASTRA-OCR-BUNDLE-353>
+</GraceChangePlan>
