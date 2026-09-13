@@ -70,7 +70,8 @@ test('release-scale work is one explicit workflow and never follows ordinary mai
   assert.doesNotMatch(source, /^  pull_request:/mu);
   assert.doesNotMatch(source, /^  workflow_run:/mu);
   assert.match(source, /^  release-gate:/mu);
-  assert.match(source, /systemd-deploy-selftest\.sh "\$OUT"/u);
+  assert.match(source, /build-release-targets\.sh "\$OUT"/u);
+  assert.match(source, /verify-release-targets\.sh "\$OUT"/u);
   await expectMissing('.github/workflows/release-gate.yml');
 });
 

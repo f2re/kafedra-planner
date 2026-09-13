@@ -148,10 +148,45 @@ jobs:
           GRACE_BASE_REF: ${{ steps.base.outputs.base_ref }}
         run: bash scripts/ci/grace-db-gate.sh "$GRACE_BASE_REF"
 
+  deployment:
+    name: ${{ github.event_name == 'pull_request' && 'GRACE / offline deployment' || 'GRACE manual / offline deployment' }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 240
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+      - name: Detect offline deployment risk
+        id: risk
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          shopt -s nullglob
+          specs=(.grace/changes/active/C-*/spec.xml)
+          deployment=false
+          if [[ ${#specs[@]} -eq 1 ]] && grep -Eq '<M-OFFLINE-BUNDLE[[:space:]/>]' "${specs[0]}"; then
+            deployment=true
+          fi
+          echo "deployment=$deployment" >> "$GITHUB_OUTPUT"
+          echo "offline deployment risk: $deployment"
+      - name: Build and verify every supported target bundle
+        if: steps.risk.outputs.deployment == 'true'
+        env:
+          SOURCE_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          OUT="$RUNNER_TEMP/kafedra-grace-release-targets"
+          rm -rf "$OUT"
+          mkdir -p "$OUT"
+          GITHUB_SHA="$SOURCE_SHA" bash scripts/offline/build-release-targets.sh "$OUT"
+          bash scripts/offline/verify-release-targets.sh "$OUT"
+
   gate:
     name: ${{ github.event_name == 'pull_request' && 'GRACE / gate' || 'GRACE manual / gate' }}
     if: ${{ always() }}
-    needs: [contract, database]
+    needs: [contract, database, deployment]
     runs-on: ubuntu-24.04
     timeout-minutes: 5
     steps:
@@ -159,7 +194,9 @@ jobs:
         env:
           CONTRACT: ${{ needs.contract.result }}
           DATABASE: ${{ needs.database.result }}
+          DEPLOYMENT: ${{ needs.deployment.result }}
         run: |
-          printf 'contract=%s\ndatabase=%s\n' "$CONTRACT" "$DATABASE"
+          printf 'contract=%s\ndatabase=%s\ndeployment=%s\n' "$CONTRACT" "$DATABASE" "$DEPLOYMENT"
           test "$CONTRACT" = success
           test "$DATABASE" = success
+          test "$DEPLOYMENT" = success

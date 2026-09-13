@@ -65,14 +65,14 @@ test('full installer проверяет OCR/PDF/Office до активации �
   assert.match(note, /не переоформляется на root/u);
 });
 
-test('release собирает один archive и проверяет тот же artifact до публикации', async () => {
+test('release строит target bundles один раз и проверяет те же artifacts до публикации', async () => {
   const release = await text('.github/workflows/release.yml');
   assert.match(release, /^name: Release$/mu);
   assert.match(release, /^on:\n  workflow_dispatch:\n  push:\n    branches: \[release-run\]$/mu);
   assert.doesNotMatch(release, /^  (?:pull_request|workflow_run):/mu);
   assert.doesNotMatch(release, /^    branches: \[main\]$/mu);
-  assert.equal([...release.matchAll(/build-full-bundle\.sh/g)].length, 1);
-  assert.match(release, /systemd-deploy-selftest\.sh "\$OUT"/u);
+  assert.equal([...release.matchAll(/build-release-targets\.sh "\$OUT"/g)].length, 1);
+  assert.equal([...release.matchAll(/verify-release-targets\.sh "\$OUT"/g)].length, 1);
   assert.match(release, /sha256sum -c --strict/u);
   assert.match(release, /tests\/browser\/protocol-import\.spec\.mjs/u);
   assert.doesNotMatch(release, /gh workflow run/u);

@@ -1,4 +1,4 @@
-<GraceChangePlan graceVersion="4.0" status="approved">
+<GraceChangePlan graceVersion="4.0" status="applied">
   <C-PROTOCOL-IMPORT-349>
     <IntentSummary>Finish one vertical source-to-meeting import workflow on current main, reusing storage, editors, permissions and CI.</IntentSummary>
     <BaselineAssertions>

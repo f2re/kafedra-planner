@@ -2,7 +2,9 @@
 set -Eeuo pipefail
 
 OUT_DIR="${1:-}"
+BASE_IMAGE="${KAFEDRA_SELFTEST_BASE_IMAGE:-debian:12}"
 [[ -n "$OUT_DIR" && -d "$OUT_DIR" ]] || { echo "Использование: systemd-deploy-selftest.sh OUT_DIR" >&2; exit 2; }
+[[ "$BASE_IMAGE" =~ ^[A-Za-z0-9][A-Za-z0-9./:_@+-]*$ ]] || { echo "Небезопасный KAFEDRA_SELFTEST_BASE_IMAGE: $BASE_IMAGE" >&2; exit 2; }
 for command in docker find sha256sum stat awk; do command -v "$command" >/dev/null 2>&1 || { echo "Не найдена команда: $command" >&2; exit 2; }; done
 
 mapfile -t archives < <(find "$OUT_DIR" -maxdepth 1 -type f -name 'kafedra-planner-*.tar.gz' -print | LC_ALL=C sort)
@@ -27,9 +29,11 @@ cleanup() {
 trap cleanup EXIT
 
 # Docker применяется только как disposable reference-VM в CI. Production bundle
-# и target deployment Docker не требуют.
-docker build --quiet -t "$IMAGE" - <<'DOCKERFILE' >/dev/null
-FROM debian:12
+# и target deployment Docker не требуют. Base image обязан совпадать с серией
+# OS package closure проверяемого archive.
+docker build --quiet --build-arg BASE_IMAGE="$BASE_IMAGE" -t "$IMAGE" - <<'DOCKERFILE' >/dev/null
+ARG BASE_IMAGE
+FROM ${BASE_IMAGE}
 ENV DEBIAN_FRONTEND=noninteractive container=docker
 RUN apt-get update \
  && apt-get install -y --no-install-recommends \
@@ -54,7 +58,7 @@ for _attempt in $(seq 1 30); do
   if [[ "$state" == running || "$state" == degraded ]]; then SYSTEMD_READY=true; break; fi
   sleep 1
 done
-[[ "$SYSTEMD_READY" == true ]] || { docker logs "$CONTAINER" >&2 || true; echo "systemd reference target не запустился" >&2; exit 4; }
+[[ "$SYSTEMD_READY" == true ]] || { docker logs "$CONTAINER" >&2 || true; echo "systemd reference target не запустился: $BASE_IMAGE" >&2; exit 4; }
 
 docker exec "$CONTAINER" mkdir -p /installer
 docker cp "$ARCHIVE" "$CONTAINER:/installer/$ARCHIVE_NAME"
@@ -229,4 +233,12 @@ if [[ "$EXPECT_LLM" == true ]]; then
   docker exec "$CONTAINER" systemctl is-active --quiet kafedra-planner-worker.service
 fi
 
-echo "Full systemd deployment selftest: OK ($ARCHIVE_NAME; llm=$EXPECT_LLM)"
+# Установочный носитель может быть удалён. Full install обязан оставить
+# immutable verified OS-package cache, а штатный repair — работать без /installer.
+docker exec "$CONTAINER" bash -lc 'find /var/cache/kafedra-planner/os-packages -type f -name source-os.env -print -quit | grep -q .'
+docker exec "$CONTAINER" bash -lc 'find /var/cache/kafedra-planner/os-packages -type f -name manifest.sha256 -print -quit | grep -q .'
+docker exec "$CONTAINER" rm -rf /installer
+docker exec "$CONTAINER" /opt/kafedra-planner/current/scripts/offline/doctor.sh --repair
+assert_deployed
+
+echo "Full systemd deployment selftest: OK ($ARCHIVE_NAME; target=$BASE_IMAGE; llm=$EXPECT_LLM)"
