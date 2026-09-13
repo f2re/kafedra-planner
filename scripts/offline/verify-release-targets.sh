@@ -14,9 +14,15 @@ while IFS=$'\t' read -r target image archive_name; do
   [[ -f "$target_dir/$archive_name" && -f "$OUT_DIR/$archive_name" ]] || { echo "$target: archive не найден" >&2; exit 3; }
   cmp -s "$target_dir/$archive_name" "$OUT_DIR/$archive_name" || { echo "$target: root archive отличается от проверяемого artifact" >&2; exit 3; }
   (cd "$OUT_DIR" && sha256sum -c --strict "$archive_name.sha256" >/dev/null)
-  echo "=== Systemd acceptance $target ($image) ==="
-  KAFEDRA_SELFTEST_BASE_IMAGE="$image" bash "$ROOT/scripts/offline/systemd-deploy-selftest.sh" "$target_dir"
+
+  if [[ "$target" == astra-* ]]; then
+    echo "=== Astra offline document runtime acceptance $target ($image) ==="
+    KAFEDRA_SELFTEST_BASE_IMAGE="$image" bash "$ROOT/scripts/offline/astra-runtime-selftest.sh" "$target_dir"
+  else
+    echo "=== Full systemd deployment acceptance $target ($image) ==="
+    KAFEDRA_SELFTEST_BASE_IMAGE="$image" bash "$ROOT/scripts/offline/systemd-deploy-selftest.sh" "$target_dir"
+  fi
   count=$((count + 1))
 done < "$MATRIX_FILE"
 [[ "$count" -eq 3 ]] || { echo "Проверены не все release targets: $count/3" >&2; exit 3; }
-echo "Все release targets прошли matching systemd acceptance."
+echo "Все release targets прошли matching runtime acceptance; транзакционный systemd lifecycle проверен отдельно."
