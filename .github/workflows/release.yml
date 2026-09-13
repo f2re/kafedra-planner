@@ -114,7 +114,7 @@ jobs:
     name: release-build-verify-publish
     needs: release-gate
     runs-on: ubuntu-24.04
-    timeout-minutes: 180
+    timeout-minutes: 300
     permissions:
       contents: write
     env:
@@ -200,74 +200,74 @@ jobs:
         if: steps.release.outputs.publish != 'true'
         run: echo "Release ${{ steps.release.outputs.tag }} already exists; nothing to publish."
 
-      - name: Build full offline bundle once
+      - name: Build target-specific full offline bundles once
         if: steps.release.outputs.publish == 'true'
         shell: bash
         run: |
           set -Eeuo pipefail
           OUT="$RUNNER_TEMP/kafedra-release"
+          rm -rf "$OUT"
           mkdir -p "$OUT"
-          docker run --rm \
-            -e GITHUB_SHA="$SOURCE_SHA" \
-            -v "$GITHUB_WORKSPACE:/src:ro" \
-            -v "$OUT:/out" \
-            node:24-bookworm bash -lc '
-              set -Eeuo pipefail
-              apt-get update
-              DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends \
-                python3 ca-certificates curl xz-utils binutils systemd
-              cd /src
-              OUT_DIR=/out KAFEDRA_FULL_BUNDLE_CACHE_DIR=/tmp/kafedra-cache \
-                bash scripts/offline/build-full-bundle.sh
-            '
-          mapfile -t archives < <(find "$OUT" -maxdepth 1 -type f -name 'kafedra-planner-*.tar.gz' -print | LC_ALL=C sort)
-          ((${#archives[@]} == 1)) || { echo "Ожидался один release archive, найдено ${#archives[@]}" >&2; exit 1; }
-          ARCHIVE="${archives[0]}"
-          [[ -f "$ARCHIVE.sha256" ]]
-          [[ -x "$OUT/install-kafedra-planner.sh" && -f "$OUT/README-INSTALL.txt" ]]
-          REQUIRE_ARCHIVE_SHA256=true SKIP_SYSTEM_PREFLIGHT=true \
-            bash scripts/offline/verify-bundle.sh "$ARCHIVE"
+          GITHUB_SHA="$SOURCE_SHA" bash scripts/offline/build-release-targets.sh "$OUT"
           echo "OUT=$OUT" >> "$GITHUB_ENV"
-          echo "ARCHIVE=$ARCHIVE" >> "$GITHUB_ENV"
 
-      - name: Verify install, update and rollback of the same artifact
+      - name: Verify install, update and rollback of every same artifact
         if: steps.release.outputs.publish == 'true'
         shell: bash
-        run: bash scripts/offline/systemd-deploy-selftest.sh "$OUT"
+        run: bash scripts/offline/verify-release-targets.sh "$OUT"
 
-      - name: Build Project Control from the verified archive
+      - name: Build Project Control packages from verified target archives
         if: steps.release.outputs.publish == 'true'
         shell: bash
         run: |
           set -Eeuo pipefail
           VERSION="${{ steps.release.outputs.version }}"
-          python3 scripts/offline/project-control-package.py \
-            --archive "$ARCHIVE" \
-            --output "$OUT" \
-            --project-id kafedra-planner \
-            --display-name "Кафедра Planner" \
-            --adapter kafedra-planner-v1 \
-            --version "$VERSION" \
-            --source-commit "$SOURCE_SHA" \
-            --native-format kafedra-full-airgap-v2
-          PACKAGE="$OUT/kafedra-planner-${VERSION}-project-control.f2re.zip"
-          [[ -f "$PACKAGE" && -f "$PACKAGE.sha256" ]]
-          (cd "$OUT" && sha256sum -c --strict "$(basename "$PACKAGE.sha256")")
-          echo "PACKAGE=$PACKAGE" >> "$GITHUB_ENV"
+          PC_LIST="$OUT/.project-control-assets.txt"
+          : > "$PC_LIST"
+          while IFS=$'\t' read -r TARGET IMAGE ARCHIVE_NAME; do
+            [[ -n "$TARGET" && -n "$ARCHIVE_NAME" ]] || continue
+            PC_OUT="$RUNNER_TEMP/kafedra-project-control-$TARGET"
+            rm -rf "$PC_OUT"
+            mkdir -p "$PC_OUT"
+            python3 scripts/offline/project-control-package.py \
+              --archive "$OUT/$ARCHIVE_NAME" \
+              --output "$PC_OUT" \
+              --project-id kafedra-planner \
+              --display-name "Кафедра Planner" \
+              --adapter kafedra-planner-v1 \
+              --version "$VERSION" \
+              --source-commit "$SOURCE_SHA" \
+              --native-format kafedra-full-airgap-v2
+            GENERATED="$PC_OUT/kafedra-planner-${VERSION}-project-control.f2re.zip"
+            [[ -f "$GENERATED" ]]
+            if [[ "$TARGET" == debian-12-amd64 ]]; then
+              PACKAGE_NAME="kafedra-planner-${VERSION}-project-control.f2re.zip"
+            else
+              PACKAGE_NAME="kafedra-planner-${VERSION}-${TARGET}-project-control.f2re.zip"
+            fi
+            cp "$GENERATED" "$OUT/$PACKAGE_NAME"
+            (cd "$OUT" && sha256sum "$PACKAGE_NAME" > "$PACKAGE_NAME.sha256")
+            printf '%s\n%s\n' "$PACKAGE_NAME" "$PACKAGE_NAME.sha256" >> "$PC_LIST"
+          done < "$OUT/.release-targets.tsv"
+          [[ "$(wc -l < "$PC_LIST")" -eq 6 ]] || { echo "Ожидались три Project Control package + checksum" >&2; exit 1; }
 
-      - name: Verify canonical checksums
+      - name: Verify canonical checksums and dynamic asset set
         if: steps.release.outputs.publish == 'true'
         shell: bash
         run: |
           set -Eeuo pipefail
-          cd "$OUT"
-          sha256sum \
-            "$(basename "$ARCHIVE")" \
-            install-kafedra-planner.sh \
-            README-INSTALL.txt \
-            "$(basename "$PACKAGE")" \
-            > SHA256SUMS
-          sha256sum -c --strict SHA256SUMS
+          ASSETS="$OUT/.release-assets.txt"
+          : > "$ASSETS"
+          while IFS=$'\t' read -r TARGET IMAGE ARCHIVE_NAME; do
+            [[ -n "$TARGET" && -n "$ARCHIVE_NAME" ]] || continue
+            printf '%s\n%s\n' "$ARCHIVE_NAME" "$ARCHIVE_NAME.sha256" >> "$ASSETS"
+          done < "$OUT/.release-targets.tsv"
+          cat "$OUT/.project-control-assets.txt" >> "$ASSETS"
+          printf '%s\n' install-kafedra-planner.sh README-INSTALL.txt >> "$ASSETS"
+          LC_ALL=C sort -u -o "$ASSETS" "$ASSETS"
+          while IFS= read -r NAME; do [[ -f "$OUT/$NAME" ]] || { echo "Release asset отсутствует: $NAME" >&2; exit 1; }; done < "$ASSETS"
+          (cd "$OUT"; while IFS= read -r NAME; do sha256sum "$NAME"; done < .release-assets.txt > SHA256SUMS)
+          (cd "$OUT" && sha256sum -c --strict SHA256SUMS)
 
       - name: Require exact current main before publication
         if: steps.release.outputs.publish == 'true'
@@ -313,14 +313,11 @@ jobs:
         run: |
           set -Eeuo pipefail
           TAG="${{ steps.release.outputs.tag }}"
-          gh release upload "$TAG" --repo "$GITHUB_REPOSITORY" \
-            "$ARCHIVE" \
-            "$ARCHIVE.sha256" \
-            "$OUT/install-kafedra-planner.sh" \
-            "$OUT/README-INSTALL.txt" \
-            "$PACKAGE" \
-            "$PACKAGE.sha256" \
-            "$OUT/SHA256SUMS"
+          mapfile -t NAMES < "$OUT/.release-assets.txt"
+          UPLOADS=()
+          for NAME in "${NAMES[@]}"; do UPLOADS+=("$OUT/$NAME"); done
+          UPLOADS+=("$OUT/SHA256SUMS")
+          gh release upload "$TAG" --repo "$GITHUB_REPOSITORY" "${UPLOADS[@]}"
 
       - name: Verify assets and publish
         if: steps.release.outputs.publish == 'true'
@@ -328,16 +325,7 @@ jobs:
         run: |
           set -Eeuo pipefail
           TAG="${{ steps.release.outputs.tag }}"
-          ARCHIVE_NAME="$(basename "$ARCHIVE")"
-          PACKAGE_NAME="$(basename "$PACKAGE")"
-          EXPECTED="$(printf '%s\n' \
-            "$ARCHIVE_NAME" \
-            "$ARCHIVE_NAME.sha256" \
-            install-kafedra-planner.sh \
-            README-INSTALL.txt \
-            "$PACKAGE_NAME" \
-            "$PACKAGE_NAME.sha256" \
-            SHA256SUMS | sort)"
+          EXPECTED="$( { cat "$OUT/.release-assets.txt"; printf '%s\n' SHA256SUMS; } | LC_ALL=C sort)"
           RELEASE_JSON="$(gh api "repos/$GITHUB_REPOSITORY/releases/$RELEASE_ID")"
           [[ "$(jq -r '.draft' <<<"$RELEASE_JSON")" == true ]]
           [[ "$(jq -r '.tag_name' <<<"$RELEASE_JSON")" == "$TAG" ]]
@@ -375,4 +363,5 @@ jobs:
             echo "Тег $TAG указывает на $OBJECT_SHA вместо $SOURCE_SHA" >&2
             exit 1
           }
-          echo "Published $TAG from exact main $SOURCE_SHA with seven verified assets."
+          ASSET_COUNT="$(wc -l < "$OUT/.release-assets.txt")"
+          echo "Published $TAG from exact main $SOURCE_SHA with $((ASSET_COUNT + 1)) verified target-aware assets."
