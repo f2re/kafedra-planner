@@ -77,3 +77,21 @@ test('Astra acceptance preserves a failing runtime status and reports diagnostic
   assert.ok(calls.indexOf('logs ') < calls.indexOf('rm -f '));
   assert.doesNotMatch(result.stdout, /selftest: OK/u);
 });
+
+test('systemd PIN seed fails closed and cleans its secret without masking reset errors', async (t) => {
+  const source = await readFile(new URL('../scripts/offline/systemd-deploy-selftest.sh', import.meta.url), 'utf8');
+  assert.match(source, /-e KAFEDRA_APPLICATION_DIR=\/opt\/kafedra-planner\/current/u);
+  assert.match(source, /-e KAFEDRA_DATA_DIR=\/var\/lib\/kafedra-planner/u);
+  const seed = source.match(/<<'PIN'\n([\s\S]*?)\nPIN/u)?.[1];
+  assert.ok(seed);
+  const root = await mkdtemp(join(tmpdir(), 'kafedra-pin-seed-'));
+  t.after(() => rm(root, { recursive: true, force: true }));
+  const pin = join(root, 'pin');
+  const node = join(root, 'node');
+  await writeFile(node, '#!/usr/bin/env bash\nexit 19\n', { mode: 0o755 });
+  const isolated = seed.replaceAll('/root/kafedra-test-pin', pin)
+    .replaceAll('/opt/kafedra-planner/current/runtime/node/bin/node', node);
+  const result = spawnSync('bash', ['-s'], { input: isolated, encoding: 'utf8' });
+  assert.equal(result.status, 19, result.stderr);
+  await assert.rejects(readFile(pin), { code: 'ENOENT' });
+});
