@@ -1,6 +1,6 @@
 # Пользовательские сценарии и UX-контракт
 
-Статус: рабочие контуры версии `0.4.5`, схема SQLite `31`. Здесь описано фактически реализованное поведение; дальнейшее развитие находится в [`ROADMAP.md`](ROADMAP.md).
+Статус: рабочие контуры версии `0.4.6`, схема SQLite `31`. Здесь описано фактически реализованное поведение; дальнейшее развитие находится в [`ROADMAP.md`](ROADMAP.md).
 
 ## Общие принципы
 
@@ -127,14 +127,16 @@ XLSX/ODS/CSV проходят обычный document intake. Группа, уч
 
 Release bundle можно держать в обычной читаемой пользовательской папке. Wrapper сам получает root-права, проверяет внешний SHA-256 и внутренний manifest, извлекает bundle в приватный root staging и не делает `chown` исходного каталога.
 
+Если рядом несколько архивов, установщик выбирает единственный совместимый по встроенному профилю ОС и архитектуре. Неподходящий или неоднозначный набор отклоняется до изменения системы. Для Astra Linux используются собственные архивы соответствующей серии, не Debian fallback.
+
 Full bundle содержит managed Node.js/CPython и локальное замыкание document capabilities. Установщик запрашивает только отсутствующие пакеты, не фиксирует target `package=version`, не делает upgrade/downgrade/remove и автоматически не запускает `apt --fix-broken`.
 
-До переключения `/opt/kafedra-planner/current` обязательно проходят strict preflight и реальный OCR self-test для Tesseract `rus+eng`/Poppler; также проверяется LibreOffice. Если полный document runtime не работает, новый release не активируется. После переключения выполняются migrations, health/doctor и rollback при ошибке.
+До переключения `/opt/kafedra-planner/current` обязательно проходят strict preflight и реальный OCR self-test для Tesseract `rus+eng`/Poppler; также проверяется LibreOffice. Если полный document runtime не работает, новый release не активируется. Обновление включает резервное копирование, миграции, проверку активных служб и rollback при ошибке.
 
 ## 12. Release
 
 Pull request доказывает полный project CI один раз. После squash merge запускается только короткий post-merge smoke.
 
-Единственный version-neutral workflow `Release` стартует только от exact текущего `main` — вручную или через служебный `release-run`, указывающий на тот же SHA. Он один раз выполняет project/unit/smoke/backup и critical browser, собирает один full offline artifact и проверяет именно его через checksum, Debian 12 systemd clean install, repeated update и forced rollback. Project Control и публикуемые assets создаются из уже проверенного archive без пересборки.
+Единственный version-neutral workflow `Release` стартует только от exact текущего `main` — вручную или через служебный `release-run`, указывающий на тот же SHA. Он выполняет project/unit/smoke/backup и critical browser, отдельно проверяет запуск на минимальном поддерживаемом Node.js и один раз собирает архив для каждой из трёх ОС. Astra UBI проверяет OCR/PDF/Office без сети; Debian 12 — общий systemd-установщик, повторную установку, legacy layout, обновление предыдущего опубликованного выпуска и откат после отказа нового worker. Project Control и публикуемые assets создаются из тех же проверенных архивов без пересборки.
 
-Release не ждёт другие Actions, не вызывает `gh workflow run` и не повторяет доказанные suites отдельным orchestration-слоем. CI дополняет, но не заменяет реальную целевую Astra Linux/Debian-приёмку. Проверка пользователем реальных протоколов версии `0.4.5` проводится после установки опубликованного выпуска.
+Release не ждёт другие Actions, не вызывает `gh workflow run` и не повторяет доказанные suites отдельным orchestration-слоем. CI и Astra UBI не заменяют реальную целевую приёмку на ядре Astra Linux с systemd/PARSEC. Пользователь проверяет реальные протоколы после установки опубликованного выпуска.
