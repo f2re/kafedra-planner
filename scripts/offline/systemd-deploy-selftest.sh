@@ -2,7 +2,9 @@
 set -Eeuo pipefail
 
 OUT_DIR="${1:-}"
+BASE_IMAGE="${KAFEDRA_SELFTEST_BASE_IMAGE:-debian:12}"
 [[ -n "$OUT_DIR" && -d "$OUT_DIR" ]] || { echo "Использование: systemd-deploy-selftest.sh OUT_DIR" >&2; exit 2; }
+[[ "$BASE_IMAGE" =~ ^[A-Za-z0-9][A-Za-z0-9./:_@+-]*$ ]] || { echo "Небезопасный KAFEDRA_SELFTEST_BASE_IMAGE: $BASE_IMAGE" >&2; exit 2; }
 for command in docker find sha256sum stat awk; do command -v "$command" >/dev/null 2>&1 || { echo "Не найдена команда: $command" >&2; exit 2; }; done
 
 mapfile -t archives < <(find "$OUT_DIR" -maxdepth 1 -type f -name 'kafedra-planner-*.tar.gz' -print | LC_ALL=C sort)
@@ -26,10 +28,11 @@ cleanup() {
 }
 trap cleanup EXIT
 
-# Docker применяется только как disposable reference-VM в CI. Production bundle
-# и target deployment Docker не требуют.
-docker build --quiet -t "$IMAGE" - <<'DOCKERFILE' >/dev/null
-FROM debian:12
+# Docker применяется только как disposable reference environment в CI.
+# Production bundle и target deployment Docker не требуют.
+docker build --quiet --build-arg BASE_IMAGE="$BASE_IMAGE" -t "$IMAGE" - <<'DOCKERFILE' >/dev/null
+ARG BASE_IMAGE
+FROM ${BASE_IMAGE}
 ENV DEBIAN_FRONTEND=noninteractive container=docker
 RUN apt-get update \
  && apt-get install -y --no-install-recommends \
@@ -40,8 +43,7 @@ STOPSIGNAL SIGRTMIN+3
 CMD ["/sbin/init"]
 DOCKERFILE
 
-# После подготовки базовой ОС сеть target отключена. Все application packages
-# должны прийти только из bundle.
+# После подготовки базовой ОС сеть target отключена.
 docker run -d --name "$CONTAINER" \
   --privileged --cgroupns=host --network none \
   --tmpfs /run --tmpfs /run/lock \
@@ -54,7 +56,7 @@ for _attempt in $(seq 1 30); do
   if [[ "$state" == running || "$state" == degraded ]]; then SYSTEMD_READY=true; break; fi
   sleep 1
 done
-[[ "$SYSTEMD_READY" == true ]] || { docker logs "$CONTAINER" >&2 || true; echo "systemd reference target не запустился" >&2; exit 4; }
+[[ "$SYSTEMD_READY" == true ]] || { docker logs "$CONTAINER" >&2 || true; echo "systemd reference target не запустился: $BASE_IMAGE" >&2; exit 4; }
 
 docker exec "$CONTAINER" mkdir -p /installer
 docker cp "$ARCHIVE" "$CONTAINER:/installer/$ARCHIVE_NAME"
@@ -118,12 +120,9 @@ FIRST_RELEASE="$(docker exec "$CONTAINER" readlink -f /opt/kafedra-planner/curre
 FIRST_MODEL_INODE=""
 if [[ "$EXPECT_LLM" == true ]]; then FIRST_MODEL_INODE="$(docker exec "$CONTAINER" bash -lc 'MODEL=$(sed -n "s/^KAFEDRA_LLM_MODEL_PATH=//p" /etc/kafedra-planner/kafedra-planner.env); stat -c %i "$MODEL"')"; fi
 
-# Config — данные, а не shell. Даже при update значение с $() должно остаться
-# буквальным и не выполнить команду от root.
+# Config — данные, а не shell: значение с $() не должно выполняться от root.
 docker exec "$CONTAINER" sed -i 's|^KAFEDRA_SMTP_PASSWORD=.*$|KAFEDRA_SMTP_PASSWORD=$(touch /tmp/kafedra-config-executed)|' /etc/kafedra-planner/kafedra-planner.env
 
-# Тот же комплект должен безопасно проходить как повторный update: без нового
-# администратора, без второго release-каталога, с pre-update backup.
 run_installer
 assert_deployed
 assert_llm_deployed
@@ -139,10 +138,17 @@ RELEASE_COUNT="$(docker exec "$CONTAINER" bash -lc "find /opt/kafedra-planner/re
 [[ "$RELEASE_COUNT" == 1 ]] || { echo "После повторной установки ожидается один release, получено: $RELEASE_COUNT" >&2; exit 6; }
 docker exec "$CONTAINER" bash -lc 'find /var/backups/kafedra-planner -type f -print -quit | grep -q .'
 
-# Сохраняем реальный PIN, затем воспроизводим старую схему, где current был
-# обычным каталогом. Update обязан сам принять layout, не потерять PIN/config и
-# вернуть current к атомарному release symlink.
-docker exec "$CONTAINER" bash -lc 'printf "4826\n" > /root/kafedra-test-pin; chmod 0600 /root/kafedra-test-pin; KAFEDRA_PIN_FILE=/root/kafedra-test-pin /opt/kafedra-planner/current/runtime/node/bin/node /opt/kafedra-planner/current/scripts/reset-pin.mjs >/dev/null; rm -f /root/kafedra-test-pin'
+# Seed the actual installed database; cleanup must not hide a failed PIN reset.
+docker exec -i \
+  -e KAFEDRA_APPLICATION_DIR=/opt/kafedra-planner/current \
+  -e KAFEDRA_DATA_DIR=/var/lib/kafedra-planner \
+  "$CONTAINER" bash -s <<'PIN'
+set -Eeuo pipefail
+trap 'rm -f /root/kafedra-test-pin' EXIT
+umask 077
+printf '4826\n' > /root/kafedra-test-pin
+KAFEDRA_PIN_FILE=/root/kafedra-test-pin /opt/kafedra-planner/current/runtime/node/bin/node /opt/kafedra-planner/current/scripts/reset-pin.mjs
+PIN
 PIN_HASH_BEFORE="$(pin_hash)"
 [[ -n "$PIN_HASH_BEFORE" ]] || { echo "Не удалось зафиксировать PIN hash перед update" >&2; exit 6; }
 make_current_legacy_directory '0.1.0-legacy-ci'
@@ -171,10 +177,6 @@ docker exec "$CONTAINER" systemctl is-active --quiet kafedra-planner-worker.serv
 docker exec "$CONTAINER" bash -lc 'kill "$(cat /tmp/kafedra-lock-holder.pid)" 2>/dev/null || true; rm -f /tmp/kafedra-lock-holder.pid /tmp/kafedra-lock-held'
 sleep 1
 
-# Для LLM-варианта принудительно роняем managed server после backup/migration.
-# Дополнительно возвращаем legacy directory: внешний transaction wrapper обязан
-# восстановить именно исходный layout, данные/PIN и рабочие API/worker, а затем
-# следующий запуск должен успешно обновить ту же установку.
 if [[ "$EXPECT_LLM" == true ]]; then
   make_current_legacy_directory '0.1.0-rollback-ci'
   docker exec "$CONTAINER" sed -i 's/^KAFEDRA_LLM_START_TIMEOUT_SECONDS=.*/KAFEDRA_LLM_START_TIMEOUT_SECONDS=3/' /etc/kafedra-planner/kafedra-planner.env
@@ -205,9 +207,7 @@ if [[ "$EXPECT_LLM" == true ]]; then
   [[ "$(pin_hash)" == "$PIN_HASH_BEFORE" ]] || { echo "Успешный повтор после rollback изменил PIN" >&2; exit 8; }
 fi
 
-# Package deployment имеет один стандартный контур данных. Если существующий
-# config указывает другую БД, update обязан остановиться до остановки служб и
-# переключения current вместо молчаливой миграции другой базы.
+# Конфликтующий путь БД должен быть отвергнут без потери рабочей установки.
 docker exec "$CONTAINER" sed -i 's|^KAFEDRA_DATABASE_PATH=.*$|KAFEDRA_DATABASE_PATH=/tmp/wrong-kafedra.sqlite3|' /etc/kafedra-planner/kafedra-planner.env
 if run_installer; then
   echo "Installer принял конфликтующий KAFEDRA_DATABASE_PATH" >&2
@@ -229,4 +229,98 @@ if [[ "$EXPECT_LLM" == true ]]; then
   docker exec "$CONTAINER" systemctl is-active --quiet kafedra-planner-worker.service
 fi
 
-echo "Full systemd deployment selftest: OK ($ARCHIVE_NAME; llm=$EXPECT_LLM)"
+# Repair обязан работать без исходного носителя.
+docker exec "$CONTAINER" bash -lc 'find /var/cache/kafedra-planner/os-packages -type f -name source-os.env -print -quit | grep -q .'
+docker exec "$CONTAINER" bash -lc 'find /var/cache/kafedra-planner/os-packages -type f -name manifest.sha256 -print -quit | grep -q .'
+docker exec "$CONTAINER" rm -rf /installer
+docker exec "$CONTAINER" /opt/kafedra-planner/current/scripts/offline/doctor.sh --repair
+assert_deployed
+
+# Release supplies the downloaded, checksum-verified previous published bundle.
+# Use a second disposable target, keeping the candidate archive byte-identical.
+if [[ -n "${KAFEDRA_PREVIOUS_RELEASE_DIR:-}" ]]; then
+  PREVIOUS_DIR="$KAFEDRA_PREVIOUS_RELEASE_DIR"
+  mapfile -t previous_archives < <(find "$PREVIOUS_DIR" -maxdepth 1 -type f -name 'kafedra-planner-*-debian-12-amd64.tar.gz' -print)
+  ((${#previous_archives[@]} == 1)) || { echo "Не определён предыдущий опубликованный archive" >&2; exit 9; }
+  PREVIOUS_ARCHIVE="${previous_archives[0]}"
+  PREVIOUS_NAME="$(basename "$PREVIOUS_ARCHIVE")"
+  [[ -f "$PREVIOUS_ARCHIVE.sha256" && -f "$PREVIOUS_DIR/install-kafedra-planner.sh" ]] || exit 9
+  (cd "$PREVIOUS_DIR" && sha256sum -c --strict "$PREVIOUS_NAME.sha256")
+  docker rm -f "$CONTAINER" >/dev/null
+  docker run -d --name "$CONTAINER" \
+    --privileged --cgroupns=host --network none \
+    --tmpfs /run --tmpfs /run/lock \
+    -v /sys/fs/cgroup:/sys/fs/cgroup:rw "$IMAGE" >/dev/null
+  SYSTEMD_READY=false
+  for _attempt in $(seq 1 30); do
+    state="$(docker exec "$CONTAINER" systemctl is-system-running 2>/dev/null || true)"
+    if [[ "$state" == running || "$state" == degraded ]]; then SYSTEMD_READY=true; break; fi
+    sleep 1
+  done
+  [[ "$SYSTEMD_READY" == true ]] || exit 9
+  docker exec "$CONTAINER" mkdir -p /installer
+  docker cp "$PREVIOUS_ARCHIVE" "$CONTAINER:/installer/$PREVIOUS_NAME"
+  docker cp "$PREVIOUS_ARCHIVE.sha256" "$CONTAINER:/installer/$PREVIOUS_NAME.sha256"
+  docker cp "$PREVIOUS_DIR/install-kafedra-planner.sh" "$CONTAINER:/installer/install-kafedra-planner.sh"
+  docker exec "$CONTAINER" chmod 0755 /installer/install-kafedra-planner.sh
+  run_installer
+  assert_deployed
+  PREVIOUS_RELEASE="$(docker exec "$CONTAINER" readlink -f /opt/kafedra-planner/current)"
+  [[ "$PREVIOUS_RELEASE" =~ ^/opt/kafedra-planner/releases/[A-Za-z0-9._-]+$ && "$PREVIOUS_RELEASE" != "$FIRST_RELEASE" ]] || {
+    echo "Предыдущий опубликованный release не отличается от кандидата" >&2; exit 9;
+  }
+  docker exec -i \
+    -e KAFEDRA_APPLICATION_DIR=/opt/kafedra-planner/current \
+    -e KAFEDRA_DATA_DIR=/var/lib/kafedra-planner \
+    "$CONTAINER" bash -s <<'SEED'
+set -Eeuo pipefail
+trap 'rm -f /root/kafedra-test-pin' EXIT
+umask 077
+printf '4826\n' > /root/kafedra-test-pin
+KAFEDRA_PIN_FILE=/root/kafedra-test-pin /opt/kafedra-planner/current/runtime/node/bin/node /opt/kafedra-planner/current/scripts/reset-pin.mjs
+printf 'PUBLISHED UPGRADE SENTINEL\n' > /var/lib/kafedra-planner/blobs/upgrade-sentinel
+SEED
+  PREVIOUS_PIN="$(pin_hash)"
+  [[ -n "$PREVIOUS_PIN" ]] || exit 9
+  PREVIOUS_CONFIG="$(docker exec "$CONTAINER" sha256sum /etc/kafedra-planner/kafedra-planner.env)"
+  PREVIOUS_BLOB="$(docker exec "$CONTAINER" sha256sum /var/lib/kafedra-planner/blobs/upgrade-sentinel)"
+  docker exec "$CONTAINER" rm -rf /installer
+  docker exec "$CONTAINER" mkdir -p /installer
+  docker cp "$ARCHIVE" "$CONTAINER:/installer/$ARCHIVE_NAME"
+  docker cp "$CHECKSUM" "$CONTAINER:/installer/$ARCHIVE_NAME.sha256"
+  docker cp "$WRAPPER" "$CONTAINER:/installer/install-kafedra-planner.sh"
+  docker exec "$CONTAINER" chmod 0755 /installer/install-kafedra-planner.sh
+
+  # Fail only the new worker after current switches. The old worker can restart
+  # during rollback; neither the candidate bundle nor application code is edited.
+  docker exec -i "$CONTAINER" bash -s -- "$PREVIOUS_RELEASE" <<'FAULT'
+set -Eeuo pipefail
+mkdir -p /etc/systemd/system/kafedra-planner-worker.service.d
+printf '[Service]\nExecStartPre=/usr/bin/test /opt/kafedra-planner/current -ef %s\n' "$1" > /etc/systemd/system/kafedra-planner-worker.service.d/ci-published-upgrade.conf
+systemctl daemon-reload
+FAULT
+  if run_installer; then echo "Ожидаемый сбой нового worker не остановил update" >&2; exit 9; fi
+  [[ "$(docker exec "$CONTAINER" readlink -f /opt/kafedra-planner/current)" == "$PREVIOUS_RELEASE" ]] || { echo "Rollback не вернул опубликованный release" >&2; exit 9; }
+  [[ "$(pin_hash)" == "$PREVIOUS_PIN" ]] || { echo "Rollback изменил PIN" >&2; exit 9; }
+  [[ "$(docker exec "$CONTAINER" sha256sum /etc/kafedra-planner/kafedra-planner.env)" == "$PREVIOUS_CONFIG" ]] || { echo "Rollback изменил config" >&2; exit 9; }
+  [[ "$(docker exec "$CONTAINER" sha256sum /var/lib/kafedra-planner/blobs/upgrade-sentinel)" == "$PREVIOUS_BLOB" ]] || { echo "Rollback изменил blob" >&2; exit 9; }
+  assert_deployed
+  docker exec "$CONTAINER" rm /etc/systemd/system/kafedra-planner-worker.service.d/ci-published-upgrade.conf
+  docker exec "$CONTAINER" systemctl daemon-reload
+  run_installer
+  assert_deployed
+  [[ "$(docker exec "$CONTAINER" readlink -f /opt/kafedra-planner/current)" == "$FIRST_RELEASE" ]] || { echo "Update не активировал проверенный candidate" >&2; exit 9; }
+  [[ "$(pin_hash)" == "$PREVIOUS_PIN" ]] || { echo "Update изменил PIN" >&2; exit 9; }
+  [[ "$(docker exec "$CONTAINER" sha256sum /var/lib/kafedra-planner/blobs/upgrade-sentinel)" == "$PREVIOUS_BLOB" ]] || { echo "Update изменил blob" >&2; exit 9; }
+  docker exec "$CONTAINER" /opt/kafedra-planner/current/runtime/node/bin/node -e '
+const {DatabaseSync}=require("node:sqlite");
+const db=new DatabaseSync("/var/lib/kafedra-planner/kafedra-planner.sqlite3", {readOnly:true});
+try {
+  const quick=db.prepare("PRAGMA quick_check").all();
+  if(quick.length!==1 || quick[0].quick_check!=="ok" || db.prepare("PRAGMA foreign_key_check").all().length) process.exitCode=1;
+} finally { db.close(); }
+'
+  echo "Published upgrade and post-activation rollback: OK ($PREVIOUS_NAME -> $ARCHIVE_NAME)"
+fi
+
+echo "Full systemd deployment selftest: OK ($ARCHIVE_NAME; target=$BASE_IMAGE; llm=$EXPECT_LLM)"

@@ -1,4 +1,4 @@
-<GraceChangeSpec graceVersion="4.0" status="approved">
+<GraceChangeSpec graceVersion="4.0" status="applied">
   <C-PROTOCOL-IMPORT-349>
     <Summary>Complete issue 349: tolerant protocol recognition, batch correction and versioned format profiles.</Summary>
     <Problem>Separate agenda and hearing blocks are confused with numbered resolutions. Bulk upload exists but has no shared correction or tested format editor.</Problem>
