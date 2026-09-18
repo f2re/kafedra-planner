@@ -33,9 +33,14 @@ test('release deployment path reuses the same installer for install update rollb
   assert.match(workflow, /Verify install, update and rollback of every same artifact/u);
   assert.match(selftest, /KAFEDRA_SELFTEST_BASE_IMAGE/u);
   assert.match(selftest, /run_installer\(\)/u);
-  assert.match(selftest, /Тот же комплект должен безопасно проходить как повторный update/u);
+  assert.ok(count(selftest, /^run_installer$/gm) >= 3, 'clean, repeat and legacy installs must run the same wrapper');
+  assert.ok(selftest.includes('[[ "$FIRST_RELEASE" == "$SECOND_RELEASE" ]] ||'), 'repeat installation must retain the release identity');
+  assert.ok(selftest.includes('[[ "$RELEASE_COUNT" == 1 ]] ||'), 'repeat installation must not create another release directory');
   assert.match(selftest, /Installer не откатился после принудительного сбоя llama-server/u);
   assert.match(selftest, /Rollback не вернул legacy current/u);
+  assert.match(workflow, /gh release download "\$PREVIOUS_TAG"/u);
+  assert.match(selftest, /ExecStartPre=\/usr\/bin\/test \/opt\/kafedra-planner\/current -ef/u);
+  assert.match(selftest, /Rollback не вернул опубликованный release/u);
   assert.match(selftest, /\/var\/cache\/kafedra-planner\/os-packages/u);
   assert.match(selftest, /doctor\.sh --repair/u);
   assert.doesNotMatch(workflow, /gh workflow run/u);
