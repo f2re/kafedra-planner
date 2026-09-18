@@ -222,11 +222,16 @@ jobs:
           gh release download "$PREVIOUS_TAG" --repo "$GITHUB_REPOSITORY" --dir "$PREVIOUS_DIR" \
             --pattern "$PREVIOUS_ARCHIVE" --pattern "$PREVIOUS_ARCHIVE.sha256" \
             --pattern install-kafedra-planner.sh --pattern README-INSTALL.txt --pattern SHA256SUMS
-          for NAME in "$PREVIOUS_ARCHIVE" "$PREVIOUS_ARCHIVE.sha256" install-kafedra-planner.sh README-INSTALL.txt; do
-            [[ -s "$PREVIOUS_DIR/$NAME" ]]
-            awk -v name="$NAME" '$2 == name { found=1 } END { exit !found }' "$PREVIOUS_DIR/SHA256SUMS"
+          for NAME in "$PREVIOUS_ARCHIVE" "$PREVIOUS_ARCHIVE.sha256" install-kafedra-planner.sh README-INSTALL.txt SHA256SUMS; do
+            [[ -s "$PREVIOUS_DIR/$NAME" ]] || { echo "В предыдущем выпуске отсутствует файл: $NAME" >&2; exit 1; }
           done
-          (cd "$PREVIOUS_DIR" && sha256sum -c --strict --ignore-missing SHA256SUMS)
+          # Historical manifests cover payloads but not companion checksum files.
+          for NAME in "$PREVIOUS_ARCHIVE" install-kafedra-planner.sh README-INSTALL.txt; do
+            awk -v name="$NAME" '$2 == name { found=1 } END { exit !found }' "$PREVIOUS_DIR/SHA256SUMS" || {
+              echo "SHA256SUMS предыдущего выпуска не содержит $NAME" >&2; exit 1;
+            }
+          done
+          (cd "$PREVIOUS_DIR" && sha256sum -c --strict "$PREVIOUS_ARCHIVE.sha256" && sha256sum -c --strict --ignore-missing SHA256SUMS)
           chmod 0755 "$PREVIOUS_DIR/install-kafedra-planner.sh"
           echo "KAFEDRA_PREVIOUS_RELEASE_DIR=$PREVIOUS_DIR" >> "$GITHUB_ENV"
           echo "Published upgrade baseline: $PREVIOUS_TAG"

@@ -1,6 +1,6 @@
 <GraceChangePlan graceVersion="4.0" status="approved">
   <C-ASTRA-OCR-BUNDLE-353>
-    <IntentSummary>Close the gap between the existing strict document-runtime installer and published artifacts by producing and testing native packages for every supported OS series.</IntentSummary>
+    <IntentSummary>Close the gap between the existing strict document-runtime installer and published artifacts by producing and testing native packages for every supported OS series. The publication follow-up from main c587df1bfaead77c2bffdefeac07c565271647cc preserves historical checksum compatibility without changing the approved target, schema or package policy.</IntentSummary>
     <BaselineAssertions>
       <MustContain><File>.github/workflows/release.yml</File><Text>node:24-bookworm</Text></MustContain>
       <MustContain><File>scripts/offline/build-full-bundle.sh</File><Text>Полный bundle собирается только на эталонной Debian/Astra Linux</Text></MustContain>
@@ -11,6 +11,7 @@
       <MustContain><File>scripts/offline/build-release-targets.sh</File><Text>registry.astralinux.ru/library/astra/ubi17:latest</Text></MustContain>
       <MustContain><File>scripts/offline/build-release-targets.sh</File><Text>registry.astralinux.ru/library/astra/ubi18:latest</Text></MustContain>
       <MustContain><File>.github/workflows/release.yml</File><Text>build-release-targets.sh "$OUT"</Text></MustContain>
+      <MustContain><File>.github/workflows/release.yml</File><Text>sha256sum -c --strict "$PREVIOUS_ARCHIVE.sha256"</Text></MustContain>
       <MustContain><File>.github/workflows/grace.yml</File><Text>Build and verify every supported target bundle</Text></MustContain>
       <MustContain><File>scripts/offline/install-from-archive.sh</File><Text>os-packages/source-os\.env</Text></MustContain>
       <MustContain><File>scripts/offline/systemd-deploy-selftest.sh</File><Text>KAFEDRA_SELFTEST_BASE_IMAGE</Text></MustContain>
@@ -53,6 +54,7 @@
       <T-002><Title>Target-specific release build</Title><DependsOn><T-001 /></DependsOn><AcceptanceCriteria><Criterion>One universal workflow builds Debian 12 and official Astra 1.7/1.8 reference artifacts from the exact SHA and keeps a dynamic verified asset manifest.</Criterion></AcceptanceCriteria><Verification><Command>GitHub Release workflow build stage on exact head</Command></Verification></T-002>
       <T-003><Title>Target runtime and deployment acceptance</Title><DependsOn><T-002 /></DependsOn><AcceptanceCriteria><Criterion>Matching Astra UBI targets install the bundled OCR/PDF/Office closure with networking disabled and pass deterministic OCR self-test. The common native installer lifecycle remains covered by the existing full systemd install/repeat/update/rollback/cache-repair acceptance; exact Astra kernel/systemd acceptance remains the real target-machine gate.</Criterion></AcceptanceCriteria><Verification><Command>bash scripts/offline/verify-release-targets.sh &lt;target-out&gt;</Command></Verification></T-003>
       <T-004><Title>Contract documentation and exact-head integration</Title><DependsOn><T-003 /></DependsOn><AcceptanceCriteria><Criterion>Operator docs describe target-specific assets and selection; exact-head targeted tests, ordinary CI and GRACE final checks pass before merge.</Criterion></AcceptanceCriteria><Verification><Command>npm run docs:check &amp;&amp; npm run check &amp;&amp; npm test</Command></Verification></T-004>
+      <T-005><Title>Preserve published checksum formats</Title><DependsOn><T-004 /></DependsOn><AcceptanceCriteria><Criterion>Previous published archives remain usable when their canonical manifest covers payload files but not companion checksum files. Both manifest formats pass; archive or wrapper tampering, contradictory companion checksums and missing required manifest entries fail before using the upgrade baseline.</Criterion></AcceptanceCriteria><Verification><Command>node --test tests/release-recovery-workflow.test.mjs</Command></Verification></T-005>
     </ImplementationPlan>
   </C-ASTRA-OCR-BUNDLE-353>
 </GraceChangePlan>
