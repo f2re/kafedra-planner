@@ -9,13 +9,13 @@
 
 Kafedra Planner is an offline-first daily work system for an academic department: calendar, annual plans, assignments, documents, meetings, reporting, research activity, grade sheets, and auditable evidence.
 
-> Current milestone: **`0.4.5`**, SQLite schema **31**. Core workflows do not require Internet access, Docker, an LLM, Docomator, or cloud services. The project remains a release candidate until the real Astra Linux/Debian installation, upgrade, restoration, and rollback acceptance in [TARGET_ACCEPTANCE.md](docs/TARGET_ACCEPTANCE.md) and issue #27 is complete.
+> Current milestone: **`0.4.6`**, SQLite schema **31**. Core workflows do not require Internet access, Docker, an LLM, Docomator, or cloud services. The project remains a release candidate until the real Astra Linux/Debian installation, upgrade, restoration, and rollback acceptance in [TARGET_ACCEPTANCE.md](docs/TARGET_ACCEPTANCE.md) and issue #27 is complete.
 
-Patch release `0.4.5` extends meetings and protocol imports after `0.4.4`: tolerant structural recognition, bulk metadata correction, versioned recognition formats and safe reprocessing. Dates come from each uploaded document, never from the sample. Failed uploads can be dismissed or reversibly archived without losing original sources and history. Agenda transfers retain plan links; generated DOCX files include all decisions. Operator acceptance of real documents follows installation of the published release.
+Patch release `0.4.6` adds separate offline bundles for Debian 12, Astra Linux 1.7 and 1.8, matching-OS archive selection, and upgrade verification using the previous published release. Each bundle includes its own OS-specific OCR/PDF/Office dependencies. Meeting and protocol import improvements from `0.4.5` are retained: tolerant recognition, bulk metadata correction, versioned recognition formats, safe reprocessing, agenda transfers, and reversible archival.
 
 **[Download an offline bundle](https://github.com/f2re/kafedra-planner/releases)** · **[Install guide](docs/GITHUB_RELEASES.md)** · **[Security policy](SECURITY.md)** · **[Russian documentation](README.md#эксплуатация-и-документация)**
 
-Published releases are immutable. `v0.4.1`–`v0.4.4` remain historical bundles; the R1–R9 automation and simplification cycle is delivered in `v0.4.4`, and protocol import improvements in `v0.4.5`.
+Published releases are not overwritten. The R1–R9 automation cycle is delivered in `v0.4.4`, protocol import improvements in `v0.4.5`, and separate Astra bundles in `v0.4.6`.
 
 ## Operating model
 
@@ -51,11 +51,13 @@ Synchronization is idempotent by remote employee ID. A single malformed remote p
 
 ## Installation and update
 
-Download one release archive, its checksum, the installer wrapper, `README-INSTALL.txt`, and `SHA256SUMS` into any readable ordinary user directory, then run:
+Download the archive for your OS, its checksum, the installer wrapper and `README-INSTALL.txt` from one release into an ordinary readable user directory, then run:
 
 ```bash
-sudo KAFEDRA_APT_MODE=bundle ./install-kafedra-planner.sh
+sudo KAFEDRA_APT_MODE=bundle bash ./install-kafedra-planner.sh
 ```
+
+When several archives are present, the wrapper selects exactly one matching OS profile and architecture from embedded metadata. A missing or ambiguous match stops installation before system changes; a Debian archive is not used as an Astra fallback.
 
 The download directory and source archive do not need to be owned by root. The wrapper verifies the external digest and internal manifest, extracts into a private root staging directory, creates and verifies a backup, switches `/opt/kafedra-planner/current` atomically, and rolls back a failed update.
 

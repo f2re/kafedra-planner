@@ -1,6 +1,6 @@
 # Проверка изменений
 
-Актуальный рубеж: `0.4.5`, SQLite schema **31**. Проверки выбираются по риску изменения; полный release/deployment regression не запускается на каждый feature PR.
+Актуальный рубеж: `0.4.6`, SQLite schema **31**. Проверки выбираются по риску изменения; полный release/deployment regression не запускается на каждый feature PR.
 
 ## Обычный pull request
 
@@ -49,10 +49,10 @@ GRACE автоматически запускается для pull request, к�
 Внутри одного release run:
 
 1. `release-preflight` проверяет exact `main`;
-2. `release-verify` выполняет release-scale project regression и backup self-test один раз;
+2. `release-verify` выполняет project regression и backup self-test один раз; дополнительный smoke проверяет минимальный поддерживаемый Node.js `24.15.0` без повторения unit-набора;
 3. `release-browser-critical` выполняет критические browser/PIN/ACL сценарии один раз;
 4. внутренний `release-gate` принимает результаты jobs без опроса внешних Actions;
-5. `release-build-verify-publish` собирает один full offline artifact, проверяет checksum, clean install, repeated update и forced rollback, затем из того же archive формирует Project Control и публикацию.
+5. `release-build-verify-publish` один раз собирает каждый из трёх target archives, проверяет его в соответствующей среде и создаёт Project Control и публикацию из тех же архивов.
 
 Release не использует `pull_request` или `workflow_run`, не подписан на push `main`, не перезапускает другие workflows и не ждёт их по таймеру. Если `main` изменился до сборки или публикации, старый SHA не публикуется.
 
@@ -62,7 +62,9 @@ Full bundle содержит managed Node.js/CPython и air-gap closure для d
 
 До переключения `/opt/kafedra-planner/current` установщик выполняет strict full preflight и `scripts/recognition/ocr.py doctor --languages rus+eng --self-test`. Неработающий PDF/OCR/Office runtime останавливает активацию и оставляет предыдущий release active.
 
-Release проверяет тот же archive в сетево изолированной Debian 12 reference target: systemd API/worker, managed runtimes, `doctor.sh`, repeated install/update, backup/PIN/config preservation и forced rollback. Публикуется тот же artifact, который прошёл checksum → install → update → forced rollback. Пересборка между verification и upload запрещена.
+В соответствующих Astra 1.7/1.8 UBI с отключённой сетью устанавливается пакетный слой проверяемого архива, выполняются OCR self-test, преобразование документа в PDF через LibreOffice и чтение результата через Poppler. Это проверка пользовательской среды, не systemd/PARSEC на реальном ядре Astra Linux.
+
+На Debian 12 проверяются systemd API/worker, managed runtimes, `doctor.sh`, repeated install, legacy layout и repair без исходного носителя. Для выпуска дополнительно скачивается предыдущий опубликованный Debian-комплект с проверкой контрольных сумм и происхождения. После его установки проверяются обновление тем же candidate archive и принудительный отказ нового worker после переключения `current`: откат должен вернуть прежний release, PIN, конфигурацию и контрольный blob. Затем проверяются успешный повтор и SQLite `quick_check`/`foreign_key_check`. Пересборка между verification и upload запрещена.
 
 ## Что остаётся ручным
 
@@ -76,7 +78,7 @@ Release проверяет тот же archive в сетево изолиров�
 - обновление сайта без stale cache;
 - при наличии — настоящий Оформлятор и llama-server/GGUF.
 
-Для `0.4.5` пользовательская проверка реальных протоколов проводится после установки опубликованного выпуска. Она не является предварительным условием patch-релиза; автоматические проверки сохранности и релизного архива выполняются до публикации.
+Пользовательская проверка реальных протоколов проводится после установки опубликованного выпуска. Она не является предварительным условием patch-релиза `0.4.6`; автоматические проверки сохранности и релизных архивов выполняются до публикации.
 
 ## Перед merge
 
