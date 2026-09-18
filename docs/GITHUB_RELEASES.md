@@ -39,13 +39,13 @@ LLM/`llama.cpp` и GGUF намеренно не входят в стандарт
 4. До изменения системы можно проверить, какой archive выберет wrapper:
 
    ```bash
-   ./install-kafedra-planner.sh --print-selection
+   bash ./install-kafedra-planner.sh --print-selection
    ```
 
 5. Установите или обновите:
 
    ```bash
-   sudo KAFEDRA_APT_MODE=bundle ./install-kafedra-planner.sh
+   sudo KAFEDRA_APT_MODE=bundle bash ./install-kafedra-planner.sh
    ```
 
 Если рядом лежат несколько target archives, wrapper читает встроенный `os-packages/source-os.env` и выбирает ровно один совместимый по family, series и architecture. При отсутствии подходящего archive или при неоднозначности установка завершается до package transaction, остановки служб, миграций и переключения `current`.
@@ -60,14 +60,14 @@ LLM/`llama.cpp` и GGUF намеренно не входят в стандарт
 2. выполняет обычную проверку проекта и критические browser-сценарии;
 3. из того же SHA один раз собирает target archive для Debian 12, Astra 1.7 и Astra 1.8;
 4. проверяет manifest, `source-os.env`, architecture и package policy каждого archive;
-5. на matching reference target с отключённой сетью устанавливает тот же archive через штатный wrapper;
-6. проверяет API/worker, strict `doctor.sh`, Tesseract `rus+eng`, Poppler, LibreOffice, повторную установку/update и recovery-контур;
-7. удаляет исходный каталог установки и проверяет `doctor.sh --repair` из сохранённого immutable package cache;
+5. в Astra UBI соответствующей серии с отключённой сетью устанавливает пакетный слой из того же архива, выполняет OCR self-test с `rus+eng` и проверяет преобразование документа в PDF через LibreOffice с чтением результата через Poppler;
+6. на Debian 12 проверяет общий установщик: API/worker, strict `doctor.sh`, повторную установку, legacy update и recovery-контур;
+7. в той же проверке общего установщика удаляет исходный каталог установки и выполняет `doctor.sh --repair` из сохранённого immutable package cache;
 8. только после этого создаёт Project Control packages и публикует ровно уже проверенные artifacts с SHA-256.
 
 Disposable Docker/UBI используется только как release/reference environment в CI. Production остаётся нативным `systemd`-развёртыванием без Docker и без обязательного Интернета.
 
-Контейнерная проверка не заменяет приёмку на реальной Astra Linux с фактическими vendor revisions и рабочими документами. Порядок реальной приёмки описан в [TARGET_ACCEPTANCE.md](TARGET_ACCEPTANCE.md).
+Astra UBI проверяет пользовательскую среду и пакеты, но не доказывает работу systemd/PARSEC на ядре реальной Astra Linux. Полная приёмка с фактическими vendor revisions и рабочими документами проводится по [TARGET_ACCEPTANCE.md](TARGET_ACCEPTANCE.md).
 
 ## Идемпотентность выпуска
 

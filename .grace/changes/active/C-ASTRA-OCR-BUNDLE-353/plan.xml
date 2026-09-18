@@ -36,6 +36,7 @@
       <File>.github/workflows/release.yml</File>
       <File>.github/workflows/grace.yml</File>
       <File>tests/offline-release-selection.test.mjs</File>
+      <File>tests/astra-runtime-selftest.test.mjs</File>
       <File>tests/release-assets-contract.test.mjs</File>
       <File>tests/release-recovery-workflow.test.mjs</File>
       <File>tests/ci-simplification.test.mjs</File>
