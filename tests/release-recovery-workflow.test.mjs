@@ -1,6 +1,10 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { readFile } from 'node:fs/promises';
+import { readFile, writeFile, mkdtemp, mkdir, rm } from 'node:fs/promises';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
+import { createHash } from 'node:crypto';
+import { spawnSync } from 'node:child_process';
 
 const text = (path) => readFile(path, 'utf8');
 const count = (source, pattern) => [...source.matchAll(pattern)].length;
@@ -62,4 +66,74 @@ test('release stops if main changes before build or publication', async () => {
   assert.match(source, /Require exact current main before publication/u);
   assert.ok(count(source, /git\/ref\/heads\/main/g) >= 3);
   assert.match(source, /публикация \$SOURCE_SHA запрещена/u);
+});
+
+test('previous published bundle accepts historical and current manifests without accepting tampering', async (t) => {
+  const workflow = await text('.github/workflows/release.yml');
+  const block = workflow.split('      - name: Download previous published bundle for real upgrade acceptance\n')[1]
+    ?.split('      - name: Build target-specific full offline bundles once')[0];
+  const script = block?.split('        run: |\n')[1]
+    ?.replace(/^          /gm, '').replaceAll('${{ steps.release.outputs.tag }}', 'v1.0.1');
+  assert.ok(script, 'execute the actual previous-release verification step');
+  const root = await mkdtemp(join(tmpdir(), 'kafedra-previous-check-'));
+  t.after(() => rm(root, { recursive: true, force: true }));
+  const bin = join(root, 'bin');
+  await mkdir(bin);
+  await writeFile(join(bin, 'gh'), `#!/usr/bin/env bash
+set -Eeuo pipefail
+if [[ "$1" == api ]]; then
+  case "$2" in
+    */releases/latest) echo v1.0.0 ;;
+    */compare/v1.0.0...*) echo ahead ;;
+    *) exit 23 ;;
+  esac
+elif [[ "$1" == release && "$2" == download ]]; then
+  while (($#)); do
+    if [[ "$1" == --dir ]]; then cp "$FIXTURE_DIR/"* "$2/"; exit 0; fi
+    shift
+  done
+  exit 24
+else exit 25
+fi
+`, { mode: 0o755 });
+  const archive = 'kafedra-planner-1.0.0-debian-12-amd64.tar.gz';
+  const digest = (content) => createHash('sha256').update(content).digest('hex');
+  for (const mode of ['historical', 'current', 'bad-archive', 'bad-wrapper', 'bad-companion', 'missing-entry']) {
+    const fixture = join(root, mode);
+    const runner = join(root, `${mode}-runner`);
+    await mkdir(fixture);
+    await mkdir(runner);
+    const payloads = {
+      [archive]: 'published archive fixture',
+      'install-kafedra-planner.sh': '#!/usr/bin/env bash\nexit 0\n',
+      'README-INSTALL.txt': 'Published install instructions\n'
+    };
+    const lines = [];
+    for (const [name, content] of Object.entries(payloads)) {
+      await writeFile(join(fixture, name), content);
+      if (mode !== 'missing-entry' || name !== 'install-kafedra-planner.sh') {
+        lines.push(`${digest(content)}  ${name}\n`);
+      }
+    }
+    const companion = `${digest(mode === 'bad-companion' ? 'other archive' : payloads[archive])}  ${archive}\n`;
+    await writeFile(join(fixture, `${archive}.sha256`), companion);
+    if (mode === 'current') lines.push(`${digest(companion)}  ${archive}.sha256\n`);
+    // Optional Project Control assets need not be downloaded for native upgrade.
+    lines.push(`${digest('optional package')}  kafedra-planner-1.0.0-project-control.f2re.zip\n`);
+    await writeFile(join(fixture, 'SHA256SUMS'), lines.join(''));
+    if (mode === 'bad-archive') await writeFile(join(fixture, archive), 'tampered archive');
+    if (mode === 'bad-wrapper') await writeFile(join(fixture, 'install-kafedra-planner.sh'), 'tampered wrapper');
+    const envFile = join(runner, 'env');
+    await writeFile(envFile, '');
+    const result = spawnSync('bash', ['-s'], {
+      input: script, encoding: 'utf8', timeout: 10000,
+      env: { ...process.env, PATH: `${bin}:${process.env.PATH}`, FIXTURE_DIR: fixture,
+        RUNNER_TEMP: runner, GITHUB_ENV: envFile, GITHUB_REPOSITORY: 'fixture/project',
+        SOURCE_SHA: 'a'.repeat(40) }
+    });
+    assert.equal(result.error, undefined, mode);
+    const accepted = mode === 'historical' || mode === 'current';
+    assert.equal(result.status === 0, accepted, `${mode}: ${result.stderr}`);
+    assert.equal((await readFile(envFile, 'utf8')).includes('KAFEDRA_PREVIOUS_RELEASE_DIR='), accepted, mode);
+  }
 });
