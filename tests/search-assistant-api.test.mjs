@@ -31,7 +31,13 @@ test('search assistant API is nonblocking, header-gated and invalidates changed 
     const chunks = [];
     for await (const chunk of request) chunks.push(chunk);
     const body = JSON.parse(Buffer.concat(chunks).toString('utf8'));
-    modelInput = JSON.parse(body.messages[1].content);
+    const input = JSON.parse(body.messages[1].content);
+    if (!input.candidates) {
+      response.setHeader('content-type', 'application/json');
+      response.end(JSON.stringify({ choices: [{ finish_reason: 'stop', message: { content: '{"queries":[]}' } }] }));
+      return;
+    }
+    modelInput = input;
     await modelGate;
     const candidate = modelInput.candidates[0];
     response.setHeader('content-type', 'application/json');
@@ -96,7 +102,7 @@ test('search assistant API is nonblocking, header-gated and invalidates changed 
   const headers = { 'x-kafedra-assistant': 'search-evidence-v1' };
   const started = await get(path + '&assist=start', headers);
   assert.equal(started.assistant.status, 'queued');
-  await waitFor(async () => calls, (count) => count === 1);
+  await waitFor(async () => calls, (count) => count === 2);
   const whileBlocked = await get(path);
   assert.deepEqual(whileBlocked.items, ordinary.items);
   assert.equal((await get(path + '&assist=poll', headers)).assistant.status, 'running');
@@ -105,9 +111,9 @@ test('search assistant API is nonblocking, header-gated and invalidates changed 
   releaseModel();
   const ready = await waitFor(() => get(path + '&assist=poll', headers), (value) => value.assistant.status === 'ready');
   assert.equal(ready.assistant.suggestions.length, 1);
-  assert.equal(calls, 1);
+  assert.equal(calls, 2);
   await get(path + '&assist=start', headers);
-  assert.equal(calls, 1);
+  assert.equal(calls, 2);
   await post('/api/periodic-tasks', { ...task, title: task.title + ' — новый материал', periodKey: '2026-2' });
   const changed = await get(path + '&assist=poll', headers);
   assert.ok(changed.items.length > ready.items.length);

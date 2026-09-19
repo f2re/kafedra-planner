@@ -22,3 +22,6 @@
   .search-assistant-header { column-gap: 0.5rem; }
   .search-assistant-header [role="status"] { flex-basis: 100%; padding-block-end: 0.5rem; }
 }
+.search-related-queries { display: flex; flex-wrap: wrap; gap: 0.5rem; }
+.search-related-queries:empty { display: none; }
+.search-assistant li > small { display: block; margin-block: 0.25rem; }

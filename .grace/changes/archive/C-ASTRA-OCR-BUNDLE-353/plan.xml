@@ -1,4 +1,4 @@
-<GraceChangePlan graceVersion="4.0" status="approved">
+<GraceChangePlan graceVersion="4.0" status="applied">
   <C-ASTRA-OCR-BUNDLE-353>
     <IntentSummary>Close the gap between the existing strict document-runtime installer and published artifacts by producing and testing native packages for every supported OS series. The publication follow-up from main c587df1bfaead77c2bffdefeac07c565271647cc preserves historical checksum compatibility without changing the approved target, schema or package policy.</IntentSummary>
     <BaselineAssertions>

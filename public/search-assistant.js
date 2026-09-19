@@ -1,15 +1,25 @@
 const VERSION = 'search-evidence-v1';
 const qs = (selector) => document.querySelector(selector);
 const preferenceKey = 'kafedra.search-assistant.disabled';
+
+function sourceLocation(item) {
+  try {
+    const locator = JSON.parse(item.locator_json || '{}');
+    return Number.isInteger(locator?.page) && locator.page > 0 ? `стр. ${locator.page}` : '';
+  } catch { return ''; }
+}
 const client = [...crypto.getRandomValues(new Uint8Array(16))].map((byte) => byte.toString(16).padStart(2, '0')).join('');
 
-export function createSearchAssistantUi({ isActive, currentParams, openItem }) {
+export function createSearchAssistantUi({ isActive, currentParams, openItem, chooseQuery }) {
   let root;
   let list;
   let status;
   let checkbox;
   let retry;
   let disclosure;
+  let summary;
+  let note;
+  let related;
   let timer;
   let active;
   let sequence = 0;
@@ -33,13 +43,17 @@ export function createSearchAssistantUi({ isActive, currentParams, openItem }) {
     retry = document.createElement('button'); retry.type = 'button'; retry.className = 'text-button';
     retry.textContent = 'Повторить подбор'; retry.hidden = true;
     header.append(label, status, retry);
-    disclosure = document.createElement('details'); disclosure.hidden = true;
-    const summary = document.createElement('summary'); summary.textContent = 'Показать фрагменты';
-    const note = document.createElement('p'); note.className = 'search-assistant-note';
-    note.textContent = 'Выдержки из поисковой выдачи. Перед включением в отчёт проверьте исходный материал.';
+    disclosure = document.createElement('details');
+    summary = document.createElement('summary'); summary.textContent = 'Показать материалы';
+    note = document.createElement('p'); note.className = 'search-assistant-note';
+    note.textContent = 'Материалы по теме и выдержки из них. Сходство темы не подтверждает выполнение работы.';
+    related = document.createElement('div'); related.className = 'search-related-queries';
+    related.setAttribute('aria-label', 'Похожие запросы');
     list = document.createElement('ul');
-    disclosure.append(summary, note, list);
+    disclosure.append(summary, related, note, list);
     root.append(header, disclosure);
+    summary.addEventListener('click', (event) => { if (!list.childElementCount) event.preventDefault(); });
+    setDisclosureAvailable(false);
     qs('#search-filters')?.after(root);
     checkbox.addEventListener('change', () => {
       enabled = checkbox.checked;
@@ -47,6 +61,12 @@ export function createSearchAssistantUi({ isActive, currentParams, openItem }) {
       if (last) start(last.params, last.payload);
     });
     retry.addEventListener('click', () => { if (last) start(last.params, last.payload); });
+  }
+
+  function setDisclosureAvailable(value) {
+    summary.setAttribute('aria-disabled', String(!value));
+    summary.tabIndex = value ? 0 : -1;
+    note.hidden = !value;
   }
 
   function cancel() {
@@ -63,38 +83,59 @@ export function createSearchAssistantUi({ isActive, currentParams, openItem }) {
     }
     if (root) {
       root.hidden = true;
-      disclosure.hidden = true;
+      status.textContent = '';
+      setDisclosureAvailable(false);
       disclosure.open = false;
       list.replaceChildren();
+      related.replaceChildren();
     }
   }
 
   function display(payload) {
     const advice = payload.assistant || { status: 'disabled' };
     retry.hidden = true;
-    disclosure.hidden = true;
+    setDisclosureAvailable(false);
     list.replaceChildren();
     if (advice.status === 'disabled') { root.hidden = true; return; }
-    if (advice.status === 'ready') {
-      const items = new Map((payload.items || []).map((item) => [`${item.source_kind}:${item.source_id}`, item]));
-      for (const suggestion of advice.suggestions || []) {
-        const item = items.get(suggestion.id);
-        if (!item?.route || typeof suggestion.quote !== 'string') continue;
+    if (['ready', 'partial'].includes(advice.status)) {
+      related.replaceChildren();
+      for (const hint of (advice.relatedQueries || []).slice(0, 3)) {
+        const button = document.createElement('button'); button.type = 'button'; button.className = 'search-filter-chip';
+        button.textContent = hint.query; button.setAttribute('aria-label', `Поиск: ${hint.query}`);
+        button.addEventListener('click', () => chooseQuery(hint.query)); related.append(button);
+      }
+      const items = new Map((advice.items || payload.items || []).map((item) => [`${item.source_kind}:${item.source_id}`, item]));
+      const quotes = new Map((advice.suggestions || []).map((suggestion) => [suggestion.id, suggestion.quote]));
+      const ordered = [...(advice.suggestions || []).map((suggestion) => items.get(suggestion.id)),
+        ...[...items.values()].filter((item) => item.matched_by === 'meaning')].filter(Boolean);
+      const seen = new Set();
+      for (const item of ordered.slice(0, 12)) {
+        const id = `${item.source_kind}:${item.source_id}`;
+        if (!item.route || seen.has(id)) continue;
+        seen.add(id);
+        const quotation = quotes.get(id);
         const row = document.createElement('li');
         const open = document.createElement('button'); open.type = 'button'; open.className = 'search-assistant-source';
         open.textContent = item.title || 'Открыть материал';
         open.setAttribute('aria-label', `Открыть: ${item.title || 'материал'}`);
-        const quote = document.createElement('blockquote'); quote.textContent = suggestion.quote;
+        const quote = document.createElement('blockquote');
+        quote.textContent = quotation || String(item.snippet || '').replace(/<\/?mark>/gu, '');
+        const origin = document.createElement('small');
+        origin.textContent = [({ scientific_item: 'Научный материал', meeting: 'Протокол', decision: 'Решение',
+          document: 'Документ', document_version: 'Документ', assignment: 'Поручение', periodic_task: 'Периодическая задача',
+          plan: 'План', plan_item: 'Пункт плана' })[item.source_kind] || 'Материал',
+          item.number ? `№ ${item.number}` : '', item.event_date || '', sourceLocation(item),
+          item.matched_by === 'meaning' ? `Найдено по: ${item.matched_query}` : ''].filter(Boolean).join(' · ');
         open.addEventListener('click', async () => {
           open.disabled = true;
           try { await openItem(item); } catch { status.textContent = 'Материал изменился. Повторите поиск.'; }
           finally { open.disabled = false; }
         });
-        row.append(open, quote);
+        row.append(open, origin, quote);
         list.append(row);
       }
-      status.textContent = list.childElementCount ? `Подобрано фрагментов: ${list.childElementCount}` : 'Подходящих фрагментов не найдено';
-      disclosure.hidden = !list.childElementCount;
+      status.textContent = list.childElementCount ? `Подобрано материалов: ${list.childElementCount}` : 'Дополнительных материалов не найдено';
+      setDisclosureAvailable(Boolean(list.childElementCount));
       return;
     }
     status.textContent = {
@@ -110,13 +151,15 @@ export function createSearchAssistantUi({ isActive, currentParams, openItem }) {
     cancel();
     last = { params: new URLSearchParams(params), payload };
     if (!isActive() || !payload.assistant || payload.assistant.status === 'disabled'
-      || !payload.items?.length || (params.get('q') || '').trim().length < 3) return;
+      || (params.get('q') || '').trim().length < 3) return;
     ensureUi();
     root.hidden = false;
+    if (document.activeElement === retry) checkbox.focus();
     retry.hidden = true;
     checkbox.checked = enabled;
+    disclosure.hidden = !enabled;
     if (!enabled) { status.textContent = 'Выключены в этой вкладке'; return; }
-    status.textContent = 'Подбираю фрагменты…';
+    status.textContent = 'Ищу похожие материалы…';
     const ticket = sequence;
     const run = { generation: String(ticket), started: false, controller: new AbortController(), polls: 0 };
     active = run;

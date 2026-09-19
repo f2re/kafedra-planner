@@ -1,4 +1,7 @@
 import { createSearchAssistant, SEARCH_ASSISTANT_VERSION } from '../../../packages/ai/src/search-assistant.mjs';
+import { retrieveMaterials } from '../../../packages/search/src/retrieval.mjs';
+import { relatedQueryFor } from '../../../packages/search/src/intent.mjs';
+import { resolveAuthContext } from '../../../packages/auth/src/service.mjs';
 import { AppError } from '../../../packages/core/src/errors.mjs';
 import { canReadSearchResult } from '../../../packages/access-control/src/service.mjs';
 import { resolvePlanAccess, resolvePlanItemAccess } from '../../../packages/plans/src/access.mjs';
@@ -109,27 +112,49 @@ export function createSearchRouter({ database, config = {} }) {
       return sendJson(response, 200, { assistant: assistant.request({ scope }, { cancel: true, generation }) });
     }
     const selectedFilters = filters(url);
+    if (selectedFilters.q.length > 500) throw new AppError('search_query_too_long', 'Сократите запрос до 500 символов.', 400);
     const limit = integerParam(url.searchParams.get('limit'), 80, 300);
-    const payload = searchFaceted(database, workspace, selectedFilters, Math.min(3000, limit * 12));
-    const accessible = context.enabled
-      ? payload.items.filter((item) => canReadResult(database, workspace, context, item))
-      : payload.items;
-    const items = accessible.slice(0, limit).map((item) => ({
-      ...item,
-      route: routeForSearchResult(database, workspace, item)
-    }));
-    // No await: the normal result never waits for the optional model.
-    // The cache key includes this fresh authorized snapshot, not a client-supplied result list.
+    function find(query) {
+      // A queued operation must not retain an expired session or revoked role.
+      const current = request.auth?.enabled ? resolveAuthContext(database, request, config) : context;
+      if (current.enabled && (!current.authenticated || current.workspaceId !== workspace)) return [];
+      const payload = searchFaceted(database, workspace, { ...selectedFilters, q: query,
+        sourceKind: selectedFilters.sourceKind === 'document' ? '' : selectedFilters.sourceKind
+      }, Math.min(600, limit * 4));
+      return payload.items.filter((item) => selectedFilters.sourceKind !== 'document'
+        || ['document', 'document_version'].includes(item.source_kind)).filter((item) => !current.enabled || canReadResult(database, workspace, current, item))
+        .flatMap((item) => {
+          const versionId = item.document_version_id || (item.source_kind === 'document_version' ? item.source_id : null);
+          const origin = versionId ? database.get(`SELECT dv.document_id, dv.id AS version_id,
+            d.current_version_id, d.lifecycle_status FROM document_versions dv
+            JOIN documents d ON d.id = dv.document_id
+            WHERE d.workspace_id = ? AND dv.id = ?`, workspace, versionId) : null;
+          if (origin?.lifecycle_status === 'archived' && selectedFilters.status !== 'archived') return [];
+          if (['document', 'document_version'].includes(item.source_kind) && origin
+            && origin.current_version_id !== origin.version_id) return [];
+          const hydrated = { ...item, source_document_id: item.source_document_id || origin?.document_id || null,
+            related_query: relatedQueryFor(item) };
+          return [{ ...hydrated, route: routeForSearchResult(database, workspace, hydrated) }];
+        }).slice(0, limit);
+    }
+    const retrieve = (expansions = []) => selectedFilters.q.trim()
+      ? retrieveMaterials({ database, query: selectedFilters.q, find, expansions, limit })
+      : { items: find(''), relatedQueries: [], mode: 'filters' };
+    const material = retrieve();
+    const items = material.items;
+    // Query expansion and reranking run AFTER this response. Neither is a prerequisite for search.
     const advice = ['start', 'poll'].includes(assistMode)
-      ? assistant.request({ scope, query: selectedFilters.q, filters: selectedFilters, items },
+      ? assistant.request({ scope, query: selectedFilters.q, filters: selectedFilters, items, retrieve },
         { start: assistMode === 'start', generation })
       : { status: assistant.enabled ? 'idle' : 'disabled', suggestions: [] };
     return sendJson(response, 200, {
       assistant: advice,
-      query: payload.query,
+      query: selectedFilters.q,
       items,
-      facets: buildSearchFacets(accessible),
-      total: accessible.length
+      relatedQueries: material.relatedQueries,
+      retrievalMode: material.mode,
+      facets: buildSearchFacets(items),
+      total: items.length
     });
   };
 }
