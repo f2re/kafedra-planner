@@ -1,6 +1,6 @@
 <GraceChangePlan graceVersion="4.0" status="approved">
   <C-SEARCH-RELEASE-359>
-    <IntentSummary>Integrate the pending search vertical, verify actual API/UI behavior and publish a bounded feature release without duplicating domain storage or release infrastructure.</IntentSummary>
+    <IntentSummary>Integrate the pending search vertical, verify actual API/UI behavior and publish a bounded feature release without duplicating domain storage or release infrastructure. Before regression fixes, issue #359 clarifies that search metadata reads include optional sources of manual objects; persistent storage and security semantics remain unchanged.</IntentSummary>
     <BaselineAssertions>
       <MustExist><Value>apps/api/src/search-router.mjs</Value></MustExist>
       <MustExist><Value>packages/storage/src/search.mjs</Value></MustExist>
@@ -28,6 +28,7 @@
       <Glob>.grace/changes/active/C-SEARCH-RELEASE-359/**</Glob>
       <Glob>.grace/changes/archive/C-ASTRA-OCR-BUNDLE-353/**</Glob>
       <Glob>packages/search/src/**</Glob>
+      <File>packages/storage/src/faceted-search.mjs</File>
       <File>packages/ai/src/search-assistant.mjs</File>
       <File>packages/ai/src/search-tasks.mjs</File>
       <File>apps/api/src/search-router.mjs</File>
