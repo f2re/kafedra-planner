@@ -481,6 +481,7 @@ async function callGlobal(names, id) {
 
 function elementWithDatasetValue(id) {
   for (const element of $$('button, [role="button"], article, tr, [data-id]')) {
+    if (!visible(element)) continue;
     if (Object.values(element.dataset || {}).some((value) => value === id)) {
       return element.matches('button, [role="button"]') ? element : element.querySelector('button, [role="button"]') || element;
     }
