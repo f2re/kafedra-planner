@@ -85,7 +85,7 @@ function sourceMeta(database, workspaceId, sourceKind, sourceId) {
   if (sourceKind === 'meeting') {
     const row = database.get(`
       SELECT m.*, dv.document_id AS source_document_id
-      FROM meetings m JOIN document_versions dv ON dv.id = m.source_document_version_id
+      FROM meetings m LEFT JOIN document_versions dv ON dv.id = m.source_document_version_id
       WHERE m.workspace_id = ? AND m.id = ?
     `, workspaceId, sourceId);
     return row ? {
@@ -101,7 +101,7 @@ function sourceMeta(database, workspaceId, sourceKind, sourceId) {
       FROM decisions d
       JOIN agenda_items ai ON ai.id = d.agenda_item_id
       JOIN meetings m ON m.id = ai.meeting_id
-      JOIN document_versions dv ON dv.id = m.source_document_version_id
+      LEFT JOIN document_versions dv ON dv.id = m.source_document_version_id
       WHERE m.workspace_id = ? AND d.id = ?
     `, workspaceId, sourceId);
     return row ? {
@@ -158,7 +158,7 @@ function sourceMeta(database, workspaceId, sourceKind, sourceId) {
   if (sourceKind === 'plan') {
     const row = database.get(`
       SELECT p.*, dv.document_id AS source_document_id
-      FROM plans p JOIN document_versions dv ON dv.id = p.source_document_version_id
+      FROM plans p LEFT JOIN document_versions dv ON dv.id = p.source_document_version_id
       WHERE p.workspace_id = ? AND p.id = ?
     `, workspaceId, sourceId);
     return row ? {
@@ -172,7 +172,7 @@ function sourceMeta(database, workspaceId, sourceKind, sourceId) {
     const row = database.get(`
       SELECT pi.*, p.plan_kind, p.period_key, dv.document_id AS source_document_id
       FROM plan_items pi JOIN plans p ON p.id = pi.plan_id
-      JOIN document_versions dv ON dv.id = p.source_document_version_id
+      LEFT JOIN document_versions dv ON dv.id = p.source_document_version_id
       WHERE p.workspace_id = ? AND pi.id = ?
     `, workspaceId, sourceId);
     return row ? {

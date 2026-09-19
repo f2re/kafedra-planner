@@ -46,6 +46,19 @@ function canReadResult(database, workspace, context, item) {
   if (item.source_kind === 'plan_item') {
     return resolvePlanItemAccess(database, workspace, context, item.source_id, 'read').allowed;
   }
+  if (['meeting', 'decision'].includes(item.source_kind)) {
+    const meeting = item.source_kind === 'meeting'
+      ? database.get('SELECT source_document_version_id, created_by_person_id FROM meetings WHERE workspace_id = ? AND id = ?', workspace, item.source_id)
+      : database.get(`SELECT m.source_document_version_id, m.created_by_person_id
+          FROM decisions d JOIN agenda_items ai ON ai.id = d.agenda_item_id
+          JOIN meetings m ON m.id = ai.meeting_id WHERE m.workspace_id = ? AND d.id = ?`, workspace, item.source_id);
+    if (!meeting) return false;
+    // Same creator/admin rule as manual meeting supporting-document access.
+    // Imported meetings still inherit the existing source-document ACL below.
+    if (!meeting.source_document_version_id) return Boolean(context.authenticated
+      && (!context.enabled || context.role === 'admin'
+        || (context.personId && meeting.created_by_person_id === context.personId)));
+  }
   return canReadSearchResult(database, workspace, context, item);
 }
 

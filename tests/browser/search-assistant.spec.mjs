@@ -1,5 +1,21 @@
 import { test, expect } from '@playwright/test';
 
+async function returnFromInspector(page, testInfo) {
+  const inspector = page.locator('#ux-inspector');
+  await expect(inspector).toBeVisible();
+  const back = inspector.locator('#search-return-action');
+  await expect(back).toBeVisible();
+  await expect(page.locator('#search-return-action')).toHaveCount(1);
+  const bounds = await back.boundingBox();
+  expect(bounds.height).toBeGreaterThanOrEqual(44);
+  expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
+  await page.screenshot({ path: testInfo.outputPath('search-inspector-return.png') });
+  await back.click();
+  await expect(inspector).toBeHidden();
+  await expect(page.locator('#sheet-backdrop')).toBeHidden();
+  await expect(page.locator('[data-view-panel="search"]')).toBeVisible();
+}
+
 test('фоновые подсказки не заменяют выдачу, сохраняют фокус и отключаются', async ({ page }, testInfo) => {
   const pageErrors = [];
   page.on('pageerror', (error) => pageErrors.push(error.message));
@@ -48,8 +64,7 @@ test('фоновые подсказки не заменяют выдачу, со
   await expect(page.locator('#search-assistant blockquote')).toContainText('Фоновый подбор');
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
   await page.locator('.search-assistant-source').click();
-  await expect(page.locator('#search-return-action')).toBeVisible();
-  await page.locator('#search-return-action').click();
+  await returnFromInspector(page, testInfo);
   await expect(page.locator('#search-input')).toHaveValue(title);
   await expect(page.locator('#search-assistant')).toBeVisible();
   await page.locator('#search-assistant input').uncheck();
@@ -107,8 +122,7 @@ test('семантический подбор находит материал п
   await page.locator('#search-assistant summary').click();
   await expect(page.locator('#search-assistant')).toContainText(title);
   await page.locator('.search-assistant-source').click();
-  await expect(page.locator('#search-return-action')).toBeVisible();
-  await page.locator('#search-return-action').click();
+  await returnFromInspector(page, testInfo);
   await expect(page.locator('#search-input')).toHaveValue(query);
   await expect(page.locator('#search-assistant [role="status"]')).toContainText('Подобрано материалов: 1');
   await page.locator('#search-assistant summary').click();

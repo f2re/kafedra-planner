@@ -21,6 +21,7 @@ const assistant = createSearchAssistantUi({
     try {
       const opened = await window.kafedraOpenExactRoute(item.route);
       if (!opened) throw new Error('Материал недоступен.');
+      updateReturnAction();
     } catch (error) {
       searchState.returnPending = false;
       updateReturnAction();
@@ -326,10 +327,23 @@ function currentView() {
   return document.querySelector('.nav-item.active[data-view], .mobile-tab.active[data-view]')?.dataset.view || '';
 }
 
+function returnInspector() {
+  const inspector = qs('#ux-inspector:not(.hidden)');
+  return inspector?.getClientRects().length ? inspector : null;
+}
+
 function updateReturnAction() {
   const button = qs('#search-return-action');
   if (!button) return;
-  button.classList.toggle('hidden', !searchState.returnPending || currentView() === 'search');
+  const inspector = returnInspector();
+  const close = inspector?.querySelector('#ux-inspector-close');
+  const anchor = searchState.returnPending && close ? close : qs('#open-search');
+  // Keep one return action inside the active layer, not below its backdrop.
+  if (anchor && (button.parentElement !== anchor.parentElement || button.nextElementSibling !== anchor)) {
+    anchor.before(button);
+  }
+  button.classList.toggle('hidden', !searchState.returnPending || (currentView() === 'search' && !inspector));
+  qs('#ux-inspector .ux-inspector-head')?.classList.toggle('search-return-host', Boolean(inspector && searchState.returnPending));
 }
 
 function applyReturnContext() {
@@ -352,6 +366,12 @@ function applyReturnContext() {
 }
 
 function returnToSearch() {
+  const inspector = returnInspector();
+  if (inspector) {
+    inspector.querySelector('#ux-inspector-close')?.click();
+    // Respect the object's normal close/unsaved-input policy.
+    if (returnInspector()) return;
+  }
   if (typeof window.kafedraSetView === 'function') window.kafedraSetView('search');
   else qs('[data-view="search"]')?.click();
   if (searchState.returnPending) applyReturnContext();
@@ -425,6 +445,11 @@ function submitSearch(event) {
 ensureStyles();
 ensureUi();
 ensureReturnAction();
+
+// Some canonical openers return before the inspector has finished loading.
+new MutationObserver((records) => {
+  if (records.some((record) => record.target.id === 'ux-inspector')) updateReturnAction();
+}).observe(document.body, { attributes: true, attributeFilter: ['class'], subtree: true });
 
 qs('#search-form')?.addEventListener('submit', submitSearch, true);
 qs('#search-filters')?.addEventListener('submit', submitSearch, true);
