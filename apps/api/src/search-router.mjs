@@ -1,3 +1,4 @@
+import { createSearchAssistant, SEARCH_ASSISTANT_VERSION } from '../../../packages/ai/src/search-assistant.mjs';
 import { AppError } from '../../../packages/core/src/errors.mjs';
 import { canReadSearchResult } from '../../../packages/access-control/src/service.mjs';
 import { resolvePlanAccess, resolvePlanItemAccess } from '../../../packages/plans/src/access.mjs';
@@ -88,14 +89,28 @@ export function routeForSearchResult(database, workspace, item) {
   }
 }
 
-export function createSearchRouter({ database }) {
+export function createSearchRouter({ database, config = {} }) {
+  const assistant = createSearchAssistant({ config });
   return async function routeSearch(request, response, url) {
     if ((request.method || 'GET') !== 'GET' || url.pathname !== '/api/search') return false;
     const workspace = workspaceId(database, request);
     if (!workspace) throw new AppError('workspace_not_initialized', 'Рабочее пространство не создано.', 500);
-    const limit = integerParam(url.searchParams.get('limit'), 80, 300);
-    const payload = searchFaceted(database, workspace, filters(url), Math.min(3000, limit * 12));
     const context = request.auth || { enabled: false };
+    // Custom header prevents cross-origin links/images from starting optional computation.
+    // Authentication and source ACL still apply to every search and every poll.
+    const client = url.searchParams.get('assistContext') || '';
+    const generation = url.searchParams.get('assistGeneration') || '';
+    const assistMode = request.headers['x-kafedra-assistant'] === SEARCH_ASSISTANT_VERSION
+      && /^[a-zA-Z0-9-]{16,64}$/u.test(client) && /^\d{1,12}$/u.test(generation)
+      ? url.searchParams.get('assist') : null;
+    const scope = [workspace, context.enabled === true, context.accountId || null, context.personId || null, client];
+    response.setHeader('cache-control', 'private, no-store');
+    if (assistMode === 'cancel') {
+      return sendJson(response, 200, { assistant: assistant.request({ scope }, { cancel: true, generation }) });
+    }
+    const selectedFilters = filters(url);
+    const limit = integerParam(url.searchParams.get('limit'), 80, 300);
+    const payload = searchFaceted(database, workspace, selectedFilters, Math.min(3000, limit * 12));
     const accessible = context.enabled
       ? payload.items.filter((item) => canReadResult(database, workspace, context, item))
       : payload.items;
@@ -103,7 +118,14 @@ export function createSearchRouter({ database }) {
       ...item,
       route: routeForSearchResult(database, workspace, item)
     }));
+    // No await: the normal result never waits for the optional model.
+    // The cache key includes this fresh authorized snapshot, not a client-supplied result list.
+    const advice = ['start', 'poll'].includes(assistMode)
+      ? assistant.request({ scope, query: selectedFilters.q, filters: selectedFilters, items },
+        { start: assistMode === 'start', generation })
+      : { status: assistant.enabled ? 'idle' : 'disabled', suggestions: [] };
     return sendJson(response, 200, {
+      assistant: advice,
       query: payload.query,
       items,
       facets: buildSearchFacets(accessible),

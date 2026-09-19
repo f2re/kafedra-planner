@@ -1,3 +1,5 @@
+import { createSearchAssistantUi } from './search-assistant.js';
+
 const searchState = {
   timer: null,
   request: 0,
@@ -8,6 +10,15 @@ const searchState = {
   routeErrors: new Map()
 };
 const qs = (selector, root = document) => root.querySelector(selector);
+const assistant = createSearchAssistantUi({
+  isActive: () => currentView() === 'search' && !document.hidden,
+  currentParams: activeFilters,
+  openItem: (item) => {
+    const card = qs(`[data-search-result-key="${CSS.escape(resultKey(item))}"]`);
+    if (!card) throw new Error('Материал изменился. Повторите поиск.');
+    return openResult(card);
+  }
+});
 
 const filterLabels = {
   kind: 'Вид', number: 'Номер', from: 'Дата с', to: 'Дата по', direction: 'Направление',
@@ -202,6 +213,7 @@ function renderEmptyPrompt() {
 }
 
 function cancelPendingSearch() {
+  assistant.cancel();
   clearTimeout(searchState.timer);
   searchState.timer = null;
   searchState.controller?.abort();
@@ -209,6 +221,7 @@ function cancelPendingSearch() {
 }
 
 async function performSearch() {
+  assistant.cancel();
   clearTimeout(searchState.timer);
   searchState.timer = null;
   renderActiveFilters();
@@ -236,6 +249,7 @@ async function performSearch() {
       return;
     }
     render(payload);
+    assistant.start(params, payload);
   } catch (error) {
     if (sequence !== searchState.request || controller.signal.aborted || error?.name === 'AbortError') return;
     target.className = 'search-results empty-state';
@@ -437,4 +451,9 @@ resetButton?.addEventListener('click', (event) => {
 window.addEventListener('kafedra:view-changed', (event) => {
   updateReturnAction();
   if (event.detail?.view === 'search' && searchState.returnPending) applyReturnContext();
+  else if (event.detail?.view === 'search') assistant.resume();
+  else {
+    cancelPendingSearch();
+    ++searchState.request;
+  }
 });
