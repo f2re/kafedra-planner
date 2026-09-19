@@ -1,6 +1,8 @@
 import { test, expect } from '@playwright/test';
 
 test('фоновые подсказки не заменяют выдачу, сохраняют фокус и отключаются', async ({ page }, testInfo) => {
+  const pageErrors = [];
+  page.on('pageerror', (error) => pageErrors.push(error.message));
   const title = `Фоновый подбор отчёта ${testInfo.project.name}`;
   const personResponse = await page.request.post('/api/people', { data: { displayName: title } });
   expect(personResponse.ok()).toBeTruthy();
@@ -34,6 +36,7 @@ test('фоновые подсказки не заменяют выдачу, со
   });
   await page.goto('/');
   await page.evaluate(() => window.kafedraSetView('search'));
+  await expect(page.locator('#search-filters')).toBeVisible();
   await page.locator('#search-input').fill(title);
   await expect(page.locator('#search-results')).toContainText(title);
   const order = await page.locator('#search-results [data-search-result-key]').evaluateAll((nodes) => nodes.map((node) => node.dataset.searchResultKey));
@@ -59,4 +62,5 @@ test('фоновые подсказки не заменяют выдачу, со
   await page.locator('#search-assistant input').check();
   await expect(page.locator('#search-assistant [role="status"]')).toContainText('временно недоступны');
   await expect(page.locator('#search-results')).toContainText(title);
+  expect(pageErrors).toEqual([]);
 });

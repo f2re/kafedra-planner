@@ -93,6 +93,7 @@ test('единый поиск фильтрует периодическую за
   const filters = page.locator('#search-filters');
   await expect(filters).toBeVisible();
   await filters.locator('select[name="sourceKind"]').selectOption('periodic_task');
+  await page.locator('#search-more-filters > summary').click();
   await filters.locator('input[name="person"]').fill('Петров Фасетный');
   await filters.locator('input[name="period"]').fill('2026-1');
 
@@ -101,7 +102,7 @@ test('единый поиск фильтрует периодическую за
   await expect(result).toContainText('Периодическая задача');
   await expect(result).toContainText('2026-09-15');
   await expect(result).toContainText('2026-1');
-  await expect(page.locator('#search-count')).toContainText('Найдено:');
+  await expect(page.locator('#search-count')).toHaveText(/^[1-9]\d*$/u);
 
   const resetButton = filters.getByRole('button', { name: 'Сбросить' });
   if (testInfo.project.name.includes('mobile')) await resetAcrossMobileReflow(page, resetButton);
@@ -141,6 +142,7 @@ test('единый поиск фильтрует периодическую за
 
   await searchInput.fill(searchText);
   await page.waitForFunction(() => window.__searchAbortHarness?.started === true);
+  await page.locator('#search-more-filters > summary').click();
   await resetButton.click();
   const aborted = await page.evaluate(() => window.__searchAbortHarness?.signal?.aborted === true);
   expect(aborted).toBe(true);
@@ -150,6 +152,7 @@ test('единый поиск фильтрует периодическую за
 
   await searchInput.fill(searchText);
   await expect(result).toBeVisible();
+  await page.locator('#search-more-filters > summary').click();
   await resetButton.focus();
   await page.keyboard.press('Enter');
   await expect(page.locator('#search-results')).toContainText('Введите текст или выберите один из фильтров');
