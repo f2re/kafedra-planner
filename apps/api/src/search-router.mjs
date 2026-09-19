@@ -1,3 +1,7 @@
+import { createSearchAssistant, SEARCH_ASSISTANT_VERSION } from '../../../packages/ai/src/search-assistant.mjs';
+import { retrieveMaterials } from '../../../packages/search/src/retrieval.mjs';
+import { relatedQueryFor } from '../../../packages/search/src/intent.mjs';
+import { resolveAuthContext } from '../../../packages/auth/src/service.mjs';
 import { AppError } from '../../../packages/core/src/errors.mjs';
 import { canReadSearchResult } from '../../../packages/access-control/src/service.mjs';
 import { resolvePlanAccess, resolvePlanItemAccess } from '../../../packages/plans/src/access.mjs';
@@ -41,6 +45,19 @@ function canReadResult(database, workspace, context, item) {
   }
   if (item.source_kind === 'plan_item') {
     return resolvePlanItemAccess(database, workspace, context, item.source_id, 'read').allowed;
+  }
+  if (['meeting', 'decision'].includes(item.source_kind)) {
+    const meeting = item.source_kind === 'meeting'
+      ? database.get('SELECT source_document_version_id, created_by_person_id FROM meetings WHERE workspace_id = ? AND id = ?', workspace, item.source_id)
+      : database.get(`SELECT m.source_document_version_id, m.created_by_person_id
+          FROM decisions d JOIN agenda_items ai ON ai.id = d.agenda_item_id
+          JOIN meetings m ON m.id = ai.meeting_id WHERE m.workspace_id = ? AND d.id = ?`, workspace, item.source_id);
+    if (!meeting) return false;
+    // Same creator/admin rule as manual meeting supporting-document access.
+    // Imported meetings still inherit the existing source-document ACL below.
+    if (!meeting.source_document_version_id) return Boolean(context.authenticated
+      && (!context.enabled || context.role === 'admin'
+        || (context.personId && meeting.created_by_person_id === context.personId)));
   }
   return canReadSearchResult(database, workspace, context, item);
 }
@@ -88,26 +105,69 @@ export function routeForSearchResult(database, workspace, item) {
   }
 }
 
-export function createSearchRouter({ database }) {
+export function createSearchRouter({ database, config = {} }) {
+  const assistant = createSearchAssistant({ config });
   return async function routeSearch(request, response, url) {
     if ((request.method || 'GET') !== 'GET' || url.pathname !== '/api/search') return false;
     const workspace = workspaceId(database, request);
     if (!workspace) throw new AppError('workspace_not_initialized', 'Рабочее пространство не создано.', 500);
-    const limit = integerParam(url.searchParams.get('limit'), 80, 300);
-    const payload = searchFaceted(database, workspace, filters(url), Math.min(3000, limit * 12));
     const context = request.auth || { enabled: false };
-    const accessible = context.enabled
-      ? payload.items.filter((item) => canReadResult(database, workspace, context, item))
-      : payload.items;
-    const items = accessible.slice(0, limit).map((item) => ({
-      ...item,
-      route: routeForSearchResult(database, workspace, item)
-    }));
+    // Custom header prevents cross-origin links/images from starting optional computation.
+    // Authentication and source ACL still apply to every search and every poll.
+    const client = url.searchParams.get('assistContext') || '';
+    const generation = url.searchParams.get('assistGeneration') || '';
+    const assistMode = request.headers['x-kafedra-assistant'] === SEARCH_ASSISTANT_VERSION
+      && /^[a-zA-Z0-9-]{16,64}$/u.test(client) && /^\d{1,12}$/u.test(generation)
+      ? url.searchParams.get('assist') : null;
+    const scope = [workspace, context.enabled === true, context.accountId || null, context.personId || null, client];
+    response.setHeader('cache-control', 'private, no-store');
+    if (assistMode === 'cancel') {
+      return sendJson(response, 200, { assistant: assistant.request({ scope }, { cancel: true, generation }) });
+    }
+    const selectedFilters = filters(url);
+    if (selectedFilters.q.length > 500) throw new AppError('search_query_too_long', 'Сократите запрос до 500 символов.', 400);
+    const limit = integerParam(url.searchParams.get('limit'), 80, 300);
+    function find(query) {
+      // A queued operation must not retain an expired session or revoked role.
+      const current = request.auth?.enabled ? resolveAuthContext(database, request, config) : context;
+      if (current.enabled && (!current.authenticated || current.workspaceId !== workspace)) return [];
+      const payload = searchFaceted(database, workspace, { ...selectedFilters, q: query,
+        sourceKind: selectedFilters.sourceKind === 'document' ? '' : selectedFilters.sourceKind
+      }, Math.min(600, limit * 4));
+      return payload.items.filter((item) => selectedFilters.sourceKind !== 'document'
+        || ['document', 'document_version'].includes(item.source_kind)).filter((item) => !current.enabled || canReadResult(database, workspace, current, item))
+        .flatMap((item) => {
+          const versionId = item.document_version_id || (item.source_kind === 'document_version' ? item.source_id : null);
+          const origin = versionId ? database.get(`SELECT dv.document_id, dv.id AS version_id,
+            d.current_version_id, d.lifecycle_status FROM document_versions dv
+            JOIN documents d ON d.id = dv.document_id
+            WHERE d.workspace_id = ? AND dv.id = ?`, workspace, versionId) : null;
+          if (origin?.lifecycle_status === 'archived' && selectedFilters.status !== 'archived') return [];
+          if (['document', 'document_version'].includes(item.source_kind) && origin
+            && origin.current_version_id !== origin.version_id) return [];
+          const hydrated = { ...item, source_document_id: item.source_document_id || origin?.document_id || null,
+            related_query: relatedQueryFor(item) };
+          return [{ ...hydrated, route: routeForSearchResult(database, workspace, hydrated) }];
+        }).slice(0, limit);
+    }
+    const retrieve = (expansions = []) => selectedFilters.q.trim()
+      ? retrieveMaterials({ database, query: selectedFilters.q, find, expansions, limit })
+      : { items: find(''), relatedQueries: [], mode: 'filters' };
+    const material = retrieve();
+    const items = material.items;
+    // Query expansion and reranking run AFTER this response. Neither is a prerequisite for search.
+    const advice = ['start', 'poll'].includes(assistMode)
+      ? assistant.request({ scope, query: selectedFilters.q, filters: selectedFilters, items, retrieve },
+        { start: assistMode === 'start', generation })
+      : { status: assistant.enabled ? 'idle' : 'disabled', suggestions: [] };
     return sendJson(response, 200, {
-      query: payload.query,
+      assistant: advice,
+      query: selectedFilters.q,
       items,
-      facets: buildSearchFacets(accessible),
-      total: accessible.length
+      relatedQueries: material.relatedQueries,
+      retrievalMode: material.mode,
+      facets: buildSearchFacets(items),
+      total: items.length
     });
   };
 }

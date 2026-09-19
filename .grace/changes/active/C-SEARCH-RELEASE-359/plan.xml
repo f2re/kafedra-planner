@@ -1,0 +1,60 @@
+<GraceChangePlan graceVersion="4.0" status="approved">
+  <C-SEARCH-RELEASE-359>
+    <IntentSummary>Integrate the pending search vertical, verify actual API/UI behavior and publish a bounded feature release without duplicating domain storage or release infrastructure. Before regression fixes, issue #359 clarifies that search metadata reads include optional sources of manual objects and canonical navigation must select visible targets; persistent storage and security semantics remain unchanged.</IntentSummary>
+    <BaselineAssertions>
+      <MustExist><Value>apps/api/src/search-router.mjs</Value></MustExist>
+      <MustExist><Value>packages/storage/src/search.mjs</Value></MustExist>
+      <MustExist><Value>public/search-next.js</Value></MustExist>
+      <MustExist><Value>.github/workflows/release.yml</Value></MustExist>
+      <MustVerify><Module>M-API</Module></MustVerify>
+    </BaselineAssertions>
+    <TargetAssertions>
+      <MustContain><File>apps/api/src/search-router.mjs</File><Text>retrieveMaterials</Text></MustContain>
+      <MustContain><File>packages/search/src/retrieval.mjs</File><Text>fts5vocab</Text></MustContain>
+      <MustContain><File>packages/ai/src/search-tasks.mjs</File><Text>search-expand-v1</Text></MustContain>
+      <MustContain><File>public/search-next.js</File><Text>kafedraOpenExactRoute</Text></MustContain>
+      <MustExist><Value>tests/search-meaning-api.test.mjs</Value></MustExist>
+      <MustContain><File>.github/workflows/release.yml</File><Text>tests/browser/search-assistant.spec.mjs</Text></MustContain>
+      <MustContain><File>VERSION</File><Text>0.4.7</Text></MustContain>
+      <MustVerify><Module>M-API</Module></MustVerify>
+      <MustVerify><Module>M-CI-GATE</Module></MustVerify>
+    </TargetAssertions>
+    <DurableScope>
+      <GraphAnchors><M-API /><M-CI-GATE /></GraphAnchors>
+      <VerificationAnchors><V-M-API /><V-M-CI-GATE /></VerificationAnchors>
+      <ContextArtifacts><ContextArtifact>principles.xml</ContextArtifact><ContextArtifact>technology.xml</ContextArtifact></ContextArtifacts>
+    </DurableScope>
+    <ObservedWriteScope>
+      <Glob>.grace/changes/active/C-SEARCH-RELEASE-359/**</Glob>
+      <Glob>.grace/changes/archive/C-ASTRA-OCR-BUNDLE-353/**</Glob>
+      <Glob>packages/search/src/**</Glob>
+      <File>packages/storage/src/faceted-search.mjs</File>
+      <File>packages/ai/src/search-assistant.mjs</File>
+      <File>packages/ai/src/search-tasks.mjs</File>
+      <File>apps/api/src/search-router.mjs</File>
+      <File>public/action-center.js</File>
+      <File>public/search-next.js</File>
+      <File>public/search-next.css</File>
+      <File>public/search-assistant.js</File>
+      <File>public/search-assistant.css</File>
+      <File>scripts/docs-consistency.mjs</File>
+      <File>.github/workflows/search-assistant-check.yml</File>
+      <File>.github/workflows/release.yml</File>
+      <File>VERSION</File>
+      <File>package.json</File>
+      <File>package-lock.json</File>
+      <File>README.md</File>
+      <File>README.en.md</File>
+      <Glob>docs/**</Glob>
+      <Glob>tests/**</Glob>
+    </ObservedWriteScope>
+    <ImplementationPlan>
+      <T-001><Title>kafedra-flow-intake and kafedra-design: topic search and related sources</Title><DependsOn></DependsOn><AcceptanceCriteria><Criterion>Reuse the existing search, preserve selected filters, distinguish source kinds and keep additional materials collapsed. No new editor or mandatory chat.</Criterion></AcceptanceCriteria><Verification><Command>Focused browser workflow on exact head</Command></Verification></T-001>
+      <T-002><Title>kafedra-motion: no-motion</Title><DependsOn><T-001 /></DependsOn><AcceptanceCriteria><Criterion>No new animation; keyboard focus, static state and reduced-motion remain understandable.</Criterion></AcceptanceCriteria><Verification><Command>Focused browser workflow on exact head</Command></Verification></T-002>
+      <T-003><Title>kafedra-feature: integrate retrieval and bounded prompt registry</Title><DependsOn><T-002 /></DependsOn><AcceptanceCriteria><Criterion>Use current FTS and original filters, short-lived queue/cache, strict quotations and fresh authorization. Initial empty search can recover and obsolete generations cannot consume model work.</Criterion></AcceptanceCriteria><Verification><Command>npm test</Command></Verification></T-003>
+      <T-004><Title>kafedra-design-audit: inspect implemented search continuity</Title><DependsOn><T-003 /></DependsOn><AcceptanceCriteria><Criterion>Desktop/mobile keep ordinary results stable; variants, source navigation, return, failures and disabled mode remain usable. Record actual evidence and do not claim an independent agent ran without an invocation.</Criterion></AcceptanceCriteria><Verification><Command>Focused browser workflow on exact head</Command></Verification></T-004>
+      <T-005><Title>kafedra-tests: real API and regressions</Title><DependsOn><T-004 /></DependsOn><AcceptanceCriteria><Criterion>Authenticated API checks source access and invalidation; browser checks real search data and only mocks optional model responses. Full project CI and scoped browser checks pass.</Criterion></AcceptanceCriteria><Verification><Command>npm run check</Command><Command>npm test</Command><Command>npm run smoke</Command></Verification></T-005>
+      <T-006><Title>kafedra-release: version and exact-main release</Title><DependsOn><T-005 /></DependsOn><AcceptanceCriteria><Criterion>0.4.7 metadata and diff-based notes are consistent. One Release builds and verifies the same archives, upgrades 0.4.6, tests rollback and publishes only after success; main/head/checks/comments are rechecked before merge.</Criterion></AcceptanceCriteria><Verification><Command>Existing GitHub Release workflow at exact main</Command></Verification></T-006>
+    </ImplementationPlan>
+  </C-SEARCH-RELEASE-359>
+</GraceChangePlan>

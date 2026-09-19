@@ -9,19 +9,25 @@
 
 Kafedra Planner is an offline-first daily work system for an academic department: calendar, annual plans, assignments, documents, meetings, reporting, research activity, grade sheets, and auditable evidence.
 
-> Current milestone: **`0.4.6`**, SQLite schema **31**. Core workflows do not require Internet access, Docker, an LLM, Docomator, or cloud services. The project remains a release candidate until the real Astra Linux/Debian installation, upgrade, restoration, and rollback acceptance in [TARGET_ACCEPTANCE.md](docs/TARGET_ACCEPTANCE.md) and issue #27 is complete.
+> Current milestone: **`0.4.7`**, SQLite schema **31**. Core workflows do not require Internet access, Docker, an LLM, Docomator, or cloud services. The project remains a release candidate until the real Astra Linux/Debian installation, upgrade, restoration, and rollback acceptance in [TARGET_ACCEPTANCE.md](docs/TARGET_ACCEPTANCE.md) and issue #27 is complete.
 
-Patch release `0.4.6` adds separate offline bundles for Debian 12, Astra Linux 1.7 and 1.8, matching-OS archive selection, and upgrade verification using the previous published release. Each bundle includes its own OS-specific OCR/PDF/Office dependencies. Meeting and protocol import improvements from `0.4.5` are retained: tolerant recognition, bulk metadata correction, versioned recognition formats, safe reprocessing, agenda transfers, and reversible archival.
+Patch release `0.4.7` adds topical retrieval, bounded spelling fallback, related queries and optional background assistance from a configured local LLM. Query expansion can find actual sources outside the initial result; quotations and access are checked while ordinary search remains independent of generation. Automatic filling of official reports is not included. Separate Debian 12, Astra Linux 1.7 and 1.8 bundles with their OS-specific OCR/PDF/Office dependencies from `0.4.6` are retained.
 
 **[Download an offline bundle](https://github.com/f2re/kafedra-planner/releases)** · **[Install guide](docs/GITHUB_RELEASES.md)** · **[Security policy](SECURITY.md)** · **[Russian documentation](README.md#эксплуатация-и-документация)**
 
-Published releases are not overwritten. The R1–R9 automation cycle is delivered in `v0.4.4`, protocol import improvements in `v0.4.5`, and separate Astra bundles in `v0.4.6`.
+Published releases are not overwritten. The R1–R9 automation cycle is delivered in `v0.4.4`, protocol import improvements in `v0.4.5`, separate Astra bundles in `v0.4.6`, and topical search and background material selection in `v0.4.7`.
 
 ## Operating model
 
 An uploaded file is never replaced by recognised text or an AI result. Every extracted fact retains its source and locator; manual corrections retain their reason and history. A failing document, row, optional converter, Docomator endpoint, or LLM must not block unrelated data or the core daily workflow.
 
 Main areas include calendar, immutable documents, imported and manual plans, direct task completion, plan/fact reporting, meetings and versioned DOCX templates, research records, academic grade sheets, PIN access, object ACL, backup/restore, and optional local `llama.cpp` assistance.
+
+## Finding related materials
+
+Search accepts conversational Russian topic queries, uses the existing FTS index and retains explicit filters. When enabled, the LLM proposes bounded query variants, which are executed against actual authorized records, then selects verifiable excerpts. Additional results do not reorder the ordinary list. Their original work objects open through existing routes with return to the search context.
+
+This is query expansion, not vector search. It does not assert completion, publication or approval. See [SEMANTIC_SEARCH.md](docs/SEMANTIC_SEARCH.md) and [SEARCH_LLM_PROMPTS.md](docs/SEARCH_LLM_PROMPTS.md).
 
 ## Annual meeting protocols
 

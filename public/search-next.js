@@ -1,3 +1,5 @@
+import { createSearchAssistantUi } from './search-assistant.js';
+
 const searchState = {
   timer: null,
   request: 0,
@@ -8,6 +10,25 @@ const searchState = {
   routeErrors: new Map()
 };
 const qs = (selector, root = document) => root.querySelector(selector);
+const assistant = createSearchAssistantUi({
+  isActive: () => currentView() === 'search' && !document.hidden,
+  currentParams: activeFilters,
+  chooseQuery: useRelatedQuery,
+  openItem: async (item) => {
+    searchState.returnContext = captureContext();
+    searchState.returnPending = true;
+    updateReturnAction();
+    try {
+      const opened = await window.kafedraOpenExactRoute(item.route);
+      if (!opened) throw new Error('Материал недоступен.');
+      updateReturnAction();
+    } catch (error) {
+      searchState.returnPending = false;
+      updateReturnAction();
+      throw error;
+    }
+  }
+});
 
 const filterLabels = {
   kind: 'Вид', number: 'Номер', from: 'Дата с', to: 'Дата по', direction: 'Направление',
@@ -69,9 +90,34 @@ function ensureUi() {
   renderActiveFilters();
 }
 
+function useRelatedQuery(query) {
+  const input = qs('#search-input');
+  if (!input) return;
+  input.value = query;
+  // An explicit query choice changes ONLY the text, never the user's filters.
+  input.focus();
+  performSearch();
+}
+
+function renderRelatedQueries(payload) {
+  let target = qs('#search-related-queries');
+  if (!target) {
+    target = document.createElement('div'); target.id = 'search-related-queries';
+    target.className = 'search-active-filters'; target.setAttribute('aria-label', 'Уточнить поиск');
+    qs('#search-filters')?.after(target);
+  }
+  target.replaceChildren();
+  for (const hint of (payload.relatedQueries || []).slice(0, 3)) {
+    const button = document.createElement('button'); button.type = 'button'; button.className = 'search-filter-chip';
+    button.textContent = hint.query; button.setAttribute('aria-label', `Поиск: ${hint.query}`);
+    button.addEventListener('click', () => useRelatedQuery(hint.query));
+    target.append(button);
+  }
+}
+
 function sourceLabel(kind) {
   return {
-    document: 'Документ', meeting: 'Протокол', decision: 'Решение', directive: 'Основание',
+    document: 'Документ', document_version: 'Документ', meeting: 'Протокол', decision: 'Решение', directive: 'Основание',
     assignment: 'Поручение', periodic_task: 'Периодическая задача', plan: 'План',
     plan_item: 'Пункт плана', scientific_item: 'Научный материал', template_extraction: 'Извлечение'
   }[kind] || kind || 'Материал';
@@ -133,12 +179,13 @@ function restorePosition() {
 }
 
 function render(payload) {
+  renderRelatedQueries(payload);
   const target = qs('#search-results');
   const count = qs('#search-count');
   if (count) count.textContent = payload.total ? `${payload.total}` : '';
   if (!payload.items?.length) {
     target.className = 'search-results empty-state';
-    target.textContent = 'Совпадений не найдено. Сбросьте часть фильтров или измените формулировку.';
+    target.textContent = 'По словам запроса совпадений нет. Измените формулировку или условия.';
     restorePosition();
     return;
   }
@@ -153,6 +200,7 @@ function render(payload) {
       <div class="search-result-head"><div><span class="search-kind">${escapeHtml(sourceLabel(item.source_kind))}</span><h3>${escapeHtml(item.title)}</h3></div>${original}</div>
       <p>${safeSnippet(item.snippet || '')}</p>
       <div class="search-meta">${metaParts(item).map((part) => `<span>${escapeHtml(part)}</span>`).join('')}</div>
+      ${item.related_query ? `<button type="button" class="text-button" data-search-related="${escapeHtml(item.related_query)}">Похожие материалы</button>` : ''}
       <div class="search-route-error${routeError ? '' : ' hidden'}" role="status">${escapeHtml(routeError)}</div>
     </article>`;
   }).join('');
@@ -192,6 +240,7 @@ function hasCriteria(params) {
 }
 
 function renderEmptyPrompt() {
+  qs('#search-related-queries')?.replaceChildren();
   const target = qs('#search-results');
   const count = qs('#search-count');
   if (count) count.textContent = '';
@@ -202,6 +251,7 @@ function renderEmptyPrompt() {
 }
 
 function cancelPendingSearch() {
+  assistant.cancel();
   clearTimeout(searchState.timer);
   searchState.timer = null;
   searchState.controller?.abort();
@@ -209,6 +259,7 @@ function cancelPendingSearch() {
 }
 
 async function performSearch() {
+  assistant.cancel();
   clearTimeout(searchState.timer);
   searchState.timer = null;
   renderActiveFilters();
@@ -227,6 +278,7 @@ async function performSearch() {
   searchState.controller = controller;
   target.className = 'search-results empty-state';
   target.textContent = 'Поиск…';
+  qs('#search-related-queries')?.replaceChildren();
   try {
     const response = await fetch(`/api/search?${params}`, { signal: controller.signal });
     const payload = await response.json().catch(() => ({}));
@@ -236,6 +288,7 @@ async function performSearch() {
       return;
     }
     render(payload);
+    assistant.start(params, payload);
   } catch (error) {
     if (sequence !== searchState.request || controller.signal.aborted || error?.name === 'AbortError') return;
     target.className = 'search-results empty-state';
@@ -274,10 +327,23 @@ function currentView() {
   return document.querySelector('.nav-item.active[data-view], .mobile-tab.active[data-view]')?.dataset.view || '';
 }
 
+function returnInspector() {
+  const inspector = qs('#ux-inspector:not(.hidden)');
+  return inspector?.getClientRects().length ? inspector : null;
+}
+
 function updateReturnAction() {
   const button = qs('#search-return-action');
   if (!button) return;
-  button.classList.toggle('hidden', !searchState.returnPending || currentView() === 'search');
+  const inspector = returnInspector();
+  const close = inspector?.querySelector('#ux-inspector-close');
+  const anchor = searchState.returnPending && close ? close : qs('#open-search');
+  // Keep one return action inside the active layer, not below its backdrop.
+  if (anchor && (button.parentElement !== anchor.parentElement || button.nextElementSibling !== anchor)) {
+    anchor.before(button);
+  }
+  button.classList.toggle('hidden', !searchState.returnPending || (currentView() === 'search' && !inspector));
+  qs('#ux-inspector .ux-inspector-head')?.classList.toggle('search-return-host', Boolean(inspector && searchState.returnPending));
 }
 
 function applyReturnContext() {
@@ -300,6 +366,12 @@ function applyReturnContext() {
 }
 
 function returnToSearch() {
+  const inspector = returnInspector();
+  if (inspector) {
+    inspector.querySelector('#ux-inspector-close')?.click();
+    // Respect the object's normal close/unsaved-input policy.
+    if (returnInspector()) return;
+  }
   if (typeof window.kafedraSetView === 'function') window.kafedraSetView('search');
   else qs('[data-view="search"]')?.click();
   if (searchState.returnPending) applyReturnContext();
@@ -374,6 +446,11 @@ ensureStyles();
 ensureUi();
 ensureReturnAction();
 
+// Some canonical openers return before the inspector has finished loading.
+new MutationObserver((records) => {
+  if (records.some((record) => record.target.id === 'ux-inspector')) updateReturnAction();
+}).observe(document.body, { attributes: true, attributeFilter: ['class'], subtree: true });
+
 qs('#search-form')?.addEventListener('submit', submitSearch, true);
 qs('#search-filters')?.addEventListener('submit', submitSearch, true);
 qs('#search-input')?.addEventListener('input', scheduleSearch);
@@ -382,6 +459,8 @@ qs('#search-filters')?.addEventListener('change', scheduleSearch);
 qs('#search-return-action')?.addEventListener('click', returnToSearch);
 
 qs('#search-results')?.addEventListener('click', (event) => {
+  const related = event.target.closest('[data-search-related]');
+  if (related) { useRelatedQuery(related.dataset.searchRelated); return; }
   if (event.target.closest('a,button,input,select,textarea')) return;
   const card = event.target.closest('[data-search-route-kind][data-search-route-id]');
   if (card) openResult(card);
@@ -437,4 +516,9 @@ resetButton?.addEventListener('click', (event) => {
 window.addEventListener('kafedra:view-changed', (event) => {
   updateReturnAction();
   if (event.detail?.view === 'search' && searchState.returnPending) applyReturnContext();
+  else if (event.detail?.view === 'search') assistant.resume();
+  else {
+    cancelPendingSearch();
+    ++searchState.request;
+  }
 });

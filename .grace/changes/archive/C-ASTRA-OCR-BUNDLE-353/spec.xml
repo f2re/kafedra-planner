@@ -1,4 +1,4 @@
-<GraceChangeSpec graceVersion="4.0" status="approved">
+<GraceChangeSpec graceVersion="4.0" status="applied">
   <C-ASTRA-OCR-BUNDLE-353>
     <Summary>Publish and verify target-specific Debian 12, Astra Linux 1.7 and Astra Linux 1.8 offline bundles so Tesseract rus+eng, Poppler and LibreOffice are actually present and recoverable on the target OS.</Summary>
     <Problem>The runtime installer already requires document capabilities and persists a verified repair payload, but the universal GitHub Release workflow builds its only native archive inside node:24-bookworm. Release 0.4.5 therefore publishes only a Debian 12 package closure. On Astra Linux the installer correctly rejects that OS-package layer as incompatible, leaving no published matching bundle that can install Tesseract, language data, Poppler and LibreOffice offline.</Problem>

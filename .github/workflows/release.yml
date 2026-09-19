@@ -92,6 +92,9 @@ jobs:
           tests/browser/docomator-fields.spec.mjs
           tests/browser/academic-performance.spec.mjs
           tests/browser/lifecycle.spec.mjs
+          tests/browser/search-assistant.spec.mjs
+          tests/browser/faceted-search.spec.mjs
+          tests/browser/search-routing.spec.mjs
       - name: Release readiness, PIN и ACL
         run: |
           npm run test:browser:release

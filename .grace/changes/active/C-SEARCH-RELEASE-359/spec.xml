@@ -1,0 +1,42 @@
+<GraceChangeSpec graceVersion="4.0" status="approved">
+  <C-SEARCH-RELEASE-359>
+    <Summary>Complete optional meaning-assisted retrieval and publish release 0.4.7 using the existing exact-main release workflow.</Summary>
+    <Problem>PR 357 contains read-only background selection, while the subsequent topical retrieval patch has not reached the repository or full application CI. A release must include actual retrieval beyond the initial result and preserve offline search, permissions, immutable sources and the tested upgrade path.</Problem>
+    <Goals>
+      <Goal>Use the existing FTS index for conversational Russian queries, bounded word-form and spelling fallback, and optional LLM query expansion.</Goal>
+      <Goal>Keep explicit filters and authorization in every retrieval; validate source IDs and exact quotations; cancel stale work and retain useful partial results.</Goal>
+      <Goal>Expose related queries and materials through the current search and canonical object routes without a chat, automatic business writes or reordered primary results.</Goal>
+      <Goal>Publish 0.4.7 from exact main only after regression, backup/recovery and verification of the same Debian/Astra artifacts that are published.</Goal>
+    </Goals>
+    <Constraints>
+      <Constraint>Acceptance authority is issue 359 with feature scope from 358 and PR 357. Verified main is ca0ecd3e61c817e35b009f0738e2a59a1fa38525; pending integration parent is a6744eeba37d05597da244ede4069e7e8ffc92a4.</Constraint>
+      <Constraint>SQLite schema remains 31. No applied migration, immutable source, stored evidence, PIN or ACL policy changes. Temporary FTS vocabulary is a read projection, not a new persistent index.</Constraint>
+      <Constraint>The model is optional, receives only authorized source fragments, has no write tools, and cannot remove explicit filters or assert completion/publication.</Constraint>
+      <Constraint>Use the existing release workflow; include the new search regression in its critical browser set. Build each OS archive only once, then verify and publish those exact bytes.</Constraint>
+      <Constraint>PR project CI and targeted browser verification own their tests; GRACE performs lint/scope only for this change. Full deployment/recovery remains the single release verification, not a duplicate PR bundle build.</Constraint>
+      <Constraint>Archive the completed C-ASTRA-OCR-BUNDLE-353 unchanged except applied status in this same integration.</Constraint>
+    </Constraints>
+    <NonGoals>
+      <NonGoal>Automatic attachment to official reports, changing task completion, signatures, external sending or a new vector database.</NonGoal>
+      <NonGoal>Claim quality of real LLM retrieval or physical Astra kernel/PARSEC acceptance from fixtures and UBI checks.</NonGoal>
+    </NonGoals>
+    <AcceptanceCriteria>
+      <Criterion>The query about an article on cyclones in a report finds current indexed reports, articles and protocol sources without requiring every conversational word.</Criterion>
+      <Criterion>An initially empty result may gain actual authorized documents through model-proposed query variants; variants with no accessible results are not shown.</Criterion>
+      <Criterion>Explicit filters survive variants and related-material actions. Source versions open their canonical documents and return to the original search context.</Criterion>
+      <Criterion>Unauthorized, revoked, archived and obsolete source versions are excluded from default suggestions; fresh checks happen before source text is sent and before cached output is returned.</Criterion>
+      <Criterion>Invalid JSON, invented IDs/quotes, timeouts and cancellation never corrupt or block ordinary search. Queue and prompt/response budgets remain bounded.</Criterion>
+      <Criterion>Full project tests, authenticated API regression, desktop/mobile search regression and existing ACL regression pass on the exact PR head.</Criterion>
+      <Criterion>Version metadata is consistent at 0.4.7, release notes describe the diff from v0.4.6, and release publication is verified through GitHub API without modifying previous assets.</Criterion>
+    </AcceptanceCriteria>
+    <AffectedAreas><M-API /><M-CI-GATE /></AffectedAreas>
+    <VerificationIntent>
+      <ExpectedCommand>npm run check</ExpectedCommand>
+      <ExpectedCommand>npm run docs:check</ExpectedCommand>
+      <ExpectedCommand>npm test</ExpectedCommand>
+      <ExpectedCommand>npm run smoke</ExpectedCommand>
+      <ExpectedCommand>grace lint --path . --change C-SEARCH-RELEASE-359 --assertions final</ExpectedCommand>
+      <ExpectedEvidence>Exact-head CI and focused browser checks, then one exact-main Release with verified Debian 12/Astra 1.7/Astra 1.8 artifacts and an upgrade from published 0.4.6.</ExpectedEvidence>
+    </VerificationIntent>
+  </C-SEARCH-RELEASE-359>
+</GraceChangeSpec>
