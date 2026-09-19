@@ -1,0 +1,48 @@
+name: Поиск и фоновые подсказки
+
+on:
+  pull_request:
+    paths:
+      - '.github/workflows/search-assistant-check.yml'
+      - 'apps/api/src/search-router.mjs'
+      - 'packages/ai/src/search-assistant.mjs'
+      - 'public/search*.js'
+      - 'public/search*.css'
+      - 'tests/search-assistant*.mjs'
+      - 'tests/browser/search-assistant.spec.mjs'
+      - 'tests/browser/faceted-search.spec.mjs'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: search-assistant-${{ github.event.pull_request.number || github.ref_name }}
+  cancel-in-progress: true
+
+jobs:
+  browser:
+    name: Поиск, подсказки и права доступа
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+      - run: npm ci --ignore-scripts --no-audit --no-fund
+      - run: ./node_modules/.bin/playwright install --with-deps chromium
+      - name: Поиск и подсказки на широком и узком экране
+        run: ./node_modules/.bin/playwright test tests/browser/search-assistant.spec.mjs tests/browser/faceted-search.spec.mjs --project=desktop --project=mobile
+      - name: Проверка прав доступа
+        run: ./node_modules/.bin/playwright test --config=playwright.acl.config.mjs
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: search-assistant-browser-results
+          path: |
+            playwright-report/
+            test-results/
+          retention-days: 7
+          if-no-files-found: ignore
