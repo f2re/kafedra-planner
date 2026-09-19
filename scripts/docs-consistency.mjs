@@ -202,7 +202,7 @@ export async function checkDocumentation({ root = process.cwd() } = {}) {
       if (!scripts.has(name)) record(errors, file, text, match.index, 'npm-script', name, 'В package.json нет такого npm script.');
     }
 
-    const repoPath = /\b((?:scripts|deploy|config)\/[A-Za-z0-9._@+/-]+\.(?:mjs|js|sh|py|service|txt|json|md|ya?ml|env))\b/g;
+    const repoPath = /\b((?:packages\/)?(?:scripts|deploy|config)\/[A-Za-z0-9._@+/-]+\.(?:mjs|js|sh|py|service|txt|json|md|ya?ml|env))\b/g;
     for (const match of text.matchAll(repoPath)) {
       const target = match[1];
       if (!(await exists(join(absoluteRoot, target)))) record(errors, file, text, match.index, 'repo-path', target, 'Указанного файла в репозитории нет.');
