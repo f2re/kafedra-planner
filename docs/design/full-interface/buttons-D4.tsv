@@ -1,0 +1,56 @@
+id	source	context	label	acceptance	status
+UI-ec6e676752	public/directive-archive-next.js:100:20	ensureDirectiveArchiveUi	динамическая подпись	C01	запланировано
+UI-1394e69115	public/directive-archive-next.js:109:20	ensureDirectiveArchiveUi	динамическая подпись	C01	запланировано
+UI-1cb965c9ab	public/directive-archive-next.js:126:13	ensureDirectiveArchiveUi	Добавить распоряжение	C01	запланировано
+UI-0259f7e4f8	public/directive-archive-next.js:136:11	ensureDirectiveArchiveUi	Сбросить	C01	запланировано
+UI-322ad6377b	public/directive-archive-next.js:146:11	ensureDirectiveArchiveUi	Список	C01	запланировано
+UI-62ffb59322	public/directive-archive-next.js:147:11	ensureDirectiveArchiveUi	Календарь	C01	запланировано
+UI-625bd1dd21	public/directive-archive-next.js:256:5	renderDirectiveList / callback@255	{dynamic} {dynamic} {dynamic} {dynamic} {dynamic}	C01	запланировано
+UI-00f06b5a94	public/directive-archive-next.js:286:23	materialCard	Убрать	C02	запланировано
+UI-96b436836e	public/directive-archive-next.js:323:9	renderDirectiveDetail	Изменить	C01	запланировано
+UI-92583902a2	public/directive-archive-next.js:335:123	renderDirectiveDetail	Добавить материал	C01	запланировано
+UI-5a7647babe	public/directive-archive-next.js:380:44	renderDirectiveCalendar / callback@380	{dynamic} · {dynamic}	C01	запланировано
+UI-59b1fb8a91	public/directive-archive-next.js:386:83	renderDirectiveCalendar	‹	C01	запланировано
+UI-7b3bd2b7da	public/directive-archive-next.js:386:163	renderDirectiveCalendar	Сегодня	C01	запланировано
+UI-877db298ce	public/directive-archive-next.js:386:255	renderDirectiveCalendar	›	C01	запланировано
+UI-07d8c32712	public/directive-archive-next.js:420:101	openAddDirective	×	C01	запланировано
+UI-1571c98769	public/directive-archive-next.js:431:13	openAddDirective	Отмена	C01	запланировано
+UI-6112b9c3f0	public/directive-archive-next.js:431:102	openAddDirective	Сохранить распоряжение	C01	запланировано
+UI-07f0c4fdd1	public/directive-archive-next.js:442:100	openEditDirective	×	C01	запланировано
+UI-59bf45c8d3	public/directive-archive-next.js:452:13	openEditDirective	Отмена	C01	запланировано
+UI-243200a1b4	public/directive-archive-next.js:452:102	openEditDirective	Сохранить изменения	C01	запланировано
+UI-cc3d165449	public/directive-archive-next.js:462:128	openAddMaterial	×	C01	запланировано
+UI-5d2d4f451f	public/directive-archive-next.js:471:13	openAddMaterial	Отмена	C01	запланировано
+UI-92c204680e	public/directive-archive-next.js:471:102	openAddMaterial	Прикрепить материал	C01	запланировано
+UI-599b3525f0	public/periodic-completion-next.js:61:5	renderAction	{dynamic}	C01	запланировано
+UI-db3e66c896	public/preview-next.js:75:7	renderPreview	Сопроводительные	C01	запланировано
+UI-def21aa521	public/standalone-assignment-next.js:108:13	progressActions	Вернуть в работу	C01	запланировано
+UI-ef233fe83e	public/standalone-assignment-next.js:111:5	progressActions	Выполнено	C01	запланировано
+UI-b58f439316	public/standalone-assignment-next.js:112:5	progressActions	Сохранить заметку	C01	запланировано
+UI-acba4d73f2	public/standalone-assignment-next.js:165:43	renderStandaloneAssignment	Приложить материал	C01	запланировано
+UI-86171216a5	public/standalone-assignment-next.js:173:8	renderStandaloneAssignment	Открыть исходный план	C01	запланировано
+UI-91f94ca6ee	public/structure-next.js:46:11	blockHtml	{dynamic} {dynamic}	C01	запланировано
+UI-12fd19537c	public/structure-next.js:73:14	renderSpreadsheet / callback@70 / callback@70	{dynamic}	C01	запланировано
+UI-8b400f4600	public/structure-next.js:89:13	renderPdf / callback@83	{dynamic}	C01	запланировано
+UI-0b6258f424	public/structure-next.js:101:66	renderFacets / callback@101	Страница {dynamic}	C01	запланировано
+UI-e03fbb1f99	public/structure-next.js:102:69	renderFacets / callback@102	{dynamic}	C01	запланировано
+UI-22da81c7ca	public/structure-next.js:143:46	renderExtractions / callback@135 / callback@137	Показать источник	C01	запланировано
+UI-cab510e122	public/structure-next.js:143:191	renderExtractions / callback@135 / callback@137	Исправить	C01	запланировано
+UI-0c764b9655	public/structure-next.js:148:51	renderExtractions / callback@135 / callback@137	Отмена	C01	запланировано
+UI-81670fe423	public/structure-next.js:148:129	renderExtractions / callback@135 / callback@137	Сохранить	C01	запланировано
+UI-072d2be922	public/supporting-documents-next.js:117:9	supportingList / callback@107	Убрать связь	C01	запланировано
+UI-238725f308	public/supporting-documents-next.js:132:7	showSupportingModal	Закрыть	C01	запланировано
+UI-5acf8b052d	public/supporting-documents-next.js:153:11	showSupportingModal	Закрыть	C01	запланировано
+UI-f78d065be4	public/supporting-documents-next.js:154:11	showSupportingModal	Добавить	C01	запланировано
+UI-a61d2de8a4	public/supporting-documents-next.js:323:11	supportButton	{dynamic}	C01	запланировано
+UI-912b449f7a	public/template-binding.js:92:5	ensureBindButton	Создать поле из выбранного фрагмента	C01	запланировано
+UI-bd4efeed42	public/work-automation-next.js:36:27	enhancePeriodicForm	Создать периодическую задачу	C01	запланировано
+UI-bd892461f2	public/work-next.js:29:56	ensureWorkUi	→ Поручения	C01	запланировано
+UI-03b2243829	public/work-next.js:30:57	ensureWorkUi	→ Поручения	C01	запланировано
+UI-abd1d2fc2e	public/work-next.js:56:45	ensureWorkUi	Создать задачу	C01	запланировано
+UI-6842881a22	public/work-next.js:91:80	renderWork / callback@91	{dynamic} {dynamic} {dynamic} {dynamic} {dynamic}	C01	запланировано
+UI-9ae313b993	public/work-next.js:195:48	responsibilityEditor	Сохранить ответственность	C01	запланировано
+UI-4173ad11b0	public/work-next.js:211:304	showDirective	Открыть оригинал	C01	запланировано
+UI-04679d2df8	public/work-next.js:234:39	assignmentProgressPanel	{dynamic}	C01	запланировано
+UI-f945c8c1b6	public/work-next.js:253:860	assignmentHtml	Приложить отчёт	C01	запланировано
+UI-1c7a711949	public/work-next.js:280:46	showPeriodicTask	Сохранить изменения	C01	запланировано

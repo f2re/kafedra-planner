@@ -162,7 +162,11 @@ export function openMeetingModal(html) {
   modal.classList.remove('hidden');
   $m('#meeting-modal-backdrop')?.classList.remove('hidden');
   document.body.classList.add('meeting-modal-open');
-  requestAnimationFrame(() => modal.querySelector('input,select,textarea,button')?.focus());
+  requestAnimationFrame(() => {
+    if (modal.isConnected && !modal.classList.contains('hidden') && !modal.contains(document.activeElement)) {
+      modal.querySelector('input,select,textarea,button')?.focus();
+    }
+  });
   modal.dispatchEvent(new CustomEvent('meeting-modal-opened', { bubbles: true }));
 }
 

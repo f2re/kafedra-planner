@@ -1,0 +1,88 @@
+id	source	context	label	acceptance	status
+UI-0da32da88b	public/action-center.js:99:9	ensureUi	Закрыть	C01	запланировано
+UI-2172eacd7d	public/action-center.js:123:11	actionButton	{dynamic} {dynamic} ›	C01	запланировано
+UI-21cc4c79b9	public/action-center.js:339:19	triggerManualPlanCreate	динамическая подпись	C01	запланировано
+UI-a00f9d4e4d	public/app.js:185:11	calendarEventHtml	{dynamic}	C01	запланировано
+UI-33a3b1ee35	public/app.js:235:79	renderMonth	Создать на _____________________________	C01	запланировано
+UI-55c131d27d	public/app.js:255:50	renderWeek / callback@255	{dynamic} {dynamic} · {dynamic}	C01	запланировано
+UI-628c78be5b	public/app.js:256:9	renderWeek	+ Добавить	C01	запланировано
+UI-70abfa384f	public/app.js:266:5	taskGroup / callback@265	_________________________________________________________________________________	C01	запланировано
+UI-011e27cb85	public/app.js:267:5	taskGroup / callback@265	{dynamic} {dynamic}	C01	запланировано
+UI-230749132f	public/app.js:394:618	renderDocuments / callback@392	Создать шаблон	C01	запланировано
+UI-65f4c9a440	public/app.js:547:264	renderTemplateFields / callback@547	Удалить поле	C02	запланировано
+UI-e773d37095	public/app.js:623:258	loadReview / callback@623	Готово	C01	запланировано
+UI-96114aa642	public/app.js:640:406	renderNotifications / callback@640	Прочитано	C01	запланировано
+UI-ec55300f46	public/app.js:640:548	renderNotifications / callback@640	Скрыть	C01	запланировано
+UI-6ba70a3f7b	public/calendar-start-settings.js:66:7	ensureDialog	Закрыть	C01	запланировано
+UI-e132b40aed	public/calendar-start-settings.js:81:9	ensureDialog	Закрыть	C01	запланировано
+UI-dee1a42f69	public/calendar-start-settings.js:82:9	ensureDialog	Сохранить	C01	запланировано
+UI-bb454c5a37	public/calendar-start-settings.js:101:14	ensureSettingsEntry	Настройки	C01	запланировано
+UI-d8e408ee8a	public/calendar-start-settings.js:119:18	ensureSettingsEntry	Настройки	C01	запланировано
+UI-ba5a1130d4	public/index.html:21:9	document	▦ Календарь	C01	запланировано
+UI-80ac0af93d	public/index.html:22:9	document	✓ Поручения	C01	запланировано
+UI-a4ab6a9fc3	public/index.html:23:9	document	▤ Документы	C01	запланировано
+UI-544c81923a	public/index.html:24:9	document	◇ Шаблоны	C01	запланировано
+UI-5928918765	public/index.html:25:9	document	✓ Проверка 0	C01	запланировано
+UI-c8e276ef87	public/index.html:26:9	document	⌕ Поиск	C01	запланировано
+UI-c5788c939f	public/index.html:31:9	document	Скрыть боковую панель	C01	запланировано
+UI-2accaf8b28	public/index.html:38:11	document	Показать разделы	C01	запланировано
+UI-e456139d42	public/index.html:43:11	document	Месяц	C01	запланировано
+UI-944927548e	public/index.html:44:11	document	Неделя	C01	запланировано
+UI-1298e72292	public/index.html:45:11	document	Задачи	C01	запланировано
+UI-31b343cf12	public/index.html:49:11	document	Открыть поиск	C01	запланировано
+UI-ffe06efc86	public/index.html:51:13	document	Уведомления	C01	запланировано
+UI-98fabf444e	public/index.html:57:11	document	+ Добавить	C01	запланировано
+UI-dc3b1b886c	public/index.html:68:17	document	Предыдущий период	C01	запланировано
+UI-ec3e79f60d	public/index.html:69:17	document	Сегодня	C01	запланировано
+UI-3843d91c08	public/index.html:70:17	document	Следующий период	C01	запланировано
+UI-d9d8c114c7	public/index.html:96:71	document	Открыть	C01	запланировано
+UI-d4aa1004df	public/index.html:114:11	document	Создать из документа	C01	запланировано
+UI-af70ce4e0a	public/index.html:144:7	document	▦ Календарь	C01	запланировано
+UI-267d6ddbe3	public/index.html:145:7	document	✓ Поручения	C01	запланировано
+UI-7edcd9f02b	public/index.html:146:7	document	▤ Документы	C01	запланировано
+UI-5f825195d9	public/index.html:147:7	document	◇ Шаблоны	C01	запланировано
+UI-8f1fa0e80a	public/index.html:148:7	document	✓ Проверка	C01	запланировано
+UI-26d4a2c846	public/index.html:155:126	document	Закрыть	C01	запланировано
+UI-429a4de047	public/index.html:165:39	document	Отмена	C01	запланировано
+UI-a391892fe2	public/index.html:165:118	document	Сохранить	C01	запланировано
+UI-17d0fc54b0	public/index.html:172:7	document	Закрыть	C01	запланировано
+UI-45bdc22962	public/index.html:175:7	document	1 Документ	C01	запланировано
+UI-35ff328f93	public/index.html:176:7	document	2 Поля	C01	запланировано
+UI-874f87fa1b	public/index.html:177:7	document	3 Проверка	C01	запланировано
+UI-f7fcd88d0d	public/index.html:190:11	document	Открыть документ	C01	запланировано
+UI-0b2e67b062	public/index.html:202:13	document	Добавить поле	C01	запланировано
+UI-b830195b13	public/index.html:209:11	document	Проверить на документе	C01	запланировано
+UI-db59255ade	public/index.html:214:34	document	Назад	C01	запланировано
+UI-2ad88535d1	public/index.html:214:138	document	Далее	C01	запланировано
+UI-df8815ad5a	public/index.html:214:214	document	Сохранить шаблон	C01	запланировано
+UI-b9f9ea4a15	public/preference-controls.js:57:7	ensureUi	Личные подсказки	C01	запланировано
+UI-3b5b49b69b	public/preference-controls.js:59:130	ensureUi	Закрыть	C01	запланировано
+UI-416caa4b99	public/preference-controls.js:111:11	render / callback@108	{dynamic}	C01	запланировано
+UI-f644c2993e	public/preference-controls.js:114:46	render	Сбросить подсказки	C01	запланировано
+UI-ccb7695746	public/report-match-refresh.js:23:41	refreshReportMatchesOnOpen / callback@21	Приложить	C01	запланировано
+UI-efe10124bc	public/report-match-refresh.js:23:131	refreshReportMatchesOnOpen / callback@21	Не относится	C01	запланировано
+UI-cb3d1a4502	public/search-assistant.js:43:13	ensureUi	Повторить подбор	C01	запланировано
+UI-e636640122	public/search-assistant.js:103:24	display	динамическая подпись	C01	запланировано
+UI-f2804f868c	public/search-assistant.js:118:22	display	динамическая подпись	C01	запланировано
+UI-0f064b4d72	public/search-next.js:61:49	ensureReturnAction	К поиску	C01	запланировано
+UI-3e6c871a50	public/search-next.js:86:44	ensureUi	Сбросить условия	C01	запланировано
+UI-b088d9d35d	public/search-next.js:111:20	renderRelatedQueries	динамическая подпись	C01	запланировано
+UI-172a05da94	public/search-next.js:203:31	render / callback@193	Похожие материалы	C01	запланировано
+UI-aac4982a60	public/search-next.js:223:45	renderActiveFilters / callback@223	{dynamic}: {dynamic} ×	C01	запланировано
+UI-be33ff4db1	public/ux-base.js:133:11	ensureUx	Все записи	C01	запланировано
+UI-54a4927a6f	public/ux-base.js:134:11	ensureUx	События	C01	запланировано
+UI-7416c09049	public/ux-base.js:135:11	ensureUx	Задачи	C01	запланировано
+UI-6130bd426f	public/ux-base.js:139:11	ensureUx	Наука	C01	запланировано
+UI-0be92a0bca	public/ux-base.js:140:11	ensureUx	Образование	C01	запланировано
+UI-90cc45f377	public/ux-base.js:141:11	ensureUx	Организация	C01	запланировано
+UI-1541ca98d3	public/ux-base.js:142:11	ensureUx	Повседневная	C01	запланировано
+UI-8fd133552b	public/ux-base.js:153:11	ensureUx	Закрыть инспектор	C01	запланировано
+UI-a4488c781b	public/ux-base.js:160:9	ensureUx	Отменить	C01	запланировано
+UI-da825deb00	public/ux-base.js:169:14	ensureUx	Продолжить	C01	запланировано
+UI-2e2d498c7d	public/ux-base.js:169:107	ensureUx	Начать заново	C01	запланировано
+UI-c1cdc81a27	public/ux-base.js:271:34	openCalendarInspector	Открыть документ	C01	запланировано
+UI-fae1ad6830	public/ux-base.js:272:17	openCalendarInspector	{dynamic}	C01	запланировано
+UI-2cf4d68e49	public/ux-base.js:273:5	openCalendarInspector	Изменить	C01	запланировано
+UI-da05c711d3	public/ux-base.js:347:77	openDocumentInspector	Создать шаблон	C01	запланировано
+UI-7761e91e6a	public/workspace-dialogs.js:184:7	requestDismiss	Продолжить редактирование	C01	запланировано
+UI-4a3875a9e3	public/workspace-dialogs.js:185:7	requestDismiss	Не сохранять	C01	запланировано

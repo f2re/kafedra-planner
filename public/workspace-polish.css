@@ -1,0 +1,274 @@
+/* Общая визуальная доводка рабочего интерфейса; без изменения состояний видимости. */
+:where(.sidebar, .mobile-tabs, .popover, .sheet, .plans-modal, .meeting-modal,
+  .action-center, .organization-shell-panel, .ux-inspector) {
+  border-color: var(--border);
+}
+
+.sidebar {
+  gap: 14px;
+  padding-top: 16px;
+  background: var(--surface-muted);
+  backdrop-filter: none;
+}
+.brand { padding-bottom: 12px; }
+.brand-mark { box-shadow: none; }
+.sidebar-nav { gap: 3px; }
+.nav-item {
+  min-height: 44px;
+  border-radius: var(--radius-sm);
+  transition: background-color .14s ease, color .14s ease;
+}
+.nav-item:hover { background: var(--accent-soft); }
+.nav-item.active { background: var(--accent); box-shadow: none; }
+.nav-item:active { transform: none; }
+.system-state { min-height: 40px; }
+
+.workspace { padding-top: 16px; }
+.topbar { min-width: 0; margin-bottom: 14px; }
+.topbar-leading, .topbar-actions { min-width: 0; }
+.topbar-actions { gap: 7px; }
+.section-heading { margin-bottom: 12px; }
+.section-heading h2 { font-size: 21px; }
+
+.primary-button, .secondary-button, .quiet-button, .icon-button {
+  min-height: 40px;
+  border-radius: var(--radius-sm);
+  box-shadow: none;
+  transition: background-color .14s ease, border-color .14s ease, color .14s ease;
+}
+.primary-button { background: var(--accent-strong); font-weight: 650; }
+.primary-button:hover { background: var(--accent); }
+.secondary-button {
+  border: 1px solid var(--border);
+  background: var(--surface-solid);
+}
+.secondary-button:hover { background: var(--surface-muted); }
+.quiet-button { color: var(--muted); }
+.icon-button { width: 40px; }
+.primary-button:active, .secondary-button:active, .icon-button:active { transform: none; }
+.text-button, .row-button { min-height: 36px; }
+.segmented { border-radius: var(--radius-sm); }
+.segment { min-height: 36px; border-radius: 8px; }
+.segment.active { box-shadow: 0 1px 3px rgba(0, 0, 0, .10); }
+
+:where(.field input, .field select, .field textarea, .plans-filterbar input,
+  .plans-filterbar select, .generation-row input, .meeting-source-search input,
+  .protocol-tools-fields input, .protocol-tools-fields textarea,
+  .protocol-tools-dialog select) {
+  border-color: var(--border-strong);
+  border-radius: var(--radius-sm);
+  color: var(--text);
+  background-color: var(--surface-solid);
+}
+:where(.field input, .field select, .field textarea, .plans-filterbar input,
+  .plans-filterbar select, .generation-row input, .meeting-source-search input,
+  .protocol-tools-fields input, .protocol-tools-fields textarea,
+  .protocol-tools-dialog select):focus-visible {
+  border-color: var(--accent);
+  outline: 3px solid var(--accent-soft);
+  outline-offset: 1px;
+}
+.field > span { color: var(--text); }
+.field input, .field select, .plans-filterbar input, .plans-filterbar select { min-height: 42px; }
+.field textarea { min-height: 88px; }
+.global-search { border-color: var(--border-strong); border-radius: var(--radius-md); }
+.global-search:focus-within { border-color: var(--accent); }
+
+.calendar-surface, .tasks-surface, .surface-panel, .rail-card,
+.plans-list-panel, .plan-detail-panel, .meetings-list-panel,
+.meeting-detail-panel, .template-card, .review-card, .search-page {
+  border-color: var(--border);
+  box-shadow: var(--shadow-sm);
+}
+.calendar-surface, .tasks-surface, .surface-panel { border-radius: var(--radius-md); }
+.rail-card, .template-card, .review-card { border-radius: var(--radius-md); }
+.calendar-weekday { font-size: 12px; }
+.task-row { min-height: 48px; }
+th, td { padding-top: 11px; padding-bottom: 11px; }
+.status, .count-pill { font-variant-numeric: tabular-nums; }
+
+.sheet, .plans-modal, .meeting-modal, .action-center,
+.organization-shell-panel, .ux-inspector {
+  border-color: var(--border-strong);
+  border-radius: var(--radius-lg);
+  background: var(--surface-raised);
+  box-shadow: var(--shadow-lg);
+  overscroll-behavior: contain;
+}
+.sheet-header, .plans-modal-head, .meeting-modal-head {
+  border-bottom-color: var(--border);
+}
+.sheet-header { padding: 16px 18px 13px; }
+.sheet-header h2 { font-size: 19px; }
+.sheet-body { overscroll-behavior: contain; }
+.sheet-actions, .sheet-footer, .ux-inspector-actions {
+  border-top: 1px solid var(--border);
+}
+.wizard-progress { background: var(--surface-muted); }
+.template-workspace { min-width: 0; }
+.template-inspector { overscroll-behavior: contain; }
+
+.mobile-tab {
+  min-height: 44px;
+  border-radius: var(--radius-sm);
+  font-size: 10px;
+}
+.mobile-tab:focus-visible { outline-offset: -2px; }
+.mobile-tabs { border-top-color: var(--border-strong); }
+
+@media (max-width: 720px) {
+  .workspace { padding-top: 10px; }
+  .topbar { min-height: 54px; }
+  .topbar-actions { gap: 5px; }
+  .topbar-actions .icon-button { min-width: 42px; min-height: 42px; }
+  .primary-button, .secondary-button { min-height: 44px; }
+  .section-heading { gap: 10px; }
+  .section-heading h2 { font-size: 20px; }
+  .sheet, .plans-modal, .meeting-modal {
+    max-height: calc(100vh - env(safe-area-inset-top));
+    border-radius: var(--radius-lg) var(--radius-lg) 0 0;
+    padding-bottom: env(safe-area-inset-bottom);
+  }
+  .sheet-header, .plans-modal-head, .meeting-modal-head { padding-left: 16px; padding-right: 16px; }
+  .sheet-body, .plans-modal-body, .meeting-modal-body { padding-left: 16px; padding-right: 16px; }
+  .sheet-actions { flex-wrap: wrap; }
+  .sheet-actions > button { min-height: 44px; }
+  .mobile-tab { padding-inline: 2px; }
+}
+
+@media (max-width: 380px) {
+  .workspace { padding-right: 8px; padding-left: 8px; }
+  .topbar-actions { gap: 3px; }
+  .mobile-tabs { padding-right: 4px; padding-left: 4px; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .nav-item, .primary-button, .secondary-button, .quiet-button,
+  .icon-button, .segment { transition: none; }
+}
+
+/* Общие контракты перекрывают поздно подключаемые предметные стили. */
+body { background: var(--surface-muted); }
+body .sidebar { background: var(--surface-muted); backdrop-filter: none; }
+body .sidebar-nav { min-height: 0; overflow-y: auto; scrollbar-width: thin; }
+body .nav-item { min-height: 44px; color: var(--text); }
+body .nav-item.active { color: var(--text); background: var(--accent-soft); box-shadow: inset 3px 0 var(--accent); }
+body :is(.calendar-surface,.tasks-surface,.surface-panel,.rail-card,.template-intro,.search-page) {
+  background: var(--surface-solid); backdrop-filter: none; box-shadow: none;
+}
+body :is(.primary-button,.secondary-button,.quiet-button,.icon-button) {
+  min-height: 40px; max-width: 100%; box-shadow: none; overflow-wrap: anywhere;
+}
+body .primary-button { background: var(--accent-strong); }
+body .primary-button:hover { background: var(--accent-strong); filter: brightness(.95); }
+body .icon-button { min-width: 40px; flex-shrink: 0; }
+body .field { min-width: 0; }
+body .field > span { color: var(--text); font-size: 12px; }
+body .field :is(input,select,textarea) { min-width: 0; border-color: var(--border-strong); }
+body :is(button,a,input,select,textarea,summary,[tabindex]):focus-visible {
+  outline: 2px solid var(--accent); outline-offset: 2px;
+}
+body :is(th,td,time,.day-number,.task-date) { font-variant-numeric: tabular-nums; }
+body :is(.row-actions,.sheet-actions,.manual-modal-actions,.meeting-modal-actions,
+  .science-import-actions,.science-report-actions,.science-lifecycle-actions,.organization-modal-actions,
+  .academic-modal-actions,.lifecycle-modal-actions) { flex-wrap: wrap; gap: 8px; }
+body [data-workspace-dialog] {
+  max-height: calc(100dvh - 32px); border-color: var(--border-strong);
+  background: var(--surface-solid); box-shadow: var(--shadow-lg); backdrop-filter: none;
+  overscroll-behavior: contain;
+}
+body :is(.sheet-backdrop,.meeting-modal-backdrop,.plans-modal-backdrop,.directive-modal-backdrop,.academic-backdrop) { backdrop-filter: none; }
+body :is(.popover,.progress-banner,.toast,.plans-notice,.meeting-notice,.ux-undo) { backdrop-filter: none; }
+body.workspace-dialog-open { overflow: hidden !important; }
+body :is(.sheet-body,.manual-modal-body,.meeting-modal-body,.plans-modal-body,
+  .science-import-modal-body,.science-report-modal-body,.science-lifecycle-modal-body,
+  .organization-modal-body,.academic-modal-body,.lifecycle-modal-body) {
+  min-height: 0; overscroll-behavior: contain;
+}
+body .ux-inspector { background: var(--surface-solid); backdrop-filter: none; border-radius: 0; }
+body .ux-inspector-actions { background: var(--surface-solid); }
+body .workspace-discard-dialog {
+  width: min(480px,calc(100vw - 24px)); max-height: calc(100dvh - 32px);
+  padding: 24px; border: 1px solid var(--border-strong); border-radius: var(--radius-md);
+  color: var(--text); background: var(--surface-solid); box-shadow: var(--shadow-lg);
+}
+.workspace-discard-dialog::backdrop { background: rgba(0,0,0,.32); }
+.workspace-discard-dialog h2 { font-size: 20px; }
+.workspace-discard-dialog p { line-height: 1.5; }
+.workspace-discard-actions { display: flex; justify-content: flex-end; gap: 8px; flex-wrap: wrap; }
+@media (max-width: 720px) {
+  body .topbar { display: flex; flex-wrap: wrap; gap: 10px; }
+  body .topbar-leading { flex: 1 1 155px; }
+  body .topbar-actions { margin-left: auto; flex-wrap: wrap; }
+  body .topbar > .segmented { order: 3; flex-basis: 100%; }
+  body .topbar-actions .primary-button { width: auto; padding: 8px 12px; font-size: 14px; }
+  body .topbar-actions .primary-button::before { content: none; }
+  body :is(.primary-button,.secondary-button,.quiet-button,.icon-button,.filter-chip,.segment,.row-button) { min-height: 44px; }
+  body .icon-button { width: 44px; }
+  body .mobile-tabs {
+    display: flex; flex-wrap: nowrap; overflow-x: auto; gap: 4px;
+    background: var(--surface-solid); backdrop-filter: none;
+    padding: 6px 8px calc(6px + env(safe-area-inset-bottom)); scrollbar-width: thin;
+  }
+  body .mobile-tab { flex: 0 0 auto; min-width: 80px; min-height: 48px; padding: 4px 10px; white-space: nowrap; }
+  body .mobile-tab.active { color: var(--text); background: var(--accent-soft); box-shadow: inset 0 -2px var(--accent); }
+  body :is(.day-add,.notification-actions button,.remove-field,.generation-remove) {
+    min-width: 44px;
+    min-height: 44px;
+  }
+  body .day-add { opacity: 1; }
+  body [data-workspace-dialog] { max-height: calc(100dvh - 16px - env(safe-area-inset-top)); }
+  body .ux-inspector { border-radius: var(--radius-lg) var(--radius-lg) 0 0; }
+  body .wizard-step { font-size: 11px; min-height: 40px; flex-wrap: wrap; }
+  body :is(.toast,.meeting-notice,.plans-notice) { bottom: calc(80px + env(safe-area-inset-bottom)); }
+}
+@media (prefers-reduced-motion: reduce) {
+  body [data-workspace-dialog], body .ux-inspector { animation: none; transition: none; }
+}
+
+body :is(.toast,.meeting-notice,.plans-notice,.directive-notice) { z-index: 350; }
+
+@media (min-width: 721px) and (max-width: 920px) {
+  body .context-rail {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+  body .context-rail > * { min-width: 0; }
+
+  body .plans-filterbar.plan-filterbar-simple {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) minmax(0, 210px);
+  }
+  body .plans-filterbar.plan-filterbar-simple > * {
+    min-width: 0;
+    max-width: 100%;
+  }
+  body .plans-filterbar.plan-filterbar-simple .plans-search {
+    grid-column: 1 / -1;
+    width: 100%;
+  }
+  body .plans-filterbar.plan-filterbar-simple #plans-period {
+    width: 100%;
+    min-width: 0;
+    flex: initial;
+  }
+}
+
+body .task-copy { display: grid; gap: 4px; min-width: 0; text-align: left; }
+body .task-copy :is(.task-title,.task-meta) { display: block; min-width: 0; overflow-wrap: anywhere; }
+
+body .directive-archive-toolbar :is(input,select) { min-width: 0; max-width: 100%; }
+@media (max-width: 920px) {
+  body .directive-archive-toolbar { grid-template-columns: repeat(2,minmax(0,1fr)); }
+  body .directive-archive-toolbar .directive-archive-search { grid-column: 1 / -1; }
+}
+
+@media (max-width: 920px) {
+  body .calendar-layout { grid-template-columns: minmax(0,1fr); }
+  body .calendar-surface { overflow-x: auto; }
+  body .context-rail { grid-template-columns: minmax(0,1fr); }
+}
+@media (min-width: 721px) and (max-width: 1400px) {
+  body .topbar { grid-template-columns: minmax(0,1fr); gap: 12px; }
+  body .topbar-actions { grid-column: 1; grid-row: 2; justify-self: stretch; flex-wrap: wrap; }
+  body .topbar > .segmented { grid-column: 1; grid-row: 3; justify-self: start; }
+}

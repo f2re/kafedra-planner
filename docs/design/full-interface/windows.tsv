@@ -1,0 +1,29 @@
+id	source	owner	context	selector	label	status
+UI-b4096a5393	public/academic-performance-state.js:117:5	D6	screenMarkup	[data-academic-modal]		запланировано
+UI-7085e3ccfd	public/academic-performance-state.js:118:5	D6	screenMarkup	[data-academic-details]		запланировано
+UI-f8215a8013	public/action-center.js:93:5	D1	ensureUi	#action-center	Добавить Что нужно сделать? × ⌕ Esc Рекомендуется Контекст важнее частоты ⇧ Перетащите любой документ PDF, Word, Excel, 	запланировано
+UI-3b278fbac8	public/admin-next.js:29:7	D7	ensureAdminUi	#admin-access-panel	Эксплуатация Доступ и готовность Закрыть Готовность Создать аккаунт Сотрудник Логин Роль Сотрудник Руководитель Админист	запланировано
+UI-5ab14b927c	public/auth-next.js:153:12	D7	ensurePinDialog	#auth-pin-dialog		запланировано
+UI-40eb2c19ee	public/calendar-start-settings.js:57:11	D1	ensureDialog	#calendar-start-settings-sheet		запланировано
+UI-060777690a	public/directive-archive-next.js:161:7	D4	ensureDirectiveArchiveUi	#directive-modal		запланировано
+UI-418388c632	public/index.html:154:3	D1	document	#event-sheet	Календарь Новое событие × Название Тип Событие Задача Дата Категория Организационная Образование Наука Повседневная Важн	запланировано
+UI-8a4f6c0fc8	public/index.html:169:3	D1	document	#template-sheet	Новый шаблон Покажите, что извлекать × 1 Документ 2 Поля 3 Проверка Документ Выберите документ Текст появится здесь. Ори	запланировано
+UI-f29463dfb7	public/lifecycle-next.js:187:7	D2	ensureLifecycleUi	#lifecycle-modal		проверить подключение
+UI-1fab561c1a	public/lifecycle-safe.js:188:7	D2	ensureUi	#lifecycle-modal		запланировано
+UI-c6ac185128	public/manual-plans-next.js:50:7	D2	ensureManualUi	#manual-plan-modal		запланировано
+UI-df11c367c0	public/meetings-state.js:139:7	D3	ensureMeetingsUi	#meeting-modal		запланировано
+UI-d106ba8615	public/notification-delivery.js:28:5	D7	ensureDeliveryUi	#notification-delivery-panel	Уведомления Как связаться со мной Закрыть Каналы Внутренние уведомления работают всегда. Внешние каналы нужны только есл	запланировано
+UI-362c5ef0c4	public/organization-next.js:63:5	D7	ensureOrganizationUi	#organization-modal		запланировано
+UI-d9df9c8cb9	public/organization-shell.js:15:5	D7	ensureOrganizationShell	#organization-shell-panel	Кафедра Структура и назначения ×	запланировано
+UI-0b896cde94	public/plan-fact-tools.js:99:52	D2	ensureToolUi	#metric-correction-sheet	План / факт Исправить значение × Показатель Машинное значение Исправленное значение Причина исправления Кто исправляет Н	запланировано
+UI-fff13e2004	public/plan-fact-tools.js:121:52	D2	ensureToolUi	#plan-fact-view-sheet	План / факт Сохранить набор фильтров × Название Показывать всей кафедре Сохраняются текущие сотрудник, режим, период, на	запланировано
+UI-1a175d5d51	public/plans-next.js:166:7	D2	ensurePlansUi	#plan-item-modal		запланировано
+UI-c42a424e56	public/plans-next.js:167:7	D2	ensurePlansUi	#plan-generate-modal		запланировано
+UI-e8cbd8c283	public/plans-next.js:168:7	D2	ensurePlansUi	#plan-template-modal		запланировано
+UI-7ce1f99464	public/preference-controls.js:58:7	D1	ensureUi	#preference-controls-popover	Личные подсказки	запланировано
+UI-41e297d695	public/protocol-batch.js:21:16	D3	protocolDialog			запланировано
+UI-3b27cb878c	public/science-import-next.js:37:7	D5	ensureImportUi	#science-import-modal		запланировано
+UI-21f8391cec	public/science-lifecycle-next.js:38:5	D5	ensureScienceLifecycleModal	#science-lifecycle-modal		запланировано
+UI-40c43b6aa7	public/science-reports-next.js:38:7	D5	ensureReportUi	#science-report-modal		запланировано
+UI-285abbba93	public/supporting-documents-next.js:44:52	D4	ensureSupportingModal	#manual-plan-modal		запланировано
+UI-075f8ac797	public/workspace-dialogs.js:178:19	D1	requestDismiss			запланировано

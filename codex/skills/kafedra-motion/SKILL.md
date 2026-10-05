@@ -1,30 +1,28 @@
 ---
 name: kafedra-motion
-description: Select and specify restrained Kafedra Planner motion patterns from the local Reactiive reference catalog, with measurable timing, geometry, reduced-motion and performance requirements.
+description: Обосновывать минимальные переходы и жесты Кафедра-планера, включая no-motion, прерывание, reduced-motion и работу без новых зависимостей.
 ---
 
-# Motion advisor
+# Специалист по движению и непрерывности
 
-Use this skill whenever a UI change adds or changes navigation transitions, disclosure, panels, tabs, list rearrangement, drag/swipe, loading/success/error feedback, state morphing, opacity/blur/material, chart interpolation or any other visible movement. It may explicitly decide that no animation is the best design.
+Точка входа — `.agent/skills/designer/SKILL.md`. Применять роль, когда действительно затрагиваются переход, раскрытие, панель, вкладка, перестановка, drag/swipe, обратная связь или другое видимое движение. Для статической правки обязательный анимационный этап не создавать. Полноценный результат — `no-motion`.
 
-Read `docs/design.md`, `docs/MOTION_DESIGN.md`, `docs/design/reactiive-motion-catalog.md`, the relevant screen code and browser tests. Start from the user intent and trigger, never from a favorite effect.
+Прочитать `docs/design.md`, `docs/MOTION_DESIGN.md`, `docs/design/reactiive-motion-catalog.md`, текущий код и тесты. Сначала цель пользователя и работающий статический сценарий, затем выбор движения. При наличии подходящего локального навыка Emil Kowalski проверить его действительное имя и контракт; отсутствие внешнего набора не блокирует работу локальной роли.
 
-## Retrieval
+## Выбор
 
-1. Classify the need by intent: navigation/orientation, overlay/disclosure, direct manipulation, value selection, list/layout, carousel/scroll, microfeedback, morph/shared transition, material/depth, data change, spatial/3D or storytelling.
-2. Retrieve 2–5 catalog candidates with the closest interaction mechanics.
-3. Reject candidates that add latency, obscure dense information, rely on GPU-heavy effects without value, or make reduced-motion behavior worse.
-4. If a Reactiive demo is selected, inspect its current upstream `src/animations/<demo>/` source before stating exact duration/easing/spring/blur/threshold values.
-5. Keep `exact source evidence`, `semantic interpretation`, and `Kafedra recommendation` explicitly separate.
+Определить необходимость: ориентация при навигации, раскрытие/окно, direct manipulation, выбор значения, изменение списка, обратная связь, связь старого и нового состояния. Найти подходящие примеры только когда движение действительно нужно. Отбросить эффекты, которые задерживают работу, ухудшают чтение плотных данных, требуют тяжёлых эффектов или ослабляют reduced-motion.
 
-## Required output
+Если используются точные параметры Reactiive или другого примера, сначала прочитать его исходник. Разделять `exact source evidence`, смысловую интерпретацию и рекомендацию Кафедра-планеру. Каталог — навигация по примерам, не разрешение копировать код без проверки условий использования.
 
-Produce a compact motion brief with: intent; references and source paths; states; trigger; progress source; geometry/property mapping; layer/material/opacity behavior; timing/easing/spring; gesture velocity/threshold/interrupt rules; desktop/mobile behavior; `prefers-reduced-motion`; performance budget; and observable acceptance criteria.
+## Передача
 
-For direct manipulation, visual progress follows the pointer/finger 1:1 during the gesture. Apply spring/snap/decay only after release, preserving release velocity when it has meaning. For frequent operational actions default to near-critical behavior with no conspicuous bounce.
+Для конкретных идентификаторов окна/действия записать: зачем движение; начальное/конечное состояние; событие; источник прогресса; свойства/геометрия; длительность и easing; прерывание и повтор; поведение мыши/касания/клавиатуры; возврат фокуса; `prefers-reduced-motion`; проверка нагрузки и наблюдаемый критерий.
 
-Motion may never be the sole carrier of selection, error, completion, hierarchy or permission state. A static before/after frame must remain understandable. Do not introduce a runtime dependency merely to reproduce an inspiration demo; translate the motion principle into the project’s existing web stack unless an approved change explicitly proves a new dependency is necessary.
+При direct manipulation визуальное положение следует за указателем 1:1; spring/snap/decay допустимы после отпускания, когда это имеет смысл. Частые действия не должны заметно подпрыгивать. Не анимировать ради эффекта и не делать движение единственным носителем ошибки, выбора, завершения или права.
 
-Hand the brief to `kafedra-feature`. After implementation, `kafedra-design-audit` must independently review the result before `kafedra-tests`/release handoff.
+Предпочитать существующие CSS и возможности браузера, `transform`/`opacity` и короткие прерываемые переходы. Не добавлять библиотеку ради одного эффекта. Новая зависимость требует отдельного основания и не должна нарушать автономную поставку.
 
-Kafedra profile handoff: after `kafedra-workspace-orchestrator` selects motion as relevant, read `kafedra-motion-continuity` in addition to the project motion sources above. It supplies document/list/inspector continuity, local async feedback and interruption/reduced-motion constraints; this project-local role remains responsible for the measurable motion brief or explicit `no-motion` decision.
+Работу передать `kafedra-feature`; материальное изменение проверяет независимый `kafedra-design-audit`, а `kafedra-tests` выполняет целевую регрессию. Не обещать производительность без измерения и не требовать воспроизведения всех сторонних демонстраций.
+
+Kafedra profile handoff: после выбора движения `kafedra-workspace-orchestrator` прочитать `kafedra-motion-continuity`. Он уточняет непрерывность документа/списка/инспектора, локальную асинхронную обратную связь и прерывание; проектная роль отвечает за измеримый контракт или `no-motion`.

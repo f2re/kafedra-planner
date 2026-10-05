@@ -10,6 +10,7 @@ const flowState = {
 };
 
 const one = (selector, root = document) => root.querySelector(selector);
+const preparedItemForms = new WeakSet();
 
 function rememberDate(value) {
   flowState.date = calendarContextDate(value);
@@ -18,6 +19,7 @@ function rememberDate(value) {
 
 function resetFlow() {
   flowState.active = false;
+  flowState.date = '';
   flowState.choices = [];
   flowState.advancing = false;
   flowState.awaitingCreatedPlan = false;
@@ -26,6 +28,9 @@ function resetFlow() {
 
 function markDomainDate(input) {
   if (!input || !flowState.date) return;
+  const origin = window.kafedraPreferenceOrigin?.origin?.(input);
+  if (origin === 'explicit' || origin === 'saved') return;
+  if (origin === 'domain' && input.value === flowState.date) return;
   input.value = flowState.date;
   input.dataset.uiPreferenceExplicitDate = '1';
   window.kafedraPreferenceOrigin?.mark?.(input, 'domain');
@@ -52,8 +57,12 @@ function addPlanChoiceToItemForm(form) {
 
 function prepareItemForm(form) {
   if (!flowState.active || !form) return;
-  form.dataset.calendarContextDate = flowState.date;
-  markDomainDate(one('[name="startsAt"]', form));
+  // Apply the source day once; later DOM changes must not overwrite edited input.
+  if (!preparedItemForms.has(form)) {
+    preparedItemForms.add(form);
+    form.dataset.calendarContextDate = flowState.date;
+    markDomainDate(one('[name="startsAt"]', form));
+  }
   addPlanChoiceToItemForm(form);
   const modal = one('#manual-plan-modal');
   if (modal) modal.style.visibility = '';

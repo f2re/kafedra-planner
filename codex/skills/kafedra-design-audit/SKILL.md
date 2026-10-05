@@ -1,32 +1,36 @@
 ---
 name: kafedra-design-audit
-description: Independently audit implemented Kafedra Planner UI against the approved design and motion brief before test/release handoff.
+description: Независимо проверять реализованный интерфейс Кафедра-планера, полноту реестра и доказательства каждого затронутого сценария, окна и действия.
 ---
 
-# Design audit
+# Независимая приёмка интерфейса
 
-Use this skill after UI implementation and before final test/release handoff. Do not redesign from taste and do not silently broaden scope. Read `docs/design.md`, `docs/MOTION_DESIGN.md`, the approved GRACE spec/plan, the `kafedra-design` flow specification, any `kafedra-motion` brief, the implementation diff and relevant Playwright coverage.
+Прочитать `.agent/skills/designer/SKILL.md`, `docs/design.md`, `docs/MOTION_DESIGN.md`, спецификацию затронутого сценария, diff, реестр и соответствующие тесты. GRACE spec/plan читать, когда изменение действительно относится к управляемому риску; обычный UI-аудит не создаёт формальный GRACE lifecycle.
 
-The audit is independent from implementation: verify what is actually rendered/implemented rather than accepting the proposed design as evidence.
+Проверять результат, а не уверенность автора. План и статический анализ могут получить вывод о полноте/неполноте планирования, но не PASS пользовательского взаимодействия. Независимый аудитор не должен быть тем же исполнителем, который сам утверждает собственную реализацию.
 
-## Audit dimensions
+## Что проверять
 
-- **Clarity:** primary task, object state, owner/source and next action are obvious without a manual.
-- **Hierarchy:** one primary action; secondary/rare/technical controls are progressively disclosed; no card-within-card visual noise.
-- **Consistency:** labels, placement, spacing, radii, typography and action order agree with adjacent screens and the stable navigation model.
-- **Apple-inspired restraint:** calm density, system-like continuity, immediate response, restrained material and no decorative spectacle.
-- **Motion correctness:** movement explains causality/orientation; timing is interruptible; direct manipulation is 1:1; no routine bounce; final static state remains clear.
-- **Accessibility:** keyboard/focus, readable status without color/motion, target size, contrast, and `prefers-reduced-motion` fallback.
-- **Responsive behavior:** full user task remains possible on desktop and mobile; mobile reduces density instead of squeezing desktop tables.
-- **Operational safety:** errors preserve input; loading does not erase context; destructive/ACL actions are explicit; automation provenance remains visible.
-- **Performance:** no avoidable layout thrash, full-screen blur or continuous off-screen animation; frequent interactions remain responsive.
+- Понятность задачи, состояния объекта, происхождения, ответственного и следующего действия.
+- Одно главное действие; обнаружимые вторичные действия; отсутствие лишних этапов и вложенных декоративных карточек.
+- Согласованность текстов, размеров, отступов, порядка действий и стабильной навигации.
+- Каждое окно и каждый его вариант: фокус, клавиатура, закрытие, отмена, несохранённый ввод, возврат к инициатору, повторное открытие и вложение.
+- Каждая кнопка/ссылка/поле/опция/раскрытие: доступное имя, семантика, обработчик, ожидаемый результат, недоступность с причиной, ошибка и повтор там, где применимо.
+- Адаптивность затронутых компоновок без исчезновения нужных действий; при полном аудите — все запланированные ширины и формы ввода.
+- Изменённая анимация: причинность, прерывание, статический смысл и `prefers-reduced-motion`; анимация не обязательна для статической правки.
+- Сохранение ввода после ошибки, подтверждённый успех, частичный результат, устойчивость к повтору/устаревшему ответу и безопасный уход.
+- Единственный источник истины, неизменяемый оригинал, ручная правка, ACL и отсутствие обязательного Интернета/ЛЛМ.
 
-## Verdict
+## Полнота
 
-Return exactly one verdict: `PASS`, `REVISE`, or `BLOCK`.
+Для полного проекта пройти весь реестр `docs/design/full-interface/`, включая нетипичные интерактивные узлы, программно создаваемые окна, серверные точки входа и неподключённые кандидаты. Не подменять все варианты окна проверкой одного контейнера. Каждая запись получает решение и доказательство либо остаётся непроверенной.
 
-For every finding provide severity (`blocker`, `major`, `minor`), evidence (screen/state/file/test), violated design rule, and the smallest corrective change. `PASS` requires no blocker/major findings and explicit evidence for desktop, mobile and reduced-motion behavior. `REVISE` means the change can stay in scope but needs corrections. `BLOCK` means the implementation violates a product invariant, accessibility/safety constraint, approved GRACE scope or cannot be verified.
+Отдельно сообщать: покрытие исходников; покрытие планом; выполненные проверки. Непроверенное состояние не равно «дефект», но и не равно «пройдено». Неприменимость подтверждать причиной. Одинаковый общий критерий может наследоваться многими элементами, однако доказательство результата должно указывать конкретные идентификаторы и варианты.
 
-Do not treat aesthetic preference as a blocker. Do not approve based only on screenshots when interaction, focus, error or motion behavior is material. Hand concrete regression requirements to `kafedra-tests`.
+## Вердикт по реализации
 
-Kafedra profile handoff: after implementation, pair this independent project-local audit with `kafedra-ux-acceptance` whenever the orchestrator classified document/workspace UX as material. The profile audit adds provenance, partial-success, recomposition, adaptive, responsive and recovery checks; the project role still owns the final `PASS`, `REVISE` or `BLOCK` decision under the approved GRACE/design contract.
+`PASS` — нет блокирующих/существенных замечаний и имеются доказательства всех применимых критериев затронутого объёма. `REVISE` — нужны локальные исправления в согласованном объёме. `BLOCK` — нарушены данные/безопасность/доступность, согласованные ограничения или отсутствует обязательное доказательство для выпуска.
+
+Для замечания указывать серьёзность (`blocker`, `major`, `minor`), источник/строки, идентификаторы, воспроизведение или явно статическое основание, нарушенный контракт, минимальное исправление и проверку. Эстетическое предпочтение не является блокирующей ошибкой. Снимок не доказывает фокус, отмену, сохранность и восстановление.
+
+Kafedra profile handoff: при материальном изменении document/workspace UX дополнительно использовать `kafedra-ux-acceptance`, выбранный `kafedra-workspace-orchestrator`. Предметные проверки происхождения, частичного успеха, подстановок и восстановления дополняют независимую приёмку, а не подменяют её.

@@ -317,10 +317,12 @@ function openSheet(id) {
   document.body.style.overflow = 'hidden';
 }
 
-function closeSheets() {
-  $('#sheet-backdrop').classList.add('hidden');
-  $$('.sheet').forEach((sheet) => sheet.classList.add('hidden'));
-  document.body.style.overflow = '';
+function closeSheets(sheet = null) {
+  const targets = sheet ? [sheet] : $$('.sheet');
+  targets.forEach((element) => element.classList.add('hidden'));
+  const stillOpen = $$('.sheet').some((element) => !element.classList.contains('hidden'));
+  $('#sheet-backdrop').classList.toggle('hidden', !stillOpen);
+  document.body.style.overflow = stillOpen ? 'hidden' : '';
 }
 
 function findCalendarItem(id) {
@@ -358,7 +360,8 @@ async function saveEvent(event) {
   if (!body.title || !body.startsAt) return toast('Укажите название и дату.');
   if (id) await api(`/api/calendar/${encodeURIComponent(id)}`, { method: 'PATCH', headers: { 'content-type': 'application/json' }, body: JSON.stringify(body) });
   else await api('/api/calendar', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(body) });
-  closeSheets();
+  closeSheets($('#event-sheet'));
+  if (id) window.dispatchEvent(new CustomEvent('kafedra:calendar-updated', { detail: { id } }));
   toast(id ? 'Изменения сохранены.' : body.kind === 'task' ? 'Задача добавлена.' : 'Событие добавлено.');
   await Promise.all([loadCalendar(), loadNotifications()]);
 }
@@ -456,6 +459,7 @@ function resetTemplateWizard(documentId = null) {
 
 async function beginTemplateWizard(documentId = null) {
   if (!state.documents.length) await loadDocuments();
+  window.dispatchEvent(new CustomEvent('kafedra:template-opened'));
   resetTemplateWizard(documentId);
   openSheet('#template-sheet');
   if (documentId) await loadTemplateSource(documentId);
@@ -543,9 +547,20 @@ function renderTemplateFields() {
   $('#template-fields').innerHTML = state.template.fields.map((field, index) => `<div class="template-field"><div><strong>${escapeHtml(field.label)}</strong><span>${escapeHtml(field.anchor)} · ${escapeHtml(field.strategy)} · ${escapeHtml(field.type)}</span></div><button class="remove-field" type="button" data-remove-field="${index}" aria-label="Удалить поле">×</button></div>`).join('');
 }
 
-function setWizardStep(step) {
+export function clearTemplateFields() {
+  state.template.fields = [];
+  state.template.preview = null;
+  renderTemplateFields();
+}
+
+export function setWizardStep(step) {
   state.template.step = Math.max(1, Math.min(3, Number(step)));
-  $$('.wizard-step').forEach((button) => button.classList.toggle('active', Number(button.dataset.wizardStep) === state.template.step));
+  $$('.wizard-step').forEach((button) => {
+    const active = Number(button.dataset.wizardStep) === state.template.step;
+    button.classList.toggle('active', active);
+    if (active) button.setAttribute('aria-current', 'step');
+    else button.removeAttribute('aria-current');
+  });
   $$('.wizard-panel').forEach((panel, index) => panel.classList.toggle('active', index + 1 === state.template.step));
   $('#wizard-back').disabled = state.template.step === 1;
   $('#wizard-next').classList.toggle('hidden', state.template.step === 3);
@@ -595,7 +610,8 @@ async function saveCurrentTemplate() {
   await api('/api/templates', {
     method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(payload)
   });
-  closeSheets();
+  window.dispatchEvent(new CustomEvent('kafedra:template-saved', { detail: { documentVersionId: payload.documentVersionId } }));
+  closeSheets($('#template-sheet'));
   toast('Шаблон сохранён. Следующие похожие документы будут обработаны автоматически.');
   await Promise.all([loadTemplates(), loadDocuments(), loadReview()]);
 }
@@ -679,7 +695,8 @@ document.body.addEventListener('click', async (event) => {
   }
   const notificationAction = event.target.closest('[data-notification-action]');
   if (notificationAction) await changeNotification(notificationAction.dataset.notificationKey, notificationAction.dataset.notificationAction);
-  if (event.target.closest('[data-close-sheet]') || event.target === $('#sheet-backdrop')) closeSheets();
+  if (event.target.closest('[data-close-sheet]')) closeSheets(event.target.closest('.sheet'));
+  else if (event.target === $('#sheet-backdrop')) closeSheets();
 });
 
 $('#event-form').addEventListener('submit', saveEvent);
@@ -689,6 +706,14 @@ $('#template-from-document').addEventListener('click', () => beginTemplateWizard
 $('#template-load-document').addEventListener('click', () => loadTemplateSource());
 $('#add-template-field').addEventListener('click', addTemplateField);
 $('#field-strategy').addEventListener('change', () => $('#end-anchor-field').classList.toggle('hidden', $('#field-strategy').value !== 'between'));
+$('#template-sheet .wizard-progress').addEventListener('click', (event) => {
+  const step = Number(event.target.closest('[data-wizard-step]')?.dataset.wizardStep);
+  if (![1, 2, 3].includes(step)) return;
+  if (step > 1 && !state.template.source) return toast('Сначала откройте документ.');
+  if (step === 3 && !state.template.fields.length) return toast('Добавьте хотя бы одно поле.');
+  setWizardStep(step);
+  if (step === 3) previewCurrentTemplate().catch((error) => toast(error.message));
+});
 $('#wizard-back').addEventListener('click', () => setWizardStep(state.template.step - 1));
 $('#wizard-next').addEventListener('click', async () => {
   if (state.template.step === 1 && !state.template.source) return loadTemplateSource();

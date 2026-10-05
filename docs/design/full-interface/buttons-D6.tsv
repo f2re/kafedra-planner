@@ -1,0 +1,25 @@
+id	source	context	label	acceptance	status
+UI-2f799000b1	public/academic-performance-actions.js:115:208	openAcademicDetails	×	C01	запланировано
+UI-7e451de964	public/academic-performance-actions.js:119:104	openAcademicDetails	×	C01	запланировано
+UI-fb42b6b8b9	public/academic-performance-import.js:12:129	uploadMarkup	×	C01	запланировано
+UI-9048ab9507	public/academic-performance-import.js:18:43	uploadMarkup	Отмена	C01	запланировано
+UI-f78d9df972	public/academic-performance-import.js:18:121	uploadMarkup	Проверить файл	C01	запланировано
+UI-fc4ec68b15	public/academic-performance-import.js:109:134	mappingMarkup	×	C01	запланировано
+UI-f856c05524	public/academic-performance-import.js:125:43	mappingMarkup	Назад	C01	запланировано
+UI-66dbe43df9	public/academic-performance-import.js:125:119	mappingMarkup	Импортировать	C01	запланировано
+UI-0fc539eecb	public/academic-performance-import.js:281:130	saveAcademicImport	×	C01	запланировано
+UI-05c9b38cd9	public/academic-performance-import.js:286:45	saveAcademicImport	Открыть сводку	C01	запланировано
+UI-1f2567305c	public/academic-performance-next.js:57:20	stabilizeAcademicUploadLayout	Выбрать другой	C01	запланировано
+UI-8d77c1605c	public/academic-performance-state.js:83:18	navButton	динамическая подпись	C01	запланировано
+UI-3bec4cc453	public/academic-performance-state.js:100:11	screenMarkup	Выгрузить общую таблицу	C01	запланировано
+UI-42e53202ba	public/academic-performance-state.js:101:11	screenMarkup	Загрузить ведомость	C01	запланировано
+UI-5d0b5c52fc	public/academic-performance-state.js:107:51	screenMarkup	История	C01	запланировано
+UI-8c007374bc	public/academic-performance-view.js:20:64	hierarchyMarkup / callback@15 / callback@18	CSV	C01	запланировано
+UI-12d7bdaace	public/academic-performance-view.js:22:13	hierarchyMarkup / callback@15 / callback@18 / callback@21	{dynamic} {dynamic} студентов · {dynamic} дисциплин {dynamic}	C01	запланировано
+UI-8225f81a56	public/academic-performance-view.js:34:5	historyMarkup / callback@33	{dynamic} · {dynamic} семестр · {dynamic} {dynamic} {dynamic}	C01	запланировано
+UI-ec4ba712fb	public/academic-performance-view.js:95:9	periodTotalsMarkup	Скачать выбранное	C01	запланировано
+UI-5b2a687c72	public/academic-performance-view.js:116:24	summaryMarkup	В архив	C02	запланировано
+UI-21253cfbb7	public/academic-performance-view.js:116:110	summaryMarkup	Сделать актуальной	C02	запланировано
+UI-884e4cb282	public/academic-performance-view.js:117:11	summaryMarkup	Скачать CSV	C01	запланировано
+UI-2cacdbe3c1	public/academic-performance-view.js:118:11	summaryMarkup	JSON	C01	запланировано
+UI-8daae60012	public/academic-performance-view.js:119:11	summaryMarkup	Источники	C01	запланировано

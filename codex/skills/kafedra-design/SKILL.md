@@ -1,22 +1,22 @@
 ---
 name: kafedra-design
-description: Design Kafedra Planner interactions, hierarchy and responsive states with a calm Apple-inspired, offline-first product language and explicit handoff to motion and independent audit roles.
+description: Проектировать сценарии, иерархию, формы и адаптивность Кафедра-планера через Designer, сохраняя предметные контракты и независимую приёмку.
 ---
 
-# Product designer
+# Проектировщик рабочего интерфейса
 
-Use this skill for UI flow design, interaction review, screen changes, labels, layout, responsive behaviour, or usability findings. Read `docs/design.md`, `docs/MOTION_DESIGN.md`, `docs/UX_FLOWS.md`, and `docs/ADAPTIVE_UX.md`; inspect the existing UI and its browser tests before proposing change.
+Для любой UI-задачи сначала прочитать `.agent/skills/designer/SKILL.md`. Затем `docs/design.md`, `docs/MOTION_DESIGN.md`, `docs/UX_FLOWS.md`, `docs/ADAPTIVE_UX.md`, соответствующий код и браузерные тесты. Рабочий вопрос: что требует внимания, кто отвечает, откуда сведения и что делать дальше?
 
-Design around the operational question: what needs attention, who owns it, what proves it, and what happens next. Reuse fixed navigation and the existing overview/inspector pattern. Keep the visual character Apple-inspired in discipline rather than imitation: clear hierarchy, calm density, precise alignment, restrained material, predictable controls, immediate response and continuity between states.
+Сохранять существующую навигацию и модель обзор/инспектор. Дисциплина Apple-inspired означает ясность, спокойную плотность, точное выравнивание и предсказуемость, а не копирование чужих экранов или новый декоративный стиль. Impeccable применяется при фактической доступности; Taste — только для ограниченной визуальной задачи после определения сценария.
 
-Write a compact flow specification: entry point, user goal, visible information, primary action, secondary disclosure, validation/error/empty/loading states, evidence/provenance, desktop/mobile behaviour, keyboard/focus and accessibility constraints, and observable acceptance criteria.
+Передать краткую, но проверяемую спецификацию: вход и роль, цель, источник истины, необходимые сведения, главное и вторичные действия, результат, ошибки/пустое состояние/загрузка/частичный успех, происхождение данных, возврат, настольное/мобильное поведение, клавиатура и фокус. Каждое затронутое поле, действие и вариант окна должно иметь идентификатор в реестре или явную запись о добавлении.
 
-Keep primary labels concrete and in the product language. Maintain stable geometry; adapt only safe defaults or option ranking as allowed by `ADAPTIVE_UX.md`. Never introduce a visual rearrangement based on user statistics, an icon-only consequential action, or a screen that makes a projection look like the source of truth.
+Для полного аудита использовать `docs/design/full-interface/PLAN.md`: пройти все записи элементов, форм, вариантов окон, обработчиков и составных сценариев. Повторно используемый контейнер окна не заменяет учёт каждой отображаемой в нём формы. Статический кандидат не считается подтверждённым работающим элементом до проверки связи с обработчиком и поведения.
 
-For every GRACE change that writes `public/**`, hand the design to `kafedra-motion`. That role may return `no-motion`, but the decision must be explicit and `prefers-reduced-motion` must be covered. Do not choose an animation merely because it is visually impressive.
+Подписи предметные и русские. Редкие поля раскрываются, ошибки не прячутся. Сохранять геометрию и явный выбор; адаптировать только допустимые подстановки/ранжирование. Не превращать проекцию в конкурирующий редактор истины и не оставлять существенное действие только непонятным значком.
 
-For a new data field, lifecycle, report metric, or state transition, request a `kafedra-data` decision. Give `kafedra-tests` observable acceptance criteria, especially for desktop/mobile, keyboard/focus, reduced motion, and programmatic-default-not-a-user-choice regressions.
+`kafedra-motion` подключать, когда действительно меняются движение, переход, жест или непосредственное перемещение. Путь `public/**` сам по себе не требует анимационного этапа. Допустим `no-motion`; для затронутого движения обязательна проверка `prefers-reduced-motion`. Локальная статическая правка не требует формальной цепочки всех дизайнеров.
 
-After `kafedra-feature` implements a UI change, `kafedra-design-audit` independently reviews the actual result. The designer does not self-certify the implementation. Do not claim an interaction is clear without validating it against the checklist in `docs/design.md`.
+Новый факт, жизненный цикл, отчётный показатель или переход данных согласовывать с `kafedra-data`. Материальное изменение интерфейса после реализации передавать независимому `kafedra-design-audit`, а наблюдаемые критерии — `kafedra-tests`. Не выдавать проектную спецификацию за доказательство работающего интерфейса.
 
-Kafedra profile handoff: after `kafedra-workspace-orchestrator` classifies the work, use `kafedra-document-workspace` for primary work surfaces, `kafedra-action-recomposition` for control simplification, `kafedra-responsive-inspector` for desktop/mobile mapping, `kafedra-adaptive-controls` for remembered/derived choices, and `kafedra-provenance-and-inspector` or `kafedra-states-and-recovery` when those concerns are material. These focused skills refine this role; they do not replace `docs/design.md` or the required project-local design lifecycle.
+Kafedra profile handoff: после `kafedra-workspace-orchestrator` выбирать `kafedra-document-workspace`, `kafedra-action-recomposition`, `kafedra-responsive-inspector`, `kafedra-adaptive-controls`, `kafedra-provenance-and-inspector` и `kafedra-states-and-recovery` только по соответствующим задачам. Закреплённые навыки уточняют роль, не заменяют Designer, AGENTS и `docs/design.md`.

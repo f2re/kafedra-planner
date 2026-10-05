@@ -1,0 +1,130 @@
+{
+  "scope": "R1 common UI only",
+  "baseMain": "688ffea1c6355980541da5ceb2b2e01f30116d76",
+  "sourceFingerprint": "6f585d1de8d29751d65e3cfb750a86412f7a19e09c75b023510649027adc3c49",
+  "runtime": "Node 24.19.0; Playwright 1.62.1; Chromium 151.0.7922.34",
+  "database": "isolated disposable SQLite; schema 31; auth/OCR/preview disabled in this harness only",
+  "assertions": "tests/browser/helpers/workspace-redesign-cases.mjs",
+  "assertionsSha256": "1d040afb6bd1b084f4a995dd06cf7ec8e08efc01005e2cc51e545d4fa1ab9bae",
+  "browserResults": [
+    {
+      "name": "Навигация и геометрия каждого раздела",
+      "layout": "desktop",
+      "status": "passed",
+      "pageErrors": []
+    },
+    {
+      "name": "Окно: клавиатура, изменённая форма, нативное подтверждение",
+      "layout": "desktop",
+      "status": "passed",
+      "pageErrors": []
+    },
+    {
+      "name": "Ошибка и повтор сохраняют ввод и создают одно заседание",
+      "layout": "desktop",
+      "status": "passed",
+      "pageErrors": []
+    },
+    {
+      "name": "Центр действий: один выбор файла и семантика вкладок",
+      "layout": "desktop",
+      "status": "passed",
+      "pageErrors": []
+    },
+    {
+      "name": "Вложенная структура закрывает только дочернее окно",
+      "layout": "desktop",
+      "status": "passed",
+      "pageErrors": []
+    },
+    {
+      "name": "Календарь: исправленная дата не сбрасывается при перерисовке",
+      "layout": "desktop",
+      "status": "passed",
+      "pageErrors": []
+    },
+    {
+      "name": "Инспектор: отмена и сохранение возвращают к тому же объекту",
+      "layout": "desktop",
+      "status": "passed",
+      "pageErrors": []
+    },
+    {
+      "name": "Черновик: видимое предложение, сохранённый шаг и повторное открытие",
+      "layout": "desktop",
+      "status": "passed",
+      "pageErrors": []
+    },
+    {
+      "name": "Тёмная тема и уменьшенное движение сохраняют управление",
+      "layout": "desktop",
+      "status": "passed",
+      "pageErrors": []
+    },
+    {
+      "name": "Навигация и геометрия каждого раздела",
+      "layout": "mobile",
+      "status": "passed",
+      "pageErrors": []
+    },
+    {
+      "name": "Окно: клавиатура, изменённая форма, нативное подтверждение",
+      "layout": "mobile",
+      "status": "passed",
+      "pageErrors": []
+    },
+    {
+      "name": "Ошибка и повтор сохраняют ввод и создают одно заседание",
+      "layout": "mobile",
+      "status": "passed",
+      "pageErrors": []
+    },
+    {
+      "name": "Центр действий: один выбор файла и семантика вкладок",
+      "layout": "mobile",
+      "status": "passed",
+      "pageErrors": []
+    },
+    {
+      "name": "Вложенная структура закрывает только дочернее окно",
+      "layout": "mobile",
+      "status": "passed",
+      "pageErrors": []
+    },
+    {
+      "name": "Календарь: исправленная дата не сбрасывается при перерисовке",
+      "layout": "mobile",
+      "status": "passed",
+      "pageErrors": []
+    },
+    {
+      "name": "Инспектор: отмена и сохранение возвращают к тому же объекту",
+      "layout": "mobile",
+      "status": "passed",
+      "pageErrors": []
+    },
+    {
+      "name": "Черновик: видимое предложение, сохранённый шаг и повторное открытие",
+      "layout": "mobile",
+      "status": "passed",
+      "pageErrors": []
+    },
+    {
+      "name": "Тёмная тема и уменьшенное движение сохраняют управление",
+      "layout": "mobile",
+      "status": "passed",
+      "pageErrors": []
+    }
+  ],
+  "staticChecks": [
+    "npm run check: passed",
+    "npm run docs:check: passed",
+    "ui-audit generator tests: 4 passed",
+    "targeted action-registry/calendar-flow/mutation-stability: 10 passed"
+  ],
+  "limits": [
+    "No claim of all 458 buttons or 64 forms executed",
+    "No physical Astra/Office/OCR/offline-install verification",
+    "Source inventory and runtime verification are separate"
+  ]
+}
