@@ -19,6 +19,7 @@ function fnName(node, parent) {
  return node.id?.name || (parent?.type === 'VariableDeclarator' ? parent.id?.name : parent?.type === 'Property' ? parent.key?.name || parent.key?.value : null) || `callback@${node.loc.start.line}`;
 }
 function zone(file) {
+ if (/workspace-(?:controls|dialogs|polish)/.test(file)) return 'D1';
  if (/academic/.test(file)) return 'D6';
  if (/science|reports/.test(file)) return 'D5';
  if (/meeting|protocol/.test(file)) return 'D3';

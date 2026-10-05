@@ -6,8 +6,8 @@ UI-3b278fbac8	public/admin-next.js:29:7	D7	ensureAdminUi	#admin-access-panel	Э�
 UI-5ab14b927c	public/auth-next.js:153:12	D7	ensurePinDialog	#auth-pin-dialog		запланировано
 UI-40eb2c19ee	public/calendar-start-settings.js:57:11	D1	ensureDialog	#calendar-start-settings-sheet		запланировано
 UI-060777690a	public/directive-archive-next.js:161:7	D4	ensureDirectiveArchiveUi	#directive-modal		запланировано
-UI-fafbd03d86	public/index.html:153:3	D1	document	#event-sheet	Календарь Новое событие × Название Тип Событие Задача Дата Категория Организационная Образование Наука Повседневная Важн	запланировано
-UI-7f1e03fba7	public/index.html:168:3	D1	document	#template-sheet	Новый шаблон Покажите, что извлекать × 1 Документ 2 Поля 3 Проверка Документ Выберите документ Текст появится здесь. Ори	запланировано
+UI-418388c632	public/index.html:154:3	D1	document	#event-sheet	Календарь Новое событие × Название Тип Событие Задача Дата Категория Организационная Образование Наука Повседневная Важн	запланировано
+UI-8a4f6c0fc8	public/index.html:169:3	D1	document	#template-sheet	Новый шаблон Покажите, что извлекать × 1 Документ 2 Поля 3 Проверка Документ Выберите документ Текст появится здесь. Ори	запланировано
 UI-f29463dfb7	public/lifecycle-next.js:187:7	D2	ensureLifecycleUi	#lifecycle-modal		проверить подключение
 UI-1fab561c1a	public/lifecycle-safe.js:188:7	D2	ensureUi	#lifecycle-modal		запланировано
 UI-c6ac185128	public/manual-plans-next.js:50:7	D2	ensureManualUi	#manual-plan-modal		запланировано
@@ -26,3 +26,4 @@ UI-3b27cb878c	public/science-import-next.js:37:7	D5	ensureImportUi	#science-impo
 UI-21f8391cec	public/science-lifecycle-next.js:38:5	D5	ensureScienceLifecycleModal	#science-lifecycle-modal		запланировано
 UI-40c43b6aa7	public/science-reports-next.js:38:7	D5	ensureReportUi	#science-report-modal		запланировано
 UI-285abbba93	public/supporting-documents-next.js:44:52	D4	ensureSupportingModal	#manual-plan-modal		запланировано
+UI-075f8ac797	public/workspace-dialogs.js:178:19	D1	requestDismiss			запланировано

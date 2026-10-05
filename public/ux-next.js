@@ -36,3 +36,5 @@ await import('./manual-plan-preferences.js');
 await import('./fast-form-disclosure.js');
 await import('./preference-controls.js');
 await import('./periodic-completion-next.js');
+
+await import('./workspace-controls.js');

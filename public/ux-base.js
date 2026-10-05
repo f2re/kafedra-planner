@@ -1,3 +1,5 @@
+import { setWizardStep, clearTemplateFields } from './app.js';
+import { rememberPanel, releasePanel } from './workspace-dialogs.js';
 const nativeFetch = window.fetch.bind(window);
 
 const uxState = {
@@ -11,7 +13,9 @@ const uxState = {
     fields: [],
     checkedVersionId: null,
     restoring: false,
-    timer: null
+    timer: null,
+    pendingSave: null,
+    saveQueue: Promise.resolve()
   }
 };
 
@@ -159,7 +163,7 @@ function ensureUx() {
   }
 
   if (!$('#template-draft-banner')) {
-    $('#wizard-step-1')?.insertAdjacentHTML('afterbegin', `
+    $('#template-sheet .wizard-progress')?.insertAdjacentHTML('afterend', `
       <div id="template-draft-banner" class="template-draft-banner hidden">
         <div><strong>Найден сохранённый черновик</strong><span id="template-draft-time">Можно продолжить с прежними полями.</span></div>
         <div><button id="resume-template-draft" type="button" class="secondary-button">Продолжить</button><button id="discard-template-draft" type="button" class="text-button">Начать заново</button></div>
@@ -212,6 +216,7 @@ function updateCategoryFilter(category) {
 }
 
 function openInspector(title, eyebrow, body, actions = '') {
+  rememberPanel($('#ux-inspector'));
   $('#ux-inspector-title').textContent = title;
   $('#ux-inspector-eyebrow').textContent = eyebrow;
   $('#ux-inspector-body').innerHTML = body;
@@ -225,6 +230,7 @@ function closeInspector() {
   $('#ux-inspector').classList.add('hidden');
   document.body.classList.remove('inspector-open');
   uxState.inspected = null;
+  releasePanel($('#ux-inspector'));
 }
 
 function evidenceRows(extraction) {
@@ -274,12 +280,12 @@ function openEventEditor(item) {
   $('#event-title').value = item.title;
   $('#event-kind').value = item.item_kind === 'task' || item.source_kind === 'decision' ? 'task' : 'event';
   $('#event-date').value = String(item.starts_at).slice(0, 10);
+  window.kafedraPreferenceOrigin?.mark?.($('#event-date'), 'saved');
   $('#event-category').value = item.category || 'organizational';
   $('#event-importance').value = item.importance || 'normal';
   $('#event-reminder').value = item.reminder_minutes ?? '';
   $('#event-description').value = item.description || '';
   $('#event-sheet-title').textContent = item.item_kind === 'task' || item.source_kind === 'decision' ? 'Задача' : 'Событие';
-  closeInspector();
   $('#sheet-backdrop').classList.remove('hidden');
   $('#event-sheet').classList.remove('hidden');
   document.body.style.overflow = 'hidden';
@@ -464,25 +470,56 @@ function draftPayload() {
 function scheduleDraftSave() {
   if (uxState.draft.restoring || !uxState.draft.documentVersionId) return;
   clearTimeout(uxState.draft.timer);
-  uxState.draft.timer = setTimeout(async () => {
-    const payload = draftPayload();
-    try {
-      await api('/api/templates/draft', {
-        method: 'PUT',
-        headers: { 'content-type': 'application/json' },
-        body: JSON.stringify({
-          documentVersionId: uxState.draft.documentVersionId,
-          payload,
-          step: payload.step
-        })
-      });
-      $('#template-selection-hint').textContent = 'Черновик сохранён';
-    } catch {
-      localStorage.setItem(`kafedra-template-draft:${uxState.draft.documentVersionId}`, JSON.stringify(payload));
-      $('#template-selection-hint').textContent = 'Черновик сохранён в браузере';
-    }
-  }, 550);
+  queueMicrotask(() => {
+    if (uxState.draft.restoring || !uxState.draft.documentVersionId) return;
+    clearTimeout(uxState.draft.timer);
+    const payload = structuredClone(draftPayload());
+    const versionId = payload.documentVersionId;
+    const cacheKey = `kafedra-template-draft:${versionId}`;
+    const snapshot = { payload, step: payload.step, updated_at: new Date().toISOString() };
+    const save = async () => {
+      try {
+        await api('/api/templates/draft', {
+          method: 'PUT', headers: { 'content-type': 'application/json' },
+          body: JSON.stringify({ documentVersionId: versionId, payload, step: payload.step })
+        });
+        try {
+          const local = JSON.parse(localStorage.getItem(cacheKey) || 'null');
+          if (!local?.updated_at || local.updated_at <= snapshot.updated_at) localStorage.removeItem(cacheKey);
+        } catch {}
+        if (uxState.draft.documentVersionId === versionId) $('#template-selection-hint').textContent = 'Черновик сохранён';
+      } catch {
+        try {
+          localStorage.setItem(cacheKey, JSON.stringify(snapshot));
+          if (uxState.draft.documentVersionId === versionId) $('#template-selection-hint').textContent = 'Черновик сохранён в браузере';
+        } catch {
+          if (uxState.draft.documentVersionId === versionId) $('#template-selection-hint').textContent = 'Не удалось сохранить черновик. Не закрывайте страницу.';
+        }
+      }
+    };
+    uxState.draft.pendingSave = () => {
+      uxState.draft.pendingSave = null;
+      uxState.draft.saveQueue = uxState.draft.saveQueue.then(save, save);
+    };
+    uxState.draft.timer = setTimeout(() => uxState.draft.pendingSave?.(), 550);
+  });
 }
+
+window.addEventListener('kafedra:template-opened', () => {
+  clearTimeout(uxState.draft.timer);
+  uxState.draft.pendingSave?.();
+  uxState.draft.documentId = null;
+  uxState.draft.documentVersionId = null;
+  uxState.draft.checkedVersionId = null;
+  uxState.draft.fields = [];
+  $('#template-draft-banner')?.classList.add('hidden');
+});
+window.addEventListener('kafedra:calendar-updated', event => {
+  const current = uxState.inspected;
+  if (current?.kind !== 'calendar' || current.item.id !== event.detail?.id
+    || $('#ux-inspector')?.classList.contains('hidden')) return;
+  openCalendarInspector(current.item.id).catch(error => showUndo(error.message, null));
+});
 
 async function detectTemplateSource() {
   if ($('#template-sheet')?.classList.contains('hidden')) return;
@@ -506,12 +543,11 @@ async function offerDraft(versionId) {
   try {
     draft = (await api(`/api/templates/draft?documentVersionId=${encodeURIComponent(versionId)}`)).draft;
   } catch {}
-  if (!draft) {
-    try {
-      const payload = JSON.parse(localStorage.getItem(`kafedra-template-draft:${versionId}`) || 'null');
-      if (payload) draft = { payload, updated_at: null };
-    } catch {}
-  }
+  try {
+    const stored = JSON.parse(localStorage.getItem(`kafedra-template-draft:${versionId}`) || 'null');
+    const local = stored?.payload ? stored : stored ? { payload: stored, updated_at: null } : null;
+    if (local && (!draft || (local.updated_at && local.updated_at > draft.updated_at))) draft = local;
+  } catch {}
   const banner = $('#template-draft-banner');
   banner.classList.toggle('hidden', !draft);
   if (!draft) return;
@@ -530,6 +566,7 @@ async function restoreDraft(draft) {
     $('#matcher-filename').value = payload.filenameContains || '';
     $('#matcher-phrases').value = (payload.requiredPhrases || []).join('\n');
     uxState.draft.fields = [];
+    clearTemplateFields();
     for (const field of payload.fields || []) {
       const line = $(`[data-line-number="${Number(field.sourceLineNumber)}"]`)
         || $$('.document-line').find((element) => $('.line-text', element)?.textContent === field.sample);
@@ -545,6 +582,8 @@ async function restoreDraft(draft) {
       $('#add-template-field').click();
       uxState.draft.fields.push(field);
     }
+    const restoredStep = Math.max(1, Math.min(3, Number(draft?.step ?? payload.step) || 1));
+    setWizardStep(restoredStep);
     $('#template-draft-banner').classList.add('hidden');
     showUndo('Черновик восстановлен.', null);
   } finally {
@@ -552,25 +591,34 @@ async function restoreDraft(draft) {
   }
 }
 
+async function clearDraft(versionId) {
+  if (!versionId) return;
+  clearTimeout(uxState.draft.timer);
+  uxState.draft.pendingSave = null;
+  const deletion = uxState.draft.saveQueue.then(() => api(`/api/templates/draft?documentVersionId=${encodeURIComponent(versionId)}`, { method: 'DELETE' }));
+  uxState.draft.saveQueue = deletion.catch(() => {});
+  await deletion;
+  try { localStorage.removeItem(`kafedra-template-draft:${versionId}`); } catch {}
+}
+
 async function discardDraft() {
   const versionId = uxState.draft.documentVersionId;
   if (!versionId) return;
-  await api(`/api/templates/draft?documentVersionId=${encodeURIComponent(versionId)}`, { method: 'DELETE' }).catch(() => {});
-  localStorage.removeItem(`kafedra-template-draft:${versionId}`);
-  $('#template-draft-banner').classList.add('hidden');
+  await clearDraft(versionId);
+  clearTemplateFields();
   uxState.draft.fields = [];
-  showUndo('Черновик удалён.', null);
+  $('#template-name').value = '';
+  $('#template-document-type').value = 'custom_document';
+  $('#matcher-filename').value = '';
+  $('#matcher-phrases').value = '';
+  $('#template-draft-banner').classList.add('hidden');
+  setWizardStep(1);
+  showUndo('Черновик удалён. Можно начать заново.', null);
 }
 
-async function deleteSavedDraftLater() {
-  const versionId = uxState.draft.documentVersionId;
-  if (!versionId) return;
-  setTimeout(async () => {
-    if (!$('#template-sheet').classList.contains('hidden')) return;
-    await api(`/api/templates/draft?documentVersionId=${encodeURIComponent(versionId)}`, { method: 'DELETE' }).catch(() => {});
-    localStorage.removeItem(`kafedra-template-draft:${versionId}`);
-  }, 1200);
-}
+window.addEventListener('kafedra:template-saved', event => {
+  clearDraft(event.detail?.documentVersionId).catch(() => showUndo('Шаблон сохранён, но старый черновик не удалён. Повторите очистку позже.', null));
+});
 
 const observer = new MutationObserver(() => {
   ensureUx();
@@ -617,7 +665,7 @@ document.addEventListener('click', async (event) => {
 
   if (event.target.closest('#ux-inspector-close')) closeInspector();
   if (event.target.closest('#resume-template-draft')) restoreDraft($('#template-draft-banner')._draft);
-  if (event.target.closest('#discard-template-draft')) discardDraft();
+  if (event.target.closest('#discard-template-draft')) discardDraft().catch(error => showUndo(error.message, null));
 
   const addField = event.target.closest('#add-template-field');
   if (addField && !uxState.draft.restoring) {
@@ -633,7 +681,6 @@ document.addEventListener('click', async (event) => {
     scheduleDraftSave();
   }
   if (event.target.closest('#wizard-next, #wizard-back, #preview-template')) scheduleDraftSave();
-  if (event.target.closest('#save-template')) deleteSavedDraftLater();
 }, true);
 
 document.addEventListener('keydown', (event) => {

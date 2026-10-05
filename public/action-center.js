@@ -228,14 +228,11 @@ function hasView(view) {
 
 function openView(view) {
   if (!hasView(view)) return false;
-  if (typeof window.kafedraSetView === 'function') {
-    window.kafedraSetView(view);
-    return true;
-  }
-  const button = $(`[data-view="${CSS.escape(view)}"]`);
-  if (!button) return false;
-  button.click();
-  return true;
+  // Domain modules own their navigation; the core setter does not know every view.
+  const button = $$(`[data-view="${CSS.escape(view)}"]`).find(visible);
+  if (button) button.click();
+  else if (typeof window.kafedraSetView === 'function') window.kafedraSetView(view);
+  return Boolean($(`[data-view-panel="${CSS.escape(view)}"]`)?.classList.contains('active'));
 }
 
 async function openFirstExistingView(views, timeout = 5000) {

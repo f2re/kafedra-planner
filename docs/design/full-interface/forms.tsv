@@ -11,8 +11,8 @@ UI-a410c5b770	public/directive-archive-next.js:421:5	D4	openAddDirective	#direct
 UI-16ebd9bb2e	public/directive-archive-next.js:443:5	D4	openEditDirective	#directive-edit-form	Номер * Дата * Название * Вид Направление Организация Образование Наука Кадры Безопасность Финансы Цифровизация Кем изда	запланировано
 UI-cb83ff8314	public/directive-archive-next.js:463:5	D4	openAddMaterial	#directive-material-form	Файл * Подойдёт отчёт, скан, акт, фото, презентация, таблица или любой другой подтверждающий файл. Вид материала Отчёт С	запланировано
 UI-54cf8a3cca	public/docomator-integration.js:74:7	D7	ensureDocomatorUi	#docomator-settings-form	Адрес Оформлятора Код доступа Скопируйте адрес из браузера. Ссылку с /api/v1 , /healthz или /readyz можно вставить целик	запланировано
-UI-aeabac035e	public/index.html:132:11	D1	document	#search-form	⌕ Esc	запланировано
-UI-199c27a17c	public/index.html:155:5	D1	document	#event-form	Название Тип Событие Задача Дата Категория Организационная Образование Наука Повседневная Важность Обычная Высокая Крити	запланировано
+UI-32c2834620	public/index.html:133:11	D1	document	#search-form	⌕ Esc	запланировано
+UI-20e41db9bf	public/index.html:156:5	D1	document	#event-form	Название Тип Событие Задача Дата Категория Организационная Образование Наука Повседневная Важность Обычная Высокая Крити	запланировано
 UI-32634d6a93	public/lifecycle-next.js:383:5	D2	openDocumentEditor	#lifecycle-document-edit-form	Название в системе Для чего этот документ {dynamic} Исходное имя файла и его содержимое не изменятся. Отмена Сохранить	проверить подключение
 UI-a9a830c7fd	public/lifecycle-next.js:396:5	D2	openPlanEditor	#lifecycle-plan-edit-form	Название Пункты, календарные записи и поручения сохранят свои связи. Отмена Сохранить	проверить подключение
 UI-2a6697b46b	public/lifecycle-next.js:430:5	D2	openArchive	#lifecycle-archive-form	«{dynamic}» исчезнет из рабочего списка, но останется в архиве со всей историей. Останутся связаны с исходным объектом {	проверить подключение
