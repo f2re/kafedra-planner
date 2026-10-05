@@ -1,0 +1,123 @@
+id	source	context	label	acceptance	status
+UI-8dfa5c6c5d	public/lifecycle-next.js:157:11	ensureLifecycleUi	В работе	C01	проверить подключение
+UI-1535c53ad4	public/lifecycle-next.js:158:11	ensureLifecycleUi	Архив	C02	проверить подключение
+UI-7d475f2513	public/lifecycle-next.js:246:9	patchDocuments / callback@217	Открыть	C01	проверить подключение
+UI-637a90bc2a	public/lifecycle-next.js:247:9	patchDocuments / callback@217	Изменить	C01	проверить подключение
+UI-795c8fb0a2	public/lifecycle-next.js:249:14	patchDocuments / callback@217	Восстановить	C02	проверить подключение
+UI-dc4d20c11f	public/lifecycle-next.js:250:14	patchDocuments / callback@217	В архив	C02	проверить подключение
+UI-ab421f191d	public/lifecycle-next.js:273:7	patchPlans	Переименовать	C01	проверить подключение
+UI-aeda9d0c7d	public/lifecycle-next.js:275:12	patchPlans	Восстановить	C02	проверить подключение
+UI-98a70511d7	public/lifecycle-next.js:276:12	patchPlans	В архив	C02	проверить подключение
+UI-90c971c3cd	public/lifecycle-next.js:283:9	patchPlans	Открыть новый план	C01	проверить подключение
+UI-608b721fad	public/lifecycle-next.js:325:147	openInspectorShell	×	C01	проверить подключение
+UI-dc2072b0e2	public/lifecycle-next.js:341:264	openDocumentInspector	Открыть продолжение	C01	проверить подключение
+UI-e3b42145fb	public/lifecycle-next.js:361:76	openDocumentInspector	Создать шаблон	C01	проверить подключение
+UI-3b562cfc15	public/lifecycle-next.js:362:5	openDocumentInspector	Переименовать	C01	проверить подключение
+UI-20f304f1f3	public/lifecycle-next.js:364:10	openDocumentInspector	Восстановить	C02	проверить подключение
+UI-c18062b93c	public/lifecycle-next.js:365:10	openDocumentInspector	В архив	C02	проверить подключение
+UI-8b3b8dd3a5	public/lifecycle-next.js:382:97	openDocumentEditor	×	C01	проверить подключение
+UI-11198210a5	public/lifecycle-next.js:387:44	openDocumentEditor	Отмена	C01	проверить подключение
+UI-8b4c8ab87f	public/lifecycle-next.js:387:127	openDocumentEditor	Сохранить	C01	проверить подключение
+UI-de3197a3a8	public/lifecycle-next.js:395:97	openPlanEditor	×	C01	проверить подключение
+UI-bc7a866f68	public/lifecycle-next.js:399:44	openPlanEditor	Отмена	C01	проверить подключение
+UI-705b1133bf	public/lifecycle-next.js:399:127	openPlanEditor	Сохранить	C01	проверить подключение
+UI-1e7d2b4327	public/lifecycle-next.js:429:133	openArchive	×	C01	проверить подключение
+UI-7a216cfdae	public/lifecycle-next.js:439:44	openArchive	Отмена	C01	проверить подключение
+UI-522b6ca885	public/lifecycle-next.js:439:127	openArchive	Переместить в архив	C01	проверить подключение
+UI-146d018013	public/lifecycle-safe.js:159:11	ensureUi	В работе	C01	запланировано
+UI-860ed8bda6	public/lifecycle-safe.js:160:11	ensureUi	Архив	C02	запланировано
+UI-a38bb67d8b	public/lifecycle-safe.js:245:9	patchDocuments / callback@217	Открыть	C01	запланировано
+UI-1419f2b5d0	public/lifecycle-safe.js:246:9	patchDocuments / callback@217	Изменить	C01	запланировано
+UI-6e13b9c965	public/lifecycle-safe.js:248:14	patchDocuments / callback@217	Восстановить	C02	запланировано
+UI-680e29fcd6	public/lifecycle-safe.js:249:14	patchDocuments / callback@217	В архив	C02	запланировано
+UI-d18dd5e43a	public/lifecycle-safe.js:272:7	patchPlans	Переименовать	C01	запланировано
+UI-a52475a610	public/lifecycle-safe.js:274:12	patchPlans	Восстановить	C02	запланировано
+UI-4cc3dd53fc	public/lifecycle-safe.js:275:12	patchPlans	В архив	C02	запланировано
+UI-998c81073b	public/lifecycle-safe.js:282:9	patchPlans	Открыть новый план	C01	запланировано
+UI-16a557a1eb	public/lifecycle-safe.js:343:97	openDocumentEditor	×	C01	запланировано
+UI-9bfe290331	public/lifecycle-safe.js:348:44	openDocumentEditor	Отмена	C01	запланировано
+UI-456d345c3f	public/lifecycle-safe.js:348:127	openDocumentEditor	Сохранить	C01	запланировано
+UI-bdeedb5195	public/lifecycle-safe.js:356:97	openPlanEditor	×	C01	запланировано
+UI-3100c3407d	public/lifecycle-safe.js:360:44	openPlanEditor	Отмена	C01	запланировано
+UI-2f6562288b	public/lifecycle-safe.js:360:127	openPlanEditor	Сохранить	C01	запланировано
+UI-55ceb80327	public/lifecycle-safe.js:403:133	openArchive	×	C01	запланировано
+UI-823ab382e0	public/lifecycle-safe.js:413:44	openArchive	Отмена	C01	запланировано
+UI-735d803da8	public/lifecycle-safe.js:413:127	openArchive	Переместить в архив	C01	запланировано
+UI-e1809d89a9	public/lifecycle-safe.js:462:240	enhanceStandardInspector	Открыть продолжение	C01	запланировано
+UI-0337267b82	public/lifecycle-safe.js:470:5	enhanceStandardInspector	Переименовать	C01	запланировано
+UI-fd25d6e096	public/lifecycle-safe.js:472:10	enhanceStandardInspector	Восстановить	C02	запланировано
+UI-ca128c684f	public/lifecycle-safe.js:473:10	enhanceStandardInspector	В архив	C02	запланировано
+UI-d662717566	public/manual-plans-bootstrap.js:4:18	ensureManualCreatePlanButton	Создать план	C01	запланировано
+UI-a901b1c091	public/manual-plans-next.js:39:20	ensureManualUi	В план	C01	запланировано
+UI-117d270e9b	public/manual-plans-next.js:140:133	openCreatePlan	×	C01	запланировано
+UI-823f6983e4	public/manual-plans-next.js:154:41	openCreatePlan	Отмена	C01	запланировано
+UI-5846c9f11f	public/manual-plans-next.js:154:121	openCreatePlan	Создать план	C01	запланировано
+UI-81299484f0	public/manual-plans-next.js:176:210	itemFormHtml	×	C01	запланировано
+UI-99d1b6e94b	public/manual-plans-next.js:202:41	itemFormHtml	Отмена	C01	запланировано
+UI-bfcddc4f2c	public/manual-plans-next.js:202:121	itemFormHtml	Сохранить	C01	запланировано
+UI-8453172f8c	public/manual-plans-next.js:223:137	openCalendarItemForm	×	C01	запланировано
+UI-b07969bb86	public/manual-plans-next.js:228:7	openCalendarItemForm	Продолжить	C01	запланировано
+UI-d1dd09e4b1	public/manual-plans-next.js:236:151	openSupportingDocuments	×	C01	запланировано
+UI-faa173ac1d	public/manual-plans-next.js:254:43	openSupportingDocuments	Закрыть	C01	запланировано
+UI-df5c864dc5	public/manual-plans-next.js:254:124	openSupportingDocuments	Добавить документ	C01	запланировано
+UI-b8dbeb23e2	public/manual-plans-next.js:302:134	openGenerateManualPlan	×	C01	запланировано
+UI-abf433b1d4	public/manual-plans-next.js:308:41	openGenerateManualPlan	Отмена	C01	запланировано
+UI-ac9d47d248	public/manual-plans-next.js:308:121	openGenerateManualPlan	Сформировать	C01	запланировано
+UI-b1fe4cb5b3	public/manual-plans-next.js:402:20	patchManualDetail	Создать план	C01	запланировано
+UI-656cb3d888	public/manual-plans-next.js:434:19	patchManualDetail	Добавить пункт	C01	запланировано
+UI-7b82aa302c	public/manual-plans-next.js:462:51	patchManualDetail	Документы{dynamic}	C01	запланировано
+UI-cd59715c4b	public/manual-plans-next.js:465:51	patchManualDetail	Открыть задачу	C01	запланировано
+UI-88ca2d53d5	public/manual-plans-next.js:468:51	patchManualDetail	Взять задачу	C01	запланировано
+UI-deca753b27	public/plan-fact-next.js:51:60	ensurePlanFactUi	◫ План / факт	C01	запланировано
+UI-183df22e6f	public/plan-fact-next.js:52:61	ensurePlanFactUi	◫ План / факт	C01	запланировано
+UI-413efa3f7c	public/plan-fact-next.js:56:150	ensurePlanFactUi	Пересчитать	C01	запланировано
+UI-ac4d7d8471	public/plan-fact-next.js:131:13	renderPlanFact / callback@127	{dynamic} {dynamic} {dynamic} {dynamic} Показатели: {dynamic}/{dynamic} · {dynamic} {dynamic}% {dynamic}	C01	запланировано
+UI-c3a2011f40	public/plan-fact-next.js:179:300	outcomeHtml	Открыть отчёт	C01	запланировано
+UI-fcaa1791a4	public/plan-fact-next.js:195:32	showPlanFact	Открыть основание	C01	запланировано
+UI-9c0f154e95	public/plan-fact-next.js:212:356	refreshPersonalNotifications / callback@212	Прочитано	C01	запланировано
+UI-87636121a1	public/plan-fact-next.js:212:494	refreshPersonalNotifications / callback@212	Скрыть	C01	запланировано
+UI-07030b7cd3	public/plan-fact-tools.js:90:7	ensureToolUi	Сохранить вид	C01	запланировано
+UI-7efe2e35f2	public/plan-fact-tools.js:91:7	ensureToolUi	Удалить	C02	запланировано
+UI-e4e774d902	public/plan-fact-tools.js:93:7	ensureToolUi	CSV	C01	запланировано
+UI-36d29c7d15	public/plan-fact-tools.js:94:7	ensureToolUi	JSON	C01	запланировано
+UI-c8f4262e41	public/plan-fact-tools.js:102:9	ensureToolUi	Закрыть	C01	запланировано
+UI-4be8faec5e	public/plan-fact-tools.js:115:41	ensureToolUi	Отмена	C01	запланировано
+UI-fe9e63e17a	public/plan-fact-tools.js:115:118	ensureToolUi	Сохранить исправление	C01	запланировано
+UI-8cbb2847a0	public/plan-fact-tools.js:124:9	ensureToolUi	Закрыть	C01	запланировано
+UI-cb2d4e37f7	public/plan-fact-tools.js:130:41	ensureToolUi	Отмена	C01	запланировано
+UI-c683e02637	public/plan-fact-tools.js:130:118	ensureToolUi	Сохранить	C01	запланировано
+UI-f85cb1879a	public/plan-fact-tools.js:196:18	correctionValueHtml	Изменить	C01	запланировано
+UI-d9cb70582e	public/plan-fact-tools.js:218:25	correctionHistoryHtml / callback@214	Отменить исправление	C01	запланировано
+UI-ee57df8f72	public/plan-source-rows-next.js:113:5	renderSourceRowCard	{dynamic} {dynamic} {dynamic} {dynamic} {dynamic}	C01	запланировано
+UI-cf302dac81	public/plan-source-rows-next.js:150:7	renderWorkbench	Требуют проверки{dynamic}	C01	запланировано
+UI-882c0fa49e	public/plan-source-rows-next.js:151:7	renderWorkbench	Все строки · {dynamic}	C01	запланировано
+UI-d7c610aa48	public/plan-source-rows-next.js:233:62	taskCard	Убрать	C02	запланировано
+UI-342165dfe4	public/plan-source-rows-next.js:285:9	renderEditor	Закрыть	C01	запланировано
+UI-f9dc91e9f5	public/plan-source-rows-next.js:290:7	renderEditor	Разделить на ещё одну задачу	C01	запланировано
+UI-85a8fb271d	public/plan-source-rows-next.js:292:106	renderEditor	Сохранить задачи	C01	запланировано
+UI-b7f5f11cdb	public/plan-source-rows-next.js:398:164	loadForCurrentPlan	Повторить	C01	запланировано
+UI-e4e284f4e4	public/plans-lifecycle-desktop.js:97:5	segmentMarkup	Текущие	C01	запланировано
+UI-f55ec72eff	public/plans-lifecycle-desktop.js:98:5	segmentMarkup	Архив	C02	запланировано
+UI-4d564a9149	public/plans-next.js:104:20	ensurePlansUi	динамическая подпись	C01	запланировано
+UI-f5744d0d4a	public/plans-next.js:112:20	ensurePlansUi	динамическая подпись	C01	запланировано
+UI-933979d0a8	public/plans-next.js:129:13	ensurePlansUi	Загрузить план	C01	запланировано
+UI-f766570b48	public/plans-next.js:130:13	ensurePlansUi	Сформировать по образцу	C01	запланировано
+UI-f5fdc6bd8d	public/plans-next.js:152:11	ensurePlansUi	Сбросить	C01	запланировано
+UI-763a662566	public/plans-next.js:169:104	ensurePlansUi	Отменить	C01	запланировано
+UI-b86f0b589b	public/plans-next.js:221:5	renderPlanList / callback@220	{dynamic} {dynamic} {dynamic} {dynamic} из {dynamic} со сроком	C01	запланировано
+UI-7af9f55599	public/plans-next.js:271:21	renderPlanDetail	Сделать образцом	C01	запланировано
+UI-15c406573a	public/plans-next.js:272:9	renderPlanDetail	Сформировать новый	C01	запланировано
+UI-bb6915c0ba	public/plans-next.js:291:19	renderPlanDetail / callback@284	Исправить	C01	запланировано
+UI-1ebdc9bd6a	public/plans-next.js:291:141	renderPlanDetail / callback@284	Открыть задачу	C01	запланировано
+UI-58b02f1aa1	public/plans-next.js:334:127	openItemEditor	×	C01	запланировано
+UI-bc5a0d4d2f	public/plans-next.js:350:40	openItemEditor	Отмена	C01	запланировано
+UI-4ad59af9b7	public/plans-next.js:350:119	openItemEditor	Сохранить	C01	запланировано
+UI-3e84672d7f	public/plans-next.js:448:132	openTemplateReview	×	C01	запланировано
+UI-18b5005f4f	public/plans-next.js:458:40	openTemplateReview	Отмена	C01	запланировано
+UI-dfcd39ae46	public/plans-next.js:458:119	openTemplateReview	Сохранить образец	C01	запланировано
+UI-bbdbc9726a	public/plans-next.js:529:7	renderGenerationRows / callback@522	Удалить строку	C02	запланировано
+UI-7ffe6ab9ce	public/plans-next.js:542:135	openGeneration	×	C01	запланировано
+UI-e87ffd65dd	public/plans-next.js:551:68	openGeneration	Добавить строку	C01	запланировано
+UI-488f6fd6bd	public/plans-next.js:555:40	openGeneration	Отмена	C01	запланировано
+UI-41df5dbf95	public/plans-next.js:555:119	openGeneration	Сформировать DOCX	C01	запланировано
+UI-d84062be93	public/plans-next.js:648:5	patchPlanCalendarInspector	Открыть план	C01	запланировано

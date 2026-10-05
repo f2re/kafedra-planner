@@ -1,0 +1,19 @@
+id	source	owner	context	selector	label	status
+UI-a0c70d13b6	public/academic-performance-state.js:96:5	D6	screenMarkup	[data-view-panel="academic-performance"]	academic-performance	запланировано
+UI-ca34258c63	public/auth-next.js:53:23	D7	renderAuthGate		auth-state	запланировано
+UI-8dbc11d3af	public/auth-next.js:65:23	D7	renderAuthGate		auth-state	запланировано
+UI-af7047810a	public/auth-next.js:76:23	D7	renderAuthGate		auth-state	запланировано
+UI-b40742aec9	public/directive-archive-next.js:119:7	D4	ensureDirectiveArchiveUi	[data-view-panel="directive-archive"]	directive-archive	запланировано
+UI-3e0537e58a	public/index.html:62:7	D1	document	[data-view-panel="calendar"]	calendar	запланировано
+UI-0f36ccddbe	public/index.html:79:13	D1	document	#month-view	month-view	запланировано
+UI-ec40e5bd98	public/index.html:80:13	D1	document	#week-view	week-view	запланировано
+UI-afd1005ecf	public/index.html:81:13	D1	document	#tasks-view	tasks-view	запланировано
+UI-55e7172c55	public/index.html:102:7	D1	document	[data-view-panel="documents"]	documents	запланировано
+UI-a275e1ab7c	public/index.html:110:7	D1	document	[data-view-panel="templates"]	templates	запланировано
+UI-bd8081f057	public/index.html:125:7	D1	document	[data-view-panel="review"]	review	запланировано
+UI-185cd70446	public/index.html:130:7	D1	document	[data-view-panel="search"]	search	запланировано
+UI-e81b29c64e	public/meetings-state.js:117:7	D3	ensureMeetingsUi	[data-view-panel="meetings"]	meetings	запланировано
+UI-4583f44ccf	public/plan-fact-next.js:55:59	D2	ensurePlanFactUi	[data-view-panel="plan-fact"]	plan-fact	запланировано
+UI-1a59fd323d	public/plans-next.js:121:7	D2	ensurePlansUi	[data-view-panel="plans"]	plans	запланировано
+UI-3d44c31ba1	public/reports-science-next.js:19:57	D5	ensureReportsScienceUi	[data-view-panel="science"]	science	запланировано
+UI-b1b088e48a	public/work-next.js:33:55	D4	ensureWorkUi	[data-view-panel="work"]	work	запланировано

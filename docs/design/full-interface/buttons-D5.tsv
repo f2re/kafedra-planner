@@ -1,0 +1,44 @@
+id	source	context	label	acceptance	status
+UI-9a6fc084c7	public/reports-science-next.js:15:58	ensureReportsScienceUi	⌁ Наука	C01	запланировано
+UI-e2600c397b	public/reports-science-next.js:16:59	ensureReportsScienceUi	⌁ Наука	C01	запланировано
+UI-c19cf0dcc7	public/reports-science-next.js:66:75	renderScience / callback@66	{dynamic} {dynamic} {dynamic} {dynamic} {dynamic}	C01	запланировано
+UI-e7654495a1	public/reports-science-next.js:90:5	showScience	Подтверждение публикации	C01	запланировано
+UI-e899bebba0	public/reports-science-next.js:91:34	showScience	Открыть исходный документ	C01	запланировано
+UI-3230e15e2a	public/reports-science-next.js:103:39	renderReportMatches / callback@101	Приложить	C01	запланировано
+UI-a36dcae681	public/reports-science-next.js:103:129	renderReportMatches / callback@101	Не относится	C01	запланировано
+UI-b9ed12949f	public/science-import-next.js:43:20	ensureImportUi	Импортировать список	C01	запланировано
+UI-2b0e6df705	public/science-import-next.js:81:141	uploadForm	×	C01	запланировано
+UI-11f5dcbd86	public/science-import-next.js:87:43	uploadForm	Отмена	C01	запланировано
+UI-d92b1de169	public/science-import-next.js:87:131	uploadForm	Проверить файл	C01	запланировано
+UI-6a0639f63e	public/science-import-next.js:112:141	mappingForm	×	C01	запланировано
+UI-efa62d39d4	public/science-import-next.js:120:43	mappingForm	Назад	C01	запланировано
+UI-b054c236a3	public/science-import-next.js:120:129	mappingForm	Импортировать	C01	запланировано
+UI-5ef9749e81	public/science-import-next.js:130:147	resultView	×	C01	запланировано
+UI-363b4abf8b	public/science-import-next.js:142:43	resultView	Готово	C01	запланировано
+UI-7fc3458a6e	public/science-lifecycle-next.js:120:52	decorateScienceInspector	Изменить карточку	C01	запланировано
+UI-66e7e1ba40	public/science-lifecycle-next.js:120:145	decorateScienceInspector	Изменить этап	C01	запланировано
+UI-f0f466715d	public/science-lifecycle-next.js:131:27	decorateScienceInspector	Открыть план	C01	запланировано
+UI-31a7bf70f4	public/science-lifecycle-next.js:131:157	decorateScienceInspector	Убрать связь	C01	запланировано
+UI-81b41df546	public/science-lifecycle-next.js:131:251	decorateScienceInspector	Добавить в план	C01	запланировано
+UI-1369b8cabc	public/science-lifecycle-next.js:143:167	editorForm	×	C01	запланировано
+UI-9c0c678c57	public/science-lifecycle-next.js:164:46	editorForm	Отмена	C01	запланировано
+UI-747c087d5f	public/science-lifecycle-next.js:164:137	editorForm	Сохранить	C01	запланировано
+UI-7d8b54769a	public/science-lifecycle-next.js:177:145	transitionForm	×	C01	запланировано
+UI-e03abddd6f	public/science-lifecycle-next.js:187:46	transitionForm	Отмена	C01	запланировано
+UI-c0e082e1db	public/science-lifecycle-next.js:187:137	transitionForm	Сохранить этап	C01	запланировано
+UI-96a703c3d4	public/science-lifecycle-next.js:210:157	planLinkForm	×	C01	запланировано
+UI-0af4e7be5a	public/science-lifecycle-next.js:217:46	planLinkForm	Отмена	C01	запланировано
+UI-7e9ec8bdb5	public/science-lifecycle-next.js:217:137	planLinkForm	Добавить в план	C01	запланировано
+UI-514601fce0	public/science-lifecycle-next.js:309:208	callback@295	×	C01	запланировано
+UI-f257f61506	public/science-lifecycle-next.js:309:489	callback@295	Понятно	C01	запланировано
+UI-2c6f4ca490	public/science-lifecycle-next.js:313:171	callback@295	×	C01	запланировано
+UI-dd13b76fc5	public/science-lifecycle-next.js:313:555	callback@295	Отмена	C01	запланировано
+UI-51ce535d77	public/science-lifecycle-next.js:313:646	callback@295	Убрать связь	C01	запланировано
+UI-be522960e4	public/science-reports-next.js:44:20	ensureReportUi	Сформировать отчёт	C01	запланировано
+UI-f0fd1c0224	public/science-reports-next.js:109:150	reportForm	×	C01	запланировано
+UI-1e50993252	public/science-reports-next.js:132:43	reportForm	Проверить выбор	C01	запланировано
+UI-40c2a82ec4	public/science-reports-next.js:132:149	reportForm	Сформировать	C01	запланировано
+UI-2fd091a7a0	public/science-reports-next.js:199:186	generateReport	×	C01	запланировано
+UI-e06b48976e	public/science-reports-next.js:200:279	generateReport	Закрыть	C01	запланировано
+UI-ec3e466fb4	public/science-reports-next.js:217:140	openReport	×	C01	запланировано
+UI-a10bfeff9e	public/science-reports-next.js:217:369	openReport	Закрыть	C01	запланировано

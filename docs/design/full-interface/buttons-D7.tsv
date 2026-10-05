@@ -1,0 +1,50 @@
+id	source	context	label	acceptance	status
+UI-2f7ebecbbe	public/admin-next.js:36:11	ensureAdminUi	Закрыть	C01	запланировано
+UI-cf48b8a916	public/admin-next.js:55:15	ensureAdminUi	Создать	C01	запланировано
+UI-b293d2959a	public/admin-next.js:71:15	ensureAdminUi	Завершить все, кроме моей	C01	запланировано
+UI-e916557acc	public/admin-next.js:155:9	renderAccounts / callback@142	Сохранить	C01	запланировано
+UI-84d468cf6d	public/admin-next.js:156:9	renderAccounts / callback@142	Сбросить пароль	C01	запланировано
+UI-7823656dcd	public/admin-next.js:157:9	renderAccounts / callback@142	Завершить сессии	C01	запланировано
+UI-26ec45299f	public/admin-next.js:176:14	renderSessions / callback@168	Завершить	C01	запланировано
+UI-6505c885ea	public/admin-next.js:233:6	ensureAdminMenu	Управление доступом	C01	запланировано
+UI-1c6d3a0bc2	public/admin-next.js:366:9	ensureObjectAccessUi	Показать доступ	C01	запланировано
+UI-aa55c45251	public/admin-next.js:386:11	ensureObjectAccessUi	Сохранить права	C01	запланировано
+UI-e8c4c89f90	public/auth-next.js:61:9	renderAuthGate	Продолжить	C01	запланировано
+UI-becd876fc1	public/auth-next.js:72:9	renderAuthGate	Открыть	C01	запланировано
+UI-f046374003	public/auth-next.js:83:9	renderAuthGate	Войти	C01	запланировано
+UI-6fb3539dd2	public/auth-next.js:159:7	ensurePinDialog	Закрыть	C01	запланировано
+UI-90c5f8e79d	public/auth-next.js:165:5	ensurePinDialog	Сохранить PIN-код	C01	запланировано
+UI-39257bcd8e	public/auth-next.js:199:26	applyProfile	{dynamic}	C01	запланировано
+UI-7138e63553	public/auth-next.js:201:9	applyProfile	{dynamic}	C01	запланировано
+UI-31aef21cee	public/auth-next.js:202:9	applyProfile	Выйти	C01	запланировано
+UI-88ee0a3ad3	public/docomator-fields.js:47:9	ensureUi	Обновить поля	C01	запланировано
+UI-cee4db3fdc	public/docomator-integration.js:87:11	ensureDocomatorUi	Подключить	C01	запланировано
+UI-17fe5d6375	public/docomator-integration.js:101:11	ensureDocomatorUi	Импортировать сотрудников	C01	запланировано
+UI-c412d12ff8	public/notification-delivery.js:31:9	ensureDeliveryUi	Закрыть	C01	запланировано
+UI-1dc5a4ddc1	public/notification-delivery.js:64:124	ensureDeliveryUi	Обновить	C01	запланировано
+UI-96240a3ab3	public/notification-delivery.js:70:39	ensureDeliveryUi	Отмена	C01	запланировано
+UI-7047dfc919	public/notification-delivery.js:70:130	ensureDeliveryUi	Сохранить	C01	запланировано
+UI-6b29457b5a	public/notification-delivery.js:82:18	ensureDeliveryMenu	Доставка уведомлений	C01	запланировано
+UI-7d116f261a	public/notification-delivery.js:130:446	renderDiagnostics / callback@130	Повторить	C01	запланировано
+UI-e5f7229634	public/organization-next.js:48:11	ensureOrganizationUi	Обновить	C01	запланировано
+UI-153c510159	public/organization-next.js:53:9	ensureOrganizationUi	Подразделение	C01	запланировано
+UI-f19661f745	public/organization-next.js:54:9	ensureOrganizationUi	Должность	C01	запланировано
+UI-d0e89dd6e6	public/organization-next.js:55:9	ensureOrganizationUi	Назначение	C01	запланировано
+UI-88d737bd9a	public/organization-next.js:144:7	renderTree / callback@142	{dynamic} {dynamic} · сотрудников: {dynamic} {dynamic} — {dynamic}	C01	запланировано
+UI-fb174c57b7	public/organization-next.js:165:9	renderPeople / callback@160	История	C01	запланировано
+UI-e30dac4707	public/organization-next.js:166:9	renderPeople / callback@160	Назначить	C01	запланировано
+UI-13cacf51db	public/organization-next.js:205:175	unitForm	×	C01	запланировано
+UI-7d57984bcc	public/organization-next.js:222:47	unitForm	Отмена	C01	запланировано
+UI-f8a2782c84	public/organization-next.js:222:133	unitForm	Сохранить	C01	запланировано
+UI-55d75d0590	public/organization-next.js:228:172	positionForm	×	C01	запланировано
+UI-3ef65a5ed6	public/organization-next.js:234:47	positionForm	Отмена	C01	запланировано
+UI-3906678544	public/organization-next.js:234:133	positionForm	Сохранить	C01	запланировано
+UI-cd621b0ce6	public/organization-next.js:242:184	appointmentForm	×	C01	запланировано
+UI-73caacda32	public/organization-next.js:258:47	appointmentForm	Отмена	C01	запланировано
+UI-66150d6f3a	public/organization-next.js:258:133	appointmentForm	Сохранить	C01	запланировано
+UI-9c9d5bac05	public/organization-next.js:267:172	openHistory	×	C01	запланировано
+UI-4c370bf9b2	public/organization-next.js:270:350	openHistory / callback@269	Исправить	C01	запланировано
+UI-cb0460f5ec	public/organization-next.js:271:47	openHistory	Добавить назначение	C01	запланировано
+UI-ba8e257f3f	public/organization-next.js:271:168	openHistory	Закрыть	C01	запланировано
+UI-214748a96e	public/organization-shell.js:19:9	ensureOrganizationShell	Закрыть	C01	запланировано
+UI-0304f2e6b2	public/organization-shell.js:30:42	ensureOrganizationMenu	Структура кафедры	C01	запланировано

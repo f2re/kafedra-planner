@@ -1,0 +1,79 @@
+id	source	context	label	acceptance	status
+UI-7c9d804283	public/meeting-template-editor.js:197:7	renderBindings / callback@194	Убрать поле ________________________________________	C02	запланировано
+UI-b004dce0b2	public/meeting-template-editor.js:225:7	showSelection	Назначить поле	C01	запланировано
+UI-cb68ee6ae2	public/meeting-template-editor.js:226:7	showSelection	Снять	C01	запланировано
+UI-90276589b9	public/meeting-template-editor.js:337:7	editorShell	Назад к настройкам	C01	запланировано
+UI-35134d0df2	public/meeting-template-editor.js:348:11	editorShell	Сохранить профиль	C01	запланировано
+UI-041b9c1413	public/meeting-template-editor.js:457:22	enhanceSettingsForm	динамическая подпись	C01	запланировано
+UI-826de76c12	public/meeting-template-library.js:53:13	actionButtons	Восстановить	C02	запланировано
+UI-8491b83903	public/meeting-template-library.js:57:5	actionButtons	{dynamic}	C01	запланировано
+UI-a2eaf9c736	public/meeting-template-library.js:58:5	actionButtons	Тестовое заполнение	C01	запланировано
+UI-352a03934e	public/meeting-template-library.js:60:5	actionButtons	Новая версия	C01	запланировано
+UI-6c2a3884c1	public/meeting-template-library.js:61:5	actionButtons	{dynamic}	C01	запланировано
+UI-06535e2da4	public/meeting-template-library.js:62:5	actionButtons	В архив	C02	запланировано
+UI-171a1eb217	public/meeting-template-library.js:106:7	libraryShell	×	C01	запланировано
+UI-40ce02890f	public/meeting-template-library.js:111:11	libraryShell	Рабочие	C01	запланировано
+UI-c6b93aedd1	public/meeting-template-library.js:112:11	libraryShell	Архив	C02	запланировано
+UI-b85bd4cc9c	public/meeting-template-library.js:177:7	openTestResult	Назад к библиотеке	C01	запланировано
+UI-d58e011843	public/meeting-template-library.js:216:118	openArchiveDialog	×	C01	запланировано
+UI-33a88a02a1	public/meeting-template-library.js:224:42	openArchiveDialog	Отмена	C01	запланировано
+UI-52b5cba842	public/meeting-template-library.js:224:161	openArchiveDialog	Переместить в архив	C01	запланировано
+UI-e0d9a0c153	public/meeting-template-library.js:279:18	enhanceSettingsForm	Шаблоны документов	C01	запланировано
+UI-c44704b994	public/meetings-modals-flow.js:30:110	openCreateMeetingModal	×	C01	запланировано
+UI-f4ffda4536	public/meetings-modals-flow.js:37:42	openCreateMeetingModal	Отмена	C01	запланировано
+UI-7f057e714b	public/meetings-modals-flow.js:37:129	openCreateMeetingModal	Создать	C01	запланировано
+UI-2689beb4c1	public/meetings-modals-flow.js:67:133	openGenerateMeetingModal	×	C01	запланировано
+UI-2c58ae32f0	public/meetings-modals-flow.js:76:23	openGenerateMeetingModal	Открыть настройки	C01	запланировано
+UI-ee52ded8e5	public/meetings-modals-flow.js:78:9	openGenerateMeetingModal	Отмена	C01	запланировано
+UI-43c81a9d5a	public/meetings-modals-flow.js:79:22	openGenerateMeetingModal	Сформировать {dynamic}	C01	запланировано
+UI-19c043fcee	public/meetings-modals.js:40:137	openSettingsModal	×	C01	запланировано
+UI-45012ef5b2	public/meetings-modals.js:54:70	openSettingsModal	Отмена	C01	запланировано
+UI-b36d8e0b0f	public/meetings-modals.js:54:157	openSettingsModal	Сохранить	C01	запланировано
+UI-eeb78fcb28	public/meetings-modals.js:67:110	openCreateMeetingModal	×	C01	запланировано
+UI-bc01dc8a48	public/meetings-modals.js:72:42	openCreateMeetingModal	Отмена	C01	запланировано
+UI-5931dc15c3	public/meetings-modals.js:72:129	openCreateMeetingModal	Создать	C01	запланировано
+UI-36c662fdf0	public/meetings-modals.js:82:140	openEditMeetingModal	×	C01	запланировано
+UI-143d83ac8d	public/meetings-modals.js:88:42	openEditMeetingModal	Отмена	C01	запланировано
+UI-43707ff85f	public/meetings-modals.js:88:129	openEditMeetingModal	Сохранить исправления	C01	запланировано
+UI-1b9136f831	public/meetings-modals.js:103:235	openAgendaModal	×	C01	запланировано
+UI-6ef67bb49e	public/meetings-modals.js:116:52	openAgendaModal	Удалить вопрос	C02	запланировано
+UI-26eba8902b	public/meetings-modals.js:116:178	openAgendaModal	Отмена	C01	запланировано
+UI-4eee34a53e	public/meetings-modals.js:116:265	openAgendaModal	Сохранить	C01	запланировано
+UI-ef4a8ceeff	public/meetings-modals.js:125:107	openSourceModal	×	C01	запланировано
+UI-bb6528b6ec	public/meetings-modals.js:140:5	renderSources / callback@139	{dynamic} {dynamic} ＋	C01	запланировано
+UI-9a3227851b	public/meetings-plan-links.js:33:10	decoratePlanMeetingLinks / callback@32	{dynamic}	C01	запланировано
+UI-2dff7b89dd	public/meetings-render.js:8:219	renderSettingsSummary	Настроить	C01	запланировано
+UI-86fdf595c5	public/meetings-render.js:13:204	renderSettingsSummary	Изменить	C01	запланировано
+UI-1503fc2cc6	public/meetings-render.js:23:11	meetingCard	{dynamic} Протокол №{dynamic} {dynamic} {dynamic} вопрос(а/ов) · {dynamic} сформировано {dynamic}	C01	запланировано
+UI-58452594ad	public/meetings-render.js:74:7	agendaItemHtml	Поднять вопрос	C01	запланировано
+UI-74490d465e	public/meetings-render.js:75:7	agendaItemHtml	Опустить вопрос	C01	запланировано
+UI-78c46f4fce	public/meetings-render.js:76:7	agendaItemHtml	Перенести	C01	запланировано
+UI-9d4a65d192	public/meetings-render.js:77:7	agendaItemHtml	{dynamic}	C01	запланировано
+UI-7806f165d9	public/meetings-render.js:118:7	renderMeetingDetail	{dynamic}	C01	запланировано
+UI-7c40cafa53	public/meetings-render.js:129:12	renderMeetingDetail	Добавить вопрос	C01	запланировано
+UI-ba15ea0903	public/meetings-render.js:129:108	renderMeetingDetail	Из задач и планов	C01	запланировано
+UI-8d04810e90	public/meetings-render.js:134:12	renderMeetingDetail	Сформировать протокол	C01	запланировано
+UI-e7b696623b	public/meetings-render.js:134:147	renderMeetingDetail	Выписка · {dynamic}	C01	запланировано
+UI-d6782b03b9	public/meetings-state.js:100:20	ensureMeetingsUi	динамическая подпись	C01	запланировано
+UI-3e1057dc12	public/meetings-state.js:108:20	ensureMeetingsUi	динамическая подпись	C01	запланировано
+UI-60b9e8cd12	public/meetings-state.js:123:13	ensureMeetingsUi	Новое заседание	C01	запланировано
+UI-f04d59ad2a	public/meetings-state.js:124:13	ensureMeetingsUi	Настройки	C01	запланировано
+UI-bebfb24b2f	public/meetings-transfer.js:10:160	openAgendaTransferModal	Закрыть	C01	запланировано
+UI-3cdf89954b	public/meetings-transfer.js:17:42	openAgendaTransferModal	Отмена	C01	запланировано
+UI-75c221fe55	public/meetings-transfer.js:17:157	openAgendaTransferModal	Перенести вопрос	C01	запланировано
+UI-6cce6e7b51	public/protocol-batch.js:36:5	enhanceProtocolBatch	Выбрать видимые	C01	запланировано
+UI-9bb7e9d9c9	public/protocol-batch.js:36:71	enhanceProtocolBatch	Снять выбор	C01	запланировано
+UI-988ea06d74	public/protocol-batch.js:37:38	enhanceProtocolBatch	Править реквизиты	C01	запланировано
+UI-8c1b9f9f4f	public/protocol-batch.js:38:5	enhanceProtocolBatch	Повторить выбранные	C01	запланировано
+UI-3189224d15	public/protocol-batch.js:38:74	enhanceProtocolBatch	Настроить распознавание	C01	запланировано
+UI-cfb7823198	public/protocol-batch.js:81:84	editHeaders	Сохранить правки	C01	запланировано
+UI-1622ce9539	public/protocol-batch.js:81:154	editHeaders	Закрыть	C01	запланировано
+UI-1f05d17b6f	public/protocol-batch.js:86:222	editHeaders	Обновить строку	C01	запланировано
+UI-42d6a1e346	public/protocol-format-editor.js:12:41	openProtocolFormat	Проверить на образце	C01	запланировано
+UI-6bbe31e513	public/protocol-format-editor.js:12:92	openProtocolFormat	Сохранить формат	C01	запланировано
+UI-4309539500	public/protocol-format-editor.js:12:189	openProtocolFormat	Закрыть	C01	запланировано
+UI-f5baeceb5d	public/protocol-import-lifecycle.js:30:20	renderProtocolImportLifecycle	{dynamic}	C02	запланировано
+UI-6916fa5d3d	public/protocol-import-lifecycle.js:45:20	renderProtocolImportLifecycle / callback@38	динамическая подпись	C01	запланировано
+UI-99be479d58	public/protocol-import.js:58:19	itemActions	{dynamic}	C01	запланировано
+UI-dddfd950ad	public/protocol-import.js:61:19	itemActions	Повторить распознавание	C01	запланировано
+UI-65555e8ec6	public/protocol-import.js:64:19	itemActions	Повторить загрузку	C01	запланировано
