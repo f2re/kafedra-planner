@@ -1,7 +1,10 @@
 const standaloneAssignmentState = {
   assignmentId: null,
   assignment: null,
-  documents: []
+  documents: [],
+  openSequence: 0,
+  documentsSequence: 0,
+  pendingProgress: new Set()
 };
 
 const $sa = (selector, root = document) => root.querySelector(selector);
@@ -158,7 +161,8 @@ function renderStandaloneAssignment(assignment, documents, message = '') {
       <section class="standalone-section">
         <div class="standalone-section-head"><div><strong>Подтверждающие материалы</strong><span>Необязательно. Файл не влияет на состояние задачи.</span></div></div>
         <form data-standalone-report-form data-assignment-id="${escapeStandalone(assignment.id)}">
-          <label class="field"><span>Документ из системы</span><select name="documentId" ${evidenceLocked ? 'disabled' : ''}>${documentOptions(documents)}</select></label>
+          <label class="field"><span>Документ из системы</span><select name="documentId" ${evidenceLocked || !documents.length ? 'disabled' : ''}>${documentOptions(documents)}</select></label>
+          <div class="standalone-actions"><span data-standalone-documents-status role="status"></span><button type="button" class="quiet-button" data-standalone-documents-retry>Обновить список</button></div>
           <label class="field"><span>Новый файл</span><input name="file" type="file" accept=".pdf,.docx,.odt,.txt,.md,.png,.jpg,.jpeg,.tif,.tiff" ${evidenceLocked ? 'disabled' : ''}></label>
           <label class="field"><span>Комментарий, необязательно</span><textarea name="note" rows="2" placeholder="Что подтверждает материал" ${evidenceLocked ? 'disabled' : ''}></textarea></label>
           <p class="standalone-upload-state hidden" data-standalone-upload-state></p>
@@ -182,14 +186,63 @@ async function findAssignment(assignmentId) {
 }
 
 async function openStandaloneAssignment(assignmentId, message = '') {
+  const sequence = ++standaloneAssignmentState.openSequence;
   const assignment = await findAssignment(assignmentId);
+  if (sequence !== standaloneAssignmentState.openSequence) return true;
   if (!assignment || assignment.directive_id) return false;
-  const documents = await standaloneApi('/api/documents?limit=500');
   standaloneAssignmentState.assignmentId = assignmentId;
   standaloneAssignmentState.assignment = assignment;
-  standaloneAssignmentState.documents = documents.items || [];
-  renderStandaloneAssignment(assignment, standaloneAssignmentState.documents, message);
+  standaloneAssignmentState.documents = [];
+  renderStandaloneAssignment(assignment, [], message);
+  loadStandaloneDocuments();
   return true;
+}
+
+async function loadStandaloneDocuments() {
+  const sequence = ++standaloneAssignmentState.documentsSequence;
+  const form = $sa('[data-standalone-report-form]');
+  if (!form) return;
+  const select = $sa('[name="documentId"]', form);
+  const hint = $sa('[data-standalone-documents-status]', form);
+  const retry = $sa('[data-standalone-documents-retry]', form);
+  hint.textContent = 'Загружаем список документов…';
+  retry.disabled = true;
+  try {
+    const response = await standaloneApi('/api/documents?limit=500');
+    if (!form.isConnected || sequence !== standaloneAssignmentState.documentsSequence) return;
+    const selected = select.value;
+    standaloneAssignmentState.documents = response.items || [];
+    select.innerHTML = documentOptions(standaloneAssignmentState.documents);
+    select.value = selected;
+    select.disabled = standaloneAssignmentState.assignment?.status === 'cancelled' || !standaloneAssignmentState.documents.length;
+    hint.textContent = standaloneAssignmentState.documents.length ? '' : 'Загруженных документов пока нет. Можно приложить новый файл.';
+  } catch {
+    if (!form.isConnected || sequence !== standaloneAssignmentState.documentsSequence) return;
+    select.disabled = true;
+    hint.textContent = 'Список документов недоступен. Выполнение задачи и загрузка нового файла доступны.';
+  } finally {
+    if (form.isConnected && sequence === standaloneAssignmentState.documentsSequence) retry.disabled = false;
+  }
+}
+
+function showConfirmedAssignment(form, assignment, message, preserveMaterial = false) {
+  if (!form.isConnected || $sa('#ux-inspector')?.classList.contains('hidden')) return;
+  const material = preserveMaterial ? $sa('[data-standalone-report-form]') : null;
+  standaloneAssignmentState.assignment = assignment;
+  renderStandaloneAssignment(assignment, standaloneAssignmentState.documents, message);
+  if (material) $sa('[data-standalone-report-form]')?.replaceWith(material);
+  else loadStandaloneDocuments();
+}
+
+async function refreshWorkAfterSave(assignmentId) {
+  if (typeof window.loadWork !== 'function') return;
+  try { await window.loadWork(); }
+  catch {
+    const root = $sa('#standalone-assignment-inspector');
+    if (root?.dataset.assignmentId !== assignmentId) return;
+    const status = $sa('.standalone-success', root);
+    if (status) status.textContent += ' Не удалось обновить список поручений; сохранённый результат не отменён.';
+  }
 }
 
 function localFileKey(prefix, assignmentId, file) {
@@ -215,6 +268,9 @@ function setFormError(form, selector, message) {
 }
 
 async function saveStandaloneProgress(form, submitter) {
+  const assignmentId = form.dataset.assignmentId;
+  if (standaloneAssignmentState.pendingProgress.has(assignmentId)) return;
+  standaloneAssignmentState.pendingProgress.add(assignmentId);
   const buttons = [...form.querySelectorAll('button[type="submit"]')];
   setFormError(form, '[data-standalone-progress-error]', '');
   buttons.forEach((button) => { button.disabled = true; });
@@ -235,7 +291,7 @@ async function saveStandaloneProgress(form, submitter) {
       : Number.isFinite(requestedProgress)
         ? Math.max(0, Math.min(100, requestedProgress))
         : null;
-    await standaloneApi(`/api/assignments/${encodeURIComponent(form.dataset.assignmentId)}/progress`, {
+    const confirmed = await standaloneApi(`/api/assignments/${encodeURIComponent(assignmentId)}/progress`, {
       method: 'POST',
       headers: { 'content-type': 'application/json' },
       body: JSON.stringify({
@@ -249,11 +305,13 @@ async function saveStandaloneProgress(form, submitter) {
       : action === 'reopen'
         ? 'Задача возвращена в работу.'
         : 'Заметка сохранена.';
-    await openStandaloneAssignment(form.dataset.assignmentId, message);
-    if (typeof window.loadWork === 'function') window.loadWork();
+    showConfirmedAssignment(form, confirmed, message, true);
+    await refreshWorkAfterSave(assignmentId);
   } catch (error) {
     setFormError(form, '[data-standalone-progress-error]', error.message);
     buttons.forEach((button) => { button.disabled = false; });
+  } finally {
+    standaloneAssignmentState.pendingProgress.delete(assignmentId);
   }
 }
 
@@ -276,7 +334,7 @@ async function saveStandaloneEvidence(form) {
       }
     }
     if (!documentId) throw new Error('Выберите документ или приложите новый файл.');
-    await standaloneApi(`/api/assignments/${encodeURIComponent(form.dataset.assignmentId)}/report`, {
+    const confirmed = await standaloneApi(`/api/assignments/${encodeURIComponent(form.dataset.assignmentId)}/report`, {
       method: 'POST',
       headers: { 'content-type': 'application/json' },
       body: JSON.stringify({
@@ -284,11 +342,8 @@ async function saveStandaloneEvidence(form) {
         note: String(data.get('note') || '').trim() || null
       })
     });
-    await openStandaloneAssignment(
-      form.dataset.assignmentId,
-      'Материал приложен. Состояние задачи не изменилось.'
-    );
-    if (typeof window.loadWork === 'function') window.loadWork();
+    showConfirmedAssignment(form, confirmed, 'Материал приложен. Состояние задачи не изменилось.');
+    await refreshWorkAfterSave(form.dataset.assignmentId);
   } catch (error) {
     setFormError(form, '[data-standalone-report-error]', error.message);
     if (form.dataset.uploadedDocumentId && uploadState) {
@@ -300,6 +355,7 @@ async function saveStandaloneEvidence(form) {
 }
 
 document.addEventListener('click', (event) => {
+  if (event.target.closest('[data-standalone-documents-retry]')) loadStandaloneDocuments();
   const card = event.target.closest('.work-card[data-work-kind="assignment"]');
   if (card) {
     setTimeout(() => openStandaloneAssignment(card.dataset.workId).catch(() => {}), 0);

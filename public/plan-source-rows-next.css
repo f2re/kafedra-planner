@@ -92,3 +92,29 @@
   .plan-source-actions .primary-button { width:100%; }
   .plan-created-tasks-head { display:grid; }
 }
+
+/* Source-row workbench: one work surface, readable form, stable actions. */
+.plan-source-workbench { background:var(--surface-solid); border-radius:var(--radius-md); }
+.plan-source-editor { border:0; border-left:1px solid var(--border); border-radius:0; }
+.plan-source-layout { grid-template-columns:minmax(0,.8fr) minmax(0,1.35fr); }
+.plan-source-layout > *, .plan-source-two > *, .plan-source-three > * { min-width:0; }
+.plan-source-row strong, .plan-source-original strong { overflow-wrap:anywhere; }
+.plan-source-task { border:0; border-bottom:1px solid var(--border); border-radius:0; padding:12px 0; }
+.plan-source-task :is(input,select,textarea) { font-size:14px; min-height:40px; }
+.plan-source-task input[type=checkbox] { min-height:0; }
+.plan-source-original :is(summary,strong), .plan-source-person { font-size:12px; }
+[data-source-save-status] { margin:0; color:var(--muted); font-size:12px; line-height:1.45; }
+.plan-source-actions { flex-wrap:wrap; }
+.plan-source-summary { white-space:normal; }
+@media (max-width:1000px) {
+  .plan-source-layout { grid-template-columns:minmax(0,1fr); }
+  .plan-source-editor { border-left:0; border-top:1px solid var(--border); padding-inline:0; }
+}
+@media (max-width:720px) {
+  .plan-source-task :is(input,select,textarea), .plan-source-toolbar button { min-height:44px; }
+  .plan-source-person { min-height:44px; }
+  .plan-source-task input[type=checkbox] { min-height:0; }
+}
+
+body .plans-notice { pointer-events:none; }
+body .plans-notice button { pointer-events:auto; }
