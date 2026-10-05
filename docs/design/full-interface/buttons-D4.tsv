@@ -24,11 +24,12 @@ UI-5d2d4f451f	public/directive-archive-next.js:471:13	openAddMaterial	Отмен
 UI-92c204680e	public/directive-archive-next.js:471:102	openAddMaterial	Прикрепить материал	C01	запланировано
 UI-599b3525f0	public/periodic-completion-next.js:61:5	renderAction	{dynamic}	C01	запланировано
 UI-db3e66c896	public/preview-next.js:75:7	renderPreview	Сопроводительные	C01	запланировано
-UI-def21aa521	public/standalone-assignment-next.js:108:13	progressActions	Вернуть в работу	C01	запланировано
-UI-ef233fe83e	public/standalone-assignment-next.js:111:5	progressActions	Выполнено	C01	запланировано
-UI-b58f439316	public/standalone-assignment-next.js:112:5	progressActions	Сохранить заметку	C01	запланировано
-UI-acba4d73f2	public/standalone-assignment-next.js:165:43	renderStandaloneAssignment	Приложить материал	C01	запланировано
-UI-86171216a5	public/standalone-assignment-next.js:173:8	renderStandaloneAssignment	Открыть исходный план	C01	запланировано
+UI-2c59213195	public/standalone-assignment-next.js:111:13	progressActions	Вернуть в работу	C01	запланировано
+UI-e563c11231	public/standalone-assignment-next.js:114:5	progressActions	Выполнено	C01	запланировано
+UI-cb12b95b1f	public/standalone-assignment-next.js:115:5	progressActions	Сохранить заметку	C01	запланировано
+UI-2ff2f16ac1	public/standalone-assignment-next.js:165:103	renderStandaloneAssignment	Обновить список	C01	запланировано
+UI-aa0c7d75fd	public/standalone-assignment-next.js:169:43	renderStandaloneAssignment	Приложить материал	C01	запланировано
+UI-6ecc7b9b49	public/standalone-assignment-next.js:177:8	renderStandaloneAssignment	Открыть исходный план	C01	запланировано
 UI-91f94ca6ee	public/structure-next.js:46:11	blockHtml	{dynamic} {dynamic}	C01	запланировано
 UI-12fd19537c	public/structure-next.js:73:14	renderSpreadsheet / callback@70 / callback@70	{dynamic}	C01	запланировано
 UI-8b400f4600	public/structure-next.js:89:13	renderPdf / callback@83	{dynamic}	C01	запланировано
@@ -49,8 +50,8 @@ UI-bd892461f2	public/work-next.js:29:56	ensureWorkUi	→ Поручения	C01	
 UI-03b2243829	public/work-next.js:30:57	ensureWorkUi	→ Поручения	C01	запланировано
 UI-abd1d2fc2e	public/work-next.js:56:45	ensureWorkUi	Создать задачу	C01	запланировано
 UI-6842881a22	public/work-next.js:91:80	renderWork / callback@91	{dynamic} {dynamic} {dynamic} {dynamic} {dynamic}	C01	запланировано
-UI-9ae313b993	public/work-next.js:195:48	responsibilityEditor	Сохранить ответственность	C01	запланировано
-UI-4173ad11b0	public/work-next.js:211:304	showDirective	Открыть оригинал	C01	запланировано
-UI-04679d2df8	public/work-next.js:234:39	assignmentProgressPanel	{dynamic}	C01	запланировано
-UI-f945c8c1b6	public/work-next.js:253:860	assignmentHtml	Приложить отчёт	C01	запланировано
-UI-1c7a711949	public/work-next.js:280:46	showPeriodicTask	Сохранить изменения	C01	запланировано
+UI-950bef566c	public/work-next.js:196:48	responsibilityEditor	Сохранить ответственность	C01	запланировано
+UI-339a2c5d51	public/work-next.js:212:304	showDirective	Открыть оригинал	C01	запланировано
+UI-82f647727c	public/work-next.js:235:39	assignmentProgressPanel	{dynamic}	C01	запланировано
+UI-926f66c05f	public/work-next.js:254:860	assignmentHtml	Приложить отчёт	C01	запланировано
+UI-5c5ae5b19e	public/work-next.js:281:46	showPeriodicTask	Сохранить изменения	C01	запланировано

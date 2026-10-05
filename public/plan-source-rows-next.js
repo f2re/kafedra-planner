@@ -5,7 +5,10 @@ const sourceRowState = {
   selectedRowId: null,
   filter: 'attention',
   people: null,
-  loadingFor: null
+  loadingFor: null,
+  drafts: new Map(),
+  saving: new Set(),
+  editorSequence: 0
 };
 
 const $s = (selector, root = document) => root.querySelector(selector);
@@ -111,11 +114,11 @@ function renderSourceRowCard(row) {
   const cells = (row.cells || []).slice(0, 4).map((cell) => `<span>${esc(cell.text)}</span>`).join('');
   return `
     <button type="button" class="plan-source-row ${selected ? 'active' : ''} ${row.attention ? 'attention' : ''}"
-      data-plan-source-row="${esc(row.id)}">
+      data-plan-source-row="${esc(row.id)}" aria-pressed="${selected}">
       <span class="plan-source-row-meta">${esc(sourceLabel(row))}</span>
       <strong>${esc(row.suggestion?.title || row.items?.[0]?.title || row.rawText)}</strong>
       <span class="plan-source-cell-preview">${cells}</span>
-      <span class="plan-source-row-foot"><span>${esc(dateLabel(row))}</span><b>${esc(state)}</b></span>
+      <span class="plan-source-row-foot"><span>${esc(dateLabel(row))}</span><b>${sourceRowState.drafts.has(draftKey(sourceRowState.planId, row.id)) ? 'Есть правки' : esc(state)}</b></span>
     </button>`;
 }
 
@@ -123,10 +126,10 @@ function visibleRows() {
   const rows = (sourceRowState.payload?.items || []).filter((row) => row.role !== 'header');
   if (sourceRowState.filter !== 'attention') return rows;
   const attention = rows.filter((row) => row.attention);
-  return attention.length ? attention : rows;
+  return attention;
 }
 
-function renderWorkbench() {
+function renderWorkbench(focusEditor = false) {
   const detail = $s('#plan-detail');
   if (!detail || !sourceRowState.plan?.source_document_id) return;
   let root = $s('#plan-source-workbench', detail);
@@ -140,6 +143,7 @@ function renderWorkbench() {
   }
   const summary = sourceRowState.payload?.summary || { rows: 0, attention: 0, materialized: 0 };
   const rows = visibleRows();
+  if (!rows.some(row => row.id === sourceRowState.selectedRowId)) sourceRowState.selectedRowId = null;
   const filterAttention = sourceRowState.filter === 'attention';
   root.innerHTML = `
     <header class="plan-source-head">
@@ -147,18 +151,18 @@ function renderWorkbench() {
       <div class="plan-source-summary"><b>${summary.rows}</b> строк · <b>${summary.attention}</b> проверить · <b>${summary.materialized}</b> связаны с задачами</div>
     </header>
     <div class="plan-source-toolbar" role="group" aria-label="Строки плана">
-      <button type="button" class="${filterAttention ? 'active' : ''}" data-plan-source-filter="attention">Требуют проверки${summary.attention ? ` · ${summary.attention}` : ''}</button>
-      <button type="button" class="${!filterAttention ? 'active' : ''}" data-plan-source-filter="all">Все строки · ${summary.rows}</button>
+      <button type="button" class="${filterAttention ? 'active' : ''}" data-plan-source-filter="attention" aria-pressed="${filterAttention}">Требуют проверки${summary.attention ? ` · ${summary.attention}` : ''}</button>
+      <button type="button" class="${!filterAttention ? 'active' : ''}" data-plan-source-filter="all" aria-pressed="${!filterAttention}">Все строки · ${summary.rows}</button>
     </div>
     <div class="plan-source-layout">
       <div class="plan-source-list">
-        ${rows.length ? rows.map(renderSourceRowCard).join('') : '<div class="empty-state">В документе нет строк для разбора.</div>'}
+        ${rows.length ? rows.map(renderSourceRowCard).join('') : `<div class="empty-state">${filterAttention ? 'Нет строк, требующих проверки. Остальные доступны в «Все строки».' : 'В документе нет строк для разбора.'}</div>`}
       </div>
       <div id="plan-source-editor" class="plan-source-editor">
         ${sourceRowState.selectedRowId ? '<div class="empty-state">Открываем строку…</div>' : '<div class="plan-source-editor-empty"><strong>Выберите строку слева</strong><span>Поля, которые удалось определить, будут уже заполнены.</span></div>'}
       </div>
     </div>`;
-  if (sourceRowState.selectedRowId) renderEditor();
+  if (sourceRowState.selectedRowId) renderEditor(focusEditor);
 
   const flat = $s('.plan-items-table-wrap', detail);
   if (flat && !$s('.plan-created-tasks-head', detail)) {
@@ -175,7 +179,8 @@ async function loadPeople() {
 
 function exactPersonId(name) {
   const target = String(name || '').trim().toLocaleLowerCase('ru-RU');
-  return sourceRowState.people?.find((person) => String(person.display_name || '').trim().toLocaleLowerCase('ru-RU') === target)?.id || '';
+  const matches = (sourceRowState.people || []).filter(person => String(person.display_name || '').trim().toLocaleLowerCase('ru-RU') === target);
+  return matches.length === 1 ? matches[0].id : '';
 }
 
 function fullItem(linked) {
@@ -188,7 +193,7 @@ function seedTasks(row) {
     const item = fullItem(linked);
     const assignment = item?.assignment || null;
     return {
-      title: item?.title || '', description: item?.description || '',
+      existing: true, title: item?.title || '', description: item?.description || '',
       startsAt: item?.starts_at || '', endsAt: item?.ends_at || '', dueDate: item?.due_date || '',
       direction: item?.direction || 'organizational', expectedResult: item?.expected_result || '',
       responsibleRaw: item?.responsible_name || item?.responsible_raw || '',
@@ -229,8 +234,8 @@ function executorChecks(selectedIds = []) {
 function taskCard(task, index) {
   const mode = task.executionMode || 'track';
   return `
-    <section class="plan-source-task" data-source-task="${index}">
-      <header><strong>Задача ${index + 1}</strong>${index ? `<button type="button" class="text-button" data-source-task-remove="${index}">Убрать</button>` : ''}</header>
+    <section class="plan-source-task" data-source-task="${index}" data-source-existing="${Boolean(task.existing)}">
+      <header><strong>Задача ${index + 1}</strong>${index && !task.existing ? `<button type="button" class="text-button" data-source-task-remove="${index}">Убрать</button>` : ''}</header>
       <label class="field full"><span>Что сделать</span><input name="title" value="${esc(task.title)}" required></label>
       <div class="plan-source-three">
         <label class="field"><span>Начало</span><input name="startsAt" type="date" value="${esc(task.startsAt)}"></label>
@@ -259,10 +264,12 @@ function taskCard(task, index) {
 }
 
 function rawCells(row) {
-  return (row.cells || []).map((cell) => `<div><span>${cell.label || (cell.column ? `Колонка ${cell.column}` : 'Поле')}</span><strong>${esc(cell.text)}</strong></div>`).join('');
+  return (row.cells || []).map((cell) => `<div><span>${esc(cell.label || (cell.column ? `Колонка ${cell.column}` : 'Поле'))}</span><strong>${esc(cell.text)}</strong></div>`).join('');
 }
 
-async function renderEditor() {
+async function renderEditor(focusEditor = false) {
+  const sequence = ++sourceRowState.editorSequence;
+  const planId = sourceRowState.planId;
   const editor = $s('#plan-source-editor');
   if (!editor) return;
   const row = sourceRowState.payload?.items?.find((item) => item.id === sourceRowState.selectedRowId);
@@ -276,10 +283,12 @@ async function renderEditor() {
   } catch {
     sourceRowState.people = [];
   }
-  if (!$s('#plan-source-editor') || sourceRowState.selectedRowId !== row.id) return;
-  const tasks = seedTasks(row);
+  if ($s('#plan-source-editor') !== editor || sourceRowState.planId !== planId
+    || sourceRowState.selectedRowId !== row.id || sequence !== sourceRowState.editorSequence) return;
+  const draft = sourceRowState.drafts.get(draftKey(planId, row.id));
+  const tasks = draft?.tasks || seedTasks(row);
   editor.innerHTML = `
-    <form id="plan-source-form" data-source-row-id="${esc(row.id)}">
+    <form id="plan-source-form" data-source-row-id="${esc(row.id)}" data-source-plan-id="${esc(planId)}">
       <div class="plan-source-editor-head">
         <div><span>${esc(sourceLabel(row))}</span><h5>Проверить и сохранить</h5></div>
         <button type="button" class="icon-button" data-source-editor-close aria-label="Закрыть">×</button>
@@ -288,27 +297,32 @@ async function renderEditor() {
       <datalist id="plan-source-people">${(sourceRowState.people || []).map((person) => `<option value="${esc(person.display_name)}"></option>`).join('')}</datalist>
       <div id="plan-source-task-list">${tasks.map(taskCard).join('')}</div>
       <button type="button" class="secondary-button plan-source-split" data-source-task-add>Разделить на ещё одну задачу</button>
-      ${(row.unmapped || []).length ? `<label class="check-field plan-source-keep"><input name="keepUnmapped" type="checkbox" checked><span>Сохранить нераспознанные ячейки в комментарии</span></label>` : ''}
-      <div class="plan-source-actions"><span>Исходная строка и доказательства останутся в истории.</span><button type="submit" class="primary-button">Сохранить задачи</button></div>
+      ${(row.unmapped || []).length ? `<label class="check-field plan-source-keep"><input name="keepUnmapped" type="checkbox" ${draft?.keep === false ? '' : 'checked'}><span>Сохранить нераспознанные ячейки в комментарии</span></label>` : ''}
+      <p data-source-save-status role="status" aria-live="polite"></p>
+      <div class="plan-source-actions"><button type="button" class="quiet-button" data-source-draft-reset>Отменить правки</button><button type="submit" class="primary-button">Сохранить задачи</button></div>
     </form>`;
+  updateEditorState();
+  if (focusEditor) $s('[name="title"]', editor)?.focus();
 }
 
-function collectTask(card, keepUnmappedInComment) {
-  const responsibleRaw = $s('[name="responsibleRaw"]', card)?.value.trim() || '';
+function collectTask(card, keepUnmappedInComment, preserveInput = false) {
+  const text = name => { const value = $s(`[name="${name}"]`, card)?.value || ''; return preserveInput ? value : value.trim(); };
+  const responsibleRaw = text('responsibleRaw');
   const executionMode = $s('[name="executionMode"]', card)?.value || 'track';
   let executorPersonIds = $$s('[name="executor"]:checked', card).map((input) => input.value).filter(Boolean);
   const responsiblePersonId = exactPersonId(responsibleRaw);
   if (executionMode === 'assigned' && !executorPersonIds.length && responsiblePersonId) executorPersonIds = [responsiblePersonId];
   return {
-    title: $s('[name="title"]', card)?.value.trim() || '',
+    ...(preserveInput ? { existing: card.dataset.sourceExisting === 'true' } : {}),
+    title: text('title') || '',
     startsAt: $s('[name="startsAt"]', card)?.value || null,
     endsAt: $s('[name="endsAt"]', card)?.value || null,
     dueDate: $s('[name="dueDate"]', card)?.value || null,
     direction: $s('[name="direction"]', card)?.value || 'organizational',
     responsibleRaw: responsibleRaw || null,
     responsiblePersonId: responsiblePersonId || null,
-    expectedResult: $s('[name="expectedResult"]', card)?.value.trim() || null,
-    description: $s('[name="description"]', card)?.value.trim() || null,
+    expectedResult: text('expectedResult') || null,
+    description: text('description') || null,
     executionMode,
     executorPersonIds,
     controllerPersonId: $s('[name="controllerPersonId"]', card)?.value || null,
@@ -316,38 +330,79 @@ function collectTask(card, keepUnmappedInComment) {
   };
 }
 
+function draftKey(planId, rowId) { return `${planId}/${rowId}`; }
+function planSaving(planId) { return [...sourceRowState.saving].some(key => key.startsWith(`${planId}/`)); }
+function rememberDraft(form = $s('#plan-source-form')) {
+  if (!form) return;
+  const keep = $s('[name="keepUnmapped"]', form)?.checked !== false;
+  const key = draftKey(form.dataset.sourcePlanId, form.dataset.sourceRowId);
+  if (sourceRowState.saving.has(key)) return;
+  sourceRowState.drafts.set(key, {
+    tasks: $$s('[data-source-task]', form).map(card => collectTask(card, keep, true)), keep
+  });
+  updateEditorState();
+}
+function updateEditorState(message = null) {
+  const form = $s('#plan-source-form');
+  if (!form) return;
+  const key = draftKey(form.dataset.sourcePlanId, form.dataset.sourceRowId);
+  const busy = sourceRowState.saving.has(key);
+  const draft = sourceRowState.drafts.get(key);
+  form.setAttribute('aria-busy', String(busy));
+  $$s('input,select,textarea,button', form).forEach(control => {
+    if (!control.matches('[data-source-editor-close]')) control.disabled = busy;
+  });
+  $s('[data-source-draft-reset]', form).disabled = busy || !draft;
+  $s('button[type="submit"]', form).disabled = planSaving(form.dataset.sourcePlanId);
+  $s('button[type="submit"]', form).textContent = busy ? 'Сохраняем…' : 'Сохранить задачи';
+  const status = $s('[data-source-save-status]', form);
+  const value = message ?? (busy ? 'Сохраняем задачи…' : planSaving(form.dataset.sourcePlanId) ? 'Сохраняется другая строка. Здесь можно продолжать редактирование.' : draft?.error || (draft
+    ? 'Правки ещё не сохранены. Они остаются при переключении строк, пока открыта страница.'
+    : 'Исходная строка и доказательства остаются неизменными.'));
+  if (status.textContent !== value) status.textContent = value;
+}
 async function saveSourceRow(form) {
-  const button = $s('button[type="submit"]', form);
   const sourceRowId = form.dataset.sourceRowId;
-  const keepUnmappedInComment = $s('[name="keepUnmapped"]', form)?.checked !== false;
-  const tasks = $$s('[data-source-task]', form).map((card) => collectTask(card, keepUnmappedInComment));
-  if (!tasks.length || tasks.some((task) => !task.title)) {
-    showNotice('У каждой задачи должно быть название.');
+  const planId = form.dataset.sourcePlanId;
+  const key = draftKey(planId, sourceRowId);
+  if (planSaving(planId)) return;
+  const keep = $s('[name="keepUnmapped"]', form)?.checked !== false;
+  const tasks = $$s('[data-source-task]', form).map(card => collectTask(card, keep));
+  if (!tasks.length || tasks.some(task => !task.title)) {
+    updateEditorState('У каждой задачи должно быть название.');
     return;
   }
-  if (button) {
-    button.disabled = true;
-    button.textContent = 'Сохраняем…';
-  }
+  rememberDraft(form);
+  sourceRowState.saving.add(key);
+  updateEditorState();
+  let result;
   try {
-    const result = await api(`/api/plans/${encodeURIComponent(sourceRowState.planId)}/source-rows/${encodeURIComponent(sourceRowId)}/materialize`, {
+    result = await api(`/api/plans/${encodeURIComponent(planId)}/source-rows/${encodeURIComponent(sourceRowId)}/materialize`, {
       method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ tasks })
     });
-    sourceRowState.plan = result.plan;
-    sourceRowState.payload = result.sourceRows;
-    sourceRowState.selectedRowId = sourceRowId;
-    renderWorkbench();
-    const retained = result.retainedItemIds?.length || 0;
-    showNotice(retained
-      ? 'Задачи сохранены. Ранее созданные дополнительные задачи не удалены.'
-      : `Сохранено задач: ${result.savedItemIds?.length || tasks.length}. Календарь и поручения обновлены.`);
-    if (typeof window.kafedraOpenPlan === 'function') setTimeout(() => window.kafedraOpenPlan(sourceRowState.planId), 60);
   } catch (error) {
-    showNotice(error?.message || 'Не удалось сохранить разбор строки. Данные в форме не удалены.');
-    if (button) {
-      button.disabled = false;
-      button.textContent = 'Сохранить задачи';
-    }
+    const draft = sourceRowState.drafts.get(key);
+    if (draft) draft.error = `${error.message} Правки сохранены в открытой странице; повторите сохранение.`;
+    showNotice(error.message || 'Не удалось сохранить разбор строки.');
+    return;
+  } finally {
+    sourceRowState.saving.delete(key);
+    updateEditorState();
+  }
+  sourceRowState.drafts.delete(key);
+  const message = result.retainedItemIds?.length
+    ? 'Задачи сохранены. Ранее созданные дополнительные задачи не удалены.'
+    : `Сохранено задач: ${result.savedItemIds?.length || tasks.length}. Календарь и поручения обновлены.`;
+  showNotice(message);
+  // A delayed response belongs to its original plan, not to the current editor.
+  if (currentPlanId() !== planId || sourceRowState.planId !== planId) return;
+  sourceRowState.plan = result.plan;
+  sourceRowState.payload = result.sourceRows;
+  if (sourceRowState.selectedRowId !== sourceRowId) return;
+  renderWorkbench();
+  if (typeof window.kafedraOpenPlan === 'function') {
+    try { await window.kafedraOpenPlan(planId); }
+    catch { showNotice(`${message} Не удалось обновить список; откройте план повторно.`); }
   }
 }
 
@@ -358,11 +413,13 @@ function cloneLastTask() {
   const last = cards.at(-1);
   if (!last) return;
   const keep = $s('#plan-source-form [name="keepUnmapped"]')?.checked !== false;
-  const task = collectTask(last, keep);
+  const task = collectTask(last, keep, true);
+  task.existing = false;
   task.executionMode = 'track';
   task.executorPersonIds = [];
   task.controllerPersonId = '';
   list.insertAdjacentHTML('beforeend', taskCard(task, cards.length));
+  rememberDraft();
   $s(`[data-source-task="${cards.length}"] [name="title"]`, list)?.focus();
 }
 
@@ -406,18 +463,26 @@ document.addEventListener('click', (event) => {
   const rowButton = event.target.closest('[data-plan-source-row]');
   if (rowButton) {
     sourceRowState.selectedRowId = rowButton.dataset.planSourceRow;
-    renderWorkbench();
+    renderWorkbench(true);
     return;
   }
   const filter = event.target.closest('[data-plan-source-filter]');
   if (filter) {
     sourceRowState.filter = filter.dataset.planSourceFilter;
     renderWorkbench();
+    $s(`[data-plan-source-filter="${sourceRowState.filter}"]`)?.focus();
     return;
   }
   if (event.target.closest('[data-source-editor-close]')) {
+    const rowId = sourceRowState.selectedRowId;
     sourceRowState.selectedRowId = null;
     renderWorkbench();
+    $s(`[data-plan-source-row="${CSS.escape(rowId)}"]`)?.focus();
+    return;
+  }
+  if (event.target.closest('[data-source-draft-reset]')) {
+    sourceRowState.drafts.delete(draftKey(sourceRowState.planId, sourceRowState.selectedRowId));
+    renderEditor(true);
     return;
   }
   if (event.target.closest('[data-source-task-add]')) {
@@ -433,6 +498,8 @@ document.addEventListener('click', (event) => {
       const label = $s('header strong', item);
       if (label) label.textContent = `Задача ${index + 1}`;
     });
+    rememberDraft();
+    $s('#plan-source-task-list [data-source-task]:last-child [name="title"]')?.focus();
     return;
   }
   if (event.target.closest('[data-source-retry]')) {
@@ -475,3 +542,13 @@ ensureStyles();
 const observer = new MutationObserver(scheduleSourceRowSync);
 observer.observe(document.body, { childList: true, subtree: true });
 scheduleSourceRowSync();
+
+for (const type of ['input', 'change']) document.addEventListener(type, event => {
+  const form = event.target.closest('#plan-source-form');
+  if (form) rememberDraft(form);
+});
+window.addEventListener('beforeunload', event => {
+  if (!sourceRowState.drafts.size && !sourceRowState.saving.size) return;
+  event.preventDefault();
+  event.returnValue = '';
+});

@@ -1,0 +1,38 @@
+{
+  "scope": "R2.1 / #363; not full R2-R7",
+  "baseMain": "511d6883b0e369becce71d1e02c1170c1ad08abd",
+  "sourceFingerprint": "7da052db7b09e3a2a897f6d2219942e0e79ce97dd8b02a79a30e178a8b9c510a",
+  "assertions": "tests/browser/helpers/r2-editing-cases.mjs",
+  "assertionsSha256": "359652b82796695a0cdc076af54a2ca5e85411b031059b6b88f1dc1bbc3e22a1",
+  "runtime": {
+    "node": "v24.19.0",
+    "playwright": "1.62.1"
+  },
+  "verification": "Same Playwright assertions executed directly without a duplicate test-runner worker in a limited-memory sandbox. Disposable SQLite; no production data.",
+  "results": [
+    {"layout":"desktop","name":"Исходная строка: правки, фильтры, закрытие, отмена, ошибка и повтор","status":"passed","errors":[]},
+    {"layout":"desktop","name":"Сохранение: повторный submit и поздний ответ не меняют другой план","status":"passed","errors":[]},
+    {"layout":"desktop","name":"Фильтр проверки не подменяется всеми строками","status":"passed","errors":[]},
+    {"layout":"desktop","name":"Поручение: материалы недоступны, выполнение сохраняется и ввод файла остаётся","status":"passed","errors":[]},
+    {"layout":"mobile","name":"Исходная строка: правки, фильтры, закрытие, отмена, ошибка и повтор","status":"passed","errors":[]},
+    {"layout":"mobile","name":"Сохранение: повторный submit и поздний ответ не меняют другой план","status":"passed","errors":[]},
+    {"layout":"mobile","name":"Фильтр проверки не подменяется всеми строками","status":"passed","errors":[]},
+    {"layout":"mobile","name":"Поручение: материалы недоступны, выполнение сохраняется и ввод файла остаётся","status":"passed","errors":[]},
+    {"layout":"desktop","name":"Планы: DOCX с русским именем → автополя → две задачи → несколько исполнителей","status":"passed","errors":[]},
+    {"layout":"desktop","name":"задача завершается без согласования, материалы остаются необязательными","status":"passed","errors":[]},
+    {"layout":"mobile","name":"Планы: DOCX с русским именем → автополя → две задачи → несколько исполнителей","status":"passed","errors":[]},
+    {"layout":"mobile","name":"задача завершается без согласования, материалы остаются необязательными","status":"passed","errors":[]}
+  ],
+  "checks": [
+    "npm run check: passed",
+    "npm run docs:check: passed",
+    "tools/ui-audit/check.mjs with regenerated output: passed",
+    "tests/ui-mutation-stability.test.mjs: 3 passed"
+  ],
+  "limits": [
+    "Drafts survive in-page navigation, not tab crashes or confirmed reload.",
+    "No claim that all 460 source button constructors and all 64 forms were executed.",
+    "No target Astra/Office/OCR/offline-install verification.",
+    "Screenshots captured; geometry checked by browser assertions."
+  ]
+}

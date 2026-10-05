@@ -114,7 +114,7 @@ async function loadWork() {
   [...params].forEach(([key,value]) => { if (!value) params.delete(key); });
   const [data, periodic, people, documents] = await Promise.all([
     workApi(`/api/work/search?${params}`), workApi(`/api/periodic-tasks?${params}`),
-    workApi('/api/people'), workApi('/api/documents?limit=500')
+    workApi('/api/people'), workApi('/api/documents?limit=500').catch(() => ({ items: [], unavailable: true }))
   ]);
   workState.people = people.items;
   workState.documents = documents.items;
@@ -132,6 +132,7 @@ async function loadWork() {
   );
   workState.data = { ...data, items: merged };
   renderPeopleOptions(); renderWork(workState.data);
+  if (documents.unavailable) q('#work-summary').insertAdjacentHTML('beforeend', '<span role="status">Список материалов недоступен. Поручения доступны.</span>');
 }
 
 function currentPersonId() {

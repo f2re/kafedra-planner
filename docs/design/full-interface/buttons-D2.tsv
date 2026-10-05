@@ -88,14 +88,15 @@ UI-cb2d4e37f7	public/plan-fact-tools.js:130:41	ensureToolUi	Отмена	C01	з�
 UI-c683e02637	public/plan-fact-tools.js:130:118	ensureToolUi	Сохранить	C01	запланировано
 UI-f85cb1879a	public/plan-fact-tools.js:196:18	correctionValueHtml	Изменить	C01	запланировано
 UI-d9cb70582e	public/plan-fact-tools.js:218:25	correctionHistoryHtml / callback@214	Отменить исправление	C01	запланировано
-UI-ee57df8f72	public/plan-source-rows-next.js:113:5	renderSourceRowCard	{dynamic} {dynamic} {dynamic} {dynamic} {dynamic}	C01	запланировано
-UI-cf302dac81	public/plan-source-rows-next.js:150:7	renderWorkbench	Требуют проверки{dynamic}	C01	запланировано
-UI-882c0fa49e	public/plan-source-rows-next.js:151:7	renderWorkbench	Все строки · {dynamic}	C01	запланировано
-UI-d7c610aa48	public/plan-source-rows-next.js:233:62	taskCard	Убрать	C02	запланировано
-UI-342165dfe4	public/plan-source-rows-next.js:285:9	renderEditor	Закрыть	C01	запланировано
-UI-f9dc91e9f5	public/plan-source-rows-next.js:290:7	renderEditor	Разделить на ещё одну задачу	C01	запланировано
-UI-85a8fb271d	public/plan-source-rows-next.js:292:106	renderEditor	Сохранить задачи	C01	запланировано
-UI-b7f5f11cdb	public/plan-source-rows-next.js:398:164	loadForCurrentPlan	Повторить	C01	запланировано
+UI-de34fe68ed	public/plan-source-rows-next.js:116:5	renderSourceRowCard	{dynamic} {dynamic} {dynamic} {dynamic} {dynamic}	C01	запланировано
+UI-632d70cc5d	public/plan-source-rows-next.js:154:7	renderWorkbench	Требуют проверки{dynamic}	C01	запланировано
+UI-d28063ac2d	public/plan-source-rows-next.js:155:7	renderWorkbench	Все строки · {dynamic}	C01	запланировано
+UI-a9a85dec64	public/plan-source-rows-next.js:238:80	taskCard	Убрать	C02	запланировано
+UI-758cd91fa9	public/plan-source-rows-next.js:294:9	renderEditor	Закрыть	C01	запланировано
+UI-458fd70ddb	public/plan-source-rows-next.js:299:7	renderEditor	Разделить на ещё одну задачу	C01	запланировано
+UI-546f98bc99	public/plan-source-rows-next.js:302:40	renderEditor	Отменить правки	C01	запланировано
+UI-b12fa22c4d	public/plan-source-rows-next.js:302:131	renderEditor	Сохранить задачи	C01	запланировано
+UI-71c86f6f20	public/plan-source-rows-next.js:455:164	loadForCurrentPlan	Повторить	C01	запланировано
 UI-e4e284f4e4	public/plans-lifecycle-desktop.js:97:5	segmentMarkup	Текущие	C01	запланировано
 UI-f55ec72eff	public/plans-lifecycle-desktop.js:98:5	segmentMarkup	Архив	C02	запланировано
 UI-4d564a9149	public/plans-next.js:104:20	ensurePlansUi	динамическая подпись	C01	запланировано
