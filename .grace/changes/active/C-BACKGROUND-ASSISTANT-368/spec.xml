@@ -1,0 +1,40 @@
+<GraceChangeSpec graceVersion="4.0" status="approved">
+  <C-BACKGROUND-ASSISTANT-368>
+    <Summary>Finish optional background assistance for documents, dates, deadlines and report-source fields without delaying deterministic work.</Summary>
+    <Problem>The document worker awaits Qwen before persisting assignments; independent callers compete for a single CPU model slot. Expired running jobs are not reclaimed. Operators lack actionable, source-checked background findings and reversible field assistance at report sources.</Problem>
+    <Goals>
+      <Goal>Persist deterministic document objects and projections before durable optional enrichment. Keep intake running while the model is busy or unavailable.</Goal>
+      <Goal>Serialize application model calls through a bounded SQLite-backed lane with cancellation, lease ownership and recovery. Preserve current search authorization and exact quotations.</Goal>
+      <Goal>Analyze active deadlines, inconsistent dates and available materials using deterministic rules; show stable, actionable findings in the existing review/workflow surfaces.</Goal>
+      <Goal>Offer source-backed suggestions for scientific report metadata at the canonical scientific item, with explicit application, optimistic concurrency, preserved provenance and undo. Reports continue to project canonical items.</Goal>
+    </Goals>
+    <Constraints>
+      <Constraint>Authority: user request and issue 368, continuing 88 and 366. Exact main: 6e3f1e9f3870be47d4cd7386d792361b3cc415b1.</Constraint>
+      <Constraint>Keep SQLite schema 31 and all applied migrations unchanged. Reuse jobs, review_items, existing domain services and append-only audit records. No new installer, runtime dependency, cloud, CDN or mandatory LLM.</Constraint>
+      <Constraint>Source blobs, hashes, versions, extracted facts and historical evidence remain unchanged. No model tools may complete tasks, reschedule, delete, change access or silently overwrite manual work.</Constraint>
+      <Constraint>Dates are validated and compared in the configured workspace deployment timezone; a model suggestion is not a confirmed business fact. A discussion of publication is not evidence of publication.</Constraint>
+      <Constraint>Use canonical authorization before computation, before returning suggestions and again before applying or undoing. Queue input and output budgets are bounded; one failed item does not block others.</Constraint>
+      <Constraint>Use the existing design and canonical navigation, without a new dashboard or chat. No-motion. No formal agent execution is claimed without an actual invocation.</Constraint>
+      <Constraint>No release or version bump. Project CI owns unit/integration and smoke; GRACE owns scope/lint and the storage recovery gate. Targeted browser verification must cover the actual changed UI.</Constraint>
+    </Constraints>
+    <NonGoals>
+      <NonGoal>Autonomous signing, sending, approval, completion, destructive actions, free-form rewriting of whole official reports or changing ACL policy.</NonGoal>
+      <NonGoal>Claim real Qwen performance or physical Astra acceptance from synthetic HTTP fixtures.</NonGoal>
+    </NonGoals>
+    <AcceptanceCriteria>
+      <Criterion>With a delayed or unreachable model, a directive, its assignments and search fragments are available before enrichment completes; another document is processed independently.</Criterion>
+      <Criterion>Running jobs recover after lease expiry; stale owners cannot heartbeat, complete or overwrite a reassigned job. Concurrent model users respect the single-slot lane and finite waiting budget.</Criterion>
+      <Criterion>Analysis distinguishes approaching, due-today, overdue, malformed and contradictory dates. Terminal and archived objects do not generate active deadline findings; repeated sweeps do not duplicate unchanged or dismissed findings.</Criterion>
+      <Criterion>Findings open the canonical task, meeting, plan or material. Related materials remain optional and do not change task status or prove publication merely by topic similarity.</Criterion>
+      <Criterion>Scientific report metadata suggestions name an allowed field, current source version, locator and verified quotation. Explicit apply updates the canonical item; source or target changes reject stale proposals. Undo cannot overwrite later manual changes.</Criterion>
+      <Criterion>Disabled LLM, empty evidence, invalid output, timeout, cancellation, partial success, restart, workspace separation and access revocation are covered by regression tests.</Criterion>
+      <Criterion>Relevant exact-head CI, storage recovery and targeted desktop/mobile browser checks pass before merge; installed-Qwen acceptance remains explicitly separate.</Criterion>
+    </AcceptanceCriteria>
+    <AffectedAreas><M-API /><M-DATABASE /></AffectedAreas>
+    <VerificationIntent>
+      <ExpectedCommand>npm run check</ExpectedCommand><ExpectedCommand>npm run docs:check</ExpectedCommand><ExpectedCommand>npm test</ExpectedCommand><ExpectedCommand>npm run smoke</ExpectedCommand>
+      <ExpectedCommand>grace lint --path . --change C-BACKGROUND-ASSISTANT-368 --assertions final</ExpectedCommand>
+      <ExpectedEvidence>Exact-head project CI, existing GRACE database recovery gate and scoped browser checks. Synthetic model tests are labeled as such.</ExpectedEvidence>
+    </VerificationIntent>
+  </C-BACKGROUND-ASSISTANT-368>
+</GraceChangeSpec>

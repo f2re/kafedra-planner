@@ -1,0 +1,28 @@
+<GraceChangePlan graceVersion="4.0" status="approved">
+  <C-BACKGROUND-ASSISTANT-368>
+    <IntentSummary>Implement one coherent background-assistance vertical against exact main 6e3f1e9f3870be47d4cd7386d792361b3cc415b1. Preserve canonical data, optional model operation and the existing UI. Reuse operational and audit storage without a schema migration.</IntentSummary>
+    <BaselineAssertions>
+      <MustExist><Value>apps/worker/src/processor.mjs</Value></MustExist><MustExist><Value>packages/storage/src/jobs.mjs</Value></MustExist><MustExist><Value>packages/ai/src/search-assistant.mjs</Value></MustExist><MustExist><Value>packages/science-reports/src/service.mjs</Value></MustExist><MustVerify><Module>M-API</Module></MustVerify><MustVerify><Module>M-DATABASE</Module></MustVerify>
+    </BaselineAssertions>
+    <TargetAssertions>
+      <MustExist><Value>packages/ai/src/model-lane.mjs</Value></MustExist><MustExist><Value>packages/assistant/src/service.mjs</Value></MustExist><MustExist><Value>apps/api/src/assistant-router.mjs</Value></MustExist><MustExist><Value>public/background-assistant.js</Value></MustExist><MustExist><Value>tests/background-assistant.test.mjs</Value></MustExist><MustExist><Value>tests/browser/background-assistant.spec.mjs</Value></MustExist><MustVerify><Module>M-API</Module></MustVerify><MustVerify><Module>M-DATABASE</Module></MustVerify>
+    </TargetAssertions>
+    <DurableScope><GraphAnchors><M-API /><M-DATABASE /></GraphAnchors><VerificationAnchors><V-M-API /><V-M-DATABASE /></VerificationAnchors><ContextArtifacts><ContextArtifact>principles.xml</ContextArtifact><ContextArtifact>technology.xml</ContextArtifact></ContextArtifacts></DurableScope>
+    <ObservedWriteScope>
+      <Glob>.grace/changes/active/C-BACKGROUND-ASSISTANT-368/**</Glob>
+      <Glob>packages/assistant/src/**</Glob><Glob>packages/ai/src/**</Glob>
+      <File>packages/storage/src/jobs.mjs</File><File>packages/storage/src/reviews.mjs</File>
+      <Glob>apps/worker/src/**</Glob><File>apps/api/src/assistant-router.mjs</File><File>apps/api/src/app.mjs</File><File>apps/api/src/search-router.mjs</File><File>apps/api/src/http-utils.mjs</File>
+      <Glob>packages/science-lifecycle/src/**</Glob><Glob>packages/science-reports/src/**</Glob>
+      <File>public/background-assistant.js</File><File>public/background-assistant.css</File><File>public/search-assistant.js</File><File>public/search-assistant.css</File><File>public/search-next.js</File><File>public/action-center.js</File><File>public/action-registry.js</File><File>public/work-next.js</File><File>public/reports-science-next.js</File><File>public/science-reports.js</File><File>public/science-lifecycle.js</File><File>public/science-lifecycle-next.js</File>
+      <File>scripts/llm-acceptance.mjs</File><File>.github/workflows/search-assistant-check.yml</File><Glob>tests/**</Glob><Glob>docs/**</Glob>
+    </ObservedWriteScope>
+    <ImplementationPlan>
+      <T-001><Title>Define source-first flow and bounded canonical actions</Title><DependsOn></DependsOn><AcceptanceCriteria><Criterion>Reuse review, canonical navigation and report source items. Date rules are deterministic; apply and undo preserve manual state and evidence. Record no-motion and permission boundaries.</Criterion></AcceptanceCriteria><Verification><Command>Review implemented contract and affected source paths</Command></Verification></T-001>
+      <T-002><Title>Durable jobs and shared optional model lane</Title><DependsOn><T-001 /></DependsOn><AcceptanceCriteria><Criterion>Decouple enrichment from intake, recover leases with fencing, bound queue and network budgets, serialize existing callers and preserve cancellation/authorization.</Criterion></AcceptanceCriteria><Verification><Command>npm test</Command></Verification></T-002>
+      <T-003><Title>Background findings and source-backed report fields</Title><DependsOn><T-002 /></DependsOn><AcceptanceCriteria><Criterion>Idempotent date/material analysis, partial failures, current-source validation, stale detection, explicit canonical apply and guarded undo work through API.</Criterion></AcceptanceCriteria><Verification><Command>npm test</Command></Verification></T-003>
+      <T-004><Title>Complete operator UI and navigation</Title><DependsOn><T-003 /></DependsOn><AcceptanceCriteria><Criterion>Operator sees concise findings with sources and relevant actions. Pending, disabled, unavailable, rejected, stale and successful states remain usable on desktop/mobile without blocking manual work.</Criterion></AcceptanceCriteria><Verification><Command>Scoped browser workflow on exact head</Command></Verification></T-004>
+      <T-005><Title>Integration and risk acceptance</Title><DependsOn><T-004 /></DependsOn><AcceptanceCriteria><Criterion>Project CI, GRACE scope/lint and existing database backup/recovery gate pass once on exact head. Inspect review comments, main and head before squash merge, then post-merge smoke. Real-model limitations are explicit.</Criterion></AcceptanceCriteria><Verification><Command>npm run check</Command><Command>npm run docs:check</Command><Command>npm test</Command><Command>npm run smoke</Command><Command>Existing GRACE storage gate and targeted browser workflow</Command></Verification></T-005>
+    </ImplementationPlan>
+  </C-BACKGROUND-ASSISTANT-368>
+</GraceChangePlan>
