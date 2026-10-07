@@ -1,6 +1,9 @@
 import { createHash } from 'node:crypto';
+import { DIRECTIVE_TASK, prepareDirectiveTask } from './directive-task.mjs';
+export { directivePrompt } from './directive-task.mjs';
 
-const PROMPT_VERSION = 'directive-v2';
+const PROMPT_VERSION = DIRECTIVE_TASK.version;
+const MAX_RESPONSE_BYTES = 32_768;
 const ALLOWED_KINDS = new Set(['decree', 'directive', 'order']);
 const TOP_LEVEL_FIELDS = new Set([
   'kind', 'documentNumber', 'issuedAt', 'issuerRaw', 'title', 'direction', 'assignments'
@@ -10,12 +13,13 @@ const ASSIGNMENT_FIELDS = new Set([
 ]);
 
 export function extractJsonObject(value) {
-  const text = String(value || '').trim();
-  const fenced = /```(?:json)?\s*([\s\S]*?)```/iu.exec(text)?.[1] || text;
-  const start = fenced.indexOf('{');
-  const end = fenced.lastIndexOf('}');
-  if (start < 0 || end <= start) return null;
-  try { return JSON.parse(fenced.slice(start, end + 1)); } catch { return null; }
+  if (typeof value !== 'string' || Buffer.byteLength(value) > MAX_RESPONSE_BYTES) return null;
+  const text = value.trim();
+  const fenced = /^```(?:json)?\s*([\s\S]*?)\s*```$/u.exec(text);
+  try {
+    const output = JSON.parse(fenced ? fenced[1] : text);
+    return output && typeof output === 'object' && !Array.isArray(output) ? output : null;
+  } catch { return null; }
 }
 
 function normalizedQuote(value) {
@@ -84,35 +88,16 @@ export function validateDirectiveProposal(output, sourceText) {
   return { valid: errors.length === 0, errors };
 }
 
-export function directivePrompt(text, deterministic) {
-  return [
-    'Извлеки структуру российского распорядительного документа.',
-    'Верни только JSON. Не выдумывай отсутствующие сведения и не добавляй поля вне указанной схемы.',
-    'Даты возвращай только как YYYY-MM-DD либо null.',
-    'Каждое предложенное поле должно иметь опору в исходном документе.',
-    'Для каждого элемента assignments поле sourceQuote обязательно и должно быть точным фрагментом входного документа длиной не менее 8 символов.',
-    'Схема: {kind, documentNumber, issuedAt, issuerRaw, title, direction, assignments:[{itemNo,title,instructionText,dueDate,executors,controller,expectedResult,sourceQuote}]}.',
-    `Детерминированный результат для проверки: ${JSON.stringify(deterministic)}`,
-    `Документ:\n${String(text || '').slice(0, 120000)}`
-  ].join('\n\n');
-}
-
 function inputHash(text) {
   return createHash('sha256').update(String(text || '')).digest('hex');
 }
 
-function safeEndpoint(value) {
-  const raw = String(value || '').trim().replace(/\/$/u, '');
+function endpointFor(value) {
   try {
-    const url = new URL(raw);
-    url.username = '';
-    url.password = '';
-    url.search = '';
-    url.hash = '';
-    return url.toString().replace(/\/$/u, '');
-  } catch {
-    return raw.replace(/\?.*$/u, '').replace(/#.*$/u, '');
-  }
+    const url = new URL(String(value || '').trim());
+    if (!['http:', 'https:'].includes(url.protocol) || url.username || url.password || url.search || url.hash) return null;
+    return url.href.replace(/\/+$/u, '').replace(/\/v1$/u, '');
+  } catch { return null; }
 }
 
 function safeFailure(error) {
@@ -120,73 +105,80 @@ function safeFailure(error) {
   const code = String(error?.code || '').toLowerCase();
   if (name.includes('timeout') || name === 'aborterror' || code.includes('timeout') || code === 'abort_err') return 'llm_timeout';
   const message = String(error?.message || '');
-  if (/^llm_(?:http_\d+|invalid_json|invalid_response|unverified_proposal)$/u.test(message)) return message;
+  if (/^llm_(?:http_\d+|invalid_json|invalid_response|unverified_proposal|context_too_small|response_too_large)$/u.test(message)) return message;
   return 'llm_request_failed';
 }
 
-function rawResponse(value) {
-  return String(value || '').slice(0, 20000);
+async function readResponse(response) {
+  if (Number(response.headers.get('content-length')) > MAX_RESPONSE_BYTES) {
+    await response.body?.cancel();
+    throw new Error('llm_response_too_large');
+  }
+  if (!response.body) throw new Error('llm_invalid_response');
+  const reader = response.body.getReader();
+  const chunks = [];
+  let length = 0;
+  try {
+    for (;;) {
+      const { value, done } = await reader.read();
+      if (done) break;
+      length += value.byteLength;
+      if (length > MAX_RESPONSE_BYTES) {
+        await reader.cancel();
+        throw new Error('llm_response_too_large');
+      }
+      chunks.push(Buffer.from(value));
+    }
+    try { return JSON.parse(Buffer.concat(chunks, length).toString('utf8')); }
+    catch { throw new Error('llm_invalid_response'); }
+  } finally { reader.releaseLock(); }
 }
 
 export async function proposeDirectiveWithLlama({ config, text, deterministic, fetchImpl = fetch }) {
   const inputSha256 = inputHash(text);
-  if (!config?.llmEnabled || !config.llmEndpoint) {
-    return { status: 'disabled', inputSha256, promptVersion: PROMPT_VERSION };
-  }
+  const base = { inputSha256, promptVersion: PROMPT_VERSION };
+  if (!config?.llmEnabled || !config.llmEndpoint) return { status: 'disabled', ...base };
   const started = Date.now();
-  const endpoint = String(config.llmEndpoint).replace(/\/$/u, '');
-  const recordedEndpoint = safeEndpoint(endpoint);
+  const endpoint = endpointFor(config.llmEndpoint);
+  if (!endpoint) return { status: 'failed', ...base, error: 'llm_invalid_endpoint', durationMs: Date.now() - started };
+  let metadata;
   try {
-    const response = await fetchImpl(`${endpoint}/v1/chat/completions`, {
-      method: 'POST',
-      headers: { 'content-type': 'application/json' },
-      body: JSON.stringify({
-        model: config.llmModel || 'local-model',
-        temperature: 0,
-        max_tokens: config.llmMaxTokens || 4096,
-        messages: [
-          { role: 'system', content: 'Ты локальный модуль извлечения. Возвращай только проверяемый JSON без пояснений.' },
-          { role: 'user', content: directivePrompt(text, deterministic) }
-        ]
-      }),
-      signal: AbortSignal.timeout(config.llmTimeoutMs || 45_000)
+    const task = prepareDirectiveTask(text, deterministic, config);
+    metadata = task.metadata;
+    const body = task.body;
+    const signal = AbortSignal.timeout(config.llmTimeoutMs || 45_000);
+    const send = () => fetchImpl(`${endpoint}/v1/chat/completions`, {
+      method: 'POST', redirect: 'error', headers: { 'content-type': 'application/json' },
+      body: JSON.stringify(body), signal
     });
-    if (!response.ok) throw new Error(`llm_http_${response.status}`);
-    const payload = await response.json();
-    const content = payload?.choices?.[0]?.message?.content;
+    let response = await send();
+    if ([400, 422].includes(response.status)) {
+      await response.body?.cancel();
+      delete body.response_format;
+      response = await send();
+    }
+    if (!response.ok) {
+      await response.body?.cancel();
+      throw new Error(`llm_http_${response.status}`);
+    }
+    const payload = await readResponse(response);
+    const choice = payload?.choices?.[0];
+    if (choice?.finish_reason === 'length' || choice?.finish_reason === 'tool_calls'
+      || choice?.finish_reason === 'function_call' || choice?.message?.tool_calls?.length
+      || choice?.message?.function_call || choice?.message?.refusal) throw new Error('llm_invalid_response');
+    const content = choice?.message?.content;
     if (typeof content !== 'string') throw new Error('llm_invalid_response');
+    const recorded = { ...base, endpoint, model: payload?.model || config.llmModel || null,
+      metadata, durationMs: Date.now() - started };
     const output = extractJsonObject(content);
-    if (!output) {
-      return {
-        status: 'failed', endpoint: recordedEndpoint,
-        model: payload?.model || config.llmModel || null,
-        promptVersion: PROMPT_VERSION, inputSha256,
-        output: { rawResponse: rawResponse(content) },
-        error: 'llm_invalid_json', durationMs: Date.now() - started
-      };
-    }
+    if (!output) return { status: 'failed', ...recorded,
+      output: { rawResponse: content.slice(0, 20000) }, error: 'llm_invalid_json' };
     const validation = validateDirectiveProposal(output, text);
-    if (!validation.valid) {
-      return {
-        status: 'failed', endpoint: recordedEndpoint,
-        model: payload?.model || config.llmModel || null,
-        promptVersion: PROMPT_VERSION, inputSha256,
-        output: { proposal: output, validation },
-        error: 'llm_unverified_proposal', durationMs: Date.now() - started
-      };
-    }
-    return {
-      status: 'completed', endpoint: recordedEndpoint,
-      model: payload?.model || config.llmModel || null,
-      promptVersion: PROMPT_VERSION, inputSha256,
-      output, validation, durationMs: Date.now() - started
-    };
+    if (!validation.valid) return { status: 'failed', ...recorded,
+      output: { proposal: output, validation }, error: 'llm_unverified_proposal' };
+    return { status: 'completed', ...recorded, output, validation };
   } catch (error) {
-    return {
-      status: 'failed', endpoint: recordedEndpoint,
-      model: config.llmModel || null,
-      promptVersion: PROMPT_VERSION, inputSha256,
-      error: safeFailure(error), durationMs: Date.now() - started
-    };
+    return { status: 'failed', ...base, endpoint, model: config.llmModel || null, metadata,
+      error: safeFailure(error), durationMs: Date.now() - started };
   }
 }

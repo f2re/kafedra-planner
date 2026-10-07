@@ -74,6 +74,7 @@ export function prepareSearchTask(id, input, config = {}) {
   const user = JSON.stringify(data);
   return {
     body: { model: config.llmModel || 'local-model', temperature: 0, max_tokens: maxTokens, stream: false,
+      chat_template_kwargs: { enable_thinking: false },
       messages: [{ role: 'system', content: task.system }, { role: 'user', content: user }] },
     schema: task.schema, candidates: data.candidates || [],
     metadata: { task: task.version, systemSha256: hash(task.system), inputSha256: hash(user) }
