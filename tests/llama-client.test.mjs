@@ -20,18 +20,15 @@ const proposal = {
 function config(overrides = {}) {
   return {
     llmEnabled: true,
-    llmEndpoint: 'http://user:secret@127.0.0.1:8081?token=hidden',
+    llmEndpoint: 'http://127.0.0.1:8081',
     llmModel: 'test-model', llmTimeoutMs: 1000, llmMaxTokens: 1024,
     ...overrides
   };
 }
 
 function response(content, { status = 200, model = 'test-model' } = {}) {
-  return {
-    ok: status >= 200 && status < 300,
-    status,
-    json: async () => ({ model, choices: [{ message: { content } }] })
-  };
+  return new Response(JSON.stringify({ model, choices: [{ finish_reason: 'stop', message: { content } }] }),
+    { status, headers: { 'content-type': 'application/json' } });
 }
 
 test('извлекает JSON из fenced-ответа', () => {
@@ -69,7 +66,7 @@ test('отключённый LLM не выполняет сетевой запр
     fetchImpl: async () => { called = true; throw new Error('must_not_call'); }
   });
   assert.equal(result.status, 'disabled');
-  assert.equal(result.promptVersion, 'directive-v2');
+  assert.equal(result.promptVersion, 'directive-v3');
   assert.equal(result.inputSha256.length, 64);
   assert.equal(called, false);
 });
@@ -80,7 +77,7 @@ test('валидное предложение принимается тольк�
     fetchImpl: async () => response(JSON.stringify(proposal))
   });
   assert.equal(result.status, 'completed');
-  assert.equal(result.promptVersion, 'directive-v2');
+  assert.equal(result.promptVersion, 'directive-v3');
   assert.equal(result.validation.valid, true);
   assert.equal(result.endpoint, 'http://127.0.0.1:8081');
   assert.equal(result.output.assignments[0].dueDate, '2026-08-20');
@@ -112,7 +109,7 @@ test('невалидный JSON и сломанный OpenAI-ответ диаг
 
   const broken = await proposeDirectiveWithLlama({
     config: config(), text: source, deterministic: {},
-    fetchImpl: async () => ({ ok: true, status: 200, json: async () => ({ choices: [] }) })
+    fetchImpl: async () => new Response(JSON.stringify({ choices: [] }))
   });
   assert.equal(broken.status, 'failed');
   assert.equal(broken.error, 'llm_invalid_response');
@@ -121,7 +118,7 @@ test('невалидный JSON и сломанный OpenAI-ответ диаг
 test('сетевая ошибка, HTTP и timeout не раскрывают endpoint credentials', async () => {
   const network = await proposeDirectiveWithLlama({
     config: config(), text: source, deterministic: {},
-    fetchImpl: async (url) => { throw new Error(`connect ${url}`); }
+    fetchImpl: async (url) => { throw new Error(`connect ${url} secret=hidden`); }
   });
   assert.equal(network.status, 'failed');
   assert.equal(network.error, 'llm_request_failed');
