@@ -2,17 +2,31 @@ id	source	context	label	acceptance	status
 UI-0da32da88b	public/action-center.js:99:9	ensureUi	Закрыть	C01	запланировано
 UI-2172eacd7d	public/action-center.js:123:11	actionButton	{dynamic} {dynamic} ›	C01	запланировано
 UI-21cc4c79b9	public/action-center.js:339:19	triggerManualPlanCreate	динамическая подпись	C01	запланировано
-UI-a00f9d4e4d	public/app.js:185:11	calendarEventHtml	{dynamic}	C01	запланировано
-UI-33a3b1ee35	public/app.js:235:79	renderMonth	Создать на _____________________________	C01	запланировано
-UI-55c131d27d	public/app.js:255:50	renderWeek / callback@255	{dynamic} {dynamic} · {dynamic}	C01	запланировано
-UI-628c78be5b	public/app.js:256:9	renderWeek	+ Добавить	C01	запланировано
-UI-70abfa384f	public/app.js:266:5	taskGroup / callback@265	_________________________________________________________________________________	C01	запланировано
-UI-011e27cb85	public/app.js:267:5	taskGroup / callback@265	{dynamic} {dynamic}	C01	запланировано
-UI-230749132f	public/app.js:394:618	renderDocuments / callback@392	Создать шаблон	C01	запланировано
-UI-65f4c9a440	public/app.js:547:264	renderTemplateFields / callback@547	Удалить поле	C02	запланировано
-UI-e773d37095	public/app.js:623:258	loadReview / callback@623	Готово	C01	запланировано
-UI-96114aa642	public/app.js:640:406	renderNotifications / callback@640	Прочитано	C01	запланировано
-UI-ec55300f46	public/app.js:640:548	renderNotifications / callback@640	Скрыть	C01	запланировано
+UI-53c80ea298	public/app.js:187:11	calendarEventHtml	{dynamic}	C01	запланировано
+UI-4779de55bf	public/app.js:237:79	renderMonth	Создать на _____________________________	C01	запланировано
+UI-9c2127d4c1	public/app.js:257:50	renderWeek / callback@257	{dynamic} {dynamic} · {dynamic}	C01	запланировано
+UI-29661fc48d	public/app.js:258:9	renderWeek	+ Добавить	C01	запланировано
+UI-ac161c54d4	public/app.js:268:5	taskGroup / callback@267	_________________________________________________________________________________	C01	запланировано
+UI-b738603488	public/app.js:269:5	taskGroup / callback@267	{dynamic} {dynamic}	C01	запланировано
+UI-c68c0c02d8	public/app.js:396:618	renderDocuments / callback@394	Создать шаблон	C01	запланировано
+UI-39d14ae46c	public/app.js:549:264	renderTemplateFields / callback@549	Удалить поле	C02	запланировано
+UI-c62f08d645	public/app.js:625:258	loadReview / callback@625	Готово	C01	запланировано
+UI-6eb44e30dd	public/app.js:642:406	renderNotifications / callback@642	Прочитано	C01	запланировано
+UI-b63867e1cf	public/app.js:642:548	renderNotifications / callback@642	Скрыть	C01	запланировано
+UI-33d70eb6c6	public/assistant-sheet.js:94:9	ensureElements	Закрыть	C01	запланировано
+UI-7b3ca80d83	public/assistant-sheet.js:99:11	ensureElements	Анализ текста	C01	запланировано
+UI-68d5fc546e	public/assistant-sheet.js:100:11	ensureElements	Поиск в архиве	C02	запланировано
+UI-003966c9c7	public/assistant-sheet.js:101:11	ensureElements	Формулы Calc / Excel	C01	запланировано
+UI-b9a7d8c8c9	public/assistant-sheet.js:102:11	ensureElements	История	C01	запланировано
+UI-968e477d5e	public/assistant-sheet.js:119:11	ensureElements	Очистить	C01	запланировано
+UI-3439e33cca	public/assistant-sheet.js:120:11	ensureElements	Отмена	C01	запланировано
+UI-75bdce25af	public/assistant-sheet.js:121:11	ensureElements	Обработать	C01	запланировано
+UI-ce19b20531	public/assistant-sheet.js:214:20	renderPresets / callback@213	динамическая подпись	C01	запланировано
+UI-edb446464f	public/assistant-sheet.js:403:21	renderTableResult	📋 Скопировать в Excel / Calc	C01	запланировано
+UI-5489e46b5e	public/assistant-sheet.js:409:23	renderTableResult	+ Строка	C01	запланировано
+UI-53eae0f329	public/assistant-sheet.js:468:20	createTableRow	✕	C02	запланировано
+UI-225e3faeea	public/assistant-sheet.js:530:21	renderFormulaResult	📋 Копировать	C01	запланировано
+UI-cfc1db3904	public/assistant-sheet.js:611:7	renderHistoryView	Очистить историю	C01	запланировано
 UI-6ba70a3f7b	public/calendar-start-settings.js:66:7	ensureDialog	Закрыть	C01	запланировано
 UI-e132b40aed	public/calendar-start-settings.js:81:9	ensureDialog	Закрыть	C01	запланировано
 UI-dee1a42f69	public/calendar-start-settings.js:82:9	ensureDialog	Сохранить	C01	запланировано
@@ -29,32 +43,33 @@ UI-2accaf8b28	public/index.html:38:11	document	Показать разделы	C
 UI-e456139d42	public/index.html:43:11	document	Месяц	C01	запланировано
 UI-944927548e	public/index.html:44:11	document	Неделя	C01	запланировано
 UI-1298e72292	public/index.html:45:11	document	Задачи	C01	запланировано
-UI-31b343cf12	public/index.html:49:11	document	Открыть поиск	C01	запланировано
-UI-ffe06efc86	public/index.html:51:13	document	Уведомления	C01	запланировано
-UI-98fabf444e	public/index.html:57:11	document	+ Добавить	C01	запланировано
-UI-dc3b1b886c	public/index.html:68:17	document	Предыдущий период	C01	запланировано
-UI-ec3e79f60d	public/index.html:69:17	document	Сегодня	C01	запланировано
-UI-3843d91c08	public/index.html:70:17	document	Следующий период	C01	запланировано
-UI-d9d8c114c7	public/index.html:96:71	document	Открыть	C01	запланировано
-UI-d4aa1004df	public/index.html:114:11	document	Создать из документа	C01	запланировано
-UI-af70ce4e0a	public/index.html:144:7	document	▦ Календарь	C01	запланировано
-UI-267d6ddbe3	public/index.html:145:7	document	✓ Поручения	C01	запланировано
-UI-7edcd9f02b	public/index.html:146:7	document	▤ Документы	C01	запланировано
-UI-5f825195d9	public/index.html:147:7	document	◇ Шаблоны	C01	запланировано
-UI-8f1fa0e80a	public/index.html:148:7	document	✓ Проверка	C01	запланировано
-UI-26d4a2c846	public/index.html:155:126	document	Закрыть	C01	запланировано
-UI-429a4de047	public/index.html:165:39	document	Отмена	C01	запланировано
-UI-a391892fe2	public/index.html:165:118	document	Сохранить	C01	запланировано
-UI-17d0fc54b0	public/index.html:172:7	document	Закрыть	C01	запланировано
-UI-45bdc22962	public/index.html:175:7	document	1 Документ	C01	запланировано
-UI-35ff328f93	public/index.html:176:7	document	2 Поля	C01	запланировано
-UI-874f87fa1b	public/index.html:177:7	document	3 Проверка	C01	запланировано
-UI-f7fcd88d0d	public/index.html:190:11	document	Открыть документ	C01	запланировано
-UI-0b2e67b062	public/index.html:202:13	document	Добавить поле	C01	запланировано
-UI-b830195b13	public/index.html:209:11	document	Проверить на документе	C01	запланировано
-UI-db59255ade	public/index.html:214:34	document	Назад	C01	запланировано
-UI-2ad88535d1	public/index.html:214:138	document	Далее	C01	запланировано
-UI-df8815ad5a	public/index.html:214:214	document	Сохранить шаблон	C01	запланировано
+UI-31b343cf12	public/index.html:49:11	document	Ассистент кафедры	C01	запланировано
+UI-259f0ef0d9	public/index.html:50:11	document	Открыть поиск	C01	запланировано
+UI-6423741433	public/index.html:52:13	document	Уведомления	C01	запланировано
+UI-48bd5d7671	public/index.html:58:11	document	+ Добавить	C01	запланировано
+UI-80d4705662	public/index.html:69:17	document	Предыдущий период	C01	запланировано
+UI-76c345453e	public/index.html:70:17	document	Сегодня	C01	запланировано
+UI-a62f14b40b	public/index.html:71:17	document	Следующий период	C01	запланировано
+UI-a3de8b23ae	public/index.html:97:71	document	Открыть	C01	запланировано
+UI-6bdf0f95a0	public/index.html:115:11	document	Создать из документа	C01	запланировано
+UI-e79dc1cec1	public/index.html:145:7	document	▦ Календарь	C01	запланировано
+UI-9db5ca8ebb	public/index.html:146:7	document	✓ Поручения	C01	запланировано
+UI-c01b48dad8	public/index.html:147:7	document	▤ Документы	C01	запланировано
+UI-09ea5aa012	public/index.html:148:7	document	◇ Шаблоны	C01	запланировано
+UI-95bd983aef	public/index.html:149:7	document	✓ Проверка	C01	запланировано
+UI-f36956830c	public/index.html:156:126	document	Закрыть	C01	запланировано
+UI-c22e36a87e	public/index.html:166:39	document	Отмена	C01	запланировано
+UI-5601b839e2	public/index.html:166:118	document	Сохранить	C01	запланировано
+UI-0d8beddfa4	public/index.html:173:7	document	Закрыть	C01	запланировано
+UI-4e6bb624ac	public/index.html:176:7	document	1 Документ	C01	запланировано
+UI-250425c090	public/index.html:177:7	document	2 Поля	C01	запланировано
+UI-11c0e9fbba	public/index.html:178:7	document	3 Проверка	C01	запланировано
+UI-70b15f7f11	public/index.html:191:11	document	Открыть документ	C01	запланировано
+UI-08740ab68e	public/index.html:203:13	document	Добавить поле	C01	запланировано
+UI-422c2346cb	public/index.html:210:11	document	Проверить на документе	C01	запланировано
+UI-fcbe2fd79f	public/index.html:215:34	document	Назад	C01	запланировано
+UI-fd9f540786	public/index.html:215:138	document	Далее	C01	запланировано
+UI-ff9231b721	public/index.html:215:214	document	Сохранить шаблон	C01	запланировано
 UI-b9f9ea4a15	public/preference-controls.js:57:7	ensureUi	Личные подсказки	C01	запланировано
 UI-3b5b49b69b	public/preference-controls.js:59:130	ensureUi	Закрыть	C01	запланировано
 UI-416caa4b99	public/preference-controls.js:111:11	render / callback@108	{dynamic}	C01	запланировано

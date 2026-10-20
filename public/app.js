@@ -1,3 +1,5 @@
+import { createAssistantSheet } from './assistant-sheet.js';
+
 const state = {
   currentView: 'calendar',
   calendarMode: localStorage.getItem('kafedra-calendar-mode') || 'month',
@@ -740,6 +742,8 @@ $('#notification-button').addEventListener('click', () => {
   popover.classList.toggle('hidden', !opening);
   $('#notification-button').setAttribute('aria-expanded', String(opening));
 });
+const assistantSheet = createAssistantSheet();
+$('#open-assistant')?.addEventListener('click', () => assistantSheet.open());
 $('#open-search').addEventListener('click', () => setView('search'));
 $('#search-form').addEventListener('submit', (event) => {
   event.preventDefault();

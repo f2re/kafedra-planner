@@ -3,11 +3,12 @@ UI-b4096a5393	public/academic-performance-state.js:117:5	D6	screenMarkup	[data-a
 UI-7085e3ccfd	public/academic-performance-state.js:118:5	D6	screenMarkup	[data-academic-details]		запланировано
 UI-f8215a8013	public/action-center.js:93:5	D1	ensureUi	#action-center	Добавить Что нужно сделать? × ⌕ Esc Рекомендуется Контекст важнее частоты ⇧ Перетащите любой документ PDF, Word, Excel, 	запланировано
 UI-3b278fbac8	public/admin-next.js:29:7	D7	ensureAdminUi	#admin-access-panel	Эксплуатация Доступ и готовность Закрыть Готовность Создать аккаунт Сотрудник Логин Роль Сотрудник Руководитель Админист	запланировано
+UI-dcfbe18edd	public/assistant-sheet.js:81:15	D1	ensureElements	#assistant-sheet	Ассистент кафедры	запланировано
 UI-5ab14b927c	public/auth-next.js:153:12	D7	ensurePinDialog	#auth-pin-dialog		запланировано
 UI-40eb2c19ee	public/calendar-start-settings.js:57:11	D1	ensureDialog	#calendar-start-settings-sheet		запланировано
 UI-060777690a	public/directive-archive-next.js:161:7	D4	ensureDirectiveArchiveUi	#directive-modal		запланировано
-UI-418388c632	public/index.html:154:3	D1	document	#event-sheet	Календарь Новое событие × Название Тип Событие Задача Дата Категория Организационная Образование Наука Повседневная Важн	запланировано
-UI-8a4f6c0fc8	public/index.html:169:3	D1	document	#template-sheet	Новый шаблон Покажите, что извлекать × 1 Документ 2 Поля 3 Проверка Документ Выберите документ Текст появится здесь. Ори	запланировано
+UI-9ed8789f66	public/index.html:155:3	D1	document	#event-sheet	Календарь Новое событие × Название Тип Событие Задача Дата Категория Организационная Образование Наука Повседневная Важн	запланировано
+UI-527fc09ca7	public/index.html:170:3	D1	document	#template-sheet	Новый шаблон Покажите, что извлекать × 1 Документ 2 Поля 3 Проверка Документ Выберите документ Текст появится здесь. Ори	запланировано
 UI-f29463dfb7	public/lifecycle-next.js:187:7	D2	ensureLifecycleUi	#lifecycle-modal		проверить подключение
 UI-1fab561c1a	public/lifecycle-safe.js:188:7	D2	ensureUi	#lifecycle-modal		запланировано
 UI-c6ac185128	public/manual-plans-next.js:50:7	D2	ensureManualUi	#manual-plan-modal		запланировано

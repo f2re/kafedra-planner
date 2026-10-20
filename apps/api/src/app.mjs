@@ -24,6 +24,7 @@ import { createScienceImportRouter020 } from './science-import-router-020.mjs';
 import { createScienceReportsRouter } from './science-reports-router.mjs';
 import { createDirectiveArchiveRouter } from './directive-archive-router.mjs';
 import { createAcademicPerformanceRouter } from './academic-performance-router.mjs';
+import { createAssistantRouter } from './assistant-router.mjs';
 import { resolveAuthContext } from '../../../packages/auth/src/service.mjs';
 import { authorizeApiRequest } from '../../../packages/auth/src/policy.mjs';
 import { authorizeCsrfRequest } from '../../../packages/auth/src/csrf.mjs';
@@ -52,6 +53,7 @@ export function createApp({ database, config, logger }) {
   const scienceImportRouter020 = createScienceImportRouter020({ database });
   const scienceReportsRouter = createScienceReportsRouter({ database, config, logger });
   const academicPerformanceRouter = createAcademicPerformanceRouter({ database, logger });
+  const assistantRouter = createAssistantRouter({ database, config, logger });
   const planFactRouter = createPlanFactRouter({ database, config, logger });
   const router = createRouter({ database, config, logger });
   return createServer(async (request, response) => {
@@ -123,6 +125,7 @@ export function createApp({ database, config, logger }) {
             if (!extensionHandled && !response.headersSent) extensionHandled = await scienceReportsRouter(request, response, url, requestId);
             if (!extensionHandled && !response.headersSent) extensionHandled = await directiveArchiveRouter(request, response, url, requestId);
             if (!extensionHandled && !response.headersSent) extensionHandled = await academicPerformanceRouter(request, response, url, requestId);
+            if (!extensionHandled && !response.headersSent) extensionHandled = await assistantRouter(request, response, url, requestId);
           }
           if (!preferencesHandled && !notificationHandled && !responsibilityHandled && !periodicCompletionHandled && !periodicHandled && !searchHandled && !manualPlansHandled && !planItemHandled && !planSourceRowsHandled && !plansHandled && !meetingsHandled && !documentReprocessHandled && !accessHandled && !extensionHandled && !response.headersSent) {
             const handled = await planFactRouter(request, response, url, requestId);
