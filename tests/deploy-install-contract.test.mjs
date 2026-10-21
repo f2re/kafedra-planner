@@ -21,6 +21,12 @@ test('transactional entrypoint serializes updates and can recover an interrupted
   assert.match(entrypoint, /health_request/u);
   assert.match(entrypoint, /trap on_unexpected_error ERR/u);
   assert.match(entrypoint, /SIGTERM во время обновления/u);
+  assert.match(entrypoint, /--allow-degraded/u);
+  assert.match(entrypoint, /--fix-packages/u);
+  assert.match(entrypoint, /apt-get install --reinstall -y acl attr bzip2/u);
+  assert.match(core, /--allow-degraded/u);
+  assert.match(core, /--fix-packages/u);
+  assert.match(core, /apt-get install --reinstall -y acl attr bzip2/u);
 });
 
 test('transactional entrypoint converts a legacy current directory only after verified service stop', () => {

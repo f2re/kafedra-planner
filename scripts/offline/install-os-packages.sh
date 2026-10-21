@@ -6,23 +6,10 @@ source "$SCRIPT_DIR/lib.sh"
 SAFE_DEGRADED_EXIT=20
 FATAL_TRANSACTION_EXIT=70
 FATAL_POSTCHECK_EXIT=71
-PACKAGE_ROOT="${1:-}"
-[[ -n "$PACKAGE_ROOT" ]] || die "Использование: install-os-packages.sh DIR [--check-only] [--mode auto|system|bundle] [--scope all|extract|ocr|office]"
-shift || true
 
-CHECK_ONLY=false
-MODE="${KAFEDRA_APT_MODE:-auto}"
-SCOPE=all
-while (($#)); do
-  case "$1" in
-    --check-only) CHECK_ONLY=true; shift ;;
-    --mode) MODE="${2:-}"; shift 2 ;;
-    --scope) SCOPE="${2:-}"; shift 2 ;;
-    --system-only) MODE=system; shift ;;
-    --offline-only|--bundle-only) MODE=bundle; shift ;;
-    -h|--help)
-      cat <<'HELP'
-Использование: install-os-packages.sh DIR [--check-only] [--mode auto|system|bundle] [--scope all|extract|ocr|office]
+show_help() {
+  cat <<'HELP'
+Использование: install-os-packages.sh DIR [--check-only] [--mode auto|system|bundle] [--scope all|extract|ocr|office] [--fix-packages]
 
 Режимы:
   auto    сначала штатный APT целевой ОС по именам недостающих пакетов, затем bundle fallback;
@@ -35,12 +22,45 @@ while (($#)); do
   ocr      pdftoppm, Tesseract и запрошенные rus/eng языки;
   office   LibreOffice и шрифты для офисного preview.
 
+Опции:
+  --fix-packages  автоматическая попытка устранения конфликтов версий пакетов ОС
+                  через apt-get install --reinstall конфликтующих пакетов.
+
+Устранение проблем с пакетами ОС (Astra Linux 1.7 / Debian):
+  Если APT сообщает о неудовлетворённых зависимостях из-за несовпадения версий
+  утилит и библиотек (например, acl, libacl1, perl, libc6):
+    sudo apt-get update
+    sudo apt-get install --reinstall -y acl attr bzip2 debconf-i18n debconf-utils libc6-dev libparsec-aud3 perl
+    (или комплексное обновление: sudo apt-get dist-upgrade -y)
+
 Target policy строго additive-only: APT не получает package=version, --fix-broken
 не используется, а любой plan с удалением, upgrade или downgrade уже
 установленного пакета отклоняется до изменения dpkg.
 HELP
-      exit 0
-      ;;
+  exit 0
+}
+
+if [[ "${1:-}" == "-h" || "${1:-}" == "--help" ]]; then
+  show_help
+fi
+
+PACKAGE_ROOT="${1:-}"
+[[ -n "$PACKAGE_ROOT" ]] || die "Использование: install-os-packages.sh DIR [--check-only] [--mode auto|system|bundle] [--scope all|extract|ocr|office] [--fix-packages]"
+shift || true
+
+CHECK_ONLY=false
+MODE="${KAFEDRA_APT_MODE:-auto}"
+SCOPE=all
+FIX_PACKAGES="${KAFEDRA_FIX_SYSTEM_PACKAGES:-false}"
+while (($#)); do
+  case "$1" in
+    --check-only) CHECK_ONLY=true; shift ;;
+    --mode) MODE="${2:-}"; shift 2 ;;
+    --scope) SCOPE="${2:-}"; shift 2 ;;
+    --system-only) MODE=system; shift ;;
+    --offline-only|--bundle-only) MODE=bundle; shift ;;
+    --fix-packages|--fix-system-packages|--repair-packages) FIX_PACKAGES=true; shift ;;
+    -h|--help) show_help ;;
     *) die "Неизвестный параметр: $1" ;;
   esac
 done
@@ -135,8 +155,34 @@ check_package_database() {
   if ! LC_ALL=C DEBIAN_FRONTEND=noninteractive apt-get check >"$log_file" 2>&1; then
     warn "APT целевой ОС уже имеет неудовлетворённые зависимости ($stage). Kafedra Planner не менял пакеты."
     tail -n 12 "$log_file" >&2 || true
+
+    local broken_pkgs
+    broken_pkgs="$(sed -n -E 's/^[[:space:]]*([a-z0-9][a-z0-9+.-]*)[[:space:]]*:[[:space:]]*(Depends|Зависит):.*/\1/p' "$log_file" | LC_ALL=C sort -u | tr '\n' ' ' | sed 's/[[:space:]]*$//')"
+    if [[ -z "$broken_pkgs" ]]; then
+      broken_pkgs="acl attr bzip2 debconf-i18n debconf-utils libc6-dev libparsec-aud3 perl"
+    fi
+
+    if [[ "$FIX_PACKAGES" == true && "${EUID:-$(id -u)}" -eq 0 ]]; then
+      info "Выполняю согласование пакетов ОС (--fix-packages): apt-get update && apt-get install --reinstall -y $broken_pkgs"
+      if DEBIAN_FRONTEND=noninteractive apt-get update >/dev/null 2>&1 && \
+         DEBIAN_FRONTEND=noninteractive apt-get install --reinstall -y $broken_pkgs >/dev/null 2>&1; then
+        if LC_ALL=C DEBIAN_FRONTEND=noninteractive apt-get check >/dev/null 2>&1; then
+          info "Конфликты зависимостей успешно устранены!"
+          return 0
+        fi
+      fi
+      warn "Автоматическое исправление пакетов не смогло устранить все зависимости."
+    fi
+
     warn "Автоматический apt --fix-broken намеренно запрещён"
-    warn "Подсказка: Проверьте состояние зависимостей через 'sudo apt-get check' и восстановите репозитории ОС"
+    warn "Подсказка по устранению конфликтов версий в Astra Linux / Debian:"
+    warn "1. Выполните команду для переустановки конфликтующих пакетов:"
+    warn "   sudo apt-get update && sudo apt-get install --reinstall -y $broken_pkgs"
+    warn "   (или комплексное обновление: sudo apt-get dist-upgrade -y)"
+    warn "2. Либо запустите установку с флагом автоисправления:"
+    warn "   sudo ./install.sh --fix-packages"
+    warn "3. Либо установите ядро приложения без системных OCR-пакетов:"
+    warn "   sudo ./install.sh --allow-degraded"
     return 1
   fi
   return 0

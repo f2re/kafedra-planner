@@ -65,6 +65,8 @@ repair_document_runtime() {
   LC_ALL=C apt-get check >/dev/null 2>&1 || {
     echo "✗ APT имеет неудовлетворённые зависимости сторонних пакетов; automatic --fix-broken запрещён." >&2
     LC_ALL=C apt-get check >&2 || true
+    echo "  Рекомендация по согласованию пакетов (Astra Linux 1.7 / Debian):" >&2
+    echo "    sudo apt-get update && sudo apt-get install --reinstall -y acl attr bzip2 debconf-i18n debconf-utils libc6-dev libparsec-aud3 perl" >&2
     return 3
   }
 

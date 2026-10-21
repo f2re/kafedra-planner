@@ -49,9 +49,15 @@ fi
 # KAFEDRA_DOCTOR_ALLOW_DEGRADED=true is reserved for an explicit administrator diagnostic, never for full-bundle activation.
 # After a repaired legacy installation the supported command is doctor.sh --repair; a new full bundle must pass strict checks here.
 ALLOW_DEGRADED=false
-if [[ "${KAFEDRA_INSTALL_ALLOW_DEGRADED:-false}" == true || "${1:-}" == "--allow-degraded" ]]; then
-  ALLOW_DEGRADED=true
-fi
+FIX_PACKAGES=false
+for opt in "$@"; do
+  case "$opt" in
+    --allow-degraded) ALLOW_DEGRADED=true ;;
+    --fix-packages|--fix-system-packages|--repair-packages) FIX_PACKAGES=true ;;
+  esac
+done
+if [[ "${KAFEDRA_INSTALL_ALLOW_DEGRADED:-false}" == true ]]; then ALLOW_DEGRADED=true; fi
+if [[ "${KAFEDRA_FIX_SYSTEM_PACKAGES:-false}" == true ]]; then FIX_PACKAGES=true; fi
 FULL_BUNDLE=false; PYTHON_SOURCE=""; DOCUMENT_CAPABILITIES_DEGRADED=false; OS_PACKAGE_CACHE_PATH=""
 if [[ "$IS_BUNDLE" == true && -f "$BUNDLE_ROOT/deployment.json" ]]; then
   FULL_BUNDLE=true; PYTHON_SOURCE="$BUNDLE_ROOT/runtime/python"
@@ -59,7 +65,11 @@ if [[ "$IS_BUNDLE" == true && -f "$BUNDLE_ROOT/deployment.json" ]]; then
   "$RUNTIME_SOURCE/bin/node" "$APP_SOURCE/scripts/offline/deployment-contract.mjs" verify --root "$BUNDLE_ROOT" >/dev/null
 
   PACKAGE_STATUS=0
-  "$APP_SOURCE/scripts/offline/install-os-packages.sh" "$BUNDLE_ROOT/os-packages" --scope all || PACKAGE_STATUS=$?
+  if [[ "$FIX_PACKAGES" == true ]]; then
+    "$APP_SOURCE/scripts/offline/install-os-packages.sh" "$BUNDLE_ROOT/os-packages" --scope all --fix-packages || PACKAGE_STATUS=$?
+  else
+    "$APP_SOURCE/scripts/offline/install-os-packages.sh" "$BUNDLE_ROOT/os-packages" --scope all || PACKAGE_STATUS=$?
+  fi
   if (( PACKAGE_STATUS >= 70 )); then
     echo "APT успел начать изменяющую транзакцию и завершился ошибкой (код $PACKAGE_STATUS). Установка остановлена; автоматический --fix-broken запрещён." >&2
     exit "$PACKAGE_STATUS"
@@ -69,7 +79,13 @@ if [[ "$IS_BUNDLE" == true && -f "$BUNDLE_ROOT/deployment.json" ]]; then
       echo "ВНИМАНИЕ: APT целевой ОС имеет неудовлетворённые зависимости. Продолжаем установку ядра приложения в автономном режиме без системных OCR/Office пакетов (KAFEDRA_INSTALL_ALLOW_DEGRADED=true)." >&2
     else
       echo "Полный bundle не может быть активирован: target APT не подтвердил безопасный additive-only план. Прежний current, данные, конфигурация и PIN не изменены." >&2
-      echo "Подсказка: Для установки ядра приложения несмотря на проблемы с APT целевой ОС запустите: sudo ./install.sh --allow-degraded" >&2
+      echo "Подсказка:" >&2
+      echo "  1) Для автоматического устранения конфликтов версий запустите: sudo ./install.sh --fix-packages" >&2
+      echo "  2) Или вручную согласуйте пакеты с версиями библиотек:" >&2
+      echo "     sudo apt-get update && sudo apt-get install --reinstall -y acl attr bzip2 debconf-i18n debconf-utils libc6-dev libparsec-aud3 perl" >&2
+      echo "     (или комплексное обновление: sudo apt-get dist-upgrade -y)" >&2
+      echo "  3) Для установки ядра приложения в автономном режиме без ожидания починки APT:" >&2
+      echo "     sudo ./install.sh --allow-degraded" >&2
       exit 20
     fi
   elif (( PACKAGE_STATUS != 0 )); then

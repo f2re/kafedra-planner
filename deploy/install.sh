@@ -1,6 +1,46 @@
 #!/usr/bin/env bash
 set -Eeuo pipefail
 
+show_help() {
+  cat <<'EOF_HELP'
+Использование: sudo ./install.sh [опции]
+
+Транзакционный установщик и менеджер обновлений Kafedra Planner.
+
+Опции:
+  -h, --help            Показать эту справку и выйти.
+  --allow-degraded      Установить ядро приложения, базу данных и веб-интерфейс
+                        даже при наличии проблемных/сломанных зависимостей в APT
+                        целевой ОС (системные OCR и LibreOffice будут отключены).
+  --fix-packages        Попытаться автоматически устранить конфликты версий
+                        системных пакетов ОС (Astra Linux / Debian) через переустановку
+                        конфликтующих пакетов из активных репозиториев.
+
+Устранение проблем с пакетами ОС (Astra Linux 1.7 / Debian):
+  Если установка останавливается с сообщением «APT целевой ОС уже имеет
+  неудовлетворённые зависимости» (из-за строгих связей libacl1/libc6/perl):
+    1) Согласовать пакеты с версиями установленных библиотек:
+       sudo apt-get update
+       sudo apt-get install --reinstall -y acl attr bzip2 debconf-i18n debconf-utils libc6-dev libparsec-aud3 perl
+       (или комплексное обновление: sudo apt-get dist-upgrade -y)
+    2) Либо запустить установщик с автоматическим исправлением:
+       sudo ./install.sh --fix-packages
+    3) Либо установить приложение в автономном режиме:
+       sudo ./install.sh --allow-degraded
+
+Переменные окружения:
+  KAFEDRA_INSTALL_ALLOW_DEGRADED=true   Аналог --allow-degraded
+  KAFEDRA_FIX_SYSTEM_PACKAGES=true      Аналог --fix-packages
+EOF_HELP
+  exit 0
+}
+
+for arg in "$@"; do
+  case "$arg" in
+    -h|--help) show_help ;;
+  esac
+done
+
 [[ "${EUID:-$(id -u)}" -eq 0 ]] || { echo "Установку необходимо запускать от root" >&2; exit 2; }
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd -P)"

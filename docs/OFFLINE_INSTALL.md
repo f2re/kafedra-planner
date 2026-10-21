@@ -72,7 +72,26 @@ apt-get check
 
 В `KAFEDRA_APT_MODE=bundle` установка выполняется только из локального package payload соответствующей ОС. Политика APT остаётся additive-only: без upgrade, downgrade и remove.
 
-Если package database target была конфликтной ещё до запуска (`dpkg --audit`/`apt-get check`), installer не пытается автоматически чинить чужое состояние системы. Он не запускает `apt --fix-broken` и не подменяет установленные vendor revisions.
+Если package database target была конфликтной ещё до запуска (`dpkg --audit`/`apt-get check`), installer не пытается автоматически чинить чужое состояние системы без явного указания. Он не запускает слепой `apt --fix-broken` и не подменяет установленные vendor revisions.
+
+При наличии неудовлетворённых зависимостей (например, из-за несовпадения версий библиотек и утилит `acl`, `attr`, `bzip2`, `debconf-i18n`, `libc6-dev`, `perl` в Astra Linux 1.7):
+
+1. **Ручное согласование пакетов** из репозиториев ОС:
+   ```bash
+   sudo apt-get update
+   sudo apt-get install --reinstall -y acl attr bzip2 debconf-i18n debconf-utils libc6-dev libparsec-aud3 perl
+   # или комплексное обновление:
+   sudo apt-get dist-upgrade -y
+   ```
+2. **Автоматическое согласование при установке**:
+   ```bash
+   sudo ./install.sh --fix-packages
+   ```
+3. **Автономная установка ядра приложения** (без ожидания починки системного APT):
+   ```bash
+   sudo ./install.sh --allow-degraded
+   ```
+   В этом режиме активируются ядро приложения, база данных SQLite, встроенные Node.js и Python runtime, веб-интерфейс и службы systemd.
 
 ## Строгая активация OCR/PDF/Office
 
