@@ -9,9 +9,9 @@
 
 Kafedra Planner is an offline-first daily work system for an academic department: calendar, annual plans, assignments, documents, meetings, reporting, research activity, grade sheets, and auditable evidence.
 
-> Current milestone: **`0.4.7`**, SQLite schema **31**. Core workflows do not require Internet access, Docker, an LLM, Docomator, or cloud services. The project remains a release candidate until the real Astra Linux/Debian installation, upgrade, restoration, and rollback acceptance in [TARGET_ACCEPTANCE.md](docs/TARGET_ACCEPTANCE.md) and issue #27 is complete.
+> Current milestone: **`0.4.8`**, SQLite schema **31**. Core workflows do not require Internet access, Docker, an LLM, Docomator, or cloud services. The project remains a release candidate until the real Astra Linux/Debian installation, upgrade, restoration, and rollback acceptance in [TARGET_ACCEPTANCE.md](docs/TARGET_ACCEPTANCE.md) and issue #27 is complete.
 
-Patch release `0.4.7` adds topical retrieval, bounded spelling fallback, related queries and optional background assistance from a configured local LLM. Query expansion can find actual sources outside the initial result; quotations and access are checked while ordinary search remains independent of generation. Automatic filling of official reports is not included. Separate Debian 12, Astra Linux 1.7 and 1.8 bundles with their OS-specific OCR/PDF/Office dependencies from `0.4.6` are retained.
+Patch release `0.4.8` adds the Assistant tool (table extraction, archive search, Calc/Excel formulas, gap and error repair), live LLM connection checks and in-browser settings, and offline bundle build fixes for Astra Linux.
 
 **[Download an offline bundle](https://github.com/f2re/kafedra-planner/releases)** · **[Install guide](docs/GITHUB_RELEASES.md)** · **[Security policy](SECURITY.md)** · **[Russian documentation](README.md#эксплуатация-и-документация)**
 
