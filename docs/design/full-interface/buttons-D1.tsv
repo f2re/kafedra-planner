@@ -13,20 +13,26 @@ UI-39d14ae46c	public/app.js:549:264	renderTemplateFields / callback@549	Удал
 UI-c62f08d645	public/app.js:625:258	loadReview / callback@625	Готово	C01	запланировано
 UI-6eb44e30dd	public/app.js:642:406	renderNotifications / callback@642	Прочитано	C01	запланировано
 UI-b63867e1cf	public/app.js:642:548	renderNotifications / callback@642	Скрыть	C01	запланировано
-UI-33d70eb6c6	public/assistant-sheet.js:94:9	ensureElements	Закрыть	C01	запланировано
-UI-7b3ca80d83	public/assistant-sheet.js:99:11	ensureElements	Анализ текста	C01	запланировано
-UI-68d5fc546e	public/assistant-sheet.js:100:11	ensureElements	Поиск в архиве	C02	запланировано
-UI-003966c9c7	public/assistant-sheet.js:101:11	ensureElements	Формулы Calc / Excel	C01	запланировано
-UI-b9a7d8c8c9	public/assistant-sheet.js:102:11	ensureElements	История	C01	запланировано
-UI-968e477d5e	public/assistant-sheet.js:119:11	ensureElements	Очистить	C01	запланировано
-UI-3439e33cca	public/assistant-sheet.js:120:11	ensureElements	Отмена	C01	запланировано
-UI-75bdce25af	public/assistant-sheet.js:121:11	ensureElements	Обработать	C01	запланировано
-UI-ce19b20531	public/assistant-sheet.js:214:20	renderPresets / callback@213	динамическая подпись	C01	запланировано
-UI-edb446464f	public/assistant-sheet.js:403:21	renderTableResult	📋 Скопировать в Excel / Calc	C01	запланировано
-UI-5489e46b5e	public/assistant-sheet.js:409:23	renderTableResult	+ Строка	C01	запланировано
-UI-53eae0f329	public/assistant-sheet.js:468:20	createTableRow	✕	C02	запланировано
-UI-225e3faeea	public/assistant-sheet.js:530:21	renderFormulaResult	📋 Копировать	C01	запланировано
-UI-cfc1db3904	public/assistant-sheet.js:611:7	renderHistoryView	Очистить историю	C01	запланировано
+UI-66e1a67b3b	public/assistant-sheet.js:99:11	ensureElements	Проверка...	C01	запланировано
+UI-760fefadcd	public/assistant-sheet.js:102:11	ensureElements	Настройки LLM	C01	запланировано
+UI-92cefd8ad7	public/assistant-sheet.js:103:11	ensureElements	Закрыть	C01	запланировано
+UI-c159274299	public/assistant-sheet.js:130:11	ensureElements	Проверить связь	C01	запланировано
+UI-9be49e1d5b	public/assistant-sheet.js:131:11	ensureElements	Сохранить	C01	запланировано
+UI-e2fe16ae25	public/assistant-sheet.js:138:11	ensureElements	Анализ текста	C01	запланировано
+UI-086e218016	public/assistant-sheet.js:139:11	ensureElements	Пропуски и ошибки	C01	запланировано
+UI-cf0c65de53	public/assistant-sheet.js:140:11	ensureElements	Поиск в архиве	C02	запланировано
+UI-f7bb5dcbd9	public/assistant-sheet.js:141:11	ensureElements	Формулы Calc / Excel	C01	запланировано
+UI-19f3731177	public/assistant-sheet.js:142:11	ensureElements	История	C01	запланировано
+UI-377324bc77	public/assistant-sheet.js:159:11	ensureElements	Очистить	C01	запланировано
+UI-6e88dfaaea	public/assistant-sheet.js:160:11	ensureElements	Отмена	C01	запланировано
+UI-2dc0866689	public/assistant-sheet.js:161:11	ensureElements	Обработать	C01	запланировано
+UI-96f0c59565	public/assistant-sheet.js:358:20	renderPresets / callback@357	динамическая подпись	C01	запланировано
+UI-8dd3a41153	public/assistant-sheet.js:614:25	renderGapRepairResult / callback@563	📋 Скопировать	C01	запланировано
+UI-c558672146	public/assistant-sheet.js:650:21	renderTableResult	📋 Скопировать в Excel / Calc	C01	запланировано
+UI-bdf5bd73fd	public/assistant-sheet.js:656:23	renderTableResult	+ Строка	C01	запланировано
+UI-7d513437ac	public/assistant-sheet.js:744:20	createTableRow	✕	C01	запланировано
+UI-e9bfc593df	public/assistant-sheet.js:774:21	renderFormulaResult	📋 Копировать	C01	запланировано
+UI-49d95e1ac5	public/assistant-sheet.js:882:22	renderHistoryView	Очистить историю	C01	запланировано
 UI-6ba70a3f7b	public/calendar-start-settings.js:66:7	ensureDialog	Закрыть	C01	запланировано
 UI-e132b40aed	public/calendar-start-settings.js:81:9	ensureDialog	Закрыть	C01	запланировано
 UI-dee1a42f69	public/calendar-start-settings.js:82:9	ensureDialog	Сохранить	C01	запланировано

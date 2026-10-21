@@ -18,8 +18,16 @@ const REQUIREMENTS = Object.freeze([
   { id: 'nginx', names: ['nginx'], required: false, capability: 'reverse_proxy', label: 'рекомендуемый локальный reverse proxy' }
 ]);
 
+function searchDirectories(pathEnv) {
+  const dirs = String(pathEnv || '').split(delimiter).filter(Boolean);
+  for (const sbin of ['/usr/local/sbin', '/usr/sbin', '/sbin']) {
+    if (!dirs.includes(sbin)) dirs.push(sbin);
+  }
+  return dirs;
+}
+
 function executablePath(name, pathEnv) {
-  for (const directory of String(pathEnv || '').split(delimiter).filter(Boolean)) {
+  for (const directory of searchDirectories(pathEnv)) {
     const candidate = join(directory, name);
     try {
       accessSync(candidate, constants.X_OK);

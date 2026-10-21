@@ -10,6 +10,11 @@ const PRESETS = {
     { label: '📚 Статьи и публикации', text: '1. Иванов И.И. Анализ данных в климатологии // Вестник науки. 2026. № 2. С. 45-52.\n2. Петров В.В., Сидоров А.А. Методы оценки влажности // Экологический мониторинг. 2026. Т. 14. С. 10-18.' },
     { label: '👥 Упоминания и роли', text: 'В заседании участвовали: зав. кафедрой Иванов И.И. (председатель), доц. Смирнова Е.А. (секретарь), проф. Кузнецов Д.В., аспирант Васильев А.С.' }
   ],
+  'gap-repair': [
+    { label: '🏛️ Заседание: пропуски дат и повестки', text: 'Заседание кафедры вычислительной техники.\nПрисутствовали: Иванов, Петров, Сидоров.\nПовестка дня:\n1. О подготовке к зимней сессии. Докладчик зав. кафедрой.\n2. Разное. Обсуждение закупки оборудования.' },
+    { label: '📝 Протокол: проверка докладчиков и сроков', text: 'По вопросу 1 постановили: завершить приём задолженностей до конца месяца. Ответственным назначить зам. заведующего.' },
+    { label: '⚠️ Анализ ошибки или неполного фрагмента', text: 'Ошибка при сохранении документа: отсутствуют обязательные реквизиты распоряжения: номер и дата издания документа.' }
+  ],
   'formula-calc': [
     { label: '🔍 ВПР по ФИО', text: 'Как написать формулу ВПР для подтягивания должности преподавателя по его ФИО из соседней таблицы на листе Справочник' },
     { label: '📊 Подсчёт часов (СУММЕСЛИМН)', text: 'Напиши формулу СУММЕСЛИМН для подсчёта суммы учебных часов преподавателя Иванова за весенний семестр' },
@@ -50,6 +55,8 @@ export function createAssistantSheet() {
   let backdropEl;
   let sheetEl;
   let statusBadgeEl;
+  let settingsPanelEl;
+  let settingsToggleBtn;
   let modeButtons;
   let presetsContainerEl;
   let textareaEl;
@@ -89,14 +96,47 @@ export function createAssistantSheet() {
       <header class="assistant-header">
         <div class="assistant-title-group">
           <h2 class="assistant-title">✨ Ассистент кафедры</h2>
-          <span id="assistant-status-badge" class="assistant-status-badge">Проверка...</span>
+          <button id="assistant-status-badge" class="assistant-status-badge" type="button" title="Проверить статус / Настройки LLM">Проверка...</button>
         </div>
-        <button id="assistant-close-btn" class="icon-button" type="button" aria-label="Закрыть">×</button>
+        <div class="assistant-header-actions">
+          <button id="assistant-settings-toggle" class="icon-button" type="button" aria-label="Настройки LLM" title="Настройки LLM-сервера">⚙</button>
+          <button id="assistant-close-btn" class="icon-button" type="button" aria-label="Закрыть">×</button>
+        </div>
       </header>
+
+      <div id="assistant-settings-panel" class="assistant-settings-panel hidden" role="region" aria-label="Настройки LLM сервера">
+        <div class="assistant-settings-header">
+          <span>Настройки подключения к LLM</span>
+          <span id="assistant-settings-status" class="assistant-settings-status"></span>
+        </div>
+        <div class="assistant-settings-field">
+          <label class="assistant-settings-checkbox-label">
+            <input type="checkbox" id="assistant-setting-enabled"> Включить ИИ-ассистент
+          </label>
+        </div>
+        <div class="assistant-settings-field">
+          <label for="assistant-setting-endpoint">Адрес сервера (URL):</label>
+          <input type="text" id="assistant-setting-endpoint" placeholder="http://remote-server:8000/v1">
+        </div>
+        <div class="assistant-settings-field">
+          <label for="assistant-setting-model">Модель:</label>
+          <input type="text" id="assistant-setting-model" placeholder="local-model">
+        </div>
+        <div class="assistant-settings-field">
+          <label for="assistant-setting-apikey">API-ключ (необязательно):</label>
+          <input type="password" id="assistant-setting-apikey" placeholder="Токен доступа">
+        </div>
+        <div class="assistant-settings-actions">
+          <button id="assistant-settings-test-btn" class="secondary-button" type="button">Проверить связь</button>
+          <button id="assistant-settings-save-btn" class="primary-button" type="button">Сохранить</button>
+        </div>
+        <div id="assistant-settings-feedback" class="assistant-settings-feedback hidden"></div>
+      </div>
 
       <div class="assistant-body">
         <nav class="assistant-modes" role="tablist" aria-label="Режимы ассистента">
           <button class="assistant-mode-tab active" type="button" data-mode="table-extract">Анализ текста</button>
+          <button class="assistant-mode-tab" type="button" data-mode="gap-repair">Пропуски и ошибки</button>
           <button class="assistant-mode-tab" type="button" data-mode="archive-query">Поиск в архиве</button>
           <button class="assistant-mode-tab" type="button" data-mode="formula-calc">Формулы Calc / Excel</button>
           <button class="assistant-mode-tab" type="button" data-mode="history">История</button>
@@ -128,6 +168,8 @@ export function createAssistantSheet() {
     document.body.append(sheetEl);
 
     statusBadgeEl = sheetEl.querySelector('#assistant-status-badge');
+    settingsPanelEl = sheetEl.querySelector('#assistant-settings-panel');
+    settingsToggleBtn = sheetEl.querySelector('#assistant-settings-toggle');
     modeButtons = sheetEl.querySelectorAll('.assistant-mode-tab');
     presetsContainerEl = sheetEl.querySelector('#assistant-presets');
     textareaEl = sheetEl.querySelector('#assistant-input');
@@ -140,6 +182,14 @@ export function createAssistantSheet() {
     // Event listeners
     backdropEl.addEventListener('click', close);
     sheetEl.querySelector('#assistant-close-btn').addEventListener('click', close);
+
+    statusBadgeEl.addEventListener('click', toggleSettings);
+    settingsToggleBtn.addEventListener('click', toggleSettings);
+
+    const testBtn = sheetEl.querySelector('#assistant-settings-test-btn');
+    const saveBtn = sheetEl.querySelector('#assistant-settings-save-btn');
+    testBtn.addEventListener('click', handleTestConnection);
+    saveBtn.addEventListener('click', handleSaveSettings);
 
     modeButtons.forEach((btn) => {
       btn.addEventListener('click', () => {
@@ -159,22 +209,111 @@ export function createAssistantSheet() {
       }
     });
 
-    processBtn.addEventListener('click', handleProcess);
-    cancelBtn.addEventListener('click', handleCancel);
     clearBtn.addEventListener('click', handleClear);
+    cancelBtn.addEventListener('click', handleCancel);
+    processBtn.addEventListener('click', handleProcess);
 
-    document.addEventListener('keydown', (e) => {
-      if (e.key === 'Escape' && !sheetEl.classList.contains('hidden')) {
-        close();
-      } else if (e.altKey && (e.key === 'a' || e.key === 'A' || e.key === 'ф' || e.key === 'Ф')) {
+    // Global keyboard listener for Alt+A
+    window.addEventListener('keydown', (e) => {
+      if (e.altKey && (e.code === 'KeyA' || e.key === 'a' || e.key === 'ф' || e.key === 'Ф')) {
         e.preventDefault();
         toggle();
       }
+      if (e.key === 'Escape' && isOpen()) {
+        e.preventDefault();
+        close();
+      }
     });
+  }
 
-    renderPresets();
-    restoreDraft();
-    checkStatus();
+  function toggleSettings() {
+    ensureElements();
+    const isHidden = settingsPanelEl.classList.contains('hidden');
+    settingsPanelEl.classList.toggle('hidden', !isHidden);
+    if (isHidden) {
+      loadSettingsToForm();
+    }
+  }
+
+  async function loadSettingsToForm() {
+    try {
+      const resp = await fetch('/api/assistant/status');
+      if (resp.ok) {
+        const data = await resp.json();
+        sheetEl.querySelector('#assistant-setting-enabled').checked = Boolean(data.enabled);
+        sheetEl.querySelector('#assistant-setting-endpoint').value = data.endpoint || '';
+        sheetEl.querySelector('#assistant-setting-model').value = data.model || '';
+      }
+    } catch {}
+  }
+
+  async function handleTestConnection() {
+    ensureElements();
+    const feedback = sheetEl.querySelector('#assistant-settings-feedback');
+    const endpoint = sheetEl.querySelector('#assistant-setting-endpoint').value.trim();
+    const model = sheetEl.querySelector('#assistant-setting-model').value.trim();
+    const apiKey = sheetEl.querySelector('#assistant-setting-apikey').value.trim();
+
+    feedback.className = 'assistant-settings-feedback';
+    feedback.textContent = 'Проверка соединения...';
+    feedback.classList.remove('hidden');
+
+    try {
+      const resp = await fetch('/api/assistant/test-connection', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ endpoint, model, apiKey })
+      });
+      const data = await resp.json();
+      if (data.ok) {
+        feedback.className = 'assistant-settings-feedback success';
+        const modelsCount = (data.models || []).length;
+        feedback.textContent = `✓ Соединение успешно (${data.latencyMs} мс). Доступно моделей: ${modelsCount}.`;
+      } else {
+        feedback.className = 'assistant-settings-feedback error';
+        feedback.textContent = `✗ Сервер недоступен: ${data.reason || data.status}`;
+      }
+    } catch (e) {
+      feedback.className = 'assistant-settings-feedback error';
+      feedback.textContent = `✗ Ошибка запроса: ${e.message}`;
+    }
+  }
+
+  async function handleSaveSettings() {
+    ensureElements();
+    const feedback = sheetEl.querySelector('#assistant-settings-feedback');
+    const enabled = sheetEl.querySelector('#assistant-setting-enabled').checked;
+    const endpoint = sheetEl.querySelector('#assistant-setting-endpoint').value.trim();
+    const model = sheetEl.querySelector('#assistant-setting-model').value.trim();
+    const apiKey = sheetEl.querySelector('#assistant-setting-apikey').value.trim();
+
+    feedback.className = 'assistant-settings-feedback';
+    feedback.textContent = 'Сохранение...';
+    feedback.classList.remove('hidden');
+
+    try {
+      const resp = await fetch('/api/assistant/config', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ enabled, endpoint, model, apiKey: apiKey || undefined })
+      });
+      const data = await resp.json();
+      if (data.ok) {
+        feedback.className = 'assistant-settings-feedback success';
+        feedback.textContent = '✓ Настройки сохранены';
+        checkStatus();
+        setTimeout(() => {
+          feedback.classList.add('hidden');
+          settingsPanelEl.classList.add('hidden');
+        }, 1500);
+      } else {
+        feedback.className = 'assistant-settings-feedback error';
+        feedback.textContent = `✗ Ошибка сохранения: ${data.error || 'неизвестная ошибка'}`;
+      }
+    } catch (e) {
+      feedback.className = 'assistant-settings-feedback error';
+      feedback.textContent = `✗ Ошибка сети: ${e.message}`;
+    }
   }
 
   function setMode(mode) {
@@ -185,21 +324,26 @@ export function createAssistantSheet() {
 
     const isHistory = mode === 'history';
     sheetEl.querySelector('#assistant-presets-wrap').classList.toggle('hidden', isHistory);
-    textareaEl.closest('.assistant-input-card').classList.toggle('hidden', isHistory);
-    processBtn.classList.toggle('hidden', isHistory);
-    clearBtn.classList.toggle('hidden', isHistory);
+    sheetEl.querySelector('.assistant-input-card').classList.toggle('hidden', isHistory);
+    sheetEl.querySelector('.assistant-actions').classList.toggle('hidden', isHistory);
 
     if (isHistory) {
       renderHistoryView();
     } else {
-      renderPresets();
       updatePlaceholder();
+      renderPresets();
+      restoreDraft();
+      resultsContainerEl.classList.add('hidden');
+      resultsContainerEl.innerHTML = '';
+      textareaEl.focus();
     }
   }
 
   function updatePlaceholder() {
     if (currentMode === 'table-extract') {
       textareaEl.placeholder = 'Вставьте неформатированный текст (протокол, список статей, поручения)...';
+    } else if (currentMode === 'gap-repair') {
+      textareaEl.placeholder = 'Вставьте фрагмент заседания, протокол или текст с ошибкой для анализа пропусков дат и реквизитов...';
     } else if (currentMode === 'archive-query') {
       textareaEl.placeholder = 'Например: В каких заседаниях обсуждался вопрос о влажности почв?';
     } else if (currentMode === 'formula-calc') {
@@ -251,17 +395,26 @@ export function createAssistantSheet() {
       const resp = await fetch('/api/assistant/status');
       if (resp.ok) {
         const data = await resp.json();
-        if (data.enabled) {
-          statusBadgeEl.textContent = 'Готов (LLM)';
+        if (data.enabled && data.status === 'ready') {
+          const lat = data.latencyMs ? ` (${data.latencyMs} мс)` : '';
+          statusBadgeEl.textContent = `● В сети${lat}`;
           statusBadgeEl.className = 'assistant-status-badge ready';
+          statusBadgeEl.title = `Сервер: ${data.endpoint || 'локальный'}\nМодель: ${data.model}`;
+        } else if (data.enabled && data.status === 'unavailable') {
+          statusBadgeEl.textContent = '● Недоступен';
+          statusBadgeEl.className = 'assistant-status-badge unavailable';
+          statusBadgeEl.title = 'Сервер модели не отвечает. Нажмите для настройки адреса.';
+        } else if (data.enabled && data.status === 'timeout') {
+          statusBadgeEl.textContent = '● Таймаут';
+          statusBadgeEl.className = 'assistant-status-badge timeout';
         } else {
-          statusBadgeEl.textContent = 'Офлайн (LLM выключен)';
+          statusBadgeEl.textContent = '○ Выключен';
           statusBadgeEl.className = 'assistant-status-badge offline';
-          statusBadgeEl.title = 'Включите KAFEDRA_LLM_ENABLED=true в конфигурации для активации';
+          statusBadgeEl.title = 'ИИ-ассистент отключен. Нажмите для настройки.';
         }
       }
     } catch {
-      statusBadgeEl.textContent = 'Офлайн';
+      statusBadgeEl.textContent = '○ Офлайн';
       statusBadgeEl.className = 'assistant-status-badge offline';
     }
   }
@@ -307,8 +460,8 @@ export function createAssistantSheet() {
         headers: { 'content-type': 'application/json' },
         body: JSON.stringify({
           task: currentMode,
-          text: currentMode === 'table-extract' ? text : undefined,
-          query: currentMode !== 'table-extract' ? text : undefined
+          text: (currentMode === 'table-extract' || currentMode === 'gap-repair') ? text : undefined,
+          query: (currentMode !== 'table-extract' && currentMode !== 'gap-repair') ? text : undefined
         }),
         signal: abortController.signal
       });
@@ -328,7 +481,7 @@ export function createAssistantSheet() {
         resultsContainerEl.innerHTML = `
           <div class="empty-state">
             <strong>LLM выключен</strong>
-            <p>Для работы ассистента включите <code>KAFEDRA_LLM_ENABLED=true</code> в конфигурации сервера.</p>
+            <p>Включите ассистент в настройках (⚙ в шапке панели) или задайте <code>KAFEDRA_LLM_ENABLED=true</code>.</p>
           </div>
         `;
         return;
@@ -378,47 +531,145 @@ export function createAssistantSheet() {
 
   function renderResult(result) {
     resultsContainerEl.innerHTML = '';
-    resultsContainerEl.classList.remove('hidden');
-
     if (result.type === 'table') {
       renderTableResult(result);
+    } else if (result.type === 'gap-repair') {
+      renderGapRepairResult(result);
     } else if (result.type === 'formula') {
       renderFormulaResult(result);
     } else if (result.type === 'archive-matches') {
-      renderArchiveResult(result);
+      renderArchiveMatches(result);
     }
   }
 
+  function renderGapRepairResult(result) {
+    const wrap = document.createElement('div');
+    wrap.className = 'assistant-gap-list';
+
+    if (result.summary) {
+      const summaryCard = document.createElement('div');
+      summaryCard.className = 'assistant-summary-card';
+      summaryCard.textContent = result.summary;
+      wrap.append(summaryCard);
+    }
+
+    const items = result.items || [];
+    if (items.length === 0) {
+      const emptyCard = document.createElement('div');
+      emptyCard.className = 'empty-state';
+      emptyCard.innerHTML = '<p>Пропусков и ошибок не обнаружено. Все реквизиты заполнены.</p>';
+      wrap.append(emptyCard);
+    } else {
+      items.forEach((item) => {
+        const card = document.createElement('div');
+        card.className = 'assistant-gap-card';
+
+        const head = document.createElement('div');
+        head.className = 'assistant-gap-head';
+
+        const title = document.createElement('span');
+        title.className = 'assistant-gap-field';
+        title.textContent = item.field;
+
+        const badge = document.createElement('span');
+        badge.className = `assistant-gap-status ${item.status}`;
+        badge.textContent = item.status === 'missing' ? 'Пропущен' : item.status === 'invalid' ? 'Ошибка' : 'Исправлен';
+
+        head.append(title, badge);
+        card.append(head);
+
+        const valWrap = document.createElement('div');
+        valWrap.className = 'assistant-gap-values';
+
+        if (item.currentValue) {
+          const cur = document.createElement('span');
+          cur.className = 'assistant-gap-current';
+          cur.textContent = `Было: ${item.currentValue}`;
+          valWrap.append(cur);
+        }
+
+        const sug = document.createElement('span');
+        sug.className = 'assistant-gap-suggested';
+        sug.textContent = `Предлагается: ${item.suggestedValue}`;
+        valWrap.append(sug);
+        card.append(valWrap);
+
+        if (item.reason) {
+          const reason = document.createElement('div');
+          reason.className = 'assistant-gap-reason';
+          reason.textContent = item.reason;
+          card.append(reason);
+        }
+
+        if (item.sourceQuote) {
+          const quote = document.createElement('blockquote');
+          quote.className = `assistant-gap-quote ${item.quoteVerified ? 'verified' : ''}`;
+          quote.textContent = item.sourceQuote;
+          card.append(quote);
+        }
+
+        const actions = document.createElement('div');
+        actions.className = 'assistant-gap-actions';
+
+        const copyBtn = document.createElement('button');
+        copyBtn.type = 'button';
+        copyBtn.className = 'quiet-button';
+        copyBtn.textContent = '📋 Скопировать';
+        copyBtn.addEventListener('click', async () => {
+          try {
+            await navigator.clipboard.writeText(item.suggestedValue);
+            showToast(`Скопировано: ${item.suggestedValue}`);
+          } catch {
+            showToast('Не удалось скопировать');
+          }
+        });
+        actions.append(copyBtn);
+        card.append(actions);
+
+        wrap.append(card);
+      });
+    }
+
+    if (result.actionableAdvice) {
+      const adviceCard = document.createElement('div');
+      adviceCard.className = 'assistant-advice-card';
+      adviceCard.innerHTML = `<strong>Рекомендация:</strong> ${result.actionableAdvice}`;
+      wrap.append(adviceCard);
+    }
+
+    resultsContainerEl.append(wrap);
+  }
+
   function renderTableResult(tableData) {
-    const header = document.createElement('div');
-    header.className = 'assistant-result-header';
+    const headerRow = document.createElement('div');
+    headerRow.className = 'assistant-result-header';
 
-    const title = document.createElement('h3');
-    title.className = 'assistant-result-title';
-    title.textContent = `${tableData.title || 'Таблица'} (${tableData.rows?.length || 0} строк)`;
-
-    const tools = document.createElement('div');
-    tools.className = 'assistant-export-tools';
+    const titleEl = document.createElement('strong');
+    titleEl.textContent = tableData.title || 'Извлечённая таблица';
 
     const copyBtn = document.createElement('button');
-    copyBtn.className = 'secondary-button';
     copyBtn.type = 'button';
+    copyBtn.className = 'secondary-button';
     copyBtn.textContent = '📋 Скопировать в Excel / Calc';
-    copyBtn.title = 'Копирует таблицу в буфер для вставки в Calc или Excel по ячейкам';
+    copyBtn.addEventListener('click', () => copyTableToClipboard(tableEl));
 
     const addRowBtn = document.createElement('button');
-    addRowBtn.className = 'quiet-button';
     addRowBtn.type = 'button';
+    addRowBtn.className = 'quiet-button';
     addRowBtn.textContent = '+ Строка';
+    addRowBtn.addEventListener('click', () => {
+      const tr = createTableRow(tableData.columns, {});
+      tableEl.querySelector('tbody').append(tr);
+    });
 
-    tools.append(copyBtn, addRowBtn);
-    header.append(title, tools);
+    headerRow.append(titleEl, addRowBtn, copyBtn);
+    resultsContainerEl.append(headerRow);
 
-    const wrap = document.createElement('div');
-    wrap.className = 'assistant-table-wrap';
+    const tableWrap = document.createElement('div');
+    tableWrap.className = 'assistant-table-wrap';
 
-    const table = document.createElement('table');
-    table.className = 'assistant-table';
+    const tableEl = document.createElement('table');
+    tableEl.className = 'assistant-table';
 
     const thead = document.createElement('thead');
     const trHead = document.createElement('tr');
@@ -428,71 +679,37 @@ export function createAssistantSheet() {
       th.dataset.colId = col.id;
       trHead.append(th);
     });
-    const thAction = document.createElement('th');
-    thAction.className = 'assistant-cell-delete';
-    trHead.append(thAction);
+    const thAct = document.createElement('th');
+    thAct.style.width = '32px';
+    trHead.append(thAct);
     thead.append(trHead);
-    table.append(thead);
+    tableEl.append(thead);
 
     const tbody = document.createElement('tbody');
     (tableData.rows || []).forEach((row) => {
-      const tr = createTableRow(tableData.columns, row);
-      tbody.append(tr);
+      tbody.append(createTableRow(tableData.columns, row));
     });
-    table.append(tbody);
-    wrap.append(table);
-
-    addRowBtn.addEventListener('click', () => {
-      const emptyRow = {};
-      tableData.columns.forEach((c) => { emptyRow[c.id] = ''; });
-      tbody.append(createTableRow(tableData.columns, emptyRow));
-    });
-
-    copyBtn.addEventListener('click', () => {
-      copyTableToClipboard(table);
-    });
-
-    resultsContainerEl.append(header, wrap);
+    tableEl.append(tbody);
+    tableWrap.append(tableEl);
+    resultsContainerEl.append(tableWrap);
   }
 
-  function createTableRow(columns, rowData) {
-    const tr = document.createElement('tr');
-    columns.forEach((col) => {
-      const td = document.createElement('td');
-      td.contentEditable = 'true';
-      td.textContent = rowData[col.id] || '';
-      tr.append(td);
-    });
-    const tdDel = document.createElement('td');
-    tdDel.className = 'assistant-cell-delete';
-    const delBtn = document.createElement('button');
-    delBtn.className = 'assistant-row-delete-btn';
-    delBtn.textContent = '✕';
-    delBtn.title = 'Удалить строку';
-    delBtn.addEventListener('click', () => tr.remove());
-    tdDel.append(delBtn);
-    tr.append(tdDel);
-    return tr;
-  }
-
-  async function copyTableToClipboard(table) {
-    const rows = [...table.querySelectorAll('tr')];
-    if (!rows.length) return;
-
+  async function copyTableToClipboard(tableEl) {
+    const rows = Array.from(tableEl.querySelectorAll('tr'));
     const tsvLines = [];
     const htmlRows = [];
 
     rows.forEach((tr) => {
-      const cells = [...tr.querySelectorAll('th:not(.assistant-cell-delete), td:not(.assistant-cell-delete)')];
-      const textValues = cells.map((c) => c.innerText.replace(/[\t\r\n]/gu, ' ').trim());
-      tsvLines.push(textValues.join('\t'));
-
-      const htmlCells = cells.map((c) => `<${c.tagName.toLowerCase()}>${c.innerText.trim()}</${c.tagName.toLowerCase()}>`).join('');
-      htmlRows.push(`<tr>${htmlCells}</tr>`);
+      const cells = Array.from(tr.querySelectorAll('th, td'));
+      const textCells = cells.slice(0, -1).map((c) => c.innerText.trim().replace(/\t/g, ' '));
+      if (textCells.length) {
+        tsvLines.push(textCells.join('\t'));
+        htmlRows.push(`<tr>${textCells.map((c) => `<td>${c}</td>`).join('')}</tr>`);
+      }
     });
 
     const tsv = tsvLines.join('\n');
-    const html = `<table border="1">${htmlRows.join('')}</table>`;
+    const html = `<table>${htmlRows.join('')}</table>`;
 
     try {
       if (navigator.clipboard?.write && window.ClipboardItem) {
@@ -503,151 +720,219 @@ export function createAssistantSheet() {
         try {
           itemData['text/tab-separated-values'] = new Blob([tsv], { type: 'text/tab-separated-values' });
         } catch {}
-        await navigator.clipboard.write([
-          new ClipboardItem(itemData)
-        ]);
+
+        await navigator.clipboard.write([new ClipboardItem(itemData)]);
       } else {
         await navigator.clipboard.writeText(tsv);
       }
-      showToast('✓ Таблица скопирована для Excel/Calc');
+      showToast('Таблица скопирована для вставки в Calc / Excel');
     } catch {
       showToast('Не удалось скопировать таблицу');
     }
   }
 
-  function renderFormulaResult(formulaData) {
-    const card = document.createElement('div');
-    card.className = 'assistant-formula-card';
+  function createTableRow(columns, rowData) {
+    const tr = document.createElement('tr');
+    columns.forEach((col) => {
+      const td = document.createElement('td');
+      td.contentEditable = 'true';
+      td.textContent = rowData[col.id] || '';
+      tr.append(td);
+    });
 
-    const title = document.createElement('h3');
-    title.className = 'assistant-result-title';
-    title.textContent = 'Формула для LibreOffice Calc / Excel:';
+    const tdAct = document.createElement('td');
+    const delBtn = document.createElement('button');
+    delBtn.type = 'button';
+    delBtn.className = 'icon-button';
+    delBtn.textContent = '✕';
+    delBtn.title = 'Удалить строку';
+    delBtn.style.padding = '2px 6px';
+    delBtn.addEventListener('click', () => tr.remove());
+    tdAct.append(delBtn);
+    tr.append(tdAct);
+
+    return tr;
+  }
+
+  function renderFormulaResult(formulaData) {
+    const wrap = document.createElement('div');
+    wrap.className = 'assistant-formula-card';
+
+    if (formulaData.description) {
+      const desc = document.createElement('p');
+      desc.textContent = formulaData.description;
+      wrap.append(desc);
+    }
 
     const box = document.createElement('div');
     box.className = 'assistant-formula-box';
-    const code = document.createElement('span');
+
+    const code = document.createElement('code');
+    code.className = 'assistant-formula-code';
     code.textContent = formulaData.formula;
+
     const copyBtn = document.createElement('button');
+    copyBtn.type = 'button';
     copyBtn.className = 'secondary-button';
-    copyBtn.style.padding = '4px 8px';
-    copyBtn.style.fontSize = '12px';
     copyBtn.textContent = '📋 Копировать';
     copyBtn.addEventListener('click', async () => {
-      await navigator.clipboard.writeText(formulaData.formula);
-      showToast('✓ Формула скопирована');
+      try {
+        await navigator.clipboard.writeText(formulaData.formula);
+        showToast('Формула скопирована в буфер');
+      } catch {
+        showToast('Не удалось скопировать формулу');
+      }
     });
+
     box.append(code, copyBtn);
+    wrap.append(box);
 
-    const desc = document.createElement('p');
-    desc.style.fontSize = '13px';
-    desc.style.margin = '4px 0';
-    desc.textContent = formulaData.description;
+    if (formulaData.steps && formulaData.steps.length) {
+      const stepsHeader = document.createElement('strong');
+      stepsHeader.textContent = 'Как использовать:';
+      const ol = document.createElement('ol');
+      ol.className = 'assistant-formula-steps';
+      formulaData.steps.forEach((step) => {
+        const li = document.createElement('li');
+        li.textContent = step;
+        ol.append(li);
+      });
+      wrap.append(stepsHeader, ol);
+    }
 
-    const stepsList = document.createElement('ol');
-    stepsList.className = 'assistant-formula-steps';
-    (formulaData.steps || []).forEach((st) => {
-      const li = document.createElement('li');
-      li.textContent = st;
-      stepsList.append(li);
-    });
+    if (formulaData.example) {
+      const ex = document.createElement('p');
+      ex.className = 'helper';
+      ex.textContent = `Пример: ${formulaData.example}`;
+      wrap.append(ex);
+    }
 
-    card.append(title, box, desc, stepsList);
-    resultsContainerEl.append(card);
+    resultsContainerEl.append(wrap);
   }
 
-  function renderArchiveResult(archiveData) {
-    const title = document.createElement('h3');
-    title.className = 'assistant-result-title';
-    title.textContent = archiveData.summary || 'Результаты поиска по заседаниям:';
+  function renderArchiveMatches(archiveData) {
+    const wrap = document.createElement('div');
+    wrap.className = 'assistant-matches-list';
 
-    const list = document.createElement('div');
-    list.className = 'assistant-matches-list';
+    if (archiveData.summary) {
+      const summaryEl = document.createElement('div');
+      summaryEl.className = 'assistant-summary-card';
+      summaryEl.textContent = archiveData.summary;
+      wrap.append(summaryEl);
+    }
 
     const matches = archiveData.matches || [];
-    if (!matches.length) {
-      list.innerHTML = '<p class="helper">Совпадений в доступных протоколах не найдено.</p>';
+    if (matches.length === 0) {
+      const empty = document.createElement('p');
+      empty.className = 'helper';
+      empty.textContent = 'В найденных документах заседаний точных совпадений с вопросом не обнаружено.';
+      wrap.append(empty);
     } else {
       matches.forEach((m) => {
-        const item = document.createElement('div');
-        item.className = 'assistant-match-item';
+        const card = document.createElement('div');
+        card.className = 'assistant-match-card';
 
         const head = document.createElement('div');
         head.className = 'assistant-match-head';
-        head.innerHTML = `
-          <span>Заседание ${m.meetingDate ? `от ${m.meetingDate}` : ''} ${m.protocolNumber ? `(Протокол № ${m.protocolNumber})` : ''}</span>
-          ${m.itemNumber ? `<span class="count-pill">Вопрос № ${m.itemNumber}</span>` : ''}
-        `;
 
-        const titleP = document.createElement('div');
-        titleP.style.fontSize = '13px';
-        titleP.textContent = m.itemTitle || '';
+        const title = document.createElement('span');
+        const numPart = m.protocolNumber ? `Протокол № ${m.protocolNumber}` : 'Заседание';
+        const datePart = m.meetingDate ? ` от ${m.meetingDate}` : '';
+        const itemPart = m.itemNumber ? ` · Вопрос ${m.itemNumber}` : '';
+        title.textContent = `${numPart}${datePart}${itemPart}`;
 
-        const quote = document.createElement('blockquote');
-        quote.className = 'assistant-match-quote';
-        quote.textContent = `«${m.quote}»`;
+        head.append(title);
+        card.append(head);
 
-        item.append(head, titleP, quote);
-        list.append(item);
+        if (m.itemTitle) {
+          const itemTitleEl = document.createElement('div');
+          itemTitleEl.style.fontSize = '13px';
+          itemTitleEl.textContent = m.itemTitle;
+          card.append(itemTitleEl);
+        }
+
+        if (m.quote) {
+          const quoteEl = document.createElement('blockquote');
+          quoteEl.className = 'assistant-match-quote';
+          quoteEl.textContent = `«${m.quote}»`;
+          card.append(quoteEl);
+        }
+
+        wrap.append(card);
       });
     }
 
-    resultsContainerEl.append(title, list);
+    resultsContainerEl.append(wrap);
   }
 
   function renderHistoryView() {
-    resultsContainerEl.innerHTML = '';
     resultsContainerEl.classList.remove('hidden');
+    resultsContainerEl.innerHTML = '';
 
-    const history = getHistory();
-    if (!history.length) {
-      resultsContainerEl.innerHTML = '<p class="empty-state">История запросов пуста.</p>';
+    const list = getHistory();
+    if (!list.length) {
+      resultsContainerEl.innerHTML = '<p class="helper">История запросов пуста.</p>';
       return;
     }
 
     const header = document.createElement('div');
     header.className = 'assistant-result-header';
-    header.innerHTML = `
-      <h3 class="assistant-result-title">Недавние запросы (${history.length}):</h3>
-      <button id="assistant-clear-history-btn" class="quiet-button" type="button">Очистить историю</button>
-    `;
+    header.innerHTML = '<strong>Недавние запросы</strong>';
 
-    header.querySelector('#assistant-clear-history-btn').addEventListener('click', () => {
+    const clearBtn = document.createElement('button');
+    clearBtn.type = 'button';
+    clearBtn.className = 'quiet-button';
+    clearBtn.textContent = 'Очистить историю';
+    clearBtn.addEventListener('click', () => {
       clearHistory();
       renderHistoryView();
     });
+    header.append(clearBtn);
+    resultsContainerEl.append(header);
 
-    const list = document.createElement('div');
-    list.className = 'assistant-history-list';
+    const histList = document.createElement('div');
+    histList.className = 'assistant-history-list';
 
-    history.forEach((h) => {
-      const item = document.createElement('div');
-      item.className = 'assistant-history-item';
-      const timeStr = new Date(h.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
-      item.innerHTML = `
-        <div>
-          <strong>${h.mode === 'table-extract' ? 'Таблица' : h.mode === 'formula-calc' ? 'Формула' : 'Архив'}:</strong>
-          <span>${h.query.slice(0, 70)}${h.query.length > 70 ? '…' : ''}</span>
-        </div>
-        <span class="count-pill">${timeStr}</span>
-      `;
-      item.addEventListener('click', () => {
-        setMode(h.mode);
-        textareaEl.value = h.query;
+    list.forEach((item) => {
+      const row = document.createElement('div');
+      row.className = 'assistant-history-item';
+
+      const textSpan = document.createElement('span');
+      textSpan.textContent = item.query ? item.query.slice(0, 80) : '(пустой запрос)';
+
+      const dateSpan = document.createElement('span');
+      dateSpan.className = 'helper';
+      dateSpan.textContent = new Date(item.timestamp).toLocaleDateString();
+
+      row.append(textSpan, dateSpan);
+      row.addEventListener('click', () => {
+        setMode(item.mode);
+        textareaEl.value = item.query;
         updateCharCount();
-        renderResult(h.result);
+        renderResult(item.result);
       });
-      list.append(item);
+
+      histList.append(row);
     });
 
-    resultsContainerEl.append(header, list);
+    resultsContainerEl.append(histList);
   }
 
-  function open() {
+  function open(options = {}) {
     ensureElements();
     backdropEl.classList.remove('hidden');
     sheetEl.classList.remove('hidden');
-    textareaEl.focus();
     checkStatus();
+
+    if (options.mode) {
+      setMode(options.mode);
+    }
+    if (typeof options.text === 'string') {
+      textareaEl.value = options.text;
+      updateCharCount();
+      saveDraft();
+    }
+    textareaEl.focus();
   }
 
   function close() {
@@ -658,10 +943,18 @@ export function createAssistantSheet() {
   }
 
   function toggle() {
-    ensureElements();
-    if (sheetEl.classList.contains('hidden')) open();
-    else close();
+    if (isOpen()) close();
+    else open();
   }
 
-  return { open, close, toggle, ensureElements };
+  function isOpen() {
+    return Boolean(sheetEl && !sheetEl.classList.contains('hidden'));
+  }
+
+  return {
+    open,
+    close,
+    toggle,
+    isOpen
+  };
 }

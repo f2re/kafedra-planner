@@ -159,3 +159,36 @@ test('createAssistantEngine handles timeouts gracefully', async () => {
   const res = await engine.process({ task: 'formula-calc', text: 'Тест формулы' });
   assert.equal(res.status, 'timeout');
 });
+
+test('validateAssistantResult handles gap-repair with quote verification', () => {
+  const sourceText = 'На заседании кафедры от 12 апреля 2024 года слушали доклад по гранту.';
+  const payload = {
+    summary: 'Найдена дата заседания',
+    items: [
+      {
+        field: 'Дата заседания',
+        status: 'missing',
+        currentValue: null,
+        suggestedValue: '2024-04-12',
+        sourceQuote: '12 апреля 2024 года',
+        reason: 'Указана в вводной части'
+      }
+    ],
+    actionableAdvice: 'Установить дату 12.04.2024'
+  };
+
+  const res = validateAssistantResult('gap-repair', payload, { sourceText });
+  assert.equal(res.type, 'gap-repair');
+  assert.equal(res.items.length, 1);
+  assert.equal(res.items[0].suggestedValue, '2024-04-12');
+  assert.equal(res.items[0].quoteVerified, true);
+});
+
+test('createAssistantEngine dynamically updates config via updateConfig', async () => {
+  const engine = createAssistantEngine({ config: { llmEnabled: false } });
+  assert.equal(engine.enabled, false);
+
+  engine.updateConfig({ llmEnabled: true, llmEndpoint: 'http://127.0.0.1:8088' });
+  assert.equal(engine.enabled, true);
+  assert.match(engine.endpoint, /127\.0\.0\.1:8088/);
+});

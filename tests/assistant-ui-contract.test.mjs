@@ -22,8 +22,12 @@ test('assistant UI elements and contracts are present in index.html, app.js and 
   // Assistant sheet module
   assert.match(sheetJs, /export function createAssistantSheet/);
   assert.match(sheetJs, /table-extract/);
+  assert.match(sheetJs, /gap-repair/);
   assert.match(sheetJs, /formula-calc/);
   assert.match(sheetJs, /archive-query/);
+  assert.match(sheetJs, /assistant-settings-panel/);
+  assert.match(sheetJs, /handleTestConnection/);
+  assert.match(sheetJs, /handleSaveSettings/);
   assert.match(sheetJs, /copyTableToClipboard/);
   assert.match(sheetJs, /text\/tab-separated-values/);
   assert.match(sheetJs, /contentEditable/);
@@ -34,5 +38,7 @@ test('assistant UI elements and contracts are present in index.html, app.js and 
   assert.match(sheetCss, /\.assistant-sheet/);
   assert.match(sheetCss, /\.assistant-backdrop/);
   assert.match(sheetCss, /\.assistant-table/);
+  assert.match(sheetCss, /\.assistant-settings-panel/);
+  assert.match(sheetCss, /\.assistant-gap-list/);
   assert.match(sheetCss, /prefers-reduced-motion/);
 });

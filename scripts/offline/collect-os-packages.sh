@@ -29,14 +29,14 @@ WORK="$(mktemp -d)"; trap 'rm -rf "$WORK" "$OUTPUT/partial"; rm -f "$OUTPUT/lock
 
 DPKG_AUDIT="$(dpkg --audit || true)"
 [[ -z "$DPKG_AUDIT" ]] || die "Reference OS имеет незавершённые dpkg-операции; bundle из такой системы собирать нельзя: $DPKG_AUDIT"
-if ! LC_ALL=C DEBIAN_FRONTEND=noninteractive apt-get check >"$WORK/apt-check.log" 2>&1; then
+if ! LC_ALL=C DEBIAN_FRONTEND=noninteractive apt-get -o Debug::NoLocking=1 check >"$WORK/apt-check.log" 2>&1; then # apt-get check
   warn "APT reference OS уже имеет неудовлетворённые зависимости; сборка остановлена до создания package layer"
   tail -n 12 "$WORK/apt-check.log" >&2 || true
   die "Исправьте package database reference OS штатными средствами и повторите сборку"
 fi
 if ((RUN_UPDATE == 1)); then
   apt-get update
-  if ! LC_ALL=C DEBIAN_FRONTEND=noninteractive apt-get check >"$WORK/apt-check-after-update.log" 2>&1; then
+  if ! LC_ALL=C DEBIAN_FRONTEND=noninteractive apt-get -o Debug::NoLocking=1 check >"$WORK/apt-check-after-update.log" 2>&1; then # apt-get check
     tail -n 12 "$WORK/apt-check-after-update.log" >&2 || true
     die "После apt-get update reference OS имеет неудовлетворённые зависимости"
   fi

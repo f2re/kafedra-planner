@@ -63,6 +63,22 @@ export const ASSISTANT_TASKS = Object.freeze({
       'quote обязана быть точной выдержкой длиной 16-240 символов из переданного текста фрагмента.',
       'Не выдумывай номера протоколов и цитаты. Если совпадений нет, верни {"summary":"В доступных протоколах тема не упоминается","matches":[]}.'
     ].join(' ')
+  }),
+
+  'gap-repair': Object.freeze({
+    id: 'gap-repair',
+    maxTokens: 2048,
+    system: [
+      'Ты — эксперт-аналитик документов и заседаний кафедры.',
+      'Твоя задача — внимательно изучить предоставленный текст (фрагмент заседания, протокол, приказ, описание ошибки или неполные данные).',
+      'Определи:',
+      '1) Недостающие или неполные реквизиты (дата заседания, номер пункта повестки, докладчик, решение, срок исполнения, ответственный).',
+      '2) Если передан текст с ошибкой — выяви причину и предложи точный способ её исправления.',
+      'Для каждого найденного пропуска или исправления обязательно укажи точную цитату (sourceQuote) из переданного текста, которая подтверждает твоё предложение.',
+      'Верни строго один JSON-объект без Markdown и лишнего текста вида:',
+      '{"summary":"Краткий вывод о пропусках или ошибках","items":[{"field":"Название реквизита","status":"missing|invalid|fixed","currentValue":"...","suggestedValue":"...","sourceQuote":"точная цитата из текста","reason":"почему предлагается"}],"actionableAdvice":"Конкретные шаги оператора"}.',
+      'Не выдумывай факты. Если пропусков нет, верни {"summary":"Пропусков и ошибок не обнаружено","items":[],"actionableAdvice":"Все обязательные реквизиты заполнены"}.'
+    ].join(' ')
   })
 });
 
@@ -156,6 +172,33 @@ export function validateAssistantResult(taskType, payload, extra = {}) {
     return { type: 'archive-matches', summary, matches };
   }
 
+  if (taskType === 'gap-repair') {
+    const summary = String(payload.summary || 'Анализ завершён').trim().slice(0, 1000);
+    const actionableAdvice = String(payload.actionableAdvice || '').trim().slice(0, 1000);
+    const rawItems = Array.isArray(payload.items) ? payload.items : [];
+    const sourceText = String(extra.sourceText || '').toLocaleLowerCase('ru-RU');
+
+    const items = rawItems
+      .filter((it) => it && typeof it === 'object')
+      .slice(0, 30)
+      .map((it) => {
+        const quote = String(it.sourceQuote || '').trim().slice(0, 300);
+        const normQuote = quote.toLocaleLowerCase('ru-RU').replace(/\s+/gu, ' ');
+        const quoteFound = !sourceText || !normQuote || normQuote.length < 6 || sourceText.includes(normQuote);
+        return {
+          field: String(it.field || 'Реквизит').trim().slice(0, 100),
+          status: ['missing', 'invalid', 'fixed'].includes(it.status) ? it.status : 'missing',
+          currentValue: it.currentValue ? String(it.currentValue).trim().slice(0, 500) : null,
+          suggestedValue: String(it.suggestedValue || '').trim().slice(0, 500),
+          sourceQuote: quote,
+          quoteVerified: quoteFound,
+          reason: String(it.reason || '').trim().slice(0, 1000)
+        };
+      });
+
+    return { type: 'gap-repair', summary, items, actionableAdvice };
+  }
+
   throw new Error(`unknown_task_type:${taskType}`);
 }
 
@@ -176,8 +219,20 @@ function endpointFor(config) {
 
 export function createAssistantEngine({ config = {}, fetchImpl = fetch, maxCacheEntries = 64, ttlMs = 600_000 } = {}) {
   const cache = new Map();
-  const endpoint = endpointFor(config);
-  const enabled = Boolean(config?.llmEnabled && endpoint);
+  let currentConfig = { ...config };
+  let endpoint = endpointFor(currentConfig);
+  let enabled = Boolean(currentConfig?.llmEnabled && endpoint);
+
+  function updateConfig(newConfig) {
+    currentConfig = { ...currentConfig, ...newConfig };
+    const newEndpoint = endpointFor(currentConfig);
+    if (newEndpoint !== endpoint) {
+      cache.clear();
+    }
+    endpoint = newEndpoint;
+    enabled = Boolean(currentConfig?.llmEnabled && endpoint);
+    return { enabled, endpoint };
+  }
 
   function getCacheKey(taskType, input) {
     const str = `${taskType}:${JSON.stringify(input)}`;
@@ -228,9 +283,9 @@ export function createAssistantEngine({ config = {}, fetchImpl = fetch, maxCache
 
     // Construct prompt
     const userContent = JSON.stringify(inputPayload);
-    const maxTokens = Math.min(config?.llmMaxTokens || 2048, taskConfig.maxTokens);
+    const maxTokens = Math.min(currentConfig?.llmMaxTokens || 2048, taskConfig.maxTokens);
     const requestBody = {
-      model: config?.llmModel || 'local-model',
+      model: currentConfig?.llmModel || 'local-model',
       temperature: 0.1,
       max_tokens: maxTokens,
       stream: false,
@@ -241,13 +296,18 @@ export function createAssistantEngine({ config = {}, fetchImpl = fetch, maxCache
       ]
     };
 
+    const headers = {
+      'content-type': 'application/json',
+      'accept': 'application/json'
+    };
+    if (currentConfig?.llmApiKey) {
+      headers.authorization = `Bearer ${currentConfig.llmApiKey}`;
+    }
+
     try {
       const response = await fetchImpl(endpoint, {
         method: 'POST',
-        headers: {
-          'content-type': 'application/json',
-          'accept': 'application/json'
-        },
+        headers,
         body: JSON.stringify(requestBody),
         signal
       });
@@ -288,7 +348,7 @@ export function createAssistantEngine({ config = {}, fetchImpl = fetch, maxCache
         };
       }
 
-      const validated = validateAssistantResult(task, parsedObj, { candidates });
+      const validated = validateAssistantResult(task, parsedObj, { candidates, sourceText: cleanText });
       pruneCache();
       cache.set(cacheKey, { result: validated, timestamp: Date.now() });
 
@@ -310,8 +370,10 @@ export function createAssistantEngine({ config = {}, fetchImpl = fetch, maxCache
   }
 
   return {
-    enabled,
-    endpoint,
+    get enabled() { return enabled; },
+    get endpoint() { return endpoint; },
+    get config() { return { ...currentConfig }; },
+    updateConfig,
     process,
     clearCache: () => cache.clear()
   };

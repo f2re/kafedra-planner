@@ -211,3 +211,67 @@ test('assistant-router performs archive-query against FTS5 database', async () =
   database.close();
   await rm(root, { recursive: true, force: true });
 });
+
+test('assistant-router tests connection and saves configuration', async () => {
+  const root = await mkdtemp(join(tmpdir(), 'kafedra-assistant-config-'));
+  const mockFetch = async (url) => {
+    if (url.endsWith('/v1/models')) {
+      return new Response(JSON.stringify({
+        data: [{ id: 'llama-3.1' }, { id: 'qwen2.5' }]
+      }), { status: 200, headers: { 'content-type': 'application/json' } });
+    }
+    return new Response('Not Found', { status: 404 });
+  };
+
+  const router = createAssistantRouter({
+    config: { dataDir: root, llmEnabled: false },
+    database: null,
+    logger: null,
+    fetchImpl: mockFetch
+  });
+
+  // 1. test-connection
+  {
+    const { stream, url } = mockRequest('POST', '/api/assistant/test-connection', {
+      endpoint: 'http://127.0.0.1:8000',
+      model: 'llama-3.1'
+    });
+    const res = mockResponse();
+    await router(stream, res, url);
+    assert.equal(res.statusCode, 200);
+    assert.equal(res.body.ok, true);
+    assert.equal(res.body.status, 'ready');
+    assert.deepEqual(res.body.models, ['llama-3.1', 'qwen2.5']);
+  }
+
+  // 2. save config
+  {
+    const { stream, url } = mockRequest('POST', '/api/assistant/config', {
+      enabled: true,
+      endpoint: 'http://127.0.0.1:8000',
+      model: 'llama-3.1',
+      timeoutMs: 30000
+    });
+    const res = mockResponse();
+    await router(stream, res, url);
+    assert.equal(res.statusCode, 200);
+    assert.equal(res.body.ok, true);
+    assert.equal(res.body.saved.enabled, true);
+    assert.equal(res.body.saved.endpoint, 'http://127.0.0.1:8000');
+    assert.equal(res.body.saved.model, 'llama-3.1');
+  }
+
+  // 3. check status reflects newly saved settings
+  {
+    const { stream, url } = mockRequest('GET', '/api/assistant/status');
+    const res = mockResponse();
+    await router(stream, res, url);
+    assert.equal(res.statusCode, 200);
+    assert.equal(res.body.enabled, true);
+    assert.equal(res.body.endpoint, 'http://127.0.0.1:8000');
+    assert.equal(res.body.model, 'llama-3.1');
+    assert.equal(res.body.status, 'ready');
+  }
+
+  await rm(root, { recursive: true, force: true });
+});

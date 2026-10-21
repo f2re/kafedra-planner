@@ -97,11 +97,11 @@ if [[ "$MODE" == "--diagnose-apt" ]]; then
   else
     echo "✓ dpkg --audit: чисто"
   fi
-  if LC_ALL=C apt-get check >/dev/null 2>&1; then
+  if LC_ALL=C apt-get -o Debug::NoLocking=1 check >/dev/null 2>&1; then
     echo "✓ apt-get check: зависимости в порядке"
   else
     echo "✗ apt-get check обнаружил ошибки зависимостей:"
-    LC_ALL=C apt-get check >&2 || true
+    LC_ALL=C apt-get -o Debug::NoLocking=1 check >&2 || true
   fi
   if payload="$(resolve_package_payload 2>/dev/null)"; then
     echo "✓ os-package-cache: $payload"
