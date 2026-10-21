@@ -40,5 +40,48 @@ test('assistant UI elements and contracts are present in index.html, app.js and 
   assert.match(sheetCss, /\.assistant-table/);
   assert.match(sheetCss, /\.assistant-settings-panel/);
   assert.match(sheetCss, /\.assistant-gap-list/);
+  assert.match(sheetCss, /\.assistant-gap-toolbar/);
+  assert.match(sheetCss, /\.assistant-apply-all-btn/);
+  assert.match(sheetCss, /\.assistant-gap-details/);
   assert.match(sheetCss, /prefers-reduced-motion/);
+
+  // Apply all & single apply contracts
+  assert.match(sheetJs, /assistant-apply-all-btn/);
+  assert.match(sheetJs, /assistant-copy-all-btn/);
+  assert.match(sheetJs, /assistant-toggle-details-btn/);
+  assert.match(sheetJs, /assistant-apply-item-btn/);
+  assert.match(sheetJs, /computeRepairedText/);
+  assert.match(sheetJs, /applySingleItem/);
+});
+
+test('computeRepairedText and applySingleItem update text seamlessly without user hassle', async () => {
+  const { computeRepairedText, applySingleItem } = await import('../public/assistant-sheet.js');
+
+  const original = 'Заседание кафедры.\nПрисутствовали: Иванов, Петров.';
+  const items = [
+    { field: 'Дата заседания', status: 'missing', currentValue: null, suggestedValue: '2026-04-15' },
+    { field: 'Докладчик', status: 'missing', currentValue: null, suggestedValue: 'Иванов И.И.' }
+  ];
+
+  // 1. If LLM provided cohesive repairedText, computeRepairedText prioritizes it
+  const repairedFromLlm = computeRepairedText(original, items, 'Заседание кафедры от 15.04.2026.\nДокладчик: Иванов И.И.');
+  assert.equal(repairedFromLlm, 'Заседание кафедры от 15.04.2026.\nДокладчик: Иванов И.И.');
+
+  // 2. Fallback computation when LLM did not provide repairedText
+  const computed = computeRepairedText(original, items, '');
+  assert.ok(computed.includes('Заседание кафедры.'));
+  assert.ok(computed.includes('Дата заседания: 2026-04-15'));
+  assert.ok(computed.includes('Докладчик: Иванов И.И.'));
+
+  // 3. Current value replacement
+  const textWithErr = 'Срок сдачи: до конца недели.';
+  const replaceItems = [
+    { field: 'Срок сдачи', status: 'invalid', currentValue: 'до конца недели', suggestedValue: '2026-05-01' }
+  ];
+  const replaced = computeRepairedText(textWithErr, replaceItems, '');
+  assert.equal(replaced, 'Срок сдачи: 2026-05-01.');
+
+  // 4. Single item apply
+  const singleReplaced = applySingleItem(textWithErr, replaceItems[0]);
+  assert.equal(singleReplaced, 'Срок сдачи: 2026-05-01.');
 });

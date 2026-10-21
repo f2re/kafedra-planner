@@ -160,10 +160,11 @@ test('createAssistantEngine handles timeouts gracefully', async () => {
   assert.equal(res.status, 'timeout');
 });
 
-test('validateAssistantResult handles gap-repair with quote verification', () => {
+test('validateAssistantResult handles gap-repair with quote verification and repairedText', () => {
   const sourceText = 'На заседании кафедры от 12 апреля 2024 года слушали доклад по гранту.';
   const payload = {
     summary: 'Найдена дата заседания',
+    repairedText: 'На заседании кафедры от 12.04.2024 слушали доклад по гранту.',
     items: [
       {
         field: 'Дата заседания',
@@ -179,6 +180,7 @@ test('validateAssistantResult handles gap-repair with quote verification', () =>
 
   const res = validateAssistantResult('gap-repair', payload, { sourceText });
   assert.equal(res.type, 'gap-repair');
+  assert.equal(res.repairedText, 'На заседании кафедры от 12.04.2024 слушали доклад по гранту.');
   assert.equal(res.items.length, 1);
   assert.equal(res.items[0].suggestedValue, '2024-04-12');
   assert.equal(res.items[0].quoteVerified, true);

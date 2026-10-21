@@ -75,9 +75,10 @@ export const ASSISTANT_TASKS = Object.freeze({
       '1) Недостающие или неполные реквизиты (дата заседания, номер пункта повестки, докладчик, решение, срок исполнения, ответственный).',
       '2) Если передан текст с ошибкой — выяви причину и предложи точный способ её исправления.',
       'Для каждого найденного пропуска или исправления обязательно укажи точную цитату (sourceQuote) из переданного текста, которая подтверждает твоё предложение.',
+      'Сформируй полный исправленный текст (repairedText), в котором устранены выявленные ошибки, аккуратно вставлены недостающие реквизиты и даты, сохраняя исходную структуру документа.',
       'Верни строго один JSON-объект без Markdown и лишнего текста вида:',
-      '{"summary":"Краткий вывод о пропусках или ошибках","items":[{"field":"Название реквизита","status":"missing|invalid|fixed","currentValue":"...","suggestedValue":"...","sourceQuote":"точная цитата из текста","reason":"почему предлагается"}],"actionableAdvice":"Конкретные шаги оператора"}.',
-      'Не выдумывай факты. Если пропусков нет, верни {"summary":"Пропусков и ошибок не обнаружено","items":[],"actionableAdvice":"Все обязательные реквизиты заполнены"}.'
+      '{"summary":"Краткий вывод о пропусках или ошибках","repairedText":"полный связный текст с применёнными исправлениями","items":[{"field":"Название реквизита","status":"missing|invalid|fixed","currentValue":"...","suggestedValue":"...","sourceQuote":"точная цитата из текста","reason":"почему предлагается"}],"actionableAdvice":"Конкретные шаги оператора"}.',
+      'Не выдумывай факты. Если пропусков нет, верни {"summary":"Пропусков и ошибок не обнаружено","repairedText":"","items":[],"actionableAdvice":"Все обязательные реквизиты заполнены"}.'
     ].join(' ')
   })
 });
@@ -174,6 +175,7 @@ export function validateAssistantResult(taskType, payload, extra = {}) {
 
   if (taskType === 'gap-repair') {
     const summary = String(payload.summary || 'Анализ завершён').trim().slice(0, 1000);
+    const repairedText = typeof payload.repairedText === 'string' ? payload.repairedText.trim().slice(0, 12000) : '';
     const actionableAdvice = String(payload.actionableAdvice || '').trim().slice(0, 1000);
     const rawItems = Array.isArray(payload.items) ? payload.items : [];
     const sourceText = String(extra.sourceText || '').toLocaleLowerCase('ru-RU');
@@ -196,7 +198,7 @@ export function validateAssistantResult(taskType, payload, extra = {}) {
         };
       });
 
-    return { type: 'gap-repair', summary, items, actionableAdvice };
+    return { type: 'gap-repair', summary, repairedText, items, actionableAdvice };
   }
 
   throw new Error(`unknown_task_type:${taskType}`);

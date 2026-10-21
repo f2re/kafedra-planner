@@ -51,6 +51,41 @@ function clearHistory() {
   } catch {}
 }
 
+export function computeRepairedText(originalText, items, suggestedRepairedText) {
+  if (suggestedRepairedText && typeof suggestedRepairedText === 'string' && suggestedRepairedText.trim().length > 0) {
+    return suggestedRepairedText.trim();
+  }
+  let text = originalText || '';
+  if (!Array.isArray(items) || items.length === 0) return text;
+
+  const missingAdditions = [];
+  for (const item of items) {
+    if (!item.suggestedValue) continue;
+    if (item.currentValue && text.includes(item.currentValue)) {
+      text = text.replace(item.currentValue, item.suggestedValue);
+    } else if (item.status === 'missing' && !text.includes(item.suggestedValue)) {
+      missingAdditions.push(`${item.field}: ${item.suggestedValue}`);
+    }
+  }
+  if (missingAdditions.length > 0) {
+    text = (text ? `${text}\n\n` : '') + `[Заполненные реквизиты]:\n${missingAdditions.join('\n')}`;
+  }
+  return text;
+}
+
+export function applySingleItem(originalText, item) {
+  let text = originalText || '';
+  if (!item?.suggestedValue) return text;
+  if (item.currentValue && text.includes(item.currentValue)) {
+    return text.replace(item.currentValue, item.suggestedValue);
+  }
+  if (!text.includes(item.suggestedValue)) {
+    const addition = `${item.field}: ${item.suggestedValue}`;
+    return text ? `${text}\n${addition}` : addition;
+  }
+  return text;
+}
+
 export function createAssistantSheet() {
   let backdropEl;
   let sheetEl;
@@ -560,6 +595,88 @@ export function createAssistantSheet() {
       emptyCard.innerHTML = '<p>Пропусков и ошибок не обнаружено. Все реквизиты заполнены.</p>';
       wrap.append(emptyCard);
     } else {
+      // Top actions toolbar: single-click accept all, copy repaired text, toggle details
+      const toolbar = document.createElement('div');
+      toolbar.className = 'assistant-gap-toolbar';
+
+      const toolbarLeft = document.createElement('div');
+      toolbarLeft.className = 'assistant-gap-toolbar-left';
+
+      const applyAllBtn = document.createElement('button');
+      applyAllBtn.id = 'assistant-apply-all-btn';
+      applyAllBtn.type = 'button';
+      applyAllBtn.className = 'primary-button assistant-apply-all-btn';
+      applyAllBtn.textContent = '✓ Принять всё сразу';
+      applyAllBtn.title = 'Применить все исправления в текст без подтверждения каждого';
+
+      const copyAllBtn = document.createElement('button');
+      copyAllBtn.id = 'assistant-copy-all-btn';
+      copyAllBtn.type = 'button';
+      copyAllBtn.className = 'secondary-button';
+      copyAllBtn.textContent = '📋 Скопировать готовый текст';
+      copyAllBtn.title = 'Скопировать исправленный связный текст в буфер обмена';
+
+      toolbarLeft.append(applyAllBtn, copyAllBtn);
+
+      const toolbarRight = document.createElement('div');
+      toolbarRight.className = 'assistant-gap-toolbar-right';
+
+      const toggleDetailsBtn = document.createElement('button');
+      toggleDetailsBtn.id = 'assistant-toggle-details-btn';
+      toggleDetailsBtn.type = 'button';
+      toggleDetailsBtn.className = 'quiet-button assistant-toggle-details-btn';
+      toggleDetailsBtn.textContent = '🔍 Проверить цитаты и обоснования';
+      toggleDetailsBtn.title = 'Развернуть или скрыть обоснования и цитаты по всем карточкам';
+
+      toolbarRight.append(toggleDetailsBtn);
+      toolbar.append(toolbarLeft, toolbarRight);
+      wrap.append(toolbar);
+
+      const cards = [];
+      const detailsElements = [];
+
+      applyAllBtn.addEventListener('click', () => {
+        const repaired = computeRepairedText(textareaEl.value, items, result.repairedText);
+        textareaEl.value = repaired;
+        updateCharCount();
+        saveDraft();
+
+        cards.forEach(({ card, applyBtn, statusBadge }) => {
+          card.classList.add('applied');
+          statusBadge.className = 'assistant-gap-status applied';
+          statusBadge.textContent = '✓ Принято';
+          applyBtn.textContent = '✓ Применено';
+          applyBtn.disabled = true;
+        });
+
+        applyAllBtn.textContent = '✓ Все исправления приняты';
+        applyAllBtn.disabled = true;
+        applyAllBtn.classList.add('applied');
+
+        showToast('Все исправления успешно применены к тексту');
+      });
+
+      copyAllBtn.addEventListener('click', async () => {
+        const repaired = computeRepairedText(textareaEl.value, items, result.repairedText);
+        try {
+          await navigator.clipboard.writeText(repaired);
+          showToast('Исправленный текст скопирован в буфер обмена');
+        } catch {
+          showToast('Не удалось скопировать в буфер обмена');
+        }
+      });
+
+      let allExpanded = false;
+      toggleDetailsBtn.addEventListener('click', () => {
+        allExpanded = !allExpanded;
+        detailsElements.forEach((det) => {
+          det.open = allExpanded;
+        });
+        toggleDetailsBtn.textContent = allExpanded
+          ? 'Скрыть цитаты и обоснования'
+          : '🔍 Проверить цитаты и обоснования';
+      });
+
       items.forEach((item) => {
         const card = document.createElement('div');
         card.className = 'assistant-gap-card';
@@ -567,15 +684,36 @@ export function createAssistantSheet() {
         const head = document.createElement('div');
         head.className = 'assistant-gap-head';
 
+        const titleGroup = document.createElement('div');
+        titleGroup.className = 'assistant-gap-title-group';
+
         const title = document.createElement('span');
         title.className = 'assistant-gap-field';
         title.textContent = item.field;
 
-        const badge = document.createElement('span');
-        badge.className = `assistant-gap-status ${item.status}`;
-        badge.textContent = item.status === 'missing' ? 'Пропущен' : item.status === 'invalid' ? 'Ошибка' : 'Исправлен';
+        const statusBadge = document.createElement('span');
+        statusBadge.className = `assistant-gap-status ${item.status}`;
+        statusBadge.textContent = item.status === 'missing' ? 'Пропущен' : item.status === 'invalid' ? 'Ошибка' : 'Исправлен';
 
-        head.append(title, badge);
+        titleGroup.append(title, statusBadge);
+
+        const cardActions = document.createElement('div');
+        cardActions.className = 'assistant-gap-card-actions';
+
+        const applyBtn = document.createElement('button');
+        applyBtn.type = 'button';
+        applyBtn.className = 'quiet-button assistant-apply-item-btn';
+        applyBtn.textContent = '✓ Принять';
+        applyBtn.title = 'Принять только это исправление';
+
+        const copyBtn = document.createElement('button');
+        copyBtn.type = 'button';
+        copyBtn.className = 'quiet-button assistant-copy-item-btn';
+        copyBtn.textContent = '📋';
+        copyBtn.title = 'Скопировать предлагаемое значение';
+
+        cardActions.append(applyBtn, copyBtn);
+        head.append(titleGroup, cardActions);
         card.append(head);
 
         const valWrap = document.createElement('div');
@@ -585,36 +723,75 @@ export function createAssistantSheet() {
           const cur = document.createElement('span');
           cur.className = 'assistant-gap-current';
           cur.textContent = `Было: ${item.currentValue}`;
-          valWrap.append(cur);
+          const arrow = document.createElement('span');
+          arrow.className = 'assistant-gap-arrow';
+          arrow.textContent = '→';
+          valWrap.append(cur, arrow);
         }
 
         const sug = document.createElement('span');
         sug.className = 'assistant-gap-suggested';
-        sug.textContent = `Предлагается: ${item.suggestedValue}`;
+        sug.textContent = item.currentValue ? item.suggestedValue : `Предлагается: ${item.suggestedValue}`;
         valWrap.append(sug);
         card.append(valWrap);
+
+        // Collapsible details block (quiet by default, expandable on demand)
+        const details = document.createElement('details');
+        details.className = 'assistant-gap-details';
+
+        const detailsSummary = document.createElement('summary');
+        detailsSummary.className = 'assistant-gap-details-toggle';
+        detailsSummary.textContent = item.quoteVerified
+          ? '🔍 Обоснование и проверенная цитата'
+          : '🔍 Обоснование и цитата';
+        details.append(detailsSummary);
+
+        const detailsBody = document.createElement('div');
+        detailsBody.className = 'assistant-gap-details-body';
 
         if (item.reason) {
           const reason = document.createElement('div');
           reason.className = 'assistant-gap-reason';
           reason.textContent = item.reason;
-          card.append(reason);
+          detailsBody.append(reason);
         }
 
         if (item.sourceQuote) {
           const quote = document.createElement('blockquote');
           quote.className = `assistant-gap-quote ${item.quoteVerified ? 'verified' : ''}`;
           quote.textContent = item.sourceQuote;
-          card.append(quote);
+          if (item.quoteVerified) {
+            quote.title = 'Цитата подтверждена в исходном тексте документа';
+          }
+          detailsBody.append(quote);
         }
 
-        const actions = document.createElement('div');
-        actions.className = 'assistant-gap-actions';
+        details.append(detailsBody);
+        card.append(details);
+        detailsElements.push(details);
 
-        const copyBtn = document.createElement('button');
-        copyBtn.type = 'button';
-        copyBtn.className = 'quiet-button';
-        copyBtn.textContent = '📋 Скопировать';
+        applyBtn.addEventListener('click', () => {
+          const updated = applySingleItem(textareaEl.value, item);
+          textareaEl.value = updated;
+          updateCharCount();
+          saveDraft();
+
+          card.classList.add('applied');
+          statusBadge.className = 'assistant-gap-status applied';
+          statusBadge.textContent = '✓ Принято';
+          applyBtn.textContent = '✓ Применено';
+          applyBtn.disabled = true;
+
+          const allDone = cards.every((c) => c.card.classList.contains('applied'));
+          if (allDone) {
+            applyAllBtn.textContent = '✓ Все исправления приняты';
+            applyAllBtn.disabled = true;
+            applyAllBtn.classList.add('applied');
+          }
+
+          showToast(`Принято: ${item.field} → ${item.suggestedValue}`);
+        });
+
         copyBtn.addEventListener('click', async () => {
           try {
             await navigator.clipboard.writeText(item.suggestedValue);
@@ -623,9 +800,8 @@ export function createAssistantSheet() {
             showToast('Не удалось скопировать');
           }
         });
-        actions.append(copyBtn);
-        card.append(actions);
 
+        cards.push({ card, applyBtn, statusBadge });
         wrap.append(card);
       });
     }

@@ -480,7 +480,7 @@ run_core_installer() {
   local status
   : > "$TX_DIR/core.log"
   set +e
-  "$CORE_INSTALLER" 2>&1 | while IFS= read -r line || [[ -n "$line" ]]; do record_core_line "$line"; done
+  "$CORE_INSTALLER" "$@" 2>&1 | while IFS= read -r line || [[ -n "$line" ]]; do record_core_line "$line"; done
   status=${PIPESTATUS[0]}
   set -e
   return "$status"
@@ -569,7 +569,7 @@ fi
 write_state phase core-running
 
 CORE_STATUS=0
-run_core_installer || CORE_STATUS=$?
+run_core_installer "$@" || CORE_STATUS=$?
 if (( CORE_STATUS != 0 )); then
   recover_transaction "внутренний installer завершился с кодом $CORE_STATUS" || exit $?
   exit "$CORE_STATUS"

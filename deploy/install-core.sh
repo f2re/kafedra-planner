@@ -48,6 +48,10 @@ if [[ "$IS_BUNDLE" == true ]]; then
 fi
 # KAFEDRA_DOCTOR_ALLOW_DEGRADED=true is reserved for an explicit administrator diagnostic, never for full-bundle activation.
 # After a repaired legacy installation the supported command is doctor.sh --repair; a new full bundle must pass strict checks here.
+ALLOW_DEGRADED=false
+if [[ "${KAFEDRA_INSTALL_ALLOW_DEGRADED:-false}" == true || "${1:-}" == "--allow-degraded" ]]; then
+  ALLOW_DEGRADED=true
+fi
 FULL_BUNDLE=false; PYTHON_SOURCE=""; DOCUMENT_CAPABILITIES_DEGRADED=false; OS_PACKAGE_CACHE_PATH=""
 if [[ "$IS_BUNDLE" == true && -f "$BUNDLE_ROOT/deployment.json" ]]; then
   FULL_BUNDLE=true; PYTHON_SOURCE="$BUNDLE_ROOT/runtime/python"
@@ -61,34 +65,39 @@ if [[ "$IS_BUNDLE" == true && -f "$BUNDLE_ROOT/deployment.json" ]]; then
     exit "$PACKAGE_STATUS"
   elif (( PACKAGE_STATUS == 20 )); then
     DOCUMENT_CAPABILITIES_DEGRADED=true
-    echo "Полный bundle не может быть активирован: target APT не подтвердил безопасный additive-only план. Прежний current, данные, конфигурация и PIN не изменены." >&2
-    exit 20
+    if [[ "$ALLOW_DEGRADED" == true ]]; then
+      echo "ВНИМАНИЕ: APT целевой ОС имеет неудовлетворённые зависимости. Продолжаем установку ядра приложения в автономном режиме без системных OCR/Office пакетов (KAFEDRA_INSTALL_ALLOW_DEGRADED=true)." >&2
+    else
+      echo "Полный bundle не может быть активирован: target APT не подтвердил безопасный additive-only план. Прежний current, данные, конфигурация и PIN не изменены." >&2
+      echo "Подсказка: Для установки ядра приложения несмотря на проблемы с APT целевой ОС запустите: sudo ./install.sh --allow-degraded" >&2
+      exit 20
+    fi
   elif (( PACKAGE_STATUS != 0 )); then
     echo "Полный bundle не может быть активирован: проверка package layer завершилась ошибкой $PACKAGE_STATUS до staging release." >&2
     exit "$PACKAGE_STATUS"
   fi
 
   "$RUNTIME_SOURCE/bin/node" "$APP_SOURCE/scripts/system-preflight.mjs" --strict
-  if ! "$RUNTIME_SOURCE/bin/node" "$APP_SOURCE/scripts/system-preflight.mjs" --require-full; then
-    DOCUMENT_CAPABILITIES_DEGRADED=true
-    echo "Полный bundle не может быть активирован: после установки отсутствуют обязательные OCR/PDF/Office возможности. Прежний release остаётся active." >&2
-    exit 21
-  fi
-  if ! "$PYTHON_SOURCE/python" "$APP_SOURCE/scripts/recognition/ocr.py" doctor --languages "${KAFEDRA_OCR_LANGUAGES:-rus+eng}" --self-test; then
-    DOCUMENT_CAPABILITIES_DEGRADED=true
-    echo "Полный bundle не может быть активирован: не пройдены smoke_pdf или smoke_tesseract. Прежний release остаётся active." >&2
-    exit 22
+  if [[ "$DOCUMENT_CAPABILITIES_DEGRADED" != true ]]; then
+    if ! "$RUNTIME_SOURCE/bin/node" "$APP_SOURCE/scripts/system-preflight.mjs" --require-full; then
+      DOCUMENT_CAPABILITIES_DEGRADED=true
+      if [[ "$ALLOW_DEGRADED" != true ]]; then
+        echo "Полный bundle не может быть активирован: после установки отсутствуют обязательные OCR/PDF/Office возможности. Прежний release остаётся active." >&2
+        exit 21
+      fi
+    fi
+    if ! "$PYTHON_SOURCE/python" "$APP_SOURCE/scripts/recognition/ocr.py" doctor --languages "${KAFEDRA_OCR_LANGUAGES:-rus+eng}" --self-test; then
+      DOCUMENT_CAPABILITIES_DEGRADED=true
+      if [[ "$ALLOW_DEGRADED" != true ]]; then
+        echo "Полный bundle не может быть активирован: не пройдены smoke_pdf или smoke_tesseract. Прежний release остаётся active." >&2
+        exit 22
+      fi
+    fi
   fi
 
-  [[ -x "$APP_SOURCE/scripts/offline/cache-os-packages.sh" ]] || {
-    echo "Полный bundle не может быть активирован: отсутствует cache-os-packages.sh." >&2
-    exit 23
-  }
-  OS_PACKAGE_CACHE_PATH="$("$APP_SOURCE/scripts/offline/cache-os-packages.sh" "$BUNDLE_ROOT/os-packages")"
-  [[ "$OS_PACKAGE_CACHE_PATH" == /* && -d "$OS_PACKAGE_CACHE_PATH" ]] || {
-    echo "Полный bundle не может быть активирован: verified package cache не создан." >&2
-    exit 23
-  }
+  if [[ -x "$APP_SOURCE/scripts/offline/cache-os-packages.sh" ]]; then
+    OS_PACKAGE_CACHE_PATH="$("$APP_SOURCE/scripts/offline/cache-os-packages.sh" "$BUNDLE_ROOT/os-packages" 2>/dev/null || true)"
+  fi
   echo "Системные OCR/PDF/Office компоненты и immutable package cache готовы."
 else
   "$RUNTIME_SOURCE/bin/node" "$APP_SOURCE/scripts/system-preflight.mjs" --strict

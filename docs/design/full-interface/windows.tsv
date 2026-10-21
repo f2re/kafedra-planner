@@ -3,7 +3,7 @@ UI-b4096a5393	public/academic-performance-state.js:117:5	D6	screenMarkup	[data-a
 UI-7085e3ccfd	public/academic-performance-state.js:118:5	D6	screenMarkup	[data-academic-details]		запланировано
 UI-f8215a8013	public/action-center.js:93:5	D1	ensureUi	#action-center	Добавить Что нужно сделать? × ⌕ Esc Рекомендуется Контекст важнее частоты ⇧ Перетащите любой документ PDF, Word, Excel, 	запланировано
 UI-3b278fbac8	public/admin-next.js:29:7	D7	ensureAdminUi	#admin-access-panel	Эксплуатация Доступ и готовность Закрыть Готовность Создать аккаунт Сотрудник Логин Роль Сотрудник Руководитель Админист	запланировано
-UI-faa9013eb1	public/assistant-sheet.js:88:15	D1	ensureElements	#assistant-sheet	Ассистент кафедры	запланировано
+UI-7b464a2d41	public/assistant-sheet.js:123:15	D1	ensureElements	#assistant-sheet	Ассистент кафедры	запланировано
 UI-5ab14b927c	public/auth-next.js:153:12	D7	ensurePinDialog	#auth-pin-dialog		запланировано
 UI-40eb2c19ee	public/calendar-start-settings.js:57:11	D1	ensureDialog	#calendar-start-settings-sheet		запланировано
 UI-060777690a	public/directive-archive-next.js:161:7	D4	ensureDirectiveArchiveUi	#directive-modal		запланировано
