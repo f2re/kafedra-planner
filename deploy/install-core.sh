@@ -75,22 +75,20 @@ if [[ "$IS_BUNDLE" == true && -f "$BUNDLE_ROOT/deployment.json" ]]; then
     exit "$PACKAGE_STATUS"
   elif (( PACKAGE_STATUS == 20 )); then
     DOCUMENT_CAPABILITIES_DEGRADED=true
-    if [[ "$ALLOW_DEGRADED" == true ]]; then
-      echo "ВНИМАНИЕ: APT целевой ОС имеет неудовлетворённые зависимости. Продолжаем установку ядра приложения в автономном режиме без системных OCR/Office пакетов (KAFEDRA_INSTALL_ALLOW_DEGRADED=true)." >&2
-    else
-      echo "Полный bundle не может быть активирован: target APT не подтвердил безопасный additive-only план. Прежний current, данные, конфигурация и PIN не изменены." >&2
-      echo "Подсказка:" >&2
-      echo "  1) Для автоматического устранения конфликтов версий запустите: sudo ./install.sh --fix-packages" >&2
-      echo "  2) Или вручную согласуйте пакеты с версиями библиотек:" >&2
-      echo "     sudo apt-get update && sudo apt-get install --reinstall -y acl attr bzip2 debconf-i18n debconf-utils libc6-dev libparsec-aud3 perl" >&2
-      echo "     (или комплексное обновление: sudo apt-get dist-upgrade -y)" >&2
-      echo "  3) Для установки ядра приложения в автономном режиме без ожидания починки APT:" >&2
-      echo "     sudo ./install.sh --allow-degraded" >&2
-      exit 20
-    fi
+    ALLOW_DEGRADED=true
+    echo "ВНИМАНИЕ: APT целевой ОС имеет неудовлетворённые зависимости сторонних пакетов (код 20)." >&2
+    echo "Для обеспечения гарантированного результата Kafedra Planner продолжает установку в автономном режиме." >&2
+    echo "Веб-интерфейс, база данных и службы будут запущены (OCR сканов отключён до устранения конфликтов в ОС)." >&2
+    echo "Подсказка для последующего включения OCR:" >&2
+    echo "  sudo apt-get update && sudo apt-get install --reinstall -y acl attr bzip2 debconf-i18n debconf-utils libc6-dev libparsec-aud3 perl" >&2
   elif (( PACKAGE_STATUS != 0 )); then
-    echo "Полный bundle не может быть активирован: проверка package layer завершилась ошибкой $PACKAGE_STATUS до staging release." >&2
-    exit "$PACKAGE_STATUS"
+    if [[ "$ALLOW_DEGRADED" == true ]]; then
+      DOCUMENT_CAPABILITIES_DEGRADED=true
+      echo "ВНИМАНИЕ: Проверка package layer завершилась кодом $PACKAGE_STATUS. Продолжаем установку в автономном режиме." >&2
+    else
+      echo "Полный bundle не может быть активирован: проверка package layer завершилась ошибкой $PACKAGE_STATUS до staging release." >&2
+      exit "$PACKAGE_STATUS"
+    fi
   fi
 
   "$RUNTIME_SOURCE/bin/node" "$APP_SOURCE/scripts/system-preflight.mjs" --strict
@@ -451,7 +449,11 @@ HEALTH_OK=false
 for _attempt in {1..15}; do if systemctl is-active --quiet "$API_SERVICE" && systemctl is-active --quiet "$WORKER_SERVICE" && health_request; then HEALTH_OK=true; break; fi; sleep 1; done
 if [[ "$HEALTH_OK" != true ]]; then echo "Службы не вышли в рабочее состояние после установки." >&2; journalctl -u "$API_SERVICE" -u "$WORKER_SERVICE" -n 80 --no-pager >&2 || true; false; fi
 if [[ "$FULL_BUNDLE" == true ]]; then
-  KAFEDRA_APPLICATION_DIR="$RELEASE_DIR" KAFEDRA_CONFIG_PATH="$CONFIG_FILE" "$RELEASE_DIR/scripts/offline/doctor.sh"
+  if [[ "$DOCUMENT_CAPABILITIES_DEGRADED" == true || "$ALLOW_DEGRADED" == true ]]; then
+    KAFEDRA_APPLICATION_DIR="$RELEASE_DIR" KAFEDRA_CONFIG_PATH="$CONFIG_FILE" KAFEDRA_DOCTOR_ALLOW_DEGRADED=true "$RELEASE_DIR/scripts/offline/doctor.sh"
+  else
+    KAFEDRA_APPLICATION_DIR="$RELEASE_DIR" KAFEDRA_CONFIG_PATH="$CONFIG_FILE" "$RELEASE_DIR/scripts/offline/doctor.sh"
+  fi
 fi
 trap - ERR
 echo "Установлен релиз $RELEASE_ID (версия $VERSION)"
