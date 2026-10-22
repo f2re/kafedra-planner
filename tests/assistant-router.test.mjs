@@ -275,3 +275,190 @@ test('assistant-router tests connection and saves configuration', async () => {
 
   await rm(root, { recursive: true, force: true });
 });
+
+test('assistant-router handles async background tasks (submit, poll, cancel)', async () => {
+  const root = await mkdtemp(join(tmpdir(), 'kafedra-assistant-task-test-'));
+  const database = new Database(join(root, 'test.sqlite3'), { migrationsDir: resolve('migrations') });
+  const workspace = ensureDefaultWorkspace(database);
+
+  const mockEngine = {
+    enabled: true,
+    process: async ({ task, text }) => {
+      // Simulate slight async work
+      await new Promise((r) => setTimeout(r, 20));
+      return {
+        status: 'completed',
+        result: { type: 'table', title: 'Результат', columns: [{ id: 'col1', label: 'Данные', type: 'text' }], rows: [{ col1: 'ок' }] },
+        durationMs: 25
+      };
+    }
+  };
+
+  const router = createAssistantRouter({
+    config: { llmEnabled: true, llmEndpoint: 'http://127.0.0.1:8081' },
+    database,
+    logger: null,
+    engine: mockEngine
+  });
+
+  // 1. Submit async task
+  const { stream: subStream, url: subUrl } = mockRequest('POST', '/api/assistant/tasks', {
+    task: 'table-extract',
+    text: 'Тестовый текст'
+  }, { 'x-workspace-id': workspace.id });
+  const subRes = mockResponse();
+  const subHandled = await router(subStream, subRes, subUrl);
+
+  assert.equal(subHandled, true);
+  assert.equal(subRes.statusCode, 202);
+  assert.equal(subRes.body.ok, true);
+  assert.equal(subRes.body.status, 'running');
+  const taskId = subRes.body.taskId;
+  assert.ok(taskId);
+
+  // 2. Wait for completion
+  await new Promise((r) => setTimeout(r, 50));
+
+  // 3. Poll task status
+  const { stream: pollStream, url: pollUrl } = mockRequest('GET', `/api/assistant/tasks/${taskId}`);
+  const pollRes = mockResponse();
+  const pollHandled = await router(pollStream, pollRes, pollUrl);
+
+  assert.equal(pollHandled, true);
+  assert.equal(pollRes.statusCode, 200);
+  assert.equal(pollRes.body.status, 'completed');
+  assert.equal(pollRes.body.result.type, 'table');
+
+  // 4. Cancel/delete task
+  const { stream: delStream, url: delUrl } = mockRequest('DELETE', `/api/assistant/tasks/${taskId}`);
+  const delRes = mockResponse();
+  const delHandled = await router(delStream, delRes, delUrl);
+  assert.equal(delHandled, true);
+  assert.equal(delRes.statusCode, 200);
+  assert.equal(delRes.body.cancelled, true);
+
+  database.close();
+  await rm(root, { recursive: true, force: true });
+});
+
+test('assistant-router review-repair extracts missing fields using AI', async () => {
+  const root = await mkdtemp(join(tmpdir(), 'kafedra-assistant-repair-test-'));
+  const database = new Database(join(root, 'test.sqlite3'), { migrationsDir: resolve('migrations') });
+  const workspace = ensureDefaultWorkspace(database);
+  const now = new Date().toISOString();
+
+  // Create file blob, document, version with text
+  database.run(`INSERT INTO file_blobs(sha256, size_bytes, media_type, storage_path, created_at)
+    VALUES('dummy-hash-1', 100, 'application/docx', '/tmp/dummy', ?)`, now);
+  database.run(`INSERT INTO documents(id, workspace_id, title, document_type, status, created_at, updated_at)
+    VALUES('doc-1', ?, 'Протокол заседания кафедры', 'protocol', 'processed', ?, ?)`, workspace.id, now, now);
+  database.run(`INSERT INTO document_versions(id, document_id, version_no, blob_sha256, original_name, media_type, detected_format, processing_status, extracted_text, uploaded_at)
+    VALUES('dv-1', 'doc-1', 1, 'dummy-hash-1', 'protocol.docx', 'application/docx', 'docx', 'processed', 'ПРОТОКОЛ № 5 заседания кафедры от 15 октября 2026 года. Присутствовали: Иванов, Петров.', ?)`, now);
+
+  // Create review item
+  database.run(`INSERT INTO review_items(id, workspace_id, source_kind, source_id, issue_code, title, explanation, proposed_action, context_json, status, created_at)
+    VALUES('rev-1', ?, 'document_version', 'dv-1', 'meeting_date_missing', 'Не найдена дата', 'Автоматика не нашла дату', 'Укажите дату', '{}', 'open', ?)`, workspace.id, now);
+
+  const mockEngine = {
+    enabled: true,
+    process: async ({ task, text, query }) => {
+      assert.equal(task, 'field-extract');
+      assert.ok(text.includes('15 октября 2026 года'));
+      return {
+        status: 'completed',
+        result: {
+          type: 'field-extract',
+          field: 'дата заседания',
+          value: '2026-10-15',
+          sourceQuote: 'от 15 октября 2026 года',
+          confidence: 0.98
+        },
+        durationMs: 30
+      };
+    }
+  };
+
+  const router = createAssistantRouter({
+    config: { llmEnabled: true, llmEndpoint: 'http://127.0.0.1:8081' },
+    database,
+    logger: null,
+    engine: mockEngine
+  });
+
+  const { stream, url } = mockRequest('POST', '/api/assistant/review-repair', {
+    reviewItemId: 'rev-1'
+  }, { 'x-workspace-id': workspace.id });
+  const res = mockResponse();
+  const handled = await router(stream, res, url);
+
+  assert.equal(handled, true);
+  assert.equal(res.statusCode, 200);
+  assert.equal(res.body.ok, true);
+  assert.equal(res.body.extracted.value, '2026-10-15');
+  assert.equal(res.body.extracted.sourceQuote, 'от 15 октября 2026 года');
+
+  database.close();
+  await rm(root, { recursive: true, force: true });
+});
+
+test('assistant-router search-refine handles AI refinement and offline fallback', async () => {
+  const mockEngine = {
+    enabled: true,
+    config: { llmEnabled: true, llmEndpoint: 'http://127.0.0.1:8081' },
+    async process({ task }) {
+      if (task === 'search-refine') {
+        return {
+          status: 'completed',
+          result: {
+            type: 'search-refine',
+            intent: 'meeting_search',
+            keywords: ['влажность', 'статья'],
+            synonyms: ['почва', 'вестник'],
+            ftsQuery: 'влажность OR статья',
+            timeframe: '2026',
+            explanation: 'Поиск статей по влажности'
+          }
+        };
+      }
+      return { status: 'failed' };
+    }
+  };
+
+  const router = createAssistantRouter({
+    config: { llmEnabled: true, llmEndpoint: 'http://127.0.0.1:8081' },
+    database: null,
+    logger: null,
+    engine: mockEngine
+  });
+
+  // 1. AI refinement
+  {
+    const { stream, url } = mockRequest('POST', '/api/assistant/search-refine', {
+      query: 'На каком заседании кафедры обсуждалась статья о влажности?'
+    });
+    const res = mockResponse();
+    const handled = await router(stream, res, url);
+    assert.equal(handled, true);
+    assert.equal(res.statusCode, 200);
+    assert.equal(res.body.ok, true);
+    assert.equal(res.body.status, 'completed');
+    assert.deepEqual(res.body.keywords, ['влажность', 'статья']);
+    assert.equal(res.body.ftsQuery, 'влажность OR статья');
+  }
+
+  // 2. Offline fallback when engine disabled
+  {
+    mockEngine.enabled = false;
+    const { stream, url } = mockRequest('POST', '/api/assistant/search-refine', {
+      query: 'обсуждение грантов РНФ и аспирантов'
+    });
+    const res = mockResponse();
+    const handled = await router(stream, res, url);
+    assert.equal(handled, true);
+    assert.equal(res.statusCode, 200);
+    assert.equal(res.body.ok, true);
+    assert.equal(res.body.status, 'fallback');
+    assert.ok(res.body.ftsQuery.includes('грантов'));
+    assert.ok(res.body.ftsQuery.includes('аспирантов'));
+  }
+});

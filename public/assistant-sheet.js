@@ -2,28 +2,54 @@
 
 const DRAFT_KEY = 'kafedra.assistant.draft';
 const HISTORY_KEY = 'kafedra.assistant.history';
-const MAX_HISTORY = 15;
+const FAVORITES_KEY = 'kafedra.assistant.favorites';
+const MAX_HISTORY = 30;
 
 const PRESETS = {
   'table-extract': [
     { label: '📋 Поручения и сроки', text: 'Поручить доценту Сидорову подготовить методические указания к 25 ноября. Профессору Иванову проверить готовность рабочих программ до 1 декабря.' },
     { label: '📚 Статьи и публикации', text: '1. Иванов И.И. Анализ данных в климатологии // Вестник науки. 2026. № 2. С. 45-52.\n2. Петров В.В., Сидоров А.А. Методы оценки влажности // Экологический мониторинг. 2026. Т. 14. С. 10-18.' },
-    { label: '👥 Упоминания и роли', text: 'В заседании участвовали: зав. кафедрой Иванов И.И. (председатель), доц. Смирнова Е.А. (секретарь), проф. Кузнецов Д.В., аспирант Васильев А.С.' }
+    { label: '👥 Упоминания и роли', text: 'В заседании участвовали: зав. кафедрой Иванов И.И. (председатель), доц. Смирнова Е.А. (секретарь), проф. Кузнецов Д.В., аспирант Васильев А.С.' },
+    { label: '📊 Учебная нагрузка', text: 'Преподаватель Петров В.В.: Лекции по базам данных — 36 часов, лабораторные работы — 64 часа, приём курсовых проектов — 18 часов. Семестр 1.' },
+    { label: '🎓 Темы ВКР и рецензенты', text: '1. Студент Смирнов Д.А. «Разработка микросервиса аналитики», руководитель проф. Кузнецов Д.В., рецензент доц. Васильев.\n2. Студентка Белова Е.К. «Методы распознавания документов», руководитель доц. Петров.' }
+  ],
+  'protocol-analysis': [
+    { label: '🏛️ Разбор протокола кафедры', text: 'ПРОТОКОЛ № 3 заседания кафедры от 15.10.2026.\nПредседатель: д.т.н., проф. Иванов И.И.\nСекретарь: к.т.н., доц. Смирнова Е.А.\nПрисутствовало: 11 из 14 (кворум имеется).\nСЛУШАЛИ:\n1. О готовности к зимней экзаменационной сессии. Докладчик: зам. зав. кафедрой доц. Петров В.В.\nПОСТАНОВИЛИ:\n1. Преподавателям кафедры провести контрольные срезы знаний студентов до 15.11.2026.\n2. Доц. Сидорову подготовить график консультаций и пересдач до 20.11.2026. Контроль возложить на зав. кафедрой.' },
+    { label: '📋 Поручения по НИР и публикациям', text: 'ПРОТОКОЛ заседания кафедры от 22.09.2026.\nСЛУШАЛИ: отчёт о выполнении плана НИР и публикаций в изданиях ВАК и РИНЦ. Докладчик: проф. Кузнецов Д.В.\nПОСТАНОВИЛИ:\n1. Доц. Васильеву представить рукопись статьи по датчикам влажности до 01.12.2026.\n2. Секретарю сформировать сводную заявку на гранты РНФ до 15.12.2026.' },
+    { label: '🎓 Утверждение тем ВКР', text: 'Заседание кафедры № 2 от 25.09.2026.\nПредседатель: проф. Иванов И.И. Секретарь: доц. Смирнова Е.А.\nПовестка: утверждение тем выпускных квалификационных работ специалистов и бакалавров.\nПОСТАНОВИЛИ:\nУтвердить темы ВКР согласно приложению. Научным руководителям выдать индивидуальные задания обучающимся до 10.10.2026.' },
+    { label: '🔬 Аттестация аспирантов', text: 'СЛУШАЛИ: об итогах промежуточной аттестации аспирантов очной формы обучения за 2025/2026 уч. год.\nПОСТАНОВИЛИ:\nАттестовать аспиранта Смирнова А.В. Срок сдачи кандидатского минимума по специальности — 15 мая 2027 г.' }
+  ],
+  'report-synthesis': [
+    { label: '📊 Отчёт по НИР за семестр', text: 'Подготовить раздел отчёта кафедры по научно-исследовательской работе за осенний семестр 2026 года: рассмотренные статьи и публикации ВАК/РИНЦ, поданные заявки на гранты и утверждённые темы исследований.' },
+    { label: '📚 Учебно-методическая работа', text: 'Сформировать официальный раздел отчёта по учебно-методической работе кафедры: переработка РПД, подготовка методических указаний к лабораторным работам и проведение открытых лекций.' },
+    { label: '👥 Кадры и квалификация', text: 'Составить раздел отчёта кафедры по повышению квалификации профессорско-преподавательского состава (ППС), стажировкам и защитам диссертаций в 2026 году.' },
+    { label: '🎯 Итоги экзаменационной сессии', text: 'Подготовить аналитический раздел отчёта по результатам зимней экзаменационной сессии, успеваемости курсантов и ликвидации академических задолженностей.' }
+  ],
+  'compliance-check': [
+    { label: '⚖️ Проверка регламента заседания', text: 'Протокол заседания кафедры.\nПрисутствовало: 6 человек из 15 штатных преподавателей.\nПредседатель: доц. Петров (врио).\nПОСТАНОВИЛИ: пересмотреть учебную нагрузку на следующий семестр, работу продолжать в плановом порядке.' },
+    { label: '🔍 Проверка формулировок поручений', text: 'По вопросу 2 повестки дня постановили: активизировать научную деятельность преподавателей, завершить методические пособия как можно скорее, обратить внимание на посещаемость занятий.' },
+    { label: '🏛️ Полный аудит проекта протокола', text: 'Протокол № 5 заседания кафедры от 20 октября 2026 г.\nПредседатель: Иванов И.И., секретарь: Смирнова Е.А.\nШтат: 12, присутствовало: 10.\nСлушали: О распределении нагрузки.\nПостановили: утвердить распределение часов на 2 семестр, ответственный: зав. кафедрой, срок: до 01.12.2026.' }
   ],
   'gap-repair': [
     { label: '🏛️ Заседание: пропуски дат и повестки', text: 'Заседание кафедры вычислительной техники.\nПрисутствовали: Иванов, Петров, Сидоров.\nПовестка дня:\n1. О подготовке к зимней сессии. Докладчик зав. кафедрой.\n2. Разное. Обсуждение закупки оборудования.' },
     { label: '📝 Протокол: проверка докладчиков и сроков', text: 'По вопросу 1 постановили: завершить приём задолженностей до конца месяца. Ответственным назначить зам. заведующего.' },
-    { label: '⚠️ Анализ ошибки или неполного фрагмента', text: 'Ошибка при сохранении документа: отсутствуют обязательные реквизиты распоряжения: номер и дата издания документа.' }
+    { label: '⚠️ Анализ ошибки или неполного фрагмента', text: 'Ошибка при сохранении документа: отсутствуют обязательные реквизиты распоряжения: номер и дата издания документа.' },
+    { label: '📅 Расчёт дат заседаний кафедры', text: 'Заседание кафедры состоялось в третий четверг октября 2026 года. Необходимо определить точную дату заседания и крайний срок сдачи выписок из протокола.' },
+    { label: '👥 Проверка кворума и явки', text: 'Штатный состав кафедры: 14 человек. На заседании присутствовали: 9 преподавателей. Отсутствовали по уважительной причине: 3. Определить наличие кворума.' }
   ],
   'formula-calc': [
     { label: '🔍 ВПР по ФИО', text: 'Как написать формулу ВПР для подтягивания должности преподавателя по его ФИО из соседней таблицы на листе Справочник' },
     { label: '📊 Подсчёт часов (СУММЕСЛИМН)', text: 'Напиши формулу СУММЕСЛИМН для подсчёта суммы учебных часов преподавателя Иванова за весенний семестр' },
-    { label: '🚦 Условное форматирование', text: 'Как в LibreOffice Calc выделить красным цветом ячейки со статусом "Не сдано" или сроком ранее сегодняшнего дня' }
+    { label: '🚦 Условное форматирование', text: 'Как в LibreOffice Calc выделить красным цветом ячейки со статусом "Не сдано" или сроком ранее сегодняшнего дня' },
+    { label: '📈 Средний балл успеваемости', text: 'Формула для расчёта среднего балла студентов группы по дисциплине с округлением до двух знаков (СРЗНАЧ, ОКРУГЛ)' },
+    { label: '⏱️ Рабочие дни до срока', text: 'Как рассчитать количество рабочих дней между сегодняшней датой и датой заседания кафедры с помощью ЧИСТРАБДНИ' }
   ],
   'archive-query': [
     { label: '💧 Статья о влажности', text: 'На каком заседании кафедры обсуждалась статья о влажности и какие решения были приняты?' },
     { label: '📋 Утверждение тем ВКР', text: 'Найти заседания, где утверждались темы выпускных квалификационных работ' },
-    { label: '🎓 Отчёт по аспирантам', text: 'В каких протоколах рассматривалась аттестация аспирантов кафедры?' }
+    { label: '🎓 Отчёт по аспирантам', text: 'В каких протоколах рассматривалась аттестация аспирантов кафедры?' },
+    { label: '🔬 Научные отчеты и гранты', text: 'В каком заседании кафедры рассматривались заявки на гранты РНФ и результаты НИР?' },
+    { label: '🏛️ Закупка оборудования', text: 'На каком заседании кафедры обсуждалось оснащение лаборатории и закупка вычислительной техники?' }
   ]
 };
 
@@ -38,7 +64,7 @@ function getHistory() {
 function saveHistoryItem(item) {
   try {
     const list = getHistory();
-    list.unshift({ ...item, timestamp: Date.now() });
+    list.unshift({ ...item, id: `h_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`, timestamp: Date.now() });
     localStorage.setItem(HISTORY_KEY, JSON.stringify(list.slice(0, MAX_HISTORY)));
   } catch {
     // quota exceeded or private mode
@@ -48,6 +74,32 @@ function saveHistoryItem(item) {
 function clearHistory() {
   try {
     localStorage.removeItem(HISTORY_KEY);
+  } catch {}
+}
+
+function getFavorites() {
+  try {
+    return JSON.parse(localStorage.getItem(FAVORITES_KEY) || '[]');
+  } catch {
+    return [];
+  }
+}
+
+function isFavorite(query) {
+  const favs = getFavorites();
+  return favs.some((f) => f.query === query);
+}
+
+function toggleFavorite(item) {
+  try {
+    const favs = getFavorites();
+    const idx = favs.findIndex((f) => f.query === item.query);
+    if (idx >= 0) {
+      favs.splice(idx, 1);
+    } else {
+      favs.unshift({ ...item, id: `fav_${Date.now()}`, starredAt: Date.now() });
+    }
+    localStorage.setItem(FAVORITES_KEY, JSON.stringify(favs));
   } catch {}
 }
 
@@ -100,14 +152,15 @@ export function createAssistantSheet() {
   let cancelBtn;
   let clearBtn;
   let resultsContainerEl;
+  let contextBannerEl;
   let abortController = null;
   let currentMode = 'table-extract';
   let timerInterval = null;
+  let activeHistoryFilter = 'all';
 
   function ensureElements() {
     if (sheetEl) return;
 
-    // Inject stylesheet
     if (!document.querySelector('link[href*="assistant-sheet.css"]')) {
       const link = document.createElement('link');
       link.rel = 'stylesheet';
@@ -151,11 +204,19 @@ export function createAssistantSheet() {
         </div>
         <div class="assistant-settings-field">
           <label for="assistant-setting-endpoint">Адрес сервера (URL):</label>
-          <input type="text" id="assistant-setting-endpoint" placeholder="http://remote-server:8000/v1">
+          <input type="text" id="assistant-setting-endpoint" placeholder="http://llm.52kaf.vka:8081 или http://127.0.0.1:8081">
         </div>
         <div class="assistant-settings-field">
-          <label for="assistant-setting-model">Модель:</label>
-          <input type="text" id="assistant-setting-model" placeholder="local-model">
+          <div class="assistant-settings-label-row">
+            <label for="assistant-setting-model">Модель:</label>
+            <button id="assistant-refresh-models-btn" class="quiet-button small-button" type="button" title="Запросить список моделей с сервера">🔄 Обновить модели</button>
+          </div>
+          <div class="assistant-model-input-group">
+            <input type="text" id="assistant-setting-model" list="assistant-models-datalist" placeholder="department-assistant или qwen">
+            <datalist id="assistant-models-datalist"></datalist>
+            <select id="assistant-models-select" class="assistant-models-select hidden" aria-label="Выбор модели из списка"></select>
+          </div>
+          <small class="assistant-field-help">Модели подтягиваются автоматически при проверке связи или нажатии «Обновить модели».</small>
         </div>
         <div class="assistant-settings-field">
           <label for="assistant-setting-apikey">API-ключ (необязательно):</label>
@@ -169,11 +230,16 @@ export function createAssistantSheet() {
       </div>
 
       <div class="assistant-body">
+        <div id="assistant-context-banner" class="assistant-context-banner hidden"></div>
+
         <nav class="assistant-modes" role="tablist" aria-label="Режимы ассистента">
-          <button class="assistant-mode-tab active" type="button" data-mode="table-extract">Анализ текста</button>
-          <button class="assistant-mode-tab" type="button" data-mode="gap-repair">Пропуски и ошибки</button>
+          <button class="assistant-mode-tab active" type="button" data-mode="table-extract">Таблицы</button>
+          <button class="assistant-mode-tab" type="button" data-mode="protocol-analysis">Разбор протокола</button>
+          <button class="assistant-mode-tab" type="button" data-mode="report-synthesis">Составление отчёта</button>
           <button class="assistant-mode-tab" type="button" data-mode="archive-query">Поиск в архиве</button>
-          <button class="assistant-mode-tab" type="button" data-mode="formula-calc">Формулы Calc / Excel</button>
+          <button class="assistant-mode-tab" type="button" data-mode="gap-repair">Пропуски и ошибки</button>
+          <button class="assistant-mode-tab" type="button" data-mode="compliance-check">Нормоконтроль</button>
+          <button class="assistant-mode-tab" type="button" data-mode="formula-calc">Формулы Calc</button>
           <button class="assistant-mode-tab" type="button" data-mode="history">История</button>
         </nav>
 
@@ -213,8 +279,8 @@ export function createAssistantSheet() {
     cancelBtn = sheetEl.querySelector('#assistant-cancel-btn');
     clearBtn = sheetEl.querySelector('#assistant-clear-btn');
     resultsContainerEl = sheetEl.querySelector('#assistant-results');
+    contextBannerEl = sheetEl.querySelector('#assistant-context-banner');
 
-    // Event listeners
     backdropEl.addEventListener('click', close);
     sheetEl.querySelector('#assistant-close-btn').addEventListener('click', close);
 
@@ -223,8 +289,18 @@ export function createAssistantSheet() {
 
     const testBtn = sheetEl.querySelector('#assistant-settings-test-btn');
     const saveBtn = sheetEl.querySelector('#assistant-settings-save-btn');
+    const refreshModelsBtn = sheetEl.querySelector('#assistant-refresh-models-btn');
+    const modelsSelect = sheetEl.querySelector('#assistant-models-select');
+
     testBtn.addEventListener('click', handleTestConnection);
     saveBtn.addEventListener('click', handleSaveSettings);
+    refreshModelsBtn.addEventListener('click', handleRefreshModels);
+
+    modelsSelect.addEventListener('change', () => {
+      if (modelsSelect.value) {
+        sheetEl.querySelector('#assistant-setting-model').value = modelsSelect.value;
+      }
+    });
 
     modeButtons.forEach((btn) => {
       btn.addEventListener('click', () => {
@@ -248,7 +324,6 @@ export function createAssistantSheet() {
     cancelBtn.addEventListener('click', handleCancel);
     processBtn.addEventListener('click', handleProcess);
 
-    // Global keyboard listener for Alt+A
     window.addEventListener('keydown', (e) => {
       if (e.altKey && (e.code === 'KeyA' || e.key === 'a' || e.key === 'ф' || e.key === 'Ф')) {
         e.preventDefault();
@@ -270,6 +345,37 @@ export function createAssistantSheet() {
     }
   }
 
+  function updateModelsList(models, selectedModel) {
+    const datalist = sheetEl.querySelector('#assistant-models-datalist');
+    const select = sheetEl.querySelector('#assistant-models-select');
+    const input = sheetEl.querySelector('#assistant-setting-model');
+    if (!datalist || !select || !input) return;
+
+    datalist.innerHTML = '';
+    select.innerHTML = '<option value="">-- Выберите модель из списка --</option>';
+
+    if (Array.isArray(models) && models.length > 0) {
+      models.forEach((m) => {
+        const opt = document.createElement('option');
+        opt.value = m;
+        opt.textContent = m;
+        datalist.append(opt.cloneNode(true));
+        select.append(opt);
+      });
+      select.classList.remove('hidden');
+
+      const chosen = selectedModel || models[0];
+      if (!input.value || input.value === 'local-model' || !models.includes(input.value)) {
+        input.value = chosen;
+        select.value = chosen;
+      } else {
+        select.value = input.value;
+      }
+    } else {
+      select.classList.add('hidden');
+    }
+  }
+
   async function loadSettingsToForm() {
     try {
       const resp = await fetch('/api/assistant/status');
@@ -278,8 +384,40 @@ export function createAssistantSheet() {
         sheetEl.querySelector('#assistant-setting-enabled').checked = Boolean(data.enabled);
         sheetEl.querySelector('#assistant-setting-endpoint').value = data.endpoint || '';
         sheetEl.querySelector('#assistant-setting-model').value = data.model || '';
+        updateModelsList(data.models || [], data.suggestedModel || data.model);
       }
     } catch {}
+  }
+
+  async function handleRefreshModels() {
+    ensureElements();
+    const endpoint = sheetEl.querySelector('#assistant-setting-endpoint').value.trim();
+    const apiKey = sheetEl.querySelector('#assistant-setting-apikey').value.trim();
+    const feedback = sheetEl.querySelector('#assistant-settings-feedback');
+
+    feedback.className = 'assistant-settings-feedback';
+    feedback.textContent = 'Запрос списка моделей...';
+    feedback.classList.remove('hidden');
+
+    try {
+      const resp = await fetch('/api/assistant/test-connection', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ endpoint, apiKey })
+      });
+      const data = await resp.json();
+      if (data.ok && Array.isArray(data.models) && data.models.length > 0) {
+        updateModelsList(data.models, data.selectedModel || data.models[0]);
+        feedback.className = 'assistant-settings-feedback success';
+        feedback.textContent = `✓ Найдено моделей: ${data.models.length} (${data.models.join(', ')}). Модель выбрана.`;
+      } else {
+        feedback.className = 'assistant-settings-feedback error';
+        feedback.textContent = `✗ Не удалось получить список моделей: ${data.reason || data.status}`;
+      }
+    } catch (e) {
+      feedback.className = 'assistant-settings-feedback error';
+      feedback.textContent = `✗ Ошибка: ${e.message}`;
+    }
   }
 
   async function handleTestConnection() {
@@ -290,7 +428,7 @@ export function createAssistantSheet() {
     const apiKey = sheetEl.querySelector('#assistant-setting-apikey').value.trim();
 
     feedback.className = 'assistant-settings-feedback';
-    feedback.textContent = 'Проверка соединения...';
+    feedback.textContent = 'Проверка соединения с сервером...';
     feedback.classList.remove('hidden');
 
     try {
@@ -302,8 +440,10 @@ export function createAssistantSheet() {
       const data = await resp.json();
       if (data.ok) {
         feedback.className = 'assistant-settings-feedback success';
-        const modelsCount = (data.models || []).length;
-        feedback.textContent = `✓ Соединение успешно (${data.latencyMs} мс). Доступно моделей: ${modelsCount}.`;
+        const models = data.models || [];
+        updateModelsList(models, data.selectedModel);
+        const modelInfo = models.length > 0 ? `Доступно моделей: ${models.length} (${models.join(', ')}). Модель подтянута автоматом.` : 'Сервер ответил (список моделей пуст).';
+        feedback.textContent = `✓ Соединение успешно (${data.latencyMs} мс). ${modelInfo}`;
       } else {
         feedback.className = 'assistant-settings-feedback error';
         feedback.textContent = `✗ Сервер недоступен: ${data.reason || data.status}`;
@@ -323,7 +463,7 @@ export function createAssistantSheet() {
     const apiKey = sheetEl.querySelector('#assistant-setting-apikey').value.trim();
 
     feedback.className = 'assistant-settings-feedback';
-    feedback.textContent = 'Сохранение...';
+    feedback.textContent = 'Сохранение настроек...';
     feedback.classList.remove('hidden');
 
     try {
@@ -335,12 +475,12 @@ export function createAssistantSheet() {
       const data = await resp.json();
       if (data.ok) {
         feedback.className = 'assistant-settings-feedback success';
-        feedback.textContent = '✓ Настройки сохранены';
+        feedback.textContent = '✓ Настройки успешно сохранены';
         checkStatus();
         setTimeout(() => {
           feedback.classList.add('hidden');
           settingsPanelEl.classList.add('hidden');
-        }, 1500);
+        }, 1200);
       } else {
         feedback.className = 'assistant-settings-feedback error';
         feedback.textContent = `✗ Ошибка сохранения: ${data.error || 'неизвестная ошибка'}`;
@@ -376,26 +516,33 @@ export function createAssistantSheet() {
 
   function updatePlaceholder() {
     if (currentMode === 'table-extract') {
-      textareaEl.placeholder = 'Вставьте неформатированный текст (протокол, список статей, поручения)...';
-    } else if (currentMode === 'gap-repair') {
-      textareaEl.placeholder = 'Вставьте фрагмент заседания, протокол или текст с ошибкой для анализа пропусков дат и реквизитов...';
+      textareaEl.placeholder = 'Вставьте неформатированный текст (поручения, список статей, учебную нагрузку)...';
+    } else if (currentMode === 'protocol-analysis') {
+      textareaEl.placeholder = 'Вставьте текст или черновик протокола заседания (СЛУШАЛИ / ПОСТАНОВИЛИ)...';
+    } else if (currentMode === 'report-synthesis') {
+      textareaEl.placeholder = 'Опишите тему отчёта (НИР, УМР, кадры, сессия) или перечислите факты для синтеза раздела...';
     } else if (currentMode === 'archive-query') {
-      textareaEl.placeholder = 'Например: В каких заседаниях обсуждался вопрос о влажности почв?';
+      textareaEl.placeholder = 'Напишите вопрос по протоколам и заседаниям кафедры (например: на каком заседании обсуждалась статья о влажности)...';
+    } else if (currentMode === 'gap-repair') {
+      textareaEl.placeholder = 'Вставьте фрагмент заседания, протокол или ошибку для выявления пропусков и исправления...';
+    } else if (currentMode === 'compliance-check') {
+      textareaEl.placeholder = 'Вставьте текст протокола или решения для регламентной проверки кворума, сроков и реквизитов...';
     } else if (currentMode === 'formula-calc') {
-      textareaEl.placeholder = 'Опишите задачу: например, как посчитать часы Иванова по семестрам в Calc...';
+      textareaEl.placeholder = 'Опишите задачу для Calc / Excel (например: формула ВПР по ФИО, подсчёт учебных часов по семестрам)...';
     }
   }
 
   function renderPresets() {
-    presetsContainerEl.innerHTML = '';
     const list = PRESETS[currentMode] || [];
-    list.forEach((preset) => {
+    presetsContainerEl.innerHTML = '';
+    list.forEach((p) => {
       const chip = document.createElement('button');
       chip.type = 'button';
       chip.className = 'assistant-preset-chip';
-      chip.textContent = preset.label;
+      chip.textContent = p.label;
+      chip.title = p.text.slice(0, 160);
       chip.addEventListener('click', () => {
-        textareaEl.value = preset.text;
+        textareaEl.value = p.text;
         updateCharCount();
         saveDraft();
         textareaEl.focus();
@@ -411,13 +558,13 @@ export function createAssistantSheet() {
 
   function saveDraft() {
     try {
-      sessionStorage.setItem(`${DRAFT_KEY}.${currentMode}`, textareaEl.value);
+      localStorage.setItem(`${DRAFT_KEY}.${currentMode}`, textareaEl.value);
     } catch {}
   }
 
   function restoreDraft() {
     try {
-      const saved = sessionStorage.getItem(`${DRAFT_KEY}.${currentMode}`);
+      const saved = localStorage.getItem(`${DRAFT_KEY}.${currentMode}`);
       if (saved) {
         textareaEl.value = saved;
         updateCharCount();
@@ -430,11 +577,11 @@ export function createAssistantSheet() {
       const resp = await fetch('/api/assistant/status');
       if (resp.ok) {
         const data = await resp.json();
-        if (data.enabled && data.status === 'ready') {
+        if (data.enabled && (data.status === 'ready' || data.status === 'model_not_in_list')) {
           const lat = data.latencyMs ? ` (${data.latencyMs} мс)` : '';
           statusBadgeEl.textContent = `● В сети${lat}`;
           statusBadgeEl.className = 'assistant-status-badge ready';
-          statusBadgeEl.title = `Сервер: ${data.endpoint || 'локальный'}\nМодель: ${data.model}`;
+          statusBadgeEl.title = `Сервер: ${data.endpoint || 'локальный'}\nМодель: ${data.model}${data.suggestedModel && data.suggestedModel !== data.model ? `\nДоступна: ${data.suggestedModel}` : ''}`;
         } else if (data.enabled && data.status === 'unavailable') {
           statusBadgeEl.textContent = '● Недоступен';
           statusBadgeEl.className = 'assistant-status-badge unavailable';
@@ -482,12 +629,59 @@ export function createAssistantSheet() {
 
     const startTime = Date.now();
     processBtn.textContent = 'Обработка... (0 с)';
+
+    resultsContainerEl.innerHTML = `
+      <div class="assistant-progress-card">
+        <div class="assistant-progress-header">
+          <div class="assistant-progress-spinner"></div>
+          <div class="assistant-progress-title" id="assistant-progress-stage">
+            ${currentMode === 'archive-query' ? '1. Поиск документов в архиве кафедры...' : '1. Анализ текста и подготовка контекста...'}
+          </div>
+          <div class="assistant-progress-timer" id="assistant-progress-timer">0 с</div>
+        </div>
+        <div class="assistant-progress-bar-wrap">
+          <div class="assistant-progress-bar" id="assistant-progress-bar"></div>
+        </div>
+        <div class="assistant-progress-steps">
+          <div class="assistant-step active" id="ast-step-1">1. ${currentMode === 'archive-query' ? 'Поиск протоколов и решений в архиве' : 'Анализ входного текста'}</div>
+          <div class="assistant-step" id="ast-step-2">2. Извлечение цитат и подготовка контекста</div>
+          <div class="assistant-step" id="ast-step-3">3. Генерация ответа локальной нейросетью</div>
+          <div class="assistant-step" id="ast-step-4">4. Проверка реквизитов и формул</div>
+        </div>
+        <p class="assistant-progress-note">
+          💡 Локальная модель работает полностью автономно на сервере кафедры (CPU). При сложных запросах генерация занимает 15–45 секунд.
+        </p>
+      </div>
+    `;
+
+    const stageEl = resultsContainerEl.querySelector('#assistant-progress-stage');
+    const timerEl = resultsContainerEl.querySelector('#assistant-progress-timer');
+    const barEl = resultsContainerEl.querySelector('#assistant-progress-bar');
+    const step1 = resultsContainerEl.querySelector('#ast-step-1');
+    const step2 = resultsContainerEl.querySelector('#ast-step-2');
+    const step3 = resultsContainerEl.querySelector('#ast-step-3');
+    const step4 = resultsContainerEl.querySelector('#ast-step-4');
+
     timerInterval = setInterval(() => {
       const elapsed = Math.round((Date.now() - startTime) / 1000);
       processBtn.textContent = `Обработка... (${elapsed} с)`;
-    }, 1000);
+      if (timerEl) timerEl.textContent = `${elapsed} с`;
 
-    resultsContainerEl.innerHTML = '<p class="helper">Модель обрабатывает запрос и формирует результат...</p>';
+      if (elapsed < 3) {
+        if (stageEl) stageEl.textContent = currentMode === 'archive-query' ? '1. Поиск документов в архиве кафедры...' : '1. Анализ входного текста...';
+        if (barEl) barEl.style.width = '25%';
+      } else if (elapsed < 8) {
+        if (step1) { step1.classList.remove('active'); step1.classList.add('completed'); }
+        if (step2) step2.classList.add('active');
+        if (stageEl) stageEl.textContent = '2. Извлечение фрагментов и подготовка промпта...';
+        if (barEl) barEl.style.width = '50%';
+      } else {
+        if (step2) { step2.classList.remove('active'); step2.classList.add('completed'); }
+        if (step3) step3.classList.add('active');
+        if (stageEl) stageEl.textContent = `3. Генерация ответа нейросетью (${elapsed} с)...`;
+        if (barEl) barEl.style.width = `${Math.min(92, 50 + (elapsed - 8) * 1.5)}%`;
+      }
+    }, 1000);
 
     try {
       const resp = await fetch('/api/assistant/process', {
@@ -507,7 +701,8 @@ export function createAssistantSheet() {
       cancelBtn.classList.add('hidden');
 
       if (!resp.ok) {
-        resultsContainerEl.innerHTML = `<p class="error-text">Ошибка HTTP ${resp.status}</p>`;
+        const errorData = await resp.json().catch(() => ({}));
+        resultsContainerEl.innerHTML = `<p class="error-text">Ошибка HTTP ${resp.status}: ${errorData.message || 'Сбой обработки запроса'}</p>`;
         return;
       }
 
@@ -532,8 +727,12 @@ export function createAssistantSheet() {
         return;
       }
 
+      if (step3) { step3.classList.remove('active'); step3.classList.add('completed'); }
+      if (step4) step4.classList.add('completed');
+      if (barEl) barEl.style.width = '100%';
+
       renderResult(data.result);
-      saveHistoryItem({ mode: currentMode, query: text, result: data.result });
+      saveHistoryItem({ mode: currentMode, query: text, result: data.result, success: true });
     } catch (err) {
       clearInterval(timerInterval);
       processBtn.textContent = 'Обработать';
@@ -574,6 +773,14 @@ export function createAssistantSheet() {
       renderFormulaResult(result);
     } else if (result.type === 'archive-matches') {
       renderArchiveMatches(result);
+    } else if (result.type === 'protocol-analysis') {
+      renderProtocolAnalysisResult(result);
+    } else if (result.type === 'report-synthesis') {
+      renderReportSynthesisResult(result);
+    } else if (result.type === 'compliance-check') {
+      renderComplianceCheckResult(result);
+    } else if (result.type === 'search-refine') {
+      renderSearchRefineResult(result);
     }
   }
 
@@ -595,7 +802,6 @@ export function createAssistantSheet() {
       emptyCard.innerHTML = '<p>Пропусков и ошибок не обнаружено. Все реквизиты заполнены.</p>';
       wrap.append(emptyCard);
     } else {
-      // Top actions toolbar: single-click accept all, copy repaired text, toggle details
       const toolbar = document.createElement('div');
       toolbar.className = 'assistant-gap-toolbar';
 
@@ -735,7 +941,6 @@ export function createAssistantSheet() {
         valWrap.append(sug);
         card.append(valWrap);
 
-        // Collapsible details block (quiet by default, expandable on demand)
         const details = document.createElement('details');
         details.className = 'assistant-gap-details';
 
@@ -1023,6 +1228,8 @@ export function createAssistantSheet() {
         if (m.itemTitle) {
           const itemTitleEl = document.createElement('div');
           itemTitleEl.style.fontSize = '13px';
+          itemTitleEl.style.fontWeight = '600';
+          itemTitleEl.style.marginTop = '4px';
           itemTitleEl.textContent = m.itemTitle;
           card.append(itemTitleEl);
         }
@@ -1034,8 +1241,413 @@ export function createAssistantSheet() {
           card.append(quoteEl);
         }
 
+        const actionsRow = document.createElement('div');
+        actionsRow.className = 'assistant-match-actions';
+
+        const copyBtn = document.createElement('button');
+        copyBtn.type = 'button';
+        copyBtn.className = 'quiet-button small-button';
+        copyBtn.textContent = '📋 Скопировать реквизиты';
+        copyBtn.addEventListener('click', async () => {
+          const textToCopy = `Протокол заседания кафедры № ${m.protocolNumber || 'б/н'} от ${m.meetingDate || 'б/д'}${m.itemNumber ? `, вопрос ${m.itemNumber}` : ''}: ${m.quote || m.itemTitle || ''}`;
+          try {
+            await navigator.clipboard.writeText(textToCopy);
+            showToast('Реквизиты заседания скопированы в буфер');
+          } catch {
+            showToast('Не удалось скопировать');
+          }
+        });
+
+        actionsRow.append(copyBtn);
+
+        if (m.meetingId) {
+          const openMeetingBtn = document.createElement('button');
+          openMeetingBtn.type = 'button';
+          openMeetingBtn.className = 'secondary-button small-button';
+          openMeetingBtn.textContent = '👁️ Открыть заседание';
+          openMeetingBtn.addEventListener('click', () => {
+            close();
+            window.dispatchEvent(new CustomEvent('kafedra:open-meeting', { detail: { meetingId: m.meetingId } }));
+            window.dispatchEvent(new CustomEvent('kafedra:view-changed', { detail: { view: 'meetings' } }));
+            if (window.location.hash !== '#meetings') {
+              window.location.hash = '#meetings';
+            }
+          });
+          actionsRow.append(openMeetingBtn);
+        }
+
+        card.append(actionsRow);
         wrap.append(card);
       });
+    }
+
+    resultsContainerEl.append(wrap);
+  }
+
+  function renderProtocolAnalysisResult(data) {
+    const wrap = document.createElement('div');
+    wrap.className = 'assistant-protocol-wrap';
+
+    const headerCard = document.createElement('div');
+    headerCard.className = 'assistant-protocol-header-card';
+
+    const numPart = data.meetingNumber ? `Протокол № ${data.meetingNumber}` : 'Протокол заседания кафедры';
+    const datePart = data.meetingDate ? ` от ${data.meetingDate}` : '';
+    const titleEl = document.createElement('h3');
+    titleEl.className = 'assistant-protocol-title';
+    titleEl.textContent = `${numPart}${datePart}`;
+    headerCard.append(titleEl);
+
+    const metaRow = document.createElement('div');
+    metaRow.className = 'assistant-protocol-meta';
+    if (data.chairman) {
+      const chEl = document.createElement('span');
+      chEl.className = 'assistant-meta-badge';
+      chEl.textContent = `Председатель: ${data.chairman}`;
+      metaRow.append(chEl);
+    }
+    if (data.secretary) {
+      const secEl = document.createElement('span');
+      secEl.className = 'assistant-meta-badge';
+      secEl.textContent = `Секретарь: ${data.secretary}`;
+      metaRow.append(secEl);
+    }
+    if (data.quorum) {
+      const qEl = document.createElement('span');
+      qEl.className = 'assistant-meta-badge';
+      qEl.textContent = `Кворум: ${data.quorum}`;
+      metaRow.append(qEl);
+    }
+    headerCard.append(metaRow);
+
+    const copyBtn = document.createElement('button');
+    copyBtn.type = 'button';
+    copyBtn.className = 'secondary-button small-button';
+    copyBtn.textContent = '📋 Скопировать решения и поручения';
+    copyBtn.addEventListener('click', async () => {
+      const lines = [];
+      lines.push(`${numPart}${datePart}`);
+      (data.agenda || []).forEach((ag) => {
+        lines.push(`\nВопрос ${ag.itemNumber}. ${ag.topic}`);
+        if (ag.speaker) lines.push(`Докладчик: ${ag.speaker}`);
+        (ag.decisions || []).forEach((dec, idx) => {
+          const dl = dec.deadline ? ` (Срок: ${dec.deadline})` : '';
+          const as = dec.assignee ? ` [Ответственный: ${dec.assignee}]` : '';
+          lines.push(`  ${idx + 1}. ${dec.action}${as}${dl}`);
+        });
+      });
+      try {
+        await navigator.clipboard.writeText(lines.join('\n'));
+        showToast('Поручения скопированы в буфер');
+      } catch {
+        showToast('Не удалось скопировать');
+      }
+    });
+    headerCard.append(copyBtn);
+    wrap.append(headerCard);
+
+    const agendaList = data.agenda || [];
+    if (agendaList.length === 0) {
+      const empty = document.createElement('p');
+      empty.className = 'helper';
+      empty.textContent = 'Повестка дня и принятые решения в тексте не распознаны.';
+      wrap.append(empty);
+    } else {
+      agendaList.forEach((ag) => {
+        const itemCard = document.createElement('div');
+        itemCard.className = 'assistant-agenda-card';
+
+        const agHead = document.createElement('div');
+        agHead.className = 'assistant-agenda-head';
+        agHead.innerHTML = `<strong>Вопрос ${ag.itemNumber}:</strong> ${ag.topic || 'Без названия'}`;
+        itemCard.append(agHead);
+
+        if (ag.speaker) {
+          const spk = document.createElement('div');
+          spk.className = 'assistant-agenda-speaker';
+          spk.textContent = `Докладчик: ${ag.speaker}`;
+          itemCard.append(spk);
+        }
+
+        const decList = ag.decisions || [];
+        if (decList.length > 0) {
+          const decTitle = document.createElement('div');
+          decTitle.className = 'assistant-decision-title';
+          decTitle.textContent = 'Постановления и поручения:';
+          itemCard.append(decTitle);
+
+          const ol = document.createElement('ol');
+          ol.className = 'assistant-decision-list';
+          decList.forEach((d) => {
+            const li = document.createElement('li');
+            li.className = 'assistant-decision-item';
+
+            const actionSpan = document.createElement('div');
+            actionSpan.className = 'assistant-decision-action';
+            actionSpan.textContent = d.action;
+            li.append(actionSpan);
+
+            const decMeta = document.createElement('div');
+            decMeta.className = 'assistant-decision-meta';
+            if (d.assignee) {
+              const assBadge = document.createElement('span');
+              assBadge.className = 'assistant-assignee-badge';
+              assBadge.textContent = `👤 ${d.assignee}`;
+              decMeta.append(assBadge);
+            }
+            if (d.deadline) {
+              const dlBadge = document.createElement('span');
+              dlBadge.className = 'assistant-deadline-badge';
+              dlBadge.textContent = `📅 Срок: ${d.deadline}`;
+              decMeta.append(dlBadge);
+            }
+            if (d.control) {
+              const ctrlBadge = document.createElement('span');
+              ctrlBadge.className = 'assistant-control-badge';
+              ctrlBadge.textContent = `Контроль: ${d.control}`;
+              decMeta.append(ctrlBadge);
+            }
+            li.append(decMeta);
+            ol.append(li);
+          });
+          itemCard.append(ol);
+        }
+
+        wrap.append(itemCard);
+      });
+    }
+
+    resultsContainerEl.append(wrap);
+  }
+
+  function renderReportSynthesisResult(data) {
+    const wrap = document.createElement('div');
+    wrap.className = 'assistant-report-wrap';
+
+    const header = document.createElement('div');
+    header.className = 'assistant-report-header';
+
+    const titleEl = document.createElement('h3');
+    titleEl.className = 'assistant-report-title';
+    titleEl.textContent = data.sectionTitle || 'Раздел отчёта кафедры';
+
+    const copyBtn = document.createElement('button');
+    copyBtn.type = 'button';
+    copyBtn.className = 'secondary-button small-button';
+    copyBtn.textContent = '📋 Скопировать раздел отчёта';
+    copyBtn.addEventListener('click', async () => {
+      const parts = [data.sectionTitle || ''];
+      if (data.executiveSummary) parts.push(`Сводка:\n${data.executiveSummary}`);
+      if (Array.isArray(data.paragraphs)) parts.push(data.paragraphs.join('\n\n'));
+      if (Array.isArray(data.facts) && data.facts.length) {
+        parts.push('\nКлючевые показатели:');
+        data.facts.forEach((f) => parts.push(`- ${f.label}: ${f.value} (${f.source || ''})`));
+      }
+      if (Array.isArray(data.conclusions) && data.conclusions.length) {
+        parts.push('\nВыводы:');
+        data.conclusions.forEach((c) => parts.push(`- ${c}`));
+      }
+      try {
+        await navigator.clipboard.writeText(parts.join('\n\n'));
+        showToast('Текст отчёта скопирован');
+      } catch {
+        showToast('Не удалось скопировать');
+      }
+    });
+
+    header.append(titleEl, copyBtn);
+    wrap.append(header);
+
+    if (data.executiveSummary) {
+      const sumCard = document.createElement('div');
+      sumCard.className = 'assistant-summary-card';
+      sumCard.innerHTML = `<strong>Сводка:</strong> ${data.executiveSummary}`;
+      wrap.append(sumCard);
+    }
+
+    if (Array.isArray(data.paragraphs) && data.paragraphs.length > 0) {
+      const pWrap = document.createElement('div');
+      pWrap.className = 'assistant-report-paragraphs';
+      data.paragraphs.forEach((pText) => {
+        const p = document.createElement('p');
+        p.className = 'assistant-report-p';
+        p.textContent = pText;
+        pWrap.append(p);
+      });
+      wrap.append(pWrap);
+    }
+
+    if (Array.isArray(data.facts) && data.facts.length > 0) {
+      const factsCard = document.createElement('div');
+      factsCard.className = 'assistant-report-facts';
+      const fHead = document.createElement('strong');
+      fHead.textContent = 'Ключевые факты и источники:';
+      factsCard.append(fHead);
+
+      const fGrid = document.createElement('div');
+      fGrid.className = 'assistant-facts-grid';
+      data.facts.forEach((f) => {
+        const chip = document.createElement('div');
+        chip.className = 'assistant-fact-chip';
+        chip.innerHTML = `
+          <div class="assistant-fact-label">${f.label}</div>
+          <div class="assistant-fact-value">${f.value}</div>
+          <div class="assistant-fact-source">${f.source || ''}</div>
+        `;
+        fGrid.append(chip);
+      });
+      factsCard.append(fGrid);
+      wrap.append(factsCard);
+    }
+
+    if (Array.isArray(data.conclusions) && data.conclusions.length > 0) {
+      const concCard = document.createElement('div');
+      concCard.className = 'assistant-conclusions-card';
+      concCard.innerHTML = '<strong>Выводы:</strong>';
+      const ul = document.createElement('ul');
+      data.conclusions.forEach((c) => {
+        const li = document.createElement('li');
+        li.textContent = c;
+        ul.append(li);
+      });
+      concCard.append(ul);
+      wrap.append(concCard);
+    }
+
+    resultsContainerEl.append(wrap);
+  }
+
+  function renderComplianceCheckResult(data) {
+    const wrap = document.createElement('div');
+    wrap.className = 'assistant-compliance-wrap';
+
+    const banner = document.createElement('div');
+    const isPass = Boolean(data.passed);
+    banner.className = `assistant-compliance-banner ${isPass ? 'passed' : 'warning'}`;
+
+    const scoreBadge = document.createElement('div');
+    scoreBadge.className = 'assistant-compliance-score';
+    scoreBadge.textContent = `${data.score || 0}%`;
+
+    const bannerInfo = document.createElement('div');
+    bannerInfo.className = 'assistant-compliance-info';
+    bannerInfo.innerHTML = `
+      <div class="assistant-compliance-headline">${isPass ? '✓ Регламент соблюдён' : '⚠️ Обнаружены замечания по регламенту'}</div>
+      <div class="assistant-compliance-subline">Оценка соответствия стандарту делопроизводства кафедры</div>
+    `;
+
+    banner.append(scoreBadge, bannerInfo);
+    wrap.append(banner);
+
+    const checksList = data.checks || [];
+    if (checksList.length > 0) {
+      const chWrap = document.createElement('div');
+      chWrap.className = 'assistant-checks-list';
+
+      checksList.forEach((c) => {
+        const card = document.createElement('div');
+        card.className = `assistant-check-card status-${c.status}`;
+
+        const head = document.createElement('div');
+        head.className = 'assistant-check-head';
+
+        const title = document.createElement('span');
+        title.className = 'assistant-check-rule';
+        title.textContent = c.rule;
+
+        const badge = document.createElement('span');
+        badge.className = `assistant-check-badge ${c.status}`;
+        badge.textContent = c.status === 'pass' ? '✓ Норма' : c.status === 'fail' ? '✗ Нарушение' : '⚠️ Замечание';
+
+        head.append(title, badge);
+        card.append(head);
+
+        if (c.details) {
+          const dt = document.createElement('div');
+          dt.className = 'assistant-check-details';
+          dt.textContent = c.details;
+          card.append(dt);
+        }
+
+        if (c.sourceQuote) {
+          const q = document.createElement('blockquote');
+          q.className = 'assistant-check-quote';
+          q.textContent = `«${c.sourceQuote}»`;
+          card.append(q);
+        }
+
+        chWrap.append(card);
+      });
+      wrap.append(chWrap);
+    }
+
+    if (Array.isArray(data.recommendations) && data.recommendations.length > 0) {
+      const recCard = document.createElement('div');
+      recCard.className = 'assistant-advice-card';
+      recCard.innerHTML = '<strong>Рекомендации по устранению замечаний:</strong>';
+      const ol = document.createElement('ol');
+      data.recommendations.forEach((r) => {
+        const li = document.createElement('li');
+        li.textContent = r;
+        ol.append(li);
+      });
+      recCard.append(ol);
+      wrap.append(recCard);
+    }
+
+    resultsContainerEl.append(wrap);
+  }
+
+  function renderSearchRefineResult(data) {
+    const wrap = document.createElement('div');
+    wrap.className = 'assistant-refine-wrap';
+
+    if (data.explanation) {
+      const exp = document.createElement('div');
+      exp.className = 'assistant-summary-card';
+      exp.textContent = data.explanation;
+      wrap.append(exp);
+    }
+
+    const row = document.createElement('div');
+    row.className = 'assistant-refine-tags';
+
+    (data.keywords || []).forEach((k) => {
+      const chip = document.createElement('span');
+      chip.className = 'assistant-keyword-chip';
+      chip.textContent = `#${k}`;
+      row.append(chip);
+    });
+
+    (data.synonyms || []).forEach((s) => {
+      const chip = document.createElement('span');
+      chip.className = 'assistant-synonym-chip';
+      chip.textContent = `~${s}`;
+      row.append(chip);
+    });
+    wrap.append(row);
+
+    if (data.ftsQuery) {
+      const qBox = document.createElement('div');
+      qBox.className = 'assistant-refine-box';
+
+      const code = document.createElement('code');
+      code.className = 'assistant-refine-query';
+      code.textContent = data.ftsQuery;
+
+      const runBtn = document.createElement('button');
+      runBtn.type = 'button';
+      runBtn.className = 'primary-button small-button';
+      runBtn.textContent = '🔍 Искать в архиве';
+      runBtn.addEventListener('click', () => {
+        setMode('archive-query');
+        textareaEl.value = data.ftsQuery;
+        updateCharCount();
+        handleProcess();
+      });
+
+      qBox.append(code, runBtn);
+      wrap.append(qBox);
     }
 
     resultsContainerEl.append(wrap);
@@ -1046,46 +1658,116 @@ export function createAssistantSheet() {
     resultsContainerEl.innerHTML = '';
 
     const list = getHistory();
-    if (!list.length) {
-      resultsContainerEl.innerHTML = '<p class="helper">История запросов пуста.</p>';
-      return;
-    }
+    const favs = getFavorites();
 
     const header = document.createElement('div');
     header.className = 'assistant-result-header';
-    header.innerHTML = '<strong>Недавние запросы</strong>';
+
+    const filterGroup = document.createElement('div');
+    filterGroup.className = 'assistant-history-filters';
+
+    const allBtn = document.createElement('button');
+    allBtn.type = 'button';
+    allBtn.className = `assistant-history-filter-btn ${activeHistoryFilter === 'all' ? 'active' : ''}`;
+    allBtn.textContent = `Все (${list.length})`;
+    allBtn.addEventListener('click', () => { activeHistoryFilter = 'all'; renderHistoryView(); });
+
+    const favBtn = document.createElement('button');
+    favBtn.type = 'button';
+    favBtn.className = `assistant-history-filter-btn ${activeHistoryFilter === 'favorites' ? 'active' : ''}`;
+    favBtn.textContent = `★ Избранные (${favs.length})`;
+    favBtn.addEventListener('click', () => { activeHistoryFilter = 'favorites'; renderHistoryView(); });
+
+    const successBtn = document.createElement('button');
+    successBtn.type = 'button';
+    const successCount = list.filter((it) => it.success).length;
+    successBtn.className = `assistant-history-filter-btn ${activeHistoryFilter === 'success' ? 'active' : ''}`;
+    successBtn.textContent = `✓ Успешные (${successCount})`;
+    successBtn.addEventListener('click', () => { activeHistoryFilter = 'success'; renderHistoryView(); });
+
+    filterGroup.append(allBtn, favBtn, successBtn);
 
     const clearBtn = document.createElement('button');
     clearBtn.type = 'button';
-    clearBtn.className = 'quiet-button';
+    clearBtn.className = 'quiet-button small-button';
     clearBtn.textContent = 'Очистить историю';
     clearBtn.addEventListener('click', () => {
       clearHistory();
       renderHistoryView();
     });
-    header.append(clearBtn);
+
+    header.append(filterGroup, clearBtn);
     resultsContainerEl.append(header);
+
+    let displayList = list;
+    if (activeHistoryFilter === 'favorites') {
+      displayList = favs;
+    } else if (activeHistoryFilter === 'success') {
+      displayList = list.filter((it) => it.success);
+    }
+
+    if (!displayList.length) {
+      const empty = document.createElement('p');
+      empty.className = 'helper';
+      empty.textContent = activeHistoryFilter === 'favorites' ? 'В избранном пока нет запросов. Нажмите ★ на карточке запроса.' : 'История запросов пуста.';
+      resultsContainerEl.append(empty);
+      return;
+    }
 
     const histList = document.createElement('div');
     histList.className = 'assistant-history-list';
 
-    list.forEach((item) => {
+    displayList.forEach((item) => {
       const row = document.createElement('div');
       row.className = 'assistant-history-item';
 
-      const textSpan = document.createElement('span');
-      textSpan.textContent = item.query ? item.query.slice(0, 80) : '(пустой запрос)';
+      const favStarred = isFavorite(item.query);
+      const starBtn = document.createElement('button');
+      starBtn.type = 'button';
+      starBtn.className = `assistant-history-star-btn ${favStarred ? 'starred' : ''}`;
+      starBtn.textContent = favStarred ? '★' : '☆';
+      starBtn.title = favStarred ? 'Удалить из избранного' : 'Добавить в избранное';
+      starBtn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        toggleFavorite(item);
+        renderHistoryView();
+      });
+
+      const contentBox = document.createElement('div');
+      contentBox.className = 'assistant-history-item-content';
+
+      const titleSpan = document.createElement('span');
+      titleSpan.className = 'assistant-history-query';
+      titleSpan.textContent = item.query ? item.query.slice(0, 100) : '(пустой запрос)';
+
+      const metaRow = document.createElement('div');
+      metaRow.className = 'assistant-history-meta';
+
+      const modeBadge = document.createElement('span');
+      modeBadge.className = 'assistant-history-mode-tag';
+      modeBadge.textContent = item.mode || 'запрос';
 
       const dateSpan = document.createElement('span');
       dateSpan.className = 'helper';
-      dateSpan.textContent = new Date(item.timestamp).toLocaleDateString();
+      dateSpan.textContent = new Date(item.timestamp || item.starredAt || Date.now()).toLocaleDateString();
 
-      row.append(textSpan, dateSpan);
+      metaRow.append(modeBadge, dateSpan);
+      contentBox.append(titleSpan, metaRow);
+
+      const rerunBtn = document.createElement('button');
+      rerunBtn.type = 'button';
+      rerunBtn.className = 'quiet-button small-button assistant-history-rerun-btn';
+      rerunBtn.textContent = 'Открыть ↵';
+      rerunBtn.title = 'Загрузить этот запрос в поле ввода';
+
+      row.append(starBtn, contentBox, rerunBtn);
       row.addEventListener('click', () => {
         setMode(item.mode);
         textareaEl.value = item.query;
         updateCharCount();
-        renderResult(item.result);
+        if (item.result) {
+          renderResult(item.result);
+        }
       });
 
       histList.append(row);
@@ -1099,6 +1781,14 @@ export function createAssistantSheet() {
     backdropEl.classList.remove('hidden');
     sheetEl.classList.remove('hidden');
     checkStatus();
+
+    if (options.contextTitle) {
+      contextBannerEl.classList.remove('hidden');
+      contextBannerEl.innerHTML = `<strong>Контекст:</strong> ${options.contextTitle}`;
+    } else {
+      contextBannerEl.classList.add('hidden');
+      contextBannerEl.innerHTML = '';
+    }
 
     if (options.mode) {
       setMode(options.mode);

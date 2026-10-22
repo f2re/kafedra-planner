@@ -25,6 +25,9 @@ test('assistant UI elements and contracts are present in index.html, app.js and 
   assert.match(sheetJs, /gap-repair/);
   assert.match(sheetJs, /formula-calc/);
   assert.match(sheetJs, /archive-query/);
+  assert.match(sheetJs, /protocol-analysis/);
+  assert.match(sheetJs, /report-synthesis/);
+  assert.match(sheetJs, /compliance-check/);
   assert.match(sheetJs, /assistant-settings-panel/);
   assert.match(sheetJs, /handleTestConnection/);
   assert.match(sheetJs, /handleSaveSettings/);
@@ -43,6 +46,9 @@ test('assistant UI elements and contracts are present in index.html, app.js and 
   assert.match(sheetCss, /\.assistant-gap-toolbar/);
   assert.match(sheetCss, /\.assistant-apply-all-btn/);
   assert.match(sheetCss, /\.assistant-gap-details/);
+  assert.match(sheetCss, /\.assistant-protocol-wrap/);
+  assert.match(sheetCss, /\.assistant-report-wrap/);
+  assert.match(sheetCss, /\.assistant-compliance-wrap/);
   assert.match(sheetCss, /prefers-reduced-motion/);
 
   // Apply all & single apply contracts

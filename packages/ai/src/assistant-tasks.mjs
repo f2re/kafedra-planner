@@ -80,6 +80,77 @@ export const ASSISTANT_TASKS = Object.freeze({
       '{"summary":"Краткий вывод о пропусках или ошибках","repairedText":"полный связный текст с применёнными исправлениями","items":[{"field":"Название реквизита","status":"missing|invalid|fixed","currentValue":"...","suggestedValue":"...","sourceQuote":"точная цитата из текста","reason":"почему предлагается"}],"actionableAdvice":"Конкретные шаги оператора"}.',
       'Не выдумывай факты. Если пропусков нет, верни {"summary":"Пропусков и ошибок не обнаружено","repairedText":"","items":[],"actionableAdvice":"Все обязательные реквизиты заполнены"}.'
     ].join(' ')
+  }),
+
+  'field-extract': Object.freeze({
+    id: 'field-extract',
+    maxTokens: 512,
+    system: [
+      'Ты — помощник по разбору документов кафедры.',
+      'Извлеки из текста документа запрошенный реквизит (например: дату заседания, номер протокола, председателя или повестку).',
+      'Верни строго один JSON-объект вида:',
+      '{"field":"имя реквизита","value":"найденное значение (например YYYY-MM-DD для даты или номер)","sourceQuote":"точная цитата из текста подтверждающая значение","confidence":0.95}.',
+      'Дату приводи к формату YYYY-MM-DD, если указан месяц словом (например "15 октября 2026 г." -> "2026-10-15").',
+      'Если реквизит не найден, верни {"field":"имя","value":"","sourceQuote":"","confidence":0}.'
+    ].join(' ')
+  }),
+
+  'search-refine': Object.freeze({
+    id: 'search-refine',
+    maxTokens: 1024,
+    system: [
+      'Ты — интеллектуальный агент поиска по материалам, протоколам и документам кафедры.',
+      'Твоя цель — разобрать вопрос пользователя, определить интент поиска, выявить ключевые поисковые слова (без знаков препинания и стоп-слов), подобрать предметные синонимы в контексте высшего учебного заведения и кафедры (например: статья <-> публикация <-> вестник <-> сборник, УМК <-> учебно-методический комплекс <-> пособие, ВКР <-> диплом <-> выпускная работа, нагрузка <-> часы <-> семестр, заседание <-> протокол), и сформировать поисковую строку для FTS5 (слова соединены через пробел или OR).',
+      'Верни строго один JSON-объект вида:',
+      '{"intent":"meeting_search|decision_lookup|person_tasks|publication_search|general","keywords":["слово1","слово2"],"synonyms":["синоним1","синоним2"],"ftsQuery":"слово1 OR слово2","timeframe":"...","explanation":"Краткое пояснение направления поиска"}.',
+      'Не выдумывай лишних слов, сохраняй исходную тему.'
+    ].join(' ')
+  }),
+
+  'protocol-analysis': Object.freeze({
+    id: 'protocol-analysis',
+    maxTokens: 2560,
+    system: [
+      'Ты — аналитик протоколов заседаний кафедры.',
+      'Твоя задача — детально структурировать протокольный текст или черновик заседания («СЛУШАЛИ / ВЫСТУПИЛИ / ПОСТАНОВИЛИ»).',
+      'Извлеки:',
+      '1) реквизиты заседания (номер протокола, дату YYYY-MM-DD, председателя, секретаря, кворум);',
+      '2) повестку дня (номер вопроса, тему, докладчика);',
+      '3) принятые постановления и поручения (действие, ответственный исполнитель с должностью/званием, точный срок исполнения YYYY-MM-DD или календарная дата).',
+      'Верни строго один JSON-объект вида:',
+      '{"meetingNumber":"...","meetingDate":"...","chairman":"...","secretary":"...","quorum":"...","agenda":[{"itemNumber":"1","topic":"...","speaker":"...","decisions":[{"action":"...","assignee":"...","deadline":"...","control":"..."}]}]}.',
+      'Сохраняй исходные формулировки, не додумывай поручений, которых нет в тексте.'
+    ].join(' ')
+  }),
+
+  'report-synthesis': Object.freeze({
+    id: 'report-synthesis',
+    maxTokens: 2560,
+    system: [
+      'Ты — методист-составитель официальных отчётов кафедры.',
+      'Твоя задача — составить связный, грамотный и структурированный раздел кафедрального отчёта (по учебно-методической, научной, воспитательной или кадровой работе) на основе предоставленных фактов, протоколов и решений.',
+      'Каждое утверждение подкрепляй точной ссылкой на заседание кафедры: «(Протокол № X от DD.MM.YYYY, п. Y)».',
+      'Сформируй: 1) официальный заголовок раздела (sectionTitle); 2) краткое резюме для руководства (executiveSummary); 3) связные абзацы текста отчёта (paragraphs); 4) структурированные ключевые факты и показатели (facts: label, value, source); 5) итоговые выводы (conclusions).',
+      'Верни строго один JSON-объект вида:',
+      '{"sectionTitle":"...","executiveSummary":"...","paragraphs":["..."],"facts":[{"label":"...","value":"...","source":"..."}],"conclusions":["..."]}.',
+      'Опирайся строго на предоставленный материал, не выдумывай номеров и фамилий.'
+    ].join(' ')
+  }),
+
+  'compliance-check': Object.freeze({
+    id: 'compliance-check',
+    maxTokens: 2048,
+    system: [
+      'Ты — эксперт регламентного нормоконтроля документации кафедры.',
+      'Проверь текст проекта заседания, протокола или распоряжения на соответствие регламенту делопроизводства:',
+      '1) наличие обязательных реквизитов (номер, дата, председатель, секретарь);',
+      '2) наличие кворума (явка не менее 2/3 штатного состава преподавателей кафедры);',
+      '3) конкретность и проверяемость решений (глагол действия, ответственное лицо, конкретный календарный срок вместо размытых «в течение семестра»);',
+      '4) структурированность повестки дня.',
+      'Верни строго один JSON-объект вида:',
+      '{"passed":true,"score":85,"checks":[{"rule":"...","status":"pass|warn|fail","details":"...","sourceQuote":"..."}],"recommendations":["..."]}.',
+      'Оценивай строго по предоставленному тексту.'
+    ].join(' ')
   })
 });
 
@@ -199,6 +270,111 @@ export function validateAssistantResult(taskType, payload, extra = {}) {
       });
 
     return { type: 'gap-repair', summary, repairedText, items, actionableAdvice };
+  }
+
+  if (taskType === 'field-extract') {
+    const field = String(payload.field || 'field').trim().slice(0, 100);
+    const value = String(payload.value || '').trim().slice(0, 500);
+    const sourceQuote = String(payload.sourceQuote || '').trim().slice(0, 500);
+    const confidence = Math.max(0, Math.min(1, Number(payload.confidence !== undefined ? payload.confidence : (value ? 0.9 : 0))));
+    return { type: 'field-extract', field, value, sourceQuote, confidence };
+  }
+
+  if (taskType === 'search-refine') {
+    const intent = ['meeting_search', 'decision_lookup', 'person_tasks', 'publication_search', 'general'].includes(payload.intent)
+      ? payload.intent
+      : 'meeting_search';
+    const keywords = (Array.isArray(payload.keywords) ? payload.keywords : [])
+      .map((k) => String(k || '').trim().slice(0, 80))
+      .filter(Boolean)
+      .slice(0, 15);
+    const synonyms = (Array.isArray(payload.synonyms) ? payload.synonyms : [])
+      .map((s) => String(s || '').trim().slice(0, 80))
+      .filter(Boolean)
+      .slice(0, 20);
+    const ftsQuery = String(payload.ftsQuery || keywords.join(' OR ')).trim().slice(0, 400);
+    const timeframe = String(payload.timeframe || '').trim().slice(0, 80);
+    const explanation = String(payload.explanation || '').trim().slice(0, 500);
+    return { type: 'search-refine', intent, keywords, synonyms, ftsQuery, timeframe, explanation };
+  }
+
+  if (taskType === 'protocol-analysis') {
+    const meetingNumber = String(payload.meetingNumber || '').trim().slice(0, 40);
+    const meetingDate = String(payload.meetingDate || '').trim().slice(0, 32);
+    const chairman = String(payload.chairman || '').trim().slice(0, 160);
+    const secretary = String(payload.secretary || '').trim().slice(0, 160);
+    const quorum = String(payload.quorum || '').trim().slice(0, 200);
+
+    const rawAgenda = Array.isArray(payload.agenda) ? payload.agenda : [];
+    const agenda = rawAgenda
+      .filter((it) => it && typeof it === 'object')
+      .slice(0, 20)
+      .map((item, idx) => {
+        const itemNumber = String(item.itemNumber || idx + 1).trim().slice(0, 20);
+        const topic = String(item.topic || '').trim().slice(0, 300);
+        const speaker = String(item.speaker || '').trim().slice(0, 160);
+        const rawDecisions = Array.isArray(item.decisions) ? item.decisions : [];
+        const decisions = rawDecisions
+          .filter((d) => d && typeof d === 'object')
+          .slice(0, 10)
+          .map((d) => ({
+            action: String(d.action || '').trim().slice(0, 500),
+            assignee: String(d.assignee || '').trim().slice(0, 160),
+            deadline: String(d.deadline || '').trim().slice(0, 40),
+            control: String(d.control || '').trim().slice(0, 160)
+          }));
+        return { itemNumber, topic, speaker, decisions };
+      });
+
+    return { type: 'protocol-analysis', meetingNumber, meetingDate, chairman, secretary, quorum, agenda };
+  }
+
+  if (taskType === 'report-synthesis') {
+    const sectionTitle = String(payload.sectionTitle || 'Отчёт кафедры').trim().slice(0, 200);
+    const executiveSummary = String(payload.executiveSummary || '').trim().slice(0, 1500);
+    const rawParagraphs = Array.isArray(payload.paragraphs) ? payload.paragraphs : [];
+    const paragraphs = rawParagraphs
+      .map((p) => String(p || '').trim().slice(0, 3000))
+      .filter(Boolean)
+      .slice(0, 20);
+    const rawFacts = Array.isArray(payload.facts) ? payload.facts : [];
+    const facts = rawFacts
+      .filter((f) => f && typeof f === 'object')
+      .slice(0, 30)
+      .map((f) => ({
+        label: String(f.label || '').trim().slice(0, 120),
+        value: String(f.value || '').trim().slice(0, 200),
+        source: String(f.source || '').trim().slice(0, 200)
+      }));
+    const rawConclusions = Array.isArray(payload.conclusions) ? payload.conclusions : [];
+    const conclusions = rawConclusions
+      .map((c) => String(c || '').trim().slice(0, 1000))
+      .filter(Boolean)
+      .slice(0, 10);
+
+    return { type: 'report-synthesis', sectionTitle, executiveSummary, paragraphs, facts, conclusions };
+  }
+
+  if (taskType === 'compliance-check') {
+    const passed = Boolean(payload.passed);
+    const score = Math.max(0, Math.min(100, Math.round(Number(payload.score !== undefined ? payload.score : 80))));
+    const rawChecks = Array.isArray(payload.checks) ? payload.checks : [];
+    const checks = rawChecks
+      .filter((c) => c && typeof c === 'object')
+      .slice(0, 20)
+      .map((c) => ({
+        rule: String(c.rule || 'Проверка').trim().slice(0, 160),
+        status: ['pass', 'warn', 'fail'].includes(c.status) ? c.status : 'warn',
+        details: String(c.details || '').trim().slice(0, 500),
+        sourceQuote: String(c.sourceQuote || '').trim().slice(0, 300)
+      }));
+    const rawRecs = Array.isArray(payload.recommendations) ? payload.recommendations : [];
+    const recommendations = rawRecs
+      .map((r) => String(r || '').trim().slice(0, 500))
+      .filter(Boolean)
+      .slice(0, 10);
+
+    return { type: 'compliance-check', passed, score, checks, recommendations };
   }
 
   throw new Error(`unknown_task_type:${taskType}`);

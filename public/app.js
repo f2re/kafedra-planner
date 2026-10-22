@@ -622,7 +622,29 @@ async function loadReview() {
   const { items } = await api('/api/review?status=open');
   state.reviewItems = items;
   updateReviewBadge(items.length);
-  $('#review-list').innerHTML = items.length ? items.map((item) => `<article class="review-card"><div><h3>${escapeHtml(item.title)}</h3><p>${escapeHtml(item.explanation)}</p><p class="review-action">Что сделать: ${escapeHtml(item.proposed_action)}</p></div><button class="secondary-button" type="button" data-resolve-review="${escapeHtml(item.id)}">Готово</button></article>`).join('') : '<div class="empty-state">Все текущие вопросы разобраны.</div>';
+  $('#review-list').innerHTML = items.length ? items.map((item) => {
+    return `<article class="review-card" data-review-id="${escapeHtml(item.id)}">
+      <div class="review-card-main">
+        <div class="review-title-row">
+          <h3>${escapeHtml(item.title)}</h3>
+          <span class="review-badge-tag ${item.severity === 'error' ? 'error' : 'warning'}">${item.severity === 'error' ? 'Требует решения' : 'Внимание'}</span>
+        </div>
+        <p class="review-explanation">${escapeHtml(item.explanation)}</p>
+        <p class="review-action"><strong>Что сделать:</strong> ${escapeHtml(item.proposed_action)}</p>
+        <div class="review-edit-row">
+          <input type="text" class="review-edit-input" id="review-input-${escapeHtml(item.id)}" placeholder="Введите или выберите исправленное значение..." />
+          <button class="quiet-button review-ai-button" type="button" data-ai-suggest-review="${escapeHtml(item.id)}" title="Извлечь реквизит из текста документа с помощью нейросети">
+            ✨ Подобрать через ИИ
+          </button>
+        </div>
+        <div class="review-quote-box hidden" id="review-quote-${escapeHtml(item.id)}"></div>
+      </div>
+      <div class="review-card-actions">
+        <button class="primary-button" type="button" data-apply-review="${escapeHtml(item.id)}" title="Применить указанное значение к документу и завершить проверку">✓ Применить</button>
+        <button class="secondary-button" type="button" data-resolve-review="${escapeHtml(item.id)}" title="Отметить вопрос как решённый">Готово</button>
+      </div>
+    </article>`;
+  }).join('') : '<div class="empty-state">Все текущие вопросы разобраны.</div>';
 }
 
 function updateReviewBadge(count) {
@@ -695,6 +717,57 @@ document.body.addEventListener('click', async (event) => {
     await api(`/api/review/${encodeURIComponent(resolveButton.dataset.resolveReview)}/resolve`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ action: 'acknowledged' }) });
     await Promise.all([loadReview(), loadCalendarContext()]);
   }
+  const aiSuggestBtn = event.target.closest('[data-ai-suggest-review]');
+  if (aiSuggestBtn) {
+    const reviewId = aiSuggestBtn.dataset.aiSuggestReview;
+    aiSuggestBtn.disabled = true;
+    aiSuggestBtn.textContent = '✨ Анализ текста...';
+    try {
+      const data = await api('/api/assistant/review-repair', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ reviewItemId: reviewId })
+      });
+      if (data.ok && data.extracted?.value) {
+        const inp = document.getElementById(`review-input-${reviewId}`);
+        if (inp) inp.value = data.extracted.value;
+        const quoteBox = document.getElementById(`review-quote-${reviewId}`);
+        if (quoteBox) {
+          quoteBox.classList.remove('hidden');
+          const conf = Math.round((data.extracted.confidence || 0.9) * 100);
+          quoteBox.innerHTML = `<strong>Найдено в тексте:</strong> <em>«${escapeHtml(data.extracted.sourceQuote || data.extracted.value)}»</em> <span class="review-confidence">(${conf}% уверенность)</span>`;
+        }
+        toast('Реквизит найден ИИ-ассистентом. Проверьте значение и нажмите «Применить».');
+      } else {
+        toast('В тексте документа точный реквизит не обнаружен. Введите вручную.');
+      }
+    } catch (e) {
+      toast('Не удалось выполнить анализ ИИ: ' + e.message);
+    } finally {
+      aiSuggestBtn.disabled = false;
+      aiSuggestBtn.textContent = '✨ Подобрать через ИИ';
+    }
+  }
+
+  const applyReviewBtn = event.target.closest('[data-apply-review]');
+  if (applyReviewBtn) {
+    const reviewId = applyReviewBtn.dataset.applyReview;
+    const inp = document.getElementById(`review-input-${reviewId}`);
+    const val = inp ? inp.value.trim() : '';
+    applyReviewBtn.disabled = true;
+    try {
+      await api(`/api/review/${encodeURIComponent(reviewId)}/resolve`, {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ action: 'applied', appliedValue: val })
+      });
+      toast(val ? `Значение «${val}» успешно применено к объекту` : 'Вопрос решён');
+      await Promise.all([loadReview(), loadCalendarContext()]);
+    } catch (e) {
+      toast('Ошибка сохранения: ' + e.message);
+      applyReviewBtn.disabled = false;
+    }
+  }
   const notificationAction = event.target.closest('[data-notification-action]');
   if (notificationAction) await changeNotification(notificationAction.dataset.notificationKey, notificationAction.dataset.notificationAction);
   if (event.target.closest('[data-close-sheet]')) closeSheets(event.target.closest('.sheet'));
@@ -743,6 +816,7 @@ $('#notification-button').addEventListener('click', () => {
   $('#notification-button').setAttribute('aria-expanded', String(opening));
 });
 const assistantSheet = createAssistantSheet();
+window.kafedraAssistant = assistantSheet;
 $('#open-assistant')?.addEventListener('click', () => assistantSheet.open());
 $('#open-search').addEventListener('click', () => setView('search'));
 $('#search-form').addEventListener('submit', (event) => {

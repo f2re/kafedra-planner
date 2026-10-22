@@ -194,3 +194,76 @@ test('createAssistantEngine dynamically updates config via updateConfig', async 
   assert.equal(engine.enabled, true);
   assert.match(engine.endpoint, /127\.0\.0\.1:8088/);
 });
+
+test('validateAssistantResult handles search-refine properly', () => {
+  const payload = {
+    intent: 'meeting_search',
+    keywords: ['влажность', 'статья', 'публикация'],
+    synonyms: ['почва', 'вестник'],
+    ftsQuery: 'влажность OR статья OR публикация',
+    timeframe: '2026',
+    explanation: 'Поиск статей о влажности за 2026 год'
+  };
+  const res = validateAssistantResult('search-refine', payload);
+  assert.equal(res.type, 'search-refine');
+  assert.equal(res.intent, 'meeting_search');
+  assert.deepEqual(res.keywords, ['влажность', 'статья', 'публикация']);
+  assert.equal(res.ftsQuery, 'влажность OR статья OR публикация');
+});
+
+test('validateAssistantResult handles protocol-analysis properly', () => {
+  const payload = {
+    meetingNumber: '3',
+    meetingDate: '2026-10-15',
+    chairman: 'проф. Иванов И.И.',
+    secretary: 'доц. Смирнова Е.А.',
+    quorum: '11 из 14',
+    agenda: [
+      {
+        itemNumber: '1',
+        topic: 'О подготовке к зимней сессии',
+        speaker: 'доц. Петров В.В.',
+        decisions: [
+          { action: 'Провести контрольные срезы', assignee: 'доц. Сидоров', deadline: '2026-11-15', control: 'зав. кафедрой' }
+        ]
+      }
+    ]
+  };
+  const res = validateAssistantResult('protocol-analysis', payload);
+  assert.equal(res.type, 'protocol-analysis');
+  assert.equal(res.meetingNumber, '3');
+  assert.equal(res.chairman, 'проф. Иванов И.И.');
+  assert.equal(res.agenda.length, 1);
+  assert.equal(res.agenda[0].decisions[0].assignee, 'доц. Сидоров');
+});
+
+test('validateAssistantResult handles report-synthesis properly', () => {
+  const payload = {
+    sectionTitle: 'Отчёт по научно-исследовательской работе',
+    executiveSummary: 'План по публикациям ВАК выполнен.',
+    paragraphs: ['В осеннем семестре 2026 года рассмотрено 12 публикаций кафедры.'],
+    facts: [{ label: 'Статей ВАК', value: '8', source: 'Протокол № 3 от 15.10.2026' }],
+    conclusions: ['Рекомендовать к поощрению доц. Петрова.']
+  };
+  const res = validateAssistantResult('report-synthesis', payload);
+  assert.equal(res.type, 'report-synthesis');
+  assert.equal(res.sectionTitle, 'Отчёт по научно-исследовательской работе');
+  assert.equal(res.paragraphs.length, 1);
+  assert.equal(res.facts[0].value, '8');
+});
+
+test('validateAssistantResult handles compliance-check properly', () => {
+  const payload = {
+    passed: true,
+    score: 95,
+    checks: [
+      { rule: 'Кворум заседания', status: 'pass', details: 'Присутствует 11 из 14', sourceQuote: '11 из 14' }
+    ],
+    recommendations: ['Указать точную дату в вопросе 2']
+  };
+  const res = validateAssistantResult('compliance-check', payload);
+  assert.equal(res.type, 'compliance-check');
+  assert.equal(res.passed, true);
+  assert.equal(res.score, 95);
+  assert.equal(res.checks[0].status, 'pass');
+});
