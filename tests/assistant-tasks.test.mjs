@@ -252,18 +252,33 @@ test('validateAssistantResult handles report-synthesis properly', () => {
   assert.equal(res.facts[0].value, '8');
 });
 
-test('validateAssistantResult handles compliance-check properly', () => {
+test('validateAssistantResult handles compliance-check as friendly suggestions with fixes', () => {
   const payload = {
-    passed: true,
-    score: 95,
-    checks: [
-      { rule: 'Кворум заседания', status: 'pass', details: 'Присутствует 11 из 14', sourceQuote: '11 из 14' }
+    summary: 'Рекомендации по уточнению формулировок протокола',
+    suggestions: [
+      {
+        rule: 'Срок исполнения поручения',
+        status: 'suggestion',
+        details: 'Рекомендуется указать точную календарную дату',
+        suggestedFix: 'Срок: до 25 ноября 2026 г.',
+        sourceQuote: 'как можно скорее'
+      },
+      {
+        rule: 'Кворум заседания',
+        status: 'ok',
+        details: 'Присутствует 11 из 14 (кворум имеется)',
+        sourceQuote: '11 из 14'
+      }
     ],
-    recommendations: ['Указать точную дату в вопросе 2']
+    helpfulNotes: ['Вы можете принять предложенные формулировки кликом на кнопку']
   };
   const res = validateAssistantResult('compliance-check', payload);
   assert.equal(res.type, 'compliance-check');
-  assert.equal(res.passed, true);
-  assert.equal(res.score, 95);
-  assert.equal(res.checks[0].status, 'pass');
+  assert.equal(res.suggestions.length, 2);
+  assert.equal(res.suggestions[0].suggestedFix, 'Срок: до 25 ноября 2026 г.');
+  assert.equal(res.suggestions[0].status, 'suggestion');
+  assert.equal(res.suggestions[1].status, 'ok');
+  assert.equal(res.helpfulNotes.length, 1);
+  // Backward compatibility check
+  assert.equal(res.checks.length, 2);
 });

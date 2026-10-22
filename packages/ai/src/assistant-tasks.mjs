@@ -141,15 +141,21 @@ export const ASSISTANT_TASKS = Object.freeze({
     id: 'compliance-check',
     maxTokens: 2048,
     system: [
-      'Ты — эксперт регламентного нормоконтроля документации кафедры.',
-      'Проверь текст проекта заседания, протокола или распоряжения на соответствие регламенту делопроизводства:',
-      '1) наличие обязательных реквизитов (номер, дата, председатель, секретарь);',
-      '2) наличие кворума (явка не менее 2/3 штатного состава преподавателей кафедры);',
-      '3) конкретность и проверяемость решений (глагол действия, ответственное лицо, конкретный календарный срок вместо размытых «в течение семестра»);',
-      '4) структурированность повестки дня.',
+      'Ты — доброжелательный помощник по оформлению документов и протоколов кафедры.',
+      'Твоя задача — не наказывать и не блокировать пользователя, а дать полезные подсказки и предложить конкретные варианты улучшения текста (suggestedFix), которые пользователь может одобрить в один клик.',
+      'Обрати внимание на:',
+      '1) Реквизиты и кворум (подскажи, если не указана дата, номер, явка или председатель);',
+      '2) Чёткость поручений (если формулировка размыта, предложи конкретный деловой вариант с ответственным и сроком);',
+      '3) Повестку дня (структурированность вопросов).',
+      'Для каждого пункта сформируй:',
+      '- rule: краткая тема подсказки (например "Уточнение срока поручения" или "Кворум заседания");',
+      '- status: "suggestion" (предложение по улучшению), "notice" (полезное примечание), "ok" (всё в порядке);',
+      '- details: доброжелательное пояснение, почему это может быть полезно;',
+      '- suggestedFix: готовый вариант улучшенной формулировки для вставки в текст (или пустая строка, если исправление не требуется);',
+      '- sourceQuote: точная фраза из исходного текста, которую предлагается улучшить.',
       'Верни строго один JSON-объект вида:',
-      '{"passed":true,"score":85,"checks":[{"rule":"...","status":"pass|warn|fail","details":"...","sourceQuote":"..."}],"recommendations":["..."]}.',
-      'Оценивай строго по предоставленному тексту.'
+      '{"summary":"Доброжелательное резюме подсказок","suggestions":[{"rule":"...","status":"suggestion|notice|ok","details":"...","suggestedFix":"...","sourceQuote":"..."}],"helpfulNotes":["..."]}.',
+      'Никаких карательных формулировок, не объявляй документ недействительным. Тон — конструктивный и помогающий.'
     ].join(' ')
   })
 });
@@ -356,25 +362,43 @@ export function validateAssistantResult(taskType, payload, extra = {}) {
   }
 
   if (taskType === 'compliance-check') {
-    const passed = Boolean(payload.passed);
-    const score = Math.max(0, Math.min(100, Math.round(Number(payload.score !== undefined ? payload.score : 80))));
-    const rawChecks = Array.isArray(payload.checks) ? payload.checks : [];
-    const checks = rawChecks
+    const summary = String(payload.summary || payload.advice || 'Подсказки по оформлению подготовлены').trim().slice(0, 1000);
+    const rawItems = Array.isArray(payload.suggestions) ? payload.suggestions : (Array.isArray(payload.checks) ? payload.checks : []);
+    const suggestions = rawItems
       .filter((c) => c && typeof c === 'object')
-      .slice(0, 20)
-      .map((c) => ({
-        rule: String(c.rule || 'Проверка').trim().slice(0, 160),
-        status: ['pass', 'warn', 'fail'].includes(c.status) ? c.status : 'warn',
-        details: String(c.details || '').trim().slice(0, 500),
-        sourceQuote: String(c.sourceQuote || '').trim().slice(0, 300)
-      }));
-    const rawRecs = Array.isArray(payload.recommendations) ? payload.recommendations : [];
-    const recommendations = rawRecs
+      .slice(0, 25)
+      .map((c) => {
+        let status = 'suggestion';
+        if (['ok', 'pass'].includes(c.status)) status = 'ok';
+        else if (['notice', 'info'].includes(c.status)) status = 'notice';
+        else if (['suggestion', 'warn', 'fail'].includes(c.status)) status = 'suggestion';
+
+        return {
+          rule: String(c.rule || 'Подсказка').trim().slice(0, 160),
+          status,
+          details: String(c.details || '').trim().slice(0, 500),
+          suggestedFix: String(c.suggestedFix || '').trim().slice(0, 500),
+          sourceQuote: String(c.sourceQuote || '').trim().slice(0, 300)
+        };
+      });
+
+    const rawNotes = Array.isArray(payload.helpfulNotes) ? payload.helpfulNotes : (Array.isArray(payload.recommendations) ? payload.recommendations : []);
+    const helpfulNotes = rawNotes
       .map((r) => String(r || '').trim().slice(0, 500))
       .filter(Boolean)
       .slice(0, 10);
 
-    return { type: 'compliance-check', passed, score, checks, recommendations };
+    return {
+      type: 'compliance-check',
+      summary,
+      suggestions,
+      helpfulNotes,
+      // Backward compatibility fields
+      passed: Boolean(payload.passed !== undefined ? payload.passed : true),
+      score: Math.max(0, Math.min(100, Math.round(Number(payload.score !== undefined ? payload.score : 90)))),
+      checks: suggestions,
+      recommendations: helpfulNotes
+    };
   }
 
   throw new Error(`unknown_task_type:${taskType}`);

@@ -1207,45 +1207,77 @@
 
 .assistant-compliance-banner {
   display: flex;
-  align-items: center;
-  gap: 14px;
-  padding: 14px 16px;
-  border-radius: 10px;
+  align-items: flex-start;
+  gap: 12px;
+  padding: 12px 14px;
+  border-radius: 9px;
+  background: rgba(0, 113, 227, 0.07);
+  border: 1px solid rgba(0, 113, 227, 0.18);
 }
 
-.assistant-compliance-banner.passed {
-  background: rgba(52, 199, 89, 0.12);
-  border: 1px solid rgba(52, 199, 89, 0.3);
+.assistant-compliance-banner.friendly {
+  background: rgba(0, 113, 227, 0.07);
+  border: 1px solid rgba(0, 113, 227, 0.18);
 }
 
-.assistant-compliance-banner.warning {
-  background: rgba(255, 149, 0, 0.12);
-  border: 1px solid rgba(255, 149, 0, 0.3);
-}
-
-.assistant-compliance-score {
-  font-size: 28px;
-  font-weight: 800;
-  min-width: 60px;
-  text-align: center;
-}
-
-.assistant-compliance-banner.passed .assistant-compliance-score {
-  color: #248a3d;
-}
-
-.assistant-compliance-banner.warning .assistant-compliance-score {
-  color: #b26a00;
+.assistant-compliance-icon {
+  font-size: 22px;
+  line-height: 1;
 }
 
 .assistant-compliance-headline {
-  font-size: 15px;
+  font-size: 14px;
   font-weight: 650;
+  color: var(--text, #111);
 }
 
 .assistant-compliance-subline {
   font-size: 12px;
+  color: var(--muted, #555);
+  margin-top: 2px;
+}
+
+.assistant-compliance-toolbar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.assistant-suggested-fix-box {
+  margin-top: 6px;
+  padding: 8px 10px;
+  background: var(--surface-sunken, #f8f9fa);
+  border: 1px dashed var(--border, rgba(60, 60, 67, 0.22));
+  border-radius: 6px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.assistant-fix-label {
+  font-size: 11px;
+  font-weight: 600;
   color: var(--muted, #666);
+}
+
+.assistant-fix-code {
+  font-size: 13px;
+  line-height: 1.45;
+  color: var(--text, #111);
+  font-weight: 500;
+}
+
+.assistant-fix-actions {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-top: 2px;
+}
+
+.assistant-accept-fix-btn {
+  color: var(--primary, #0071e3);
+  font-weight: 600;
 }
 
 .assistant-checks-list {
@@ -1264,16 +1296,30 @@
   gap: 6px;
 }
 
-.assistant-check-card.status-fail {
-  border-left: 4px solid #ff3b30;
+.assistant-check-card.applied {
+  border-left: 3px solid #34c759 !important;
+  opacity: 0.9;
+}
+
+.assistant-check-card.status-suggestion {
+  border-left: 3px solid #0071e3;
+}
+
+.assistant-check-card.status-notice {
+  border-left: 3px solid #8e8e93;
+}
+
+.assistant-check-card.status-ok,
+.assistant-check-card.status-pass {
+  border-left: 3px solid #34c759;
 }
 
 .assistant-check-card.status-warn {
-  border-left: 4px solid #ff9500;
+  border-left: 3px solid #ff9500;
 }
 
-.assistant-check-card.status-pass {
-  border-left: 4px solid #34c759;
+.assistant-check-card.status-fail {
+  border-left: 3px solid #ff9500;
 }
 
 .assistant-check-head {
@@ -1295,19 +1341,32 @@
   font-weight: 600;
 }
 
+.assistant-check-badge.suggestion {
+  background: rgba(0, 113, 227, 0.12);
+  color: #0071e3;
+}
+
+.assistant-check-badge.notice {
+  background: rgba(142, 142, 147, 0.12);
+  color: #555555;
+}
+
+.assistant-check-badge.ok,
 .assistant-check-badge.pass {
   background: rgba(52, 199, 89, 0.15);
   color: #248a3d;
 }
 
-.assistant-check-badge.warn {
+.assistant-check-badge.applied {
+  background: rgba(52, 199, 89, 0.2);
+  color: #248a3d;
+}
+
+.assistant-check-badge.warn,
+.assistant-check-badge.fail {
   background: rgba(255, 149, 0, 0.15);
   color: #b26a00;
 }
-
-.assistant-check-badge.fail {
-  background: rgba(255, 59, 48, 0.15);
-  color: #c92a2a;
 }
 
 .assistant-check-details {

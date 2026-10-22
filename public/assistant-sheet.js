@@ -26,9 +26,9 @@ const PRESETS = {
     { label: '🎯 Итоги экзаменационной сессии', text: 'Подготовить аналитический раздел отчёта по результатам зимней экзаменационной сессии, успеваемости курсантов и ликвидации академических задолженностей.' }
   ],
   'compliance-check': [
-    { label: '⚖️ Проверка регламента заседания', text: 'Протокол заседания кафедры.\nПрисутствовало: 6 человек из 15 штатных преподавателей.\nПредседатель: доц. Петров (врио).\nПОСТАНОВИЛИ: пересмотреть учебную нагрузку на следующий семестр, работу продолжать в плановом порядке.' },
-    { label: '🔍 Проверка формулировок поручений', text: 'По вопросу 2 повестки дня постановили: активизировать научную деятельность преподавателей, завершить методические пособия как можно скорее, обратить внимание на посещаемость занятий.' },
-    { label: '🏛️ Полный аудит проекта протокола', text: 'Протокол № 5 заседания кафедры от 20 октября 2026 г.\nПредседатель: Иванов И.И., секретарь: Смирнова Е.А.\nШтат: 12, присутствовало: 10.\nСлушали: О распределении нагрузки.\nПостановили: утвердить распределение часов на 2 семестр, ответственный: зав. кафедрой, срок: до 01.12.2026.' }
+    { label: '💡 Уточнение сроков и поручений', text: 'По вопросу 2 повестки дня постановили: активизировать научную деятельность преподавателей, завершить методические пособия как можно скорее, обратить внимание на посещаемость занятий.' },
+    { label: 'ℹ️ Проверка кворума и явки', text: 'Протокол заседания кафедры.\nПрисутствовало: 6 человек из 15 штатных преподавателей.\nПредседатель: доц. Петров (врио).\nПОСТАНОВИЛИ: пересмотреть учебную нагрузку на следующий семестр, работу продолжать в плановом порядке.' },
+    { label: '📝 Советы к проекту протокола', text: 'Протокол № 5 заседания кафедры от 20 октября 2026 г.\nПредседатель: Иванов И.И., секретарь: Смирнова Е.А.\nШтат: 12, присутствовало: 10.\nСлушали: О распределении нагрузки.\nПостановили: утвердить распределение часов на 2 семестр, ответственный: зав. кафедрой, срок: до 01.12.2026.' }
   ],
   'gap-repair': [
     { label: '🏛️ Заседание: пропуски дат и повестки', text: 'Заседание кафедры вычислительной техники.\nПрисутствовали: Иванов, Петров, Сидоров.\nПовестка дня:\n1. О подготовке к зимней сессии. Докладчик зав. кафедрой.\n2. Разное. Обсуждение закупки оборудования.' },
@@ -238,7 +238,7 @@ export function createAssistantSheet() {
           <button class="assistant-mode-tab" type="button" data-mode="report-synthesis">Составление отчёта</button>
           <button class="assistant-mode-tab" type="button" data-mode="archive-query">Поиск в архиве</button>
           <button class="assistant-mode-tab" type="button" data-mode="gap-repair">Пропуски и ошибки</button>
-          <button class="assistant-mode-tab" type="button" data-mode="compliance-check">Нормоконтроль</button>
+          <button class="assistant-mode-tab" type="button" data-mode="compliance-check">Подсказки к тексту</button>
           <button class="assistant-mode-tab" type="button" data-mode="formula-calc">Формулы Calc</button>
           <button class="assistant-mode-tab" type="button" data-mode="history">История</button>
         </nav>
@@ -526,7 +526,7 @@ export function createAssistantSheet() {
     } else if (currentMode === 'gap-repair') {
       textareaEl.placeholder = 'Вставьте фрагмент заседания, протокол или ошибку для выявления пропусков и исправления...';
     } else if (currentMode === 'compliance-check') {
-      textareaEl.placeholder = 'Вставьте текст протокола или решения для регламентной проверки кворума, сроков и реквизитов...';
+      textareaEl.placeholder = 'Вставьте текст протокола или решения для получения доброжелательных подсказок и вариантов улучшений...';
     } else if (currentMode === 'formula-calc') {
       textareaEl.placeholder = 'Опишите задачу для Calc / Excel (например: формула ВПР по ФИО, подсчёт учебных часов по семестрам)...';
     }
@@ -1522,71 +1522,236 @@ export function createAssistantSheet() {
     wrap.className = 'assistant-compliance-wrap';
 
     const banner = document.createElement('div');
-    const isPass = Boolean(data.passed);
-    banner.className = `assistant-compliance-banner ${isPass ? 'passed' : 'warning'}`;
-
-    const scoreBadge = document.createElement('div');
-    scoreBadge.className = 'assistant-compliance-score';
-    scoreBadge.textContent = `${data.score || 0}%`;
-
-    const bannerInfo = document.createElement('div');
-    bannerInfo.className = 'assistant-compliance-info';
-    bannerInfo.innerHTML = `
-      <div class="assistant-compliance-headline">${isPass ? '✓ Регламент соблюдён' : '⚠️ Обнаружены замечания по регламенту'}</div>
-      <div class="assistant-compliance-subline">Оценка соответствия стандарту делопроизводства кафедры</div>
+    banner.className = 'assistant-compliance-banner friendly';
+    banner.innerHTML = `
+      <div class="assistant-compliance-icon">💡</div>
+      <div class="assistant-compliance-info">
+        <div class="assistant-compliance-headline">${data.summary || 'Советы и подсказки к оформлению'}</div>
+        <div class="assistant-compliance-subline">Все подсказки носят рекомендательный характер. Вы можете применить предложенную формулировку кликом на «Принять» или оставить свой вариант без изменений.</div>
+      </div>
     `;
-
-    banner.append(scoreBadge, bannerInfo);
     wrap.append(banner);
 
-    const checksList = data.checks || [];
-    if (checksList.length > 0) {
-      const chWrap = document.createElement('div');
-      chWrap.className = 'assistant-checks-list';
+    const items = data.suggestions || data.checks || [];
+    const fixableItems = items.filter((it) => it.suggestedFix);
 
-      checksList.forEach((c) => {
-        const card = document.createElement('div');
-        card.className = `assistant-check-card status-${c.status}`;
+    if (items.length === 0) {
+      const empty = document.createElement('div');
+      empty.className = 'empty-state';
+      empty.innerHTML = '<p>✓ Все основные реквизиты и формулировки в порядке. Дополнительных рекомендаций нет.</p>';
+      wrap.append(empty);
+    } else {
+      if (fixableItems.length > 0) {
+        const toolbar = document.createElement('div');
+        toolbar.className = 'assistant-compliance-toolbar';
 
-        const head = document.createElement('div');
-        head.className = 'assistant-check-head';
+        const applyAllBtn = document.createElement('button');
+        applyAllBtn.type = 'button';
+        applyAllBtn.className = 'primary-button small-button assistant-apply-all-btn';
+        applyAllBtn.textContent = '✓ Принять все предложения';
+        applyAllBtn.title = 'Заменить все неточные формулировки в тексте на предложенные';
 
-        const title = document.createElement('span');
-        title.className = 'assistant-check-rule';
-        title.textContent = c.rule;
+        const copyAllBtn = document.createElement('button');
+        copyAllBtn.type = 'button';
+        copyAllBtn.className = 'secondary-button small-button';
+        copyAllBtn.textContent = '📋 Скопировать список советов';
 
-        const badge = document.createElement('span');
-        badge.className = `assistant-check-badge ${c.status}`;
-        badge.textContent = c.status === 'pass' ? '✓ Норма' : c.status === 'fail' ? '✗ Нарушение' : '⚠️ Замечание';
+        toolbar.append(applyAllBtn, copyAllBtn);
+        wrap.append(toolbar);
 
-        head.append(title, badge);
-        card.append(head);
+        const cardRefList = [];
 
-        if (c.details) {
-          const dt = document.createElement('div');
-          dt.className = 'assistant-check-details';
-          dt.textContent = c.details;
-          card.append(dt);
-        }
+        applyAllBtn.addEventListener('click', () => {
+          let text = textareaEl.value;
+          fixableItems.forEach((f) => {
+            if (f.sourceQuote && text.includes(f.sourceQuote)) {
+              text = text.replace(f.sourceQuote, f.suggestedFix);
+            } else if (!text.includes(f.suggestedFix)) {
+              text = `${text}\n${f.suggestedFix}`;
+            }
+          });
+          textareaEl.value = text;
+          updateCharCount();
+          saveDraft();
 
-        if (c.sourceQuote) {
-          const q = document.createElement('blockquote');
-          q.className = 'assistant-check-quote';
-          q.textContent = `«${c.sourceQuote}»`;
-          card.append(q);
-        }
+          cardRefList.forEach(({ card, applyBtn, badge }) => {
+            card.classList.add('applied');
+            if (badge) {
+              badge.className = 'assistant-check-badge ok applied';
+              badge.textContent = '✓ Принято';
+            }
+            if (applyBtn) {
+              applyBtn.textContent = '✓ Применено';
+              applyBtn.disabled = true;
+            }
+          });
 
-        chWrap.append(card);
-      });
-      wrap.append(chWrap);
+          applyAllBtn.textContent = '✓ Все предложения приняты';
+          applyAllBtn.disabled = true;
+          showToast('Все предложенные формулировки внесены в текст');
+        });
+
+        copyAllBtn.addEventListener('click', async () => {
+          const lines = [data.summary || 'Советы к оформлению документа:'];
+          items.forEach((it, idx) => {
+            lines.push(`\n${idx + 1}. ${it.rule}: ${it.details}`);
+            if (it.suggestedFix) lines.push(`   Предлагаемый вариант: ${it.suggestedFix}`);
+          });
+          try {
+            await navigator.clipboard.writeText(lines.join('\n'));
+            showToast('Список советов скопирован');
+          } catch {
+            showToast('Не удалось скопировать');
+          }
+        });
+
+        const chWrap = document.createElement('div');
+        chWrap.className = 'assistant-checks-list';
+
+        items.forEach((c) => {
+          const card = document.createElement('div');
+          card.className = `assistant-check-card status-${c.status || 'suggestion'}`;
+
+          const head = document.createElement('div');
+          head.className = 'assistant-check-head';
+
+          const title = document.createElement('span');
+          title.className = 'assistant-check-rule';
+          title.textContent = c.rule;
+
+          const badge = document.createElement('span');
+          badge.className = `assistant-check-badge ${c.status || 'suggestion'}`;
+          badge.textContent = c.status === 'ok' ? '✓ Оформлено' : c.status === 'notice' ? 'ℹ️ Примечание' : '💡 Рекомендация';
+
+          head.append(title, badge);
+          card.append(head);
+
+          if (c.details) {
+            const dt = document.createElement('div');
+            dt.className = 'assistant-check-details';
+            dt.textContent = c.details;
+            card.append(dt);
+          }
+
+          if (c.sourceQuote) {
+            const q = document.createElement('blockquote');
+            q.className = 'assistant-check-quote';
+            q.textContent = `В исходном тексте: «${c.sourceQuote}»`;
+            card.append(q);
+          }
+
+          let cardApplyBtn = null;
+          if (c.suggestedFix) {
+            const fixBox = document.createElement('div');
+            fixBox.className = 'assistant-suggested-fix-box';
+
+            const fixHeader = document.createElement('div');
+            fixHeader.className = 'assistant-fix-label';
+            fixHeader.textContent = 'Предлагаемый вариант формулировки:';
+
+            const fixCode = document.createElement('div');
+            fixCode.className = 'assistant-fix-code';
+            fixCode.textContent = c.suggestedFix;
+
+            const fixActions = document.createElement('div');
+            fixActions.className = 'assistant-fix-actions';
+
+            cardApplyBtn = document.createElement('button');
+            cardApplyBtn.type = 'button';
+            cardApplyBtn.className = 'quiet-button small-button assistant-accept-fix-btn';
+            cardApplyBtn.textContent = '✓ Принять формулировку';
+            cardApplyBtn.title = 'Заменить исходную фразу на этот вариант';
+
+            const copyFixBtn = document.createElement('button');
+            copyFixBtn.type = 'button';
+            copyFixBtn.className = 'quiet-button small-button';
+            copyFixBtn.textContent = '📋';
+            copyFixBtn.title = 'Скопировать формулировку';
+
+            cardApplyBtn.addEventListener('click', () => {
+              if (c.sourceQuote && textareaEl.value.includes(c.sourceQuote)) {
+                textareaEl.value = textareaEl.value.replace(c.sourceQuote, c.suggestedFix);
+              } else if (!textareaEl.value.includes(c.suggestedFix)) {
+                textareaEl.value = `${textareaEl.value}\n${c.suggestedFix}`;
+              }
+              updateCharCount();
+              saveDraft();
+              card.classList.add('applied');
+              badge.className = 'assistant-check-badge ok applied';
+              badge.textContent = '✓ Принято';
+              cardApplyBtn.textContent = '✓ Применено';
+              cardApplyBtn.disabled = true;
+              showToast(`Принято: ${c.rule}`);
+            });
+
+            copyFixBtn.addEventListener('click', async () => {
+              try {
+                await navigator.clipboard.writeText(c.suggestedFix);
+                showToast('Формулировка скопирована');
+              } catch {
+                showToast('Не удалось скопировать');
+              }
+            });
+
+            fixActions.append(cardApplyBtn, copyFixBtn);
+            fixBox.append(fixHeader, fixCode, fixActions);
+            card.append(fixBox);
+          }
+
+          cardRefList.push({ card, applyBtn: cardApplyBtn, badge });
+          chWrap.append(card);
+        });
+
+        wrap.append(chWrap);
+      } else {
+        const chWrap = document.createElement('div');
+        chWrap.className = 'assistant-checks-list';
+
+        items.forEach((c) => {
+          const card = document.createElement('div');
+          card.className = `assistant-check-card status-${c.status || 'suggestion'}`;
+
+          const head = document.createElement('div');
+          head.className = 'assistant-check-head';
+
+          const title = document.createElement('span');
+          title.className = 'assistant-check-rule';
+          title.textContent = c.rule;
+
+          const badge = document.createElement('span');
+          badge.className = `assistant-check-badge ${c.status || 'suggestion'}`;
+          badge.textContent = c.status === 'ok' ? '✓ Оформлено' : c.status === 'notice' ? 'ℹ️ Примечание' : '💡 Рекомендация';
+
+          head.append(title, badge);
+          card.append(head);
+
+          if (c.details) {
+            const dt = document.createElement('div');
+            dt.className = 'assistant-check-details';
+            dt.textContent = c.details;
+            card.append(dt);
+          }
+
+          if (c.sourceQuote) {
+            const q = document.createElement('blockquote');
+            q.className = 'assistant-check-quote';
+            q.textContent = `«${c.sourceQuote}»`;
+            card.append(q);
+          }
+
+          chWrap.append(card);
+        });
+        wrap.append(chWrap);
+      }
     }
 
-    if (Array.isArray(data.recommendations) && data.recommendations.length > 0) {
+    const notesList = data.helpfulNotes || data.recommendations || [];
+    if (Array.isArray(notesList) && notesList.length > 0) {
       const recCard = document.createElement('div');
       recCard.className = 'assistant-advice-card';
-      recCard.innerHTML = '<strong>Рекомендации по устранению замечаний:</strong>';
+      recCard.innerHTML = '<strong>💡 Полезные примечания:</strong>';
       const ol = document.createElement('ol');
-      data.recommendations.forEach((r) => {
+      notesList.forEach((r) => {
         const li = document.createElement('li');
         li.textContent = r;
         ol.append(li);
