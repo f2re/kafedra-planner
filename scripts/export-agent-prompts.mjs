@@ -58,195 +58,289 @@ const agentsManifest = {
   defaultModelAlias: 'department-assistant',
   description: 'Манифест специализированных агентов кафедры для OpenAI-совместимого llama-server (local-llm-offline)',
   agents: Object.entries(ASSISTANT_TASKS).map(([id, task]) => {
-    const meta = AGENT_METADATA[id] || { name: id, description: id, sampleQuery: '' };
+    const meta = AGENT_METADATA[id] || { name: task.role || id, description: task.role || '', sampleQuery: 'Пример запроса' };
     return {
       id,
       name: meta.name,
+      role: task.role,
       description: meta.description,
+      temperature: task.temperature,
       maxTokens: task.maxTokens,
+      responseFormat: task.responseFormat || 'json',
       systemPrompt: task.system,
       sampleInput: {
         task: id,
         text: meta.sampleQuery,
         query: meta.sampleQuery
       },
-      curlExample: `curl -s -X POST "http://llm.52kaf.vka:8081/v1/chat/completions" \\
-  -H "Content-Type: application/json" \\
-  -d '{"model":"department-assistant","temperature":0.1,"max_tokens":${task.maxTokens},"messages":[{"role":"system","content":${JSON.stringify(task.system)}},{"role":"user","content":${JSON.stringify(JSON.stringify({ task: id, text: meta.sampleQuery, query: meta.sampleQuery }))}}]}'`
     };
   })
 };
 
-const jsonStr = JSON.stringify(agentsManifest, null, 2) + '\n';
-
-// 1. Write in kafedra-planner
-const localPath = resolve('packages/ai/department-agents.json');
-writeFileSync(localPath, jsonStr, 'utf8');
+// 1. Write local copy
+const localPath = resolve(process.cwd(), 'packages/ai/department-agents.json');
+writeFileSync(localPath, JSON.stringify(agentsManifest, null, 2), 'utf8');
 console.log(`✓ Записан локальный манифест агентов: ${localPath}`);
 
-// 2. Write in local-llm-offline if present
-const remoteLLMOfflineDir = '/home/YaremenkoIA/Загрузки/local-llm-offline';
-if (existsSync(remoteLLMOfflineDir)) {
-  const destDir = join(remoteLLMOfflineDir, 'integration');
-  const destFile = join(destDir, 'department-agents.json');
-  writeFileSync(destFile, jsonStr, 'utf8');
-  console.log(`✓ Синхронизирован манифест в local-llm-offline: ${destFile}`);
+// 2. Synchronize to local-llm-offline if directory exists
+const destDir = resolve('/home/YaremenkoIA/Загрузки/local-llm-offline/integration');
+if (existsSync(destDir)) {
+  const destPath = join(destDir, 'department-agents.json');
+  writeFileSync(destPath, JSON.stringify(agentsManifest, null, 2), 'utf8');
+  console.log(`✓ Синхронизирован манифест в local-llm-offline: ${destPath}`);
 
-  // Also create a ready-to-run shell utility for testing agents on the remote server
+  // Create executable test script in local-llm-offline with python3 and node support
   const testScriptPath = join(destDir, 'test-remote-agents.sh');
-  const testScriptContent = `#!/usr/bin/env bash
-# Утилита тестирования агентов кафедры на сервере llama-server
+  const testScript = `#!/usr/bin/env bash
+# ==============================================================================
+# Утилита тестирования агентов кафедры на удалённом / локальном LLM-сервере
+# Работает полностью автономно в Astra Linux / Debian (требует curl и python3 или node).
+# ==============================================================================
 set -euo pipefail
 
+SCRIPT_DIR="$(cd "$(dirname "\${BASH_SOURCE[0]}")" && pwd)"
 ENDPOINT="\${LLM_ENDPOINT:-http://127.0.0.1:8081}"
 MODEL="\${LLM_MODEL:-department-assistant}"
-AGENTS_FILE="\$(dirname "\$0")/department-agents.json"
+AGENTS_FILE="\${AGENTS_FILE:-\$SCRIPT_DIR/department-agents.json}"
 
-if [ ! -f "\$AGENTS_FILE" ]; then
-  echo "Ошибка: файл \$AGENTS_FILE не найден." >&2
+if [[ ! -f "$AGENTS_FILE" ]]; then
+  echo "ОШИБКА: Манифест агентов не найден: \$AGENTS_FILE" >&2
   exit 1
 fi
 
-AGENT_ID="\${1:-protocol-analysis}"
-
-echo "=========================================================="
-echo "Тестирование агента кафедры: \$AGENT_ID"
-echo "Сервер: \$ENDPOINT"
-echo "Модель: \$MODEL"
-echo "=========================================================="
-
-# Извлекаем системный промпт и тестовый запрос
-SYSTEM_PROMPT=\$(node -e "
-const fs = require('fs');
-const data = JSON.parse(fs.readFileSync('\$AGENTS_FILE', 'utf8'));
-const ag = data.agents.find(a => a.id === '\$AGENT_ID');
-if (!ag) { console.error('Агент не найден: \$AGENT_ID'); process.exit(1); }
-process.stdout.write(ag.systemPrompt);
-")
-
-USER_CONTENT=\$(node -e "
-const fs = require('fs');
-const data = JSON.parse(fs.readFileSync('\$AGENTS_FILE', 'utf8'));
-const ag = data.agents.find(a => a.id === '\$AGENT_ID');
-process.stdout.write(JSON.stringify(ag.sampleInput));
-")
-
-echo "Отправка запроса в llama-server..."
-START_TIME=\$(date +%s%N)
-RESPONSE=\$(curl -s -w "\\nHTTP_STATUS:%{http_code}" -X POST "\$ENDPOINT/v1/chat/completions" \\
-  -H "Content-Type: application/json" \\
-  -d "\$(node -e "
-    const body = {
-      model: '\$MODEL',
-      temperature: 0.1,
-      max_tokens: 1536,
-      messages: [
-        { role: 'system', content: process.argv[1] },
-        { role: 'user', content: process.argv[2] }
-      ]
-    };
-    process.stdout.write(JSON.stringify(body));
-  " "\$SYSTEM_PROMPT" "\$USER_CONTENT")")
-END_TIME=\$(date +%s%N)
-
-DURATION_MS=\$(( (END_TIME - START_TIME) / 1000000 ))
-HTTP_CODE=\$(echo "\$RESPONSE" | grep "HTTP_STATUS:" | cut -d: -f2)
-BODY=\$(echo "\$RESPONSE" | sed '/HTTP_STATUS:/d')
-
-echo "Время ответа: \${DURATION_MS} мс (HTTP \$HTTP_CODE)"
-
-if [ "\$HTTP_CODE" != "200" ]; then
-  echo "✗ Ошибка вызова llama-server:"
-  echo "\$BODY"
+JSON_RUNNER=""
+if command -v python3 >/dev/null 2>&1; then
+  JSON_RUNNER="python3"
+elif command -v node >/dev/null 2>&1; then
+  JSON_RUNNER="node"
+else
+  echo "ОШИБКА: Для работы утилиты требуется python3 или node." >&2
   exit 1
 fi
 
-echo "✓ Ответ модели получен:"
-node -e "
+list_agents() {
+  echo "Доступные агенты Кафедры в манифесте:"
+  if [[ "$JSON_RUNNER" == "python3" ]]; then
+    python3 -c "
+import json
+with open('\$AGENTS_FILE', 'r', encoding='utf-8') as f:
+    d = json.load(f)
+for a in d.get('agents', []):
+    print(f\\\"  • {a['id']:<20} - {a.get('role', '')} ({a.get('description', '')})\\\")
+"
+  else
+    node -e "
+const d = JSON.parse(require('node:fs').readFileSync('\$AGENTS_FILE', 'utf8'));
+d.agents.forEach(a => console.log('  • ' + a.id.padEnd(20) + ' - ' + (a.role||'') + ' (' + (a.description||'') + ')'));
+"
+  fi
+}
+
+run_agent_test() {
+  local agent_id="$1"
+  echo "=========================================================="
+  echo "Тестирование агента кафедры: \$agent_id"
+  echo "Сервер:  \$ENDPOINT"
+  echo "Модель:  \$MODEL"
+  echo "=========================================================="
+
+  local system_prompt=""
+  local user_input=""
+  local temp=0.1
+  local max_tokens=1536
+
+  if [[ "\$JSON_RUNNER" == "python3" ]]; then
+    readarray -t agent_data < <(python3 -c "
+import json, sys
+with open('\$AGENTS_FILE', 'r', encoding='utf-8') as f:
+    d = json.load(f)
+agent = next((a for a in d.get('agents', []) if a['id'] == '\$agent_id'), None)
+if not agent:
+    print('NOT_FOUND', file=sys.stderr)
+    sys.exit(2)
+print(json.dumps(agent.get('systemPrompt', '')))
+print(json.dumps(agent.get('sampleInput', {})))
+print(agent.get('temperature', 0.1))
+print(agent.get('maxTokens', 1536))
+") || {
+      echo "ОШИБКА: Агент '\$agent_id' не найден в \$AGENTS_FILE." >&2
+      return 1
+    }
+    system_prompt="\${agent_data[0]}"
+    user_input="\${agent_data[1]}"
+    temp="\${agent_data[2]}"
+    max_tokens="\${agent_data[3]}"
+  else
+    readarray -t agent_data < <(node -e "
+const fs = require('node:fs');
+const d = JSON.parse(fs.readFileSync('\$AGENTS_FILE', 'utf8'));
+const agent = d.agents.find(a => a.id === '\$agent_id');
+if (!agent) process.exit(2);
+console.log(JSON.stringify(agent.systemPrompt || ''));
+console.log(JSON.stringify(agent.sampleInput || {}));
+console.log(agent.temperature || 0.1);
+console.log(agent.maxTokens || 1536);
+") || {
+      echo "ОШИБКА: Агент '\$agent_id' не найден в \$AGENTS_FILE." >&2
+      return 1
+    }
+    system_prompt="\${agent_data[0]}"
+    user_input="\${agent_data[1]}"
+    temp="\${agent_data[2]}"
+    max_tokens="\${agent_data[3]}"
+  fi
+
+  local payload_file
+  payload_file="$(mktemp)"
+  trap 'rm -f "\$payload_file"' RETURN
+
+  if [[ "\$JSON_RUNNER" == "python3" ]]; then
+    python3 -c "
+import json
+prompt = json.loads('''\$system_prompt''')
+uinput = json.loads('''\$user_input''')
+user_text = json.dumps(uinput, ensure_ascii=False) if isinstance(uinput, (dict, list)) else str(uinput)
+body = {
+    'model': '\$MODEL',
+    'temperature': float('\$temp'),
+    'max_tokens': int('\$max_tokens'),
+    'messages': [
+        {'role': 'system', 'content': prompt},
+        {'role': 'user', 'content': user_text}
+    ]
+}
+with open('\$payload_file', 'w', encoding='utf-8') as out:
+    json.dump(body, out, ensure_ascii=False)
+"
+  else
+    node -e "
+const fs = require('node:fs');
+const prompt = JSON.parse(process.argv[1]);
+const uinput = JSON.parse(process.argv[2]);
+const userText = typeof uinput === 'object' ? JSON.stringify(uinput) : String(uinput);
+const body = {
+  model: '\$MODEL',
+  temperature: parseFloat('\$temp'),
+  max_tokens: parseInt('\$max_tokens', 10),
+  messages: [
+    { role: 'system', content: prompt },
+    { role: 'user', content: userText }
+  ]
+};
+fs.writeFileSync('\$payload_file', JSON.stringify(body), 'utf8');
+" "\$system_prompt" "\$user_input"
+  fi
+
+  echo "Отправка запроса в llama-server..."
+  local start_time end_time duration_ms http_code response body
+  start_time=\$(date +%s%N 2>/dev/null || date +%s)
+  response=\$(curl -s -S -w "\\nHTTP_STATUS:%{http_code}" -X POST "\$ENDPOINT/v1/chat/completions" \\
+    -H "Content-Type: application/json; charset=utf-8" \\
+    --data-binary @"\$payload_file" || true)
+  end_time=\$(date +%s%N 2>/dev/null || date +%s)
+
+  if [[ "\$start_time" =~ [0-9]{10,} ]]; then
+    duration_ms=\$(( (end_time - start_time) / 1000000 ))
+  else
+    duration_ms="~"
+  fi
+
+  http_code=\$(echo "\$response" | grep "HTTP_STATUS:" | cut -d: -f2 || echo "000")
+  body=\$(echo "\$response" | sed '/HTTP_STATUS:/d')
+
+  echo "Время ответа: \${duration_ms} мс (HTTP \$http_code)"
+
+  if [[ "\$http_code" != "200" ]]; then
+    echo "✗ Ошибка вызова llama-server (HTTP \$http_code):" >&2
+    echo "\$body" >&2
+    return 1
+  fi
+
+  echo "✓ Ответ модели получен:"
+  if [[ "\$JSON_RUNNER" == "python3" ]]; then
+    python3 -c "
+import json, sys
+try:
+    resp = json.loads('''\$body''')
+    msg = resp['choices'][0]['message']['content']
+    usage = resp.get('usage', {})
+    prompt_tokens = usage.get('prompt_tokens', '?')
+    comp_tokens = usage.get('completion_tokens', '?')
+    print(f'Токены: вход={prompt_tokens}, выход={comp_tokens}')
+    print('--- Содержимое ответа ---')
+    print(msg)
+except Exception as e:
+    print('''\$body''')
+"
+  else
+    node -e "
 try {
-  const json = JSON.parse(process.argv[1]);
-  const content = json.choices[0].message.content;
-  console.log('Сгенерированный JSON:');
-  console.log(content);
+  const resp = JSON.parse(process.argv[1]);
+  const msg = resp.choices[0].message.content;
+  const u = resp.usage || {};
+  console.log('Токены: вход=' + (u.prompt_tokens||'?') + ', выход=' + (u.completion_tokens||'?'));
+  console.log('--- Содержимое ответа ---');
+  console.log(msg);
 } catch (e) {
   console.log(process.argv[1]);
 }
-" "\$BODY"
-`;
-
-  writeFileSync(testScriptPath, testScriptContent, { mode: 0o755 });
-  console.log(`✓ Создана утилита удалённого тестирования: ${testScriptPath}`);
-
-  // Create complete AGENTS_GUIDE.md in local-llm-offline
-  const guidePath = join(destDir, 'AGENTS_GUIDE.md');
-  const guideContent = `# Руководство: Агенты Кафедры на удалённом LLM-сервере
-
-## 1. Архитектурный принцип: как агенты попадают на сервер модели
-
-В архитектуре локального ИИ Кафедра-планера сервер модели (\`llama-server\` из \`local-llm-offline\`) является **вычислительным движком (stateless inference)**:
-- Модель (\`Qwen2.5-7B\` / \`Qwen3-4B\`) не переобучается и не содержит захардкоженных кафедренных скриптов.
-- **Агенты живут на узле Кафедры** (\`packages/ai/src/assistant-tasks.mjs\`).
-- При каждом действии оператора Кафедра динамически передаёт роль и системную инструкцию агента в поле \`messages[0] (role: "system")\` стандартного запроса OpenAI API \`/v1/chat/completions\`.
-- База данных протоколов (SQLite) и поиск цитат также выполняются на узле Кафедры, а в модель передаются только проверенные факты.
-
-## 2. Список доступных агентов Кафедры
-
-Манифест всех агентов с точными формулировками промптов экспортирован в файл:
-[\`department-agents.json\`](./department-agents.json).
-
-| Идентификатор | Роль агента | Назначение |
-|---|---|---|
-| \`search-refine\` | Агент семантического поиска | Разбор вопросов, интент, лемматизация и генерация FTS5-запросов |
-| \`protocol-analysis\` | Аналитик протоколов кафедры | Разбор «Слушали / Постановили», фиксация повестки, поручений и сроков |
-| \`report-synthesis\` | Методист отчётов кафедры | Синтез разделов отчёта (НИР, УМР, кадры) со ссылками на протоколы |
-| \`compliance-check\` | Советник по оформлению | Доброжелательные подсказки к тексту и варианты улучшений в 1 клик |
-| \`table-extract\` | Аналитик таблиц | Извлечение списков статей, поручений и нагрузки в таблицы Calc/Excel |
-| \`gap-repair\` | Аналитик пропусков | Выявление отсутствующих дат и реквизитов, сквозное исправление |
-| \`field-extract\` | Экстрактор реквизитов | Быстрое точечное извлечение даты, номера протокола, председателя |
-| \`formula-calc\` | Эксперт формул | Составление формул ВПР, СУММЕСЛИМН для LibreOffice Calc и Excel |
-| \`archive-query\` | Архивариус протоколов | RAG-сопоставление вопросов с архивом заседаний кафедры |
-
-## 3. Настройка llama-server для максимальной скорости
-
-На сервере модели (\`llm.52kaf.vka\`) в файле \`/etc/local-llm/server.json\`:
-
-\`\`\`json
-{
-  "schema": 1,
-  "root": "/opt/local-llm/current",
-  "model": "qwen2.5-7b-instruct",
-  "alias": "department-assistant",
-  "host": "0.0.0.0",
-  "port": 8081,
-  "threads": 22,
-  "threads_batch": 22,
-  "context_per_slot": 8192,
-  "parallel": 2,
-  "cpu": "auto",
-  "allow_unauthenticated_lan": true
+" "\$body"
+  fi
+  echo "=========================================================="
+  return 0
 }
-\`\`\`
 
-После правки примените настройки:
-\`\`\`bash
-sudo systemctl restart local-llm.service
-\`\`\`
+case "\${1:-protocol-analysis}" in
+  -h|--help)
+    echo "Использование: \$0 [AGENT_ID | --list | --all]"
+    echo ""
+    echo "Переменные окружения:"
+    echo "  LLM_ENDPOINT   URL сервера (по умолчанию: http://127.0.0.1:8081)"
+    echo "  LLM_MODEL      Имя модели или alias (по умолчанию: department-assistant)"
+    echo "  AGENTS_FILE    Путь к department-agents.json"
+    exit 0
+    ;;
+  --list)
+    list_agents
+    exit 0
+    ;;
+  --all)
+    echo "Запуск тестирования всех агентов..."
+    agents_list=()
+    if [[ "\$JSON_RUNNER" == "python3" ]]; then
+      mapfile -t agents_list < <(python3 -c "
+import json
+with open('\$AGENTS_FILE', 'r', encoding='utf-8') as f:
+    d = json.load(f)
+for a in d.get('agents', []):
+    print(a['id'])
+")
+    else
+      mapfile -t agents_list < <(node -e "
+const d = JSON.parse(require('node:fs').readFileSync('\$AGENTS_FILE', 'utf8'));
+d.agents.forEach(a => console.log(a.id));
+")
+    fi
 
-## 4. Тестирование любого агента с сервера модели
-
-В каталоге \`integration/\` запустите проверочный скрипт:
-
-\`\`\`bash
-# Проверка агента разбора протоколов:
-./integration/test-remote-agents.sh protocol-analysis
-
-# Проверка советника по оформлению:
-./integration/test-remote-agents.sh compliance-check
-
-# Проверка агента синтеза отчёта:
-./integration/test-remote-agents.sh report-synthesis
-\`\`\`
+    failed=0
+    for ag in "\${agents_list[@]}"; do
+      if ! run_agent_test "\$ag"; then
+        failed=\$((failed + 1))
+      fi
+    done
+    if [[ \$failed -eq 0 ]]; then
+      echo "✓ Все агенты успешно протестированы!"
+      exit 0
+    else
+      echo "✗ Сбоев при тестировании: \$failed" >&2
+      exit 1
+    fi
+    ;;
+  *)
+    run_agent_test "\$1"
+    ;;
+esac
 `;
-  writeFileSync(guidePath, guideContent, 'utf8');
-  console.log(`✓ Создано руководство администратора: ${guidePath}`);
+  writeFileSync(testScriptPath, testScript, { mode: 0o755 });
+  console.log(`✓ Создана утилита удалённого тестирования: ${testScriptPath}`);
 }
