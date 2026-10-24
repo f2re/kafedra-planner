@@ -1,6 +1,6 @@
 {
   "schema": "kafedra-agents-v1",
-  "generatedAt": "2026-10-23T05:01:57.225Z",
+  "generatedAt": "2026-10-24T12:38:24.500Z",
   "targetServer": "http://llm.52kaf.vka:8081",
   "defaultModelAlias": "department-assistant",
   "description": "Манифест специализированных агентов кафедры для OpenAI-совместимого llama-server (local-llm-offline)",

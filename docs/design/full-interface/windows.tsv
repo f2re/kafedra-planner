@@ -7,8 +7,8 @@ UI-a8306b1648	public/assistant-sheet.js:176:15	D1	ensureElements	#assistant-shee
 UI-5ab14b927c	public/auth-next.js:153:12	D7	ensurePinDialog	#auth-pin-dialog		запланировано
 UI-40eb2c19ee	public/calendar-start-settings.js:57:11	D1	ensureDialog	#calendar-start-settings-sheet		запланировано
 UI-060777690a	public/directive-archive-next.js:161:7	D4	ensureDirectiveArchiveUi	#directive-modal		запланировано
-UI-9ed8789f66	public/index.html:155:3	D1	document	#event-sheet	Календарь Новое событие × Название Тип Событие Задача Дата Категория Организационная Образование Наука Повседневная Важн	запланировано
-UI-527fc09ca7	public/index.html:170:3	D1	document	#template-sheet	Новый шаблон Покажите, что извлекать × 1 Документ 2 Поля 3 Проверка Документ Выберите документ Текст появится здесь. Ори	запланировано
+UI-596eaa9b29	public/index.html:164:3	D1	document	#event-sheet	Календарь Новое событие × Название Тип Событие Задача Дата Категория Организационная Образование Наука Повседневная Важн	запланировано
+UI-f2d5e466a3	public/index.html:179:3	D1	document	#template-sheet	Новый шаблон Покажите, что извлекать × 1 Документ 2 Поля 3 Проверка Документ Выберите документ Текст появится здесь. Ори	запланировано
 UI-f29463dfb7	public/lifecycle-next.js:187:7	D2	ensureLifecycleUi	#lifecycle-modal		проверить подключение
 UI-1fab561c1a	public/lifecycle-safe.js:188:7	D2	ensureUi	#lifecycle-modal		запланировано
 UI-c6ac185128	public/manual-plans-next.js:50:7	D2	ensureManualUi	#manual-plan-modal		запланировано
@@ -22,7 +22,7 @@ UI-1a175d5d51	public/plans-next.js:166:7	D2	ensurePlansUi	#plan-item-modal		за
 UI-c42a424e56	public/plans-next.js:167:7	D2	ensurePlansUi	#plan-generate-modal		запланировано
 UI-e8cbd8c283	public/plans-next.js:168:7	D2	ensurePlansUi	#plan-template-modal		запланировано
 UI-7ce1f99464	public/preference-controls.js:58:7	D1	ensureUi	#preference-controls-popover	Личные подсказки	запланировано
-UI-41e297d695	public/protocol-batch.js:21:16	D3	protocolDialog			запланировано
+UI-4e4eac4577	public/protocol-batch.js:21:16	D3	protocolDialog			запланировано
 UI-3b27cb878c	public/science-import-next.js:37:7	D5	ensureImportUi	#science-import-modal		запланировано
 UI-21f8391cec	public/science-lifecycle-next.js:38:5	D5	ensureScienceLifecycleModal	#science-lifecycle-modal		запланировано
 UI-40c43b6aa7	public/science-reports-next.js:38:7	D5	ensureReportUi	#science-report-modal		запланировано

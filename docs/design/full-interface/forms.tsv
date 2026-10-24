@@ -11,8 +11,8 @@ UI-a410c5b770	public/directive-archive-next.js:421:5	D4	openAddDirective	#direct
 UI-16ebd9bb2e	public/directive-archive-next.js:443:5	D4	openEditDirective	#directive-edit-form	Номер * Дата * Название * Вид Направление Организация Образование Наука Кадры Безопасность Финансы Цифровизация Кем изда	запланировано
 UI-cb83ff8314	public/directive-archive-next.js:463:5	D4	openAddMaterial	#directive-material-form	Файл * Подойдёт отчёт, скан, акт, фото, презентация, таблица или любой другой подтверждающий файл. Вид материала Отчёт С	запланировано
 UI-54cf8a3cca	public/docomator-integration.js:74:7	D7	ensureDocomatorUi	#docomator-settings-form	Адрес Оформлятора Код доступа Скопируйте адрес из браузера. Ссылку с /api/v1 , /healthz или /readyz можно вставить целик	запланировано
-UI-89f430d85c	public/index.html:134:11	D1	document	#search-form	⌕ Esc	запланировано
-UI-e4a7062adf	public/index.html:157:5	D1	document	#event-form	Название Тип Событие Задача Дата Категория Организационная Образование Наука Повседневная Важность Обычная Высокая Крити	запланировано
+UI-bd9e7743bb	public/index.html:143:11	D1	document	#search-form	⌕ Esc	запланировано
+UI-84ccdd07b8	public/index.html:166:5	D1	document	#event-form	Название Тип Событие Задача Дата Категория Организационная Образование Наука Повседневная Важность Обычная Высокая Крити	запланировано
 UI-32634d6a93	public/lifecycle-next.js:383:5	D2	openDocumentEditor	#lifecycle-document-edit-form	Название в системе Для чего этот документ {dynamic} Исходное имя файла и его содержимое не изменятся. Отмена Сохранить	проверить подключение
 UI-a9a830c7fd	public/lifecycle-next.js:396:5	D2	openPlanEditor	#lifecycle-plan-edit-form	Название Пункты, календарные записи и поручения сохранят свои связи. Отмена Сохранить	проверить подключение
 UI-2a6697b46b	public/lifecycle-next.js:430:5	D2	openArchive	#lifecycle-archive-form	«{dynamic}» исчезнет из рабочего списка, но останется в архиве со всей историей. Останутся связаны с исходным объектом {	проверить подключение
@@ -42,7 +42,7 @@ UI-fb8821b755	public/plan-source-rows-next.js:291:5	D2	renderEditor	#plan-source
 UI-db9eecb9d9	public/plans-next.js:335:5	D2	openItemEditor	#plan-item-form	Мероприятие Начало Окончание Контрольный срок Ответственный Направление {dynamic} Ожидаемый результат Почему исправлено 	запланировано
 UI-3bedb145be	public/plans-next.js:449:5	D2	openTemplateReview	#plan-template-review-form	Система не будет угадывать неоднозначные места. Выберите подпись года и таблицу, которые действительно относятся к плану	запланировано
 UI-b6d03c532b	public/plans-next.js:543:5	D2	openGeneration	#plan-generation-form	Образец {dynamic} {dynamic} Название документа Пункты плана Добавить строку № Мероприятие Дата Контроль Ответственный Да	запланировано
-UI-88bbfde278	public/protocol-batch.js:81:5	D3	editHeaders		Сохранить правки Закрыть	запланировано
+UI-4c2da01332	public/protocol-batch.js:81:5	D3	editHeaders		Сохранить правки Закрыть	запланировано
 UI-136d85c242	public/protocol-format-editor.js:7:190	D3	openProtocolFormat		Формат Новый формат {dynamic} Название Общая фраза в документах Часть имени файла (необязательно) {dynamic} Исходный тек	запланировано
 UI-4aa6fe8a14	public/reports-science-next.js:21:7	D5	ensureReportsScienceUi	#science-search-form	Все виды Статьи Конференции Гранты Патенты Проекты Отчёты НИР	запланировано
 UI-55e264eaf6	public/science-import-next.js:82:5	D5	uploadForm	[data-science-import-upload-form]	Загрузите CSV, JSON, XLSX или ODS. Одна ошибочная строка не остановит остальные. Файл Исходный файл сохранится в докумен	запланировано

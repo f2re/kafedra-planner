@@ -8,7 +8,7 @@ import {
 } from './meetings-state.js';
 import { loadMeeting, loadMeetings } from './meetings-data.js';
 import { protocolUploadCounts, uploadCountsText, uploadStateDescription } from './upload-feedback.js';
-import { enhanceProtocolBatch } from './protocol-batch.js';
+import { enhanceProtocolBatch, editHeaders } from './protocol-batch.js';
 import { protocolUploadIdentity } from './protocol-upload-identity.js';
 import {
   archivedUploadNotice, protocolImportIsArchived, protocolImportView,
@@ -56,6 +56,8 @@ function itemActions(item) {
   const actions = [];
   if (item.meeting_id) {
     actions.push(`<button class="link-button" type="button" data-open-import-meeting="${escMeeting(item.meeting_id)}">${item.state === 'needs_review' ? 'Исправить' : 'Открыть'}</button>`);
+  } else if (item.document_id) {
+    actions.push(`<button class="link-button" type="button" data-fix-unparsed-protocol="${escMeeting(item.document_id)}" title="Ввести реквизиты заседания и создать карточку">Ввести реквизиты</button>`);
   }
   if (item.document_id && !protocolImportIsArchived(item) && ['failed', 'needs_review'].includes(item.state)) {
     actions.push(`<button class="link-button" type="button" data-reprocess-document="${escMeeting(item.document_id)}">Повторить распознавание</button>`);
@@ -247,6 +249,18 @@ document.addEventListener('click', (event) => {
     const row=meetingsState.localProtocolUploads.find((item)=>item.id===retryUpload.dataset.retryProtocolUpload);
     if (row?.file) meetingApi('/api/protocol-imports/tools').then(async({workspaceId})=>{await uploadProtocol(row,workspaceId);await loadProtocolImports();})
       .catch((error)=>{retryUpload.disabled=false;showMeetingNotice(error.message);});
+    return;
+  }
+  const fixUnparsed = event.target.closest('[data-fix-unparsed-protocol]');
+  if (fixUnparsed) {
+    const docId = fixUnparsed.dataset.fixUnparsedProtocol;
+    const allItems = mergeItems();
+    const item = allItems.find((it) => it.document_id === docId);
+    if (item) {
+      editHeaders([item], async () => {
+        await Promise.all([loadProtocolImports(), loadMeetings()]);
+      });
+    }
     return;
   }
   const retry = event.target.closest('[data-reprocess-document]');

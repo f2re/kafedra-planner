@@ -125,7 +125,16 @@
       </section>
 
       <section class="view" data-view-panel="review">
-        <div class="section-heading"><div><h2>Проверка данных</h2><p>Только вопросы, которые автоматика не может решить надёжно сама.</p></div></div>
+        <div class="section-heading">
+          <div>
+            <h2>Проверка данных</h2>
+            <p>Только вопросы, требующие внимания. Нейросеть в фоне готовит варианты решений.</p>
+          </div>
+          <div class="review-head-actions">
+            <button id="review-ai-all-btn" class="secondary-button" type="button" title="Запустить фоновый подбор решений по всем вопросам">✨ Подобрать через ИИ для всех</button>
+            <span id="review-ai-global-status" class="review-ai-global-status" role="status" aria-live="polite"></span>
+          </div>
+        </div>
         <div id="review-list" class="review-list"></div>
       </section>
 

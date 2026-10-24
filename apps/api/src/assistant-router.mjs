@@ -38,6 +38,56 @@ function canReadResult(database, workspaceId, context, item) {
   return canReadSearchResult(database, workspaceId, context, item);
 }
 
+async function resolveSingleReviewSuggestion(database, engine, workspaceId, reviewId, customText = '') {
+  const review = database.get('SELECT * FROM review_items WHERE workspace_id = ? AND id = ?', workspaceId, reviewId);
+  if (!review) return null;
+
+  let sourceText = '';
+  if (review.source_kind === 'document_version') {
+    const dv = database.get('SELECT extracted_text FROM document_versions WHERE id = ?', review.source_id);
+    sourceText = dv?.extracted_text || '';
+  } else if (review.source_kind === 'meeting') {
+    const m = database.get('SELECT source_document_version_id FROM meetings WHERE id = ?', review.source_id);
+    if (m?.source_document_version_id) {
+      const dv = database.get('SELECT extracted_text FROM document_versions WHERE id = ?', m.source_document_version_id);
+      sourceText = dv?.extracted_text || '';
+    }
+  }
+
+  if (!sourceText && customText) {
+    sourceText = String(customText);
+  }
+
+  const issueCode = String(review.issue_code || '');
+  let targetField = 'дата заседания';
+  if (issueCode.includes('date')) targetField = 'дата заседания (в формате YYYY-MM-DD)';
+  else if (issueCode.includes('number') || issueCode.includes('protocol')) targetField = 'номер протокола';
+  else if (issueCode.includes('agenda')) targetField = 'пункты повестки';
+
+  const aiRes = await engine.process({
+    task: 'field-extract',
+    text: sourceText,
+    query: targetField
+  });
+
+  let val = aiRes.result?.value || '';
+  if (targetField.includes('дата') && val && !/^\d{4}-\d{2}-\d{2}$/.test(val)) {
+    const dMatch = val.match(/(\d{1,2})[./-](\d{1,2})[./-](\d{4})/);
+    if (dMatch) {
+      val = `${dMatch[3]}-${dMatch[2].padStart(2, '0')}-${dMatch[1].padStart(2, '0')}`;
+    }
+  }
+
+  return {
+    reviewId,
+    issueCode,
+    field: targetField,
+    extracted: aiRes.result ? { ...aiRes.result, value: val } : null,
+    status: aiRes.status,
+    durationMs: aiRes.durationMs
+  };
+}
+
 export function createAssistantRouter({ database, config, logger, engine: customEngine, fetchImpl = fetch }) {
   const dynamicConfig = loadLlmSettings(config?.dataDir, config);
   const effectiveConfig = { ...config, ...dynamicConfig };
@@ -351,48 +401,33 @@ export function createAssistantRouter({ database, config, logger, engine: custom
       const body = await readJson(request);
       const reviewId = String(body.reviewItemId || '').trim();
       const workspace = workspaceOf(database, request);
-      const review = database.get('SELECT * FROM review_items WHERE workspace_id = ? AND id = ?', workspace.id, reviewId);
-      if (!review) {
+      const res = await resolveSingleReviewSuggestion(database, engine, workspace.id, reviewId, body.text);
+      if (!res) {
         throw new AppError('review_not_found', 'Вопрос проверки не найден.', 404);
       }
+      sendJson(response, 200, { ok: true, ...res });
+      return true;
+    }
 
-      let sourceText = '';
-      if (review.source_kind === 'document_version') {
-        const dv = database.get('SELECT extracted_text FROM document_versions WHERE id = ?', review.source_id);
-        sourceText = dv?.extracted_text || '';
-      } else if (review.source_kind === 'meeting') {
-        const m = database.get('SELECT source_document_version_id FROM meetings WHERE id = ?', review.source_id);
-        if (m?.source_document_version_id) {
-          const dv = database.get('SELECT extracted_text FROM document_versions WHERE id = ?', m.source_document_version_id);
-          sourceText = dv?.extracted_text || '';
-        }
+    // AI-assisted batch review repair (runs in background for multiple review items)
+    if (url.pathname === '/api/assistant/review-repair-batch' && request.method === 'POST') {
+      const body = await readJson(request);
+      const workspace = workspaceOf(database, request);
+      let ids = Array.isArray(body.reviewItemIds) ? body.reviewItemIds.map(String) : [];
+      if (!ids.length) {
+        const openReviews = database.all('SELECT id FROM review_items WHERE workspace_id = ? AND status = \'open\' LIMIT 20', workspace.id);
+        ids = openReviews.map((r) => r.id);
       }
 
-      if (!sourceText && body.text) {
-        sourceText = String(body.text);
+      const results = [];
+      for (const rId of ids.slice(0, 15)) {
+        try {
+          const itemRes = await resolveSingleReviewSuggestion(database, engine, workspace.id, rId);
+          if (itemRes) results.push(itemRes);
+        } catch {}
       }
 
-      const issueCode = String(review.issue_code || '');
-      let targetField = 'дата заседания';
-      if (issueCode.includes('date')) targetField = 'дата заседания (в формате YYYY-MM-DD)';
-      else if (issueCode.includes('number') || issueCode.includes('protocol')) targetField = 'номер протокола';
-      else if (issueCode.includes('agenda')) targetField = 'пункты повестки';
-
-      const aiRes = await engine.process({
-        task: 'field-extract',
-        text: sourceText,
-        query: targetField
-      });
-
-      sendJson(response, 200, {
-        ok: true,
-        reviewId,
-        issueCode,
-        field: targetField,
-        extracted: aiRes.result || null,
-        status: aiRes.status,
-        durationMs: aiRes.durationMs
-      });
+      sendJson(response, 200, { ok: true, count: results.length, results });
       return true;
     }
 

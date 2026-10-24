@@ -62,13 +62,12 @@ repair_document_runtime() {
     audit="$(dpkg --audit 2>&1 || true)"
     [[ -z "$audit" ]] || { echo "✗ dpkg --audit: $audit" >&2; return 3; }
   fi
-  LC_ALL=C apt-get check >/dev/null 2>&1 || {
-    echo "✗ APT имеет неудовлетворённые зависимости сторонних пакетов; automatic --fix-broken запрещён." >&2
-    LC_ALL=C apt-get check >&2 || true
-    echo "  Рекомендация по согласованию пакетов (Astra Linux 1.7 / Debian):" >&2
-    echo "    sudo apt-get update && sudo apt-get install --reinstall -y acl attr bzip2 debconf-i18n debconf-utils libc6-dev libparsec-aud3 perl" >&2
-    return 3
-  }
+  local apt_check_passed=true
+  LC_ALL=C apt-get check >/dev/null 2>&1 || apt_check_passed=false
+  if [[ "$apt_check_passed" != true ]]; then
+    echo "ВНИМАНИЕ: APT имеет неудовлетворённые зависимости сторонних пакетов." >&2
+    echo "Пробуем прямое безопасное добавление компонентов из автономного bundle..." >&2
+  fi
 
   payload="$(resolve_package_payload)" || {
     echo "✗ Не найден verified os-package-cache и отсутствует совместимый legacy payload $ROOT/os-packages." >&2
@@ -78,7 +77,14 @@ repair_document_runtime() {
   source "$PACKAGE_LIB"
   verify_os_package_set "$payload" 1
   echo "Использую проверенный автономный payload: $payload"
-  KAFEDRA_APT_MODE=bundle "$PACKAGE_INSTALLER" "$payload" --scope all
+  if ! KAFEDRA_APT_MODE=bundle "$PACKAGE_INSTALLER" "$payload" --scope all --fix-packages; then
+    echo "✗ Не удалось установить недостающие компоненты из локального payload." >&2
+    if [[ "$apt_check_passed" != true ]]; then
+      echo "  Рекомендация по согласованию пакетов (Astra Linux 1.7 / Debian):" >&2
+      echo "    sudo apt-get update && sudo apt-get install --reinstall -y acl attr bzip2 debconf-i18n debconf-utils libc6-dev libparsec-aud3 perl" >&2
+    fi
+    return 3
+  fi
   echo "✓ Недостающие OCR/PDF/Office компоненты добавлены из локального payload."
 }
 

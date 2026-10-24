@@ -238,6 +238,17 @@ td { font-size: 13px; }
 .review-quote-box { margin-top: 6px; padding: 8px 12px; background: rgba(52, 199, 89, 0.1); border-left: 3px solid #34c759; border-radius: 6px; font-size: 12px; line-height: 1.4; }
 .review-quote-box.hidden { display: none; }
 .review-confidence { color: #248a3d; font-weight: 600; }
+.review-head-actions { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+.review-ai-global-status { font-size: 12px; color: var(--muted); font-weight: 550; }
+.review-title-group { display: flex; align-items: baseline; gap: 10px; flex-wrap: wrap; }
+.review-doc-badge { font-size: 12px; color: var(--muted); background: var(--surface-muted); padding: 2px 8px; border-radius: 6px; border: 1px solid var(--border); display: inline-flex; align-items: center; gap: 4px; }
+.review-doc-link { color: var(--accent); text-decoration: none; font-weight: 500; }
+.review-doc-link:hover { text-decoration: underline; }
+.review-doc-details { margin: 6px 0 4px; border: 1px solid var(--border); border-radius: 8px; background: var(--surface-muted); overflow: hidden; }
+.review-details-toggle { font-size: 11px; font-weight: 600; padding: 5px 10px; cursor: pointer; color: var(--muted); user-select: none; }
+.review-details-toggle:hover { color: var(--text); }
+.review-doc-excerpt { margin: 0; padding: 8px 12px; font-size: 11px; max-height: 180px; overflow-y: auto; white-space: pre-wrap; word-break: break-word; font-family: inherit; background: var(--surface); color: var(--text); border-top: 1px solid var(--border); }
+.review-card.review-card-ai-suggested { border-color: rgba(52, 199, 89, 0.5); box-shadow: 0 0 0 1px rgba(52, 199, 89, 0.2); }
 .review-card-actions { display: flex; flex-direction: column; gap: 6px; justify-content: flex-start; }
 
 .search-page { max-width: 920px; margin: 0 auto; border-radius: var(--radius-lg); padding: 18px; }

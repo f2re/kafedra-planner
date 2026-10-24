@@ -618,19 +618,84 @@ async function saveCurrentTemplate() {
   await Promise.all([loadTemplates(), loadDocuments(), loadReview()]);
 }
 
+let isReviewAiRunning = false;
+async function scheduleBackgroundReviewSuggestions(items, force = false) {
+  if (isReviewAiRunning && !force) return;
+  const statusEl = $('#review-ai-global-status');
+  const candidates = items.filter((item) => {
+    const inp = document.getElementById(`review-input-${item.id}`);
+    return inp && (!inp.value || force);
+  });
+  if (!candidates.length) {
+    if (statusEl) statusEl.textContent = '';
+    return;
+  }
+
+  isReviewAiRunning = true;
+  if (statusEl) statusEl.textContent = `✨ Подбираем решения через ИИ: 0 из ${candidates.length}…`;
+
+  let solved = 0;
+  for (let i = 0; i < candidates.length; i++) {
+    const item = candidates[i];
+    const inp = document.getElementById(`review-input-${item.id}`);
+    const card = document.getElementById(`review-card-${item.id}`);
+    if (!inp) continue;
+    if (inp.value && !force) continue;
+
+    if (statusEl) statusEl.textContent = `✨ Подбираем решения через ИИ: ${i + 1} из ${candidates.length}…`;
+    try {
+      const data = await api('/api/assistant/review-repair', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ reviewItemId: item.id })
+      });
+      if (data.ok && data.extracted?.value) {
+        if (!inp.value || force) {
+          inp.value = data.extracted.value;
+          solved++;
+        }
+        const quoteBox = document.getElementById(`review-quote-${item.id}`);
+        if (quoteBox) {
+          quoteBox.classList.remove('hidden');
+          const conf = Math.round((data.extracted.confidence || 0.9) * 100);
+          quoteBox.innerHTML = `<strong>Подготовлено ИИ:</strong> <em>«${escapeHtml(data.extracted.sourceQuote || data.extracted.value)}»</em> <span class="review-confidence">(${conf}% уверенность)</span>`;
+        }
+        if (card) card.classList.add('review-card-ai-suggested');
+      }
+    } catch {}
+  }
+
+  isReviewAiRunning = false;
+  if (statusEl) {
+    statusEl.textContent = solved > 0
+      ? `✓ ИИ подготовил варианты для ${solved} вопр. (нажмите «Применить»)`
+      : '';
+  }
+}
+
 async function loadReview() {
   const { items } = await api('/api/review?status=open');
   state.reviewItems = items;
   updateReviewBadge(items.length);
-  $('#review-list').innerHTML = items.length ? items.map((item) => {
-    return `<article class="review-card" data-review-id="${escapeHtml(item.id)}">
+  const listEl = $('#review-list');
+  if (!listEl) return;
+  listEl.innerHTML = items.length ? items.map((item) => {
+    return `<article class="review-card" id="review-card-${escapeHtml(item.id)}" data-review-id="${escapeHtml(item.id)}">
       <div class="review-card-main">
         <div class="review-title-row">
-          <h3>${escapeHtml(item.title)}</h3>
+          <div class="review-title-group">
+            <h3>${escapeHtml(item.title)}</h3>
+            ${item.document_name ? `<span class="review-doc-badge">📄 <a href="/api/documents/${encodeURIComponent(item.document_id)}/content?variant=original" target="_blank" rel="noopener" class="review-doc-link" title="Открыть оригинальный файл">${escapeHtml(item.document_name)}</a></span>` : ''}
+          </div>
           <span class="review-badge-tag ${item.severity === 'error' ? 'error' : 'warning'}">${item.severity === 'error' ? 'Требует решения' : 'Внимание'}</span>
         </div>
         <p class="review-explanation">${escapeHtml(item.explanation)}</p>
         <p class="review-action"><strong>Что сделать:</strong> ${escapeHtml(item.proposed_action)}</p>
+        ${item.source_excerpt ? `
+        <details class="review-doc-details">
+          <summary class="review-details-toggle">Посмотреть фрагмент документа</summary>
+          <pre class="review-doc-excerpt">${escapeHtml(item.source_excerpt)}</pre>
+        </details>` : ''}
         <div class="review-edit-row">
           <input type="text" class="review-edit-input" id="review-input-${escapeHtml(item.id)}" placeholder="Введите или выберите исправленное значение..." />
           <button class="quiet-button review-ai-button" type="button" data-ai-suggest-review="${escapeHtml(item.id)}" title="Извлечь реквизит из текста документа с помощью нейросети">
@@ -645,6 +710,13 @@ async function loadReview() {
       </div>
     </article>`;
   }).join('') : '<div class="empty-state">Все текущие вопросы разобраны.</div>';
+
+  if (items.length) {
+    scheduleBackgroundReviewSuggestions(items);
+  } else {
+    const statusEl = $('#review-ai-global-status');
+    if (statusEl) statusEl.textContent = '';
+  }
 }
 
 function updateReviewBadge(count) {
@@ -692,6 +764,13 @@ $('#calendar-mode-switch').addEventListener('click', (event) => {
   const button = event.target.closest('[data-calendar-mode]');
   if (button) setCalendarMode(button.dataset.calendarMode);
 });
+
+const reviewAiAllBtn = $('#review-ai-all-btn');
+if (reviewAiAllBtn) {
+  reviewAiAllBtn.addEventListener('click', () => {
+    scheduleBackgroundReviewSuggestions(state.reviewItems || [], true);
+  });
+}
 
 document.body.addEventListener('click', async (event) => {
   const openView = event.target.closest('[data-open-view]');

@@ -164,12 +164,28 @@ check_package_database() {
 
     if [[ "$FIX_PACKAGES" == true && "${EUID:-$(id -u)}" -eq 0 ]]; then
       info "Выполняю согласование пакетов ОС (--fix-packages): apt-get update && apt-get install --reinstall -y $broken_pkgs"
+      if [[ -d "$PACKAGE_ROOT" ]]; then
+        local found_reinstalls=()
+        for b_pkg in $broken_pkgs; do
+          local m_deb
+          m_deb="$(find "$PACKAGE_ROOT" -maxdepth 1 -type f -name "${b_pkg}_*.deb" | head -n 1 || true)"
+          [[ -n "$m_deb" ]] && found_reinstalls+=("$m_deb")
+        done
+        if ((${#found_reinstalls[@]})); then
+          info "Пробуем согласовать версии из локального bundle: ${found_reinstalls[*]}"
+          PATH="/usr/sbin:/sbin:$PATH" dpkg -i "${found_reinstalls[@]}" >/dev/null 2>&1 || true
+        fi
+      fi
       if DEBIAN_FRONTEND=noninteractive apt-get update >/dev/null 2>&1 && \
          DEBIAN_FRONTEND=noninteractive apt-get install --reinstall -y $broken_pkgs >/dev/null 2>&1; then
         if LC_ALL=C DEBIAN_FRONTEND=noninteractive apt-get check >/dev/null 2>&1; then
           info "Конфликты зависимостей успешно устранены!"
           return 0
         fi
+      fi
+      if LC_ALL=C DEBIAN_FRONTEND=noninteractive apt-get check >/dev/null 2>&1; then
+        info "Конфликты зависимостей устранены из локального bundle!"
+        return 0
       fi
       warn "Автоматическое исправление пакетов не смогло устранить все зависимости."
     fi
@@ -187,7 +203,65 @@ check_package_database() {
   fi
   return 0
 }
+
+try_direct_dpkg() {
+  local stage="${1:-fallback}"
+  info "Пробуем прямое безопасное добавление пакетов через dpkg ($stage)..."
+  local deb_candidates=()
+  for pkg in "${needed[@]}"; do
+    local match
+    match="$(find "$PACKAGE_ROOT" -maxdepth 1 -type f -name "${pkg}_*.deb" | head -n 1 || true)"
+    if [[ -z "$match" ]]; then
+      match="$(find "$PACKAGE_ROOT" -maxdepth 1 -type f -name "${pkg}[_.]*.deb" | head -n 1 || true)"
+    fi
+    if [[ -n "$match" ]]; then
+      deb_candidates+=("$match")
+    fi
+  done
+  if printf '%s\n' "${needed[@]}" | grep -Fxq "tesseract-ocr"; then
+    local osd_match
+    osd_match="$(find "$PACKAGE_ROOT" -maxdepth 1 -type f -name "tesseract-ocr-osd*.deb" | head -n 1 || true)"
+    if [[ -n "$osd_match" ]]; then
+      deb_candidates+=("$osd_match")
+    fi
+  fi
+  if ((${#deb_candidates[@]} == 0)); then
+    warn "В $PACKAGE_ROOT не найдены .deb файлы для ${needed[*]}"
+    return 1
+  fi
+  mapfile -t deb_candidates < <(printf '%s\n' "${deb_candidates[@]}" | LC_ALL=C sort -u)
+  local sim_log="$WORK/dpkg-simulate-$stage.log"
+  info "Проверяем установку через dpkg --simulate: ${deb_candidates[*]}"
+  if ! LC_ALL=C PATH="/usr/sbin:/sbin:$PATH" dpkg --simulate -i "${deb_candidates[@]}" >"$sim_log" 2>&1; then
+    warn "dpkg --simulate завершился с ошибкой:"
+    tail -n 12 "$sim_log" >&2 || true
+    return 1
+  fi
+  if [[ "$CHECK_ONLY" == true ]]; then
+    info "dpkg --simulate подтвердил возможность прямой установки; установка не выполнялась"
+    return 0
+  fi
+  info "Устанавливаем недостающие пакеты напрямую через dpkg: ${deb_candidates[*]}"
+  local install_log="$WORK/dpkg-install-$stage.log"
+  if ! LC_ALL=C PATH="/usr/sbin:/sbin:$PATH" dpkg -i "${deb_candidates[@]}" >"$install_log" 2>&1; then
+    warn "dpkg -i завершился с ошибкой:"
+    tail -n 15 "$install_log" >&2 || true
+    return 1
+  fi
+  local audit
+  audit="$(dpkg --audit 2>&1 || true)"
+  if [[ -n "$audit" ]]; then
+    warn "dpkg оставил незавершённые операции: $audit"
+    return 1
+  fi
+  info "Пакеты успешно добавлены через dpkg без изменения существующих версий"
+  return 0
+}
+
 if ! check_package_database before; then
+  if try_direct_dpkg pre-check; then
+    exit 0
+  fi
   exit "$SAFE_DEGRADED_EXIT"
 fi
 
@@ -287,10 +361,18 @@ info "Проверяем additive-only air-gap plan (${#debs[@]} .deb; запр�
 if ! LC_ALL=C DEBIAN_FRONTEND=noninteractive apt-get "${BUNDLE_APT_OPTIONS[@]}" \
     --simulate "${TARGET_INSTALL_OPTIONS[@]}" install -- "${needed[@]}" >"$WORK/bundle-plan.txt" 2>"$WORK/bundle-plan.err"; then
   cat "$WORK/bundle-plan.err" >&2 || true
+  if try_direct_dpkg bundle-apt-simulate-failed; then
+    exit 0
+  fi
   warn "Автономный repository несовместим с уже установленными пакетами target; система не изменена"
   exit "$SAFE_DEGRADED_EXIT"
 fi
-if ! assert_additive_apt_plan "$WORK/bundle-plan.txt"; then exit "$SAFE_DEGRADED_EXIT"; fi
+if ! assert_additive_apt_plan "$WORK/bundle-plan.txt"; then
+  if try_direct_dpkg non-additive-bundle-plan; then
+    exit 0
+  fi
+  exit "$SAFE_DEGRADED_EXIT"
+fi
 sed -n -E 's/^Inst ([^ ]+).*/\1/p' "$WORK/bundle-plan.txt" | sed -E 's/:[a-z0-9-]+$//' | LC_ALL=C sort -u > "$WORK/planned.txt"
 comm -23 "$WORK/planned.txt" "$WORK/included.txt" > "$WORK/missing.txt"
 if [[ -s "$WORK/missing.txt" ]]; then

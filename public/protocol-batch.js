@@ -9,7 +9,7 @@ const selected = new Set();
 const json = (method, body) => ({ method, headers:{'content-type':'application/json'}, body:JSON.stringify(body) });
 const toolsUrl = (id, text=false) => `/api/protocol-imports/tools?documentId=${encodeURIComponent(id)}${text ? '&text=1' : ''}`;
 const visible = (item) => filter === 'all' || (filter === 'attention' ? ['needs_review','failed'].includes(item.state) : item.state === filter);
-const readyToEdit = (item) => item.meeting_id && !['processing','uploading','failed'].includes(item.state);
+export const readyToEdit = (item) => Boolean(item.document_id && !['processing','uploading'].includes(item.state));
 
 export function ensureProtocolToolsStyle() {
   if (document.querySelector('#protocol-batch-style')) return;
@@ -75,7 +75,7 @@ export function enhanceProtocolBatch(items, {refresh, render}) {
   controls();
 }
 
-async function editHeaders(items, refresh) {
+export async function editHeaders(items, refresh) {
   if (!items.length) return;
   const dialog=protocolDialog('Массовая правка протоколов',`<p>Сохраняются только изменённые поля. Ошибка одной строки не отменяет остальные.</p>
     <form novalidate><div data-edit-rows></div><div class="protocol-tools-actions"><button type="submit" class="primary-button">Сохранить правки</button><button type="button" data-close-tools>Закрыть</button></div><div role="status" aria-live="polite"></div></form>`);

@@ -1,4 +1,5 @@
 import { AppError } from '../../core/src/errors.mjs';
+import { newId } from '../../core/src/ids.mjs';
 import { updateMeeting, syncMeetingSearch } from './meeting-core.mjs';
 import { resolveMeetingReviews } from './meeting-reviews.mjs';
 import { writeAudit } from './meeting-common.mjs';
@@ -36,27 +37,52 @@ export function correctProtocolMetadata(database,workspaceId,documentId,input,ac
   return database.transaction(() => {
     const {source,meeting}=protocolImportSource(database,workspaceId,documentId);
     if (source.id !== input.documentVersionId) throw new AppError('protocol_source_changed','Версия документа изменилась. Откройте правку заново.',409);
-    if (!meeting) throw new AppError('protocol_meeting_not_ready','Заседание ещё не создано. Повторите обработку сохранённого файла.',409);
     if (source.lifecycle_status === 'archived') throw new AppError('protocol_source_archived','Документ находится в архиве. Сначала восстановите его.',409);
     if (['queued','extracting'].includes(source.processing_status)) throw new AppError('protocol_processing','Документ ещё обрабатывается. Дождитесь результата перед правкой.',409);
-    const changed=Object.keys(fields).filter((key) => String(meeting[columns[key]] || '') !== fields[key]);
+    const now=new Date().toISOString();
+    let currentMeeting = meeting;
+    if (!currentMeeting) {
+      const meetingId = newId('meeting');
+      const docTitle = fields.title || source.document_title || 'Заседание кафедры';
+      database.run(`
+        INSERT INTO meetings(
+          id, workspace_id, source_document_version_id, protocol_number, meeting_date,
+          title, chairperson_raw, secretary_raw, attendees_raw, confidence, status,
+          evidence_json, created_at, updated_at
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 1.0, 'confirmed_auto', '{}', ?, ?)
+      `, meetingId, workspaceId, source.id, fields.protocolNumber || null, fields.meetingDate || null,
+      docTitle, fields.chairperson || null, fields.secretary || null, fields.attendees || null, now, now);
+      database.run("UPDATE document_versions SET processing_status = 'processed', extraction_error = NULL WHERE id = ?", source.id);
+      database.run("UPDATE documents SET status = 'processed', document_type = 'department_protocol', updated_at = ? WHERE id = ?", now, documentId);
+      currentMeeting = database.get('SELECT * FROM meetings WHERE id = ?', meetingId);
+      writeAudit(database, workspaceId, actor, 'meeting.created_from_unparsed_protocol', 'meeting', meetingId, { documentId, fields }, now);
+      syncMeetingSearch(database, workspaceId, meetingId);
+      resolveMeetingReviews(database, workspaceId, meetingId, { scope: 'meeting' }, actor, now);
+      database.run(`
+        UPDATE review_items
+        SET status = 'resolved', resolved_at = ?, resolution_json = ?
+        WHERE workspace_id = ? AND source_kind = 'document_version' AND source_id = ? AND status = 'open'
+      `, now, JSON.stringify({ resolvedBy: 'operator_metadata_entry', meetingId }), workspaceId, source.id);
+      return { ...protocolCorrectionView(database, workspaceId, documentId), duplicateRequest: false };
+    }
+    const changed=Object.keys(fields).filter((key) => String(currentMeeting[columns[key]] || '') !== fields[key]);
     if (!changed.length) return {...protocolCorrectionView(database,workspaceId,documentId),duplicateRequest:true};
-    if (!input.expectedUpdatedAt || input.expectedUpdatedAt !== meeting.updated_at) throw new AppError('protocol_correction_stale','Заседание изменилось после открытия формы. Обновите строку; введённые правки сохранены в форме.',409);
+    if (input.expectedUpdatedAt && input.expectedUpdatedAt !== currentMeeting.updated_at) throw new AppError('protocol_correction_stale','Заседание изменилось после открытия формы. Обновите строку; введённые правки сохранены в форме.',409);
     const basic=Object.fromEntries(changed.filter((key) => ['protocolNumber','meetingDate','title'].includes(key)).map((key) => [key,fields[key]]));
-    const raw=changed.filter((key) => !Object.hasOwn(basic,key));const now=new Date().toISOString();
-    if (Object.keys(basic).length) updateMeeting(database,workspaceId,meeting.id,basic,actor,now);
+    const raw=changed.filter((key) => !Object.hasOwn(basic,key));
+    if (Object.keys(basic).length) updateMeeting(database,workspaceId,currentMeeting.id,basic,actor,now);
     if (raw.length) {
-      const current=database.get('SELECT * FROM meetings WHERE id=?',meeting.id);const evidence=parse(current.evidence_json);
-      const correction={at:now,actorPersonId:actor,fields:raw,before:Object.fromEntries(raw.map((key) => [key,current[columns[key]]])),after:Object.fromEntries(raw.map((key) => [key,fields[key]]))};
+      const live=database.get('SELECT * FROM meetings WHERE id=?',currentMeeting.id);const evidence=parse(live.evidence_json);
+      const correction={at:now,actorPersonId:actor,fields:raw,before:Object.fromEntries(raw.map((key) => [key,live[columns[key]]])),after:Object.fromEntries(raw.map((key) => [key,fields[key]]))};
       const history=[...(evidence.manualCorrections || []),correction];
-      for (const key of raw) database.run(`UPDATE meetings SET ${columns[key]}=? WHERE id=?`,fields[key] || null,meeting.id);
-      database.run('UPDATE meetings SET evidence_json=?,updated_at=? WHERE id=?',JSON.stringify({...evidence,manualCorrections:history}),now,meeting.id);
-      const updated=database.get('SELECT * FROM meetings WHERE id=?',meeting.id);
+      for (const key of raw) database.run(`UPDATE meetings SET ${columns[key]}=? WHERE id=?`,fields[key] || null,currentMeeting.id);
+      database.run('UPDATE meetings SET evidence_json=?,updated_at=? WHERE id=?',JSON.stringify({...evidence,manualCorrections:history}),now,currentMeeting.id);
+      const updated=database.get('SELECT * FROM meetings WHERE id=?',currentMeeting.id);
       database.run("UPDATE calendar_items SET description=?,updated_at=? WHERE workspace_id=? AND source_kind='meeting' AND source_id=?",
-        [updated.title,updated.chairperson_raw,updated.secretary_raw,updated.attendees_raw].filter(Boolean).join('\n'),now,workspaceId,meeting.id);
-      resolveMeetingReviews(database,workspaceId,meeting.id,{scope:'meeting',touchedFields:[...raw,...raw.map((key) => columns[key])]},actor,now);
-      writeAudit(database,workspaceId,actor,'meeting.metadata.corrected','meeting',meeting.id,correction,now);
-      syncMeetingSearch(database,workspaceId,meeting.id);
+        [updated.title,updated.chairperson_raw,updated.secretary_raw,updated.attendees_raw].filter(Boolean).join('\n'),now,workspaceId,currentMeeting.id);
+      resolveMeetingReviews(database,workspaceId,currentMeeting.id,{scope:'meeting',touchedFields:[...raw,...raw.map((key) => columns[key])]},actor,now);
+      writeAudit(database,workspaceId,actor,'meeting.metadata.corrected','meeting',currentMeeting.id,correction,now);
+      syncMeetingSearch(database,workspaceId,currentMeeting.id);
     }
     return {...protocolCorrectionView(database,workspaceId,documentId),duplicateRequest:false};
   });

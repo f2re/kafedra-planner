@@ -61,19 +61,20 @@ UI-f04d59ad2a	public/meetings-state.js:124:13	ensureMeetingsUi	Настройк�
 UI-bebfb24b2f	public/meetings-transfer.js:10:160	openAgendaTransferModal	Закрыть	C01	запланировано
 UI-3cdf89954b	public/meetings-transfer.js:17:42	openAgendaTransferModal	Отмена	C01	запланировано
 UI-75c221fe55	public/meetings-transfer.js:17:157	openAgendaTransferModal	Перенести вопрос	C01	запланировано
-UI-6cce6e7b51	public/protocol-batch.js:36:5	enhanceProtocolBatch	Выбрать видимые	C01	запланировано
-UI-9bb7e9d9c9	public/protocol-batch.js:36:71	enhanceProtocolBatch	Снять выбор	C01	запланировано
-UI-988ea06d74	public/protocol-batch.js:37:38	enhanceProtocolBatch	Править реквизиты	C01	запланировано
-UI-8c1b9f9f4f	public/protocol-batch.js:38:5	enhanceProtocolBatch	Повторить выбранные	C01	запланировано
-UI-3189224d15	public/protocol-batch.js:38:74	enhanceProtocolBatch	Настроить распознавание	C01	запланировано
-UI-cfb7823198	public/protocol-batch.js:81:84	editHeaders	Сохранить правки	C01	запланировано
-UI-1622ce9539	public/protocol-batch.js:81:154	editHeaders	Закрыть	C01	запланировано
-UI-1f05d17b6f	public/protocol-batch.js:86:222	editHeaders	Обновить строку	C01	запланировано
+UI-35a0ff1452	public/protocol-batch.js:36:5	enhanceProtocolBatch	Выбрать видимые	C01	запланировано
+UI-814b07bbbb	public/protocol-batch.js:36:71	enhanceProtocolBatch	Снять выбор	C01	запланировано
+UI-fe5a58c5dd	public/protocol-batch.js:37:38	enhanceProtocolBatch	Править реквизиты	C01	запланировано
+UI-f183289248	public/protocol-batch.js:38:5	enhanceProtocolBatch	Повторить выбранные	C01	запланировано
+UI-4935848458	public/protocol-batch.js:38:74	enhanceProtocolBatch	Настроить распознавание	C01	запланировано
+UI-76dcbac2a3	public/protocol-batch.js:81:84	editHeaders	Сохранить правки	C01	запланировано
+UI-28ad5abbfe	public/protocol-batch.js:81:154	editHeaders	Закрыть	C01	запланировано
+UI-12e6c283ca	public/protocol-batch.js:86:222	editHeaders	Обновить строку	C01	запланировано
 UI-42d6a1e346	public/protocol-format-editor.js:12:41	openProtocolFormat	Проверить на образце	C01	запланировано
 UI-6bbe31e513	public/protocol-format-editor.js:12:92	openProtocolFormat	Сохранить формат	C01	запланировано
 UI-4309539500	public/protocol-format-editor.js:12:189	openProtocolFormat	Закрыть	C01	запланировано
 UI-f5baeceb5d	public/protocol-import-lifecycle.js:30:20	renderProtocolImportLifecycle	{dynamic}	C02	запланировано
 UI-6916fa5d3d	public/protocol-import-lifecycle.js:45:20	renderProtocolImportLifecycle / callback@38	динамическая подпись	C01	запланировано
-UI-99be479d58	public/protocol-import.js:58:19	itemActions	{dynamic}	C01	запланировано
-UI-dddfd950ad	public/protocol-import.js:61:19	itemActions	Повторить распознавание	C01	запланировано
-UI-65555e8ec6	public/protocol-import.js:64:19	itemActions	Повторить загрузку	C01	запланировано
+UI-0212c82fcb	public/protocol-import.js:58:19	itemActions	{dynamic}	C01	запланировано
+UI-b893469454	public/protocol-import.js:60:19	itemActions	Ввести реквизиты	C01	запланировано
+UI-81ea6467c1	public/protocol-import.js:63:19	itemActions	Повторить распознавание	C01	запланировано
+UI-8c9cbf7fcd	public/protocol-import.js:66:19	itemActions	Повторить загрузку	C01	запланировано
