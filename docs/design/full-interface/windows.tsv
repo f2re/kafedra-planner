@@ -7,8 +7,8 @@ UI-a8306b1648	public/assistant-sheet.js:176:15	D1	ensureElements	#assistant-shee
 UI-5ab14b927c	public/auth-next.js:153:12	D7	ensurePinDialog	#auth-pin-dialog		запланировано
 UI-40eb2c19ee	public/calendar-start-settings.js:57:11	D1	ensureDialog	#calendar-start-settings-sheet		запланировано
 UI-060777690a	public/directive-archive-next.js:161:7	D4	ensureDirectiveArchiveUi	#directive-modal		запланировано
-UI-596eaa9b29	public/index.html:164:3	D1	document	#event-sheet	Календарь Новое событие × Название Тип Событие Задача Дата Категория Организационная Образование Наука Повседневная Важн	запланировано
-UI-f2d5e466a3	public/index.html:179:3	D1	document	#template-sheet	Новый шаблон Покажите, что извлекать × 1 Документ 2 Поля 3 Проверка Документ Выберите документ Текст появится здесь. Ори	запланировано
+UI-bd27cfd97e	public/index.html:168:3	D1	document	#event-sheet	Календарь Новое событие × Название Тип Событие Задача Дата Категория Организационная Образование Наука Повседневная Важн	запланировано
+UI-ead2624f64	public/index.html:183:3	D1	document	#template-sheet	Новый шаблон Покажите, что извлекать × 1 Документ 2 Поля 3 Проверка Документ Выберите документ Текст появится здесь. Ори	запланировано
 UI-f29463dfb7	public/lifecycle-next.js:187:7	D2	ensureLifecycleUi	#lifecycle-modal		проверить подключение
 UI-1fab561c1a	public/lifecycle-safe.js:188:7	D2	ensureUi	#lifecycle-modal		запланировано
 UI-c6ac185128	public/manual-plans-next.js:50:7	D2	ensureManualUi	#manual-plan-modal		запланировано

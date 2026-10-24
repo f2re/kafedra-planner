@@ -67,13 +67,16 @@ UI-fe5a58c5dd	public/protocol-batch.js:37:38	enhanceProtocolBatch	Править
 UI-f183289248	public/protocol-batch.js:38:5	enhanceProtocolBatch	Повторить выбранные	C01	запланировано
 UI-4935848458	public/protocol-batch.js:38:74	enhanceProtocolBatch	Настроить распознавание	C01	запланировано
 UI-76dcbac2a3	public/protocol-batch.js:81:84	editHeaders	Сохранить правки	C01	запланировано
-UI-28ad5abbfe	public/protocol-batch.js:81:154	editHeaders	Закрыть	C01	запланировано
-UI-12e6c283ca	public/protocol-batch.js:86:222	editHeaders	Обновить строку	C01	запланировано
+UI-28ad5abbfe	public/protocol-batch.js:81:154	editHeaders	✨ Заполнить всё через ИИ	C01	запланировано
+UI-5a5a1c6939	public/protocol-batch.js:81:247	editHeaders	Закрыть	C01	запланировано
+UI-2eaa4f6bcb	public/protocol-batch.js:86:95	editHeaders	✨ Заполнить через ИИ	C01	запланировано
+UI-d87c40d4fd	public/protocol-batch.js:86:353	editHeaders	Обновить строку	C01	запланировано
 UI-42d6a1e346	public/protocol-format-editor.js:12:41	openProtocolFormat	Проверить на образце	C01	запланировано
 UI-6bbe31e513	public/protocol-format-editor.js:12:92	openProtocolFormat	Сохранить формат	C01	запланировано
 UI-4309539500	public/protocol-format-editor.js:12:189	openProtocolFormat	Закрыть	C01	запланировано
 UI-f5baeceb5d	public/protocol-import-lifecycle.js:30:20	renderProtocolImportLifecycle	{dynamic}	C02	запланировано
-UI-6916fa5d3d	public/protocol-import-lifecycle.js:45:20	renderProtocolImportLifecycle / callback@38	динамическая подпись	C01	запланировано
+UI-3a83fe8e23	public/protocol-import-lifecycle.js:31:5	renderProtocolImportLifecycle	📁 Папки	C01	запланировано
+UI-cadb008db2	public/protocol-import-lifecycle.js:50:20	renderProtocolImportLifecycle / callback@43	динамическая подпись	C01	запланировано
 UI-0212c82fcb	public/protocol-import.js:58:19	itemActions	{dynamic}	C01	запланировано
 UI-b893469454	public/protocol-import.js:60:19	itemActions	Ввести реквизиты	C01	запланировано
 UI-81ea6467c1	public/protocol-import.js:63:19	itemActions	Повторить распознавание	C01	запланировано

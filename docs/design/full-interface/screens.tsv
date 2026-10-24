@@ -9,9 +9,9 @@ UI-567013e846	public/index.html:81:13	D1	document	#month-view	month-view	зап�
 UI-35baa38841	public/index.html:82:13	D1	document	#week-view	week-view	запланировано
 UI-90f87e4df2	public/index.html:83:13	D1	document	#tasks-view	tasks-view	запланировано
 UI-6bb008da9f	public/index.html:104:7	D1	document	[data-view-panel="documents"]	documents	запланировано
-UI-5f732bb543	public/index.html:112:7	D1	document	[data-view-panel="templates"]	templates	запланировано
-UI-9cc076b92f	public/index.html:127:7	D1	document	[data-view-panel="review"]	review	запланировано
-UI-c31ca67c46	public/index.html:141:7	D1	document	[data-view-panel="search"]	search	запланировано
+UI-18654f5dfd	public/index.html:115:7	D1	document	[data-view-panel="templates"]	templates	запланировано
+UI-5aed96c47a	public/index.html:130:7	D1	document	[data-view-panel="review"]	review	запланировано
+UI-da9f69a35e	public/index.html:145:7	D1	document	[data-view-panel="search"]	search	запланировано
 UI-e81b29c64e	public/meetings-state.js:117:7	D3	ensureMeetingsUi	[data-view-panel="meetings"]	meetings	запланировано
 UI-4583f44ccf	public/plan-fact-next.js:55:59	D2	ensurePlanFactUi	[data-view-panel="plan-fact"]	plan-fact	запланировано
 UI-1a59fd323d	public/plans-next.js:121:7	D2	ensurePlansUi	[data-view-panel="plans"]	plans	запланировано

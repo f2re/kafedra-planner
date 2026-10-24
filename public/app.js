@@ -772,6 +772,37 @@ if (reviewAiAllBtn) {
   });
 }
 
+const reviewAiApplyAllBtn = $('#review-ai-apply-all-btn');
+if (reviewAiApplyAllBtn) {
+  reviewAiApplyAllBtn.addEventListener('click', async () => {
+    const statusEl = $('#review-ai-global-status');
+    const cards = [...document.querySelectorAll('.review-card-ai-suggested')];
+    if (!cards.length) {
+      if (statusEl) statusEl.textContent = 'Нет подготовленных вариантов для применения';
+      return;
+    }
+    reviewAiApplyAllBtn.disabled = true;
+    if (statusEl) statusEl.textContent = `Применяем решения для ${cards.length} вопросов…`;
+    let applied = 0;
+    for (const card of cards) {
+      const reviewId = card.dataset.reviewId;
+      const inp = document.getElementById(`review-input-${reviewId}`);
+      if (!inp || !inp.value.trim()) continue;
+      try {
+        await api(`/api/review/${encodeURIComponent(reviewId)}/resolve`, {
+          method: 'POST',
+          headers: { 'content-type': 'application/json' },
+          body: JSON.stringify({ appliedValue: inp.value.trim() })
+        });
+        applied++;
+      } catch {}
+    }
+    reviewAiApplyAllBtn.disabled = false;
+    showToast(`Успешно решено вопросов: ${applied}`);
+    await Promise.all([loadReview(), loadMeetings(), loadDocuments()]);
+  });
+}
+
 document.body.addEventListener('click', async (event) => {
   const openView = event.target.closest('[data-open-view]');
   if (openView) setView(openView.dataset.openView);
@@ -855,6 +886,10 @@ document.body.addEventListener('click', async (event) => {
 
 $('#event-form').addEventListener('submit', saveEvent);
 $('#file-input').addEventListener('change', (event) => uploadFiles([...event.target.files]));
+$('#folder-sync-open-btn')?.addEventListener('click', async () => {
+  const { openFolderSyncDialog } = await import('./folder-sync.js');
+  openFolderSyncDialog({ onUpdated: () => loadDocuments() });
+});
 $('#create-button').addEventListener('click', () => openEventSheet());
 $('#template-from-document').addEventListener('click', () => beginTemplateWizard());
 $('#template-load-document').addEventListener('click', () => loadTemplateSource());

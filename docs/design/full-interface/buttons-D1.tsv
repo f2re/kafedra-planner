@@ -62,6 +62,14 @@ UI-e132b40aed	public/calendar-start-settings.js:81:9	ensureDialog	Закрыть
 UI-dee1a42f69	public/calendar-start-settings.js:82:9	ensureDialog	Сохранить	C01	запланировано
 UI-bb454c5a37	public/calendar-start-settings.js:101:14	ensureSettingsEntry	Настройки	C01	запланировано
 UI-d8e408ee8a	public/calendar-start-settings.js:119:18	ensureSettingsEntry	Настройки	C01	запланировано
+UI-b7d03a2783	public/folder-sync.js:65:11	render	{dynamic}	C01	запланировано
+UI-43ee642478	public/folder-sync.js:68:11	render	↻ Синхронизировать всё	C01	запланировано
+UI-72abe74e56	public/folder-sync.js:71:11	render	Закрыть	C01	запланировано
+UI-c6907bef96	public/folder-sync.js:135:11	renderAddForm	Сохранить и запустить	C01	запланировано
+UI-e6c654bfac	public/folder-sync.js:136:11	renderAddForm	Отмена	C01	запланировано
+UI-835db5d8ae	public/folder-sync.js:178:11	renderFolderItem	{dynamic}	C01	запланировано
+UI-cae4b02a62	public/folder-sync.js:181:11	renderFolderItem	{dynamic}	C01	запланировано
+UI-73ca0317d5	public/folder-sync.js:184:11	renderFolderItem	Удалить	C02	запланировано
 UI-ba5a1130d4	public/index.html:21:9	document	▦ Календарь	C01	запланировано
 UI-80ac0af93d	public/index.html:22:9	document	✓ Поручения	C01	запланировано
 UI-a4ab6a9fc3	public/index.html:23:9	document	▤ Документы	C01	запланировано
@@ -81,26 +89,28 @@ UI-80d4705662	public/index.html:69:17	document	Предыдущий период
 UI-76c345453e	public/index.html:70:17	document	Сегодня	C01	запланировано
 UI-a62f14b40b	public/index.html:71:17	document	Следующий период	C01	запланировано
 UI-a3de8b23ae	public/index.html:97:71	document	Открыть	C01	запланировано
-UI-6bdf0f95a0	public/index.html:115:11	document	Создать из документа	C01	запланировано
-UI-fcd38429b4	public/index.html:134:13	document	✨ Подобрать через ИИ для всех	C01	запланировано
-UI-96c0fba458	public/index.html:154:7	document	▦ Календарь	C01	запланировано
-UI-e608b5c709	public/index.html:155:7	document	✓ Поручения	C01	запланировано
-UI-4dd6729275	public/index.html:156:7	document	▤ Документы	C01	запланировано
-UI-7f5fc220ba	public/index.html:157:7	document	◇ Шаблоны	C01	запланировано
-UI-b2279ce12a	public/index.html:158:7	document	✓ Проверка	C01	запланировано
-UI-5882adfc9c	public/index.html:165:126	document	Закрыть	C01	запланировано
-UI-2bd30423a2	public/index.html:175:39	document	Отмена	C01	запланировано
-UI-9ecd23a0b3	public/index.html:175:118	document	Сохранить	C01	запланировано
-UI-bfa503e7de	public/index.html:182:7	document	Закрыть	C01	запланировано
-UI-e266a36168	public/index.html:185:7	document	1 Документ	C01	запланировано
-UI-9459fc6a27	public/index.html:186:7	document	2 Поля	C01	запланировано
-UI-4ed9086360	public/index.html:187:7	document	3 Проверка	C01	запланировано
-UI-d991c5ae19	public/index.html:200:11	document	Открыть документ	C01	запланировано
-UI-17ae5755f6	public/index.html:212:13	document	Добавить поле	C01	запланировано
-UI-ef171afae7	public/index.html:219:11	document	Проверить на документе	C01	запланировано
-UI-a60a370d2a	public/index.html:224:34	document	Назад	C01	запланировано
-UI-a5f8191fb2	public/index.html:224:138	document	Далее	C01	запланировано
-UI-4556e8ae61	public/index.html:224:214	document	Сохранить шаблон	C01	запланировано
+UI-26ecb65e03	public/index.html:108:13	document	📁 Сетевые папки	C01	запланировано
+UI-fa4d69853a	public/index.html:118:11	document	Создать из документа	C01	запланировано
+UI-2556abad5d	public/index.html:137:13	document	✨ Подобрать через ИИ для всех	C01	запланировано
+UI-d09deadc8f	public/index.html:138:13	document	⚡ Применить решения ИИ	C01	запланировано
+UI-ccea493db9	public/index.html:158:7	document	▦ Календарь	C01	запланировано
+UI-065cae306d	public/index.html:159:7	document	✓ Поручения	C01	запланировано
+UI-0cc08f2ed6	public/index.html:160:7	document	▤ Документы	C01	запланировано
+UI-878d0cf608	public/index.html:161:7	document	◇ Шаблоны	C01	запланировано
+UI-aafd3b2308	public/index.html:162:7	document	✓ Проверка	C01	запланировано
+UI-68ffbad6d5	public/index.html:169:126	document	Закрыть	C01	запланировано
+UI-872c55f3b2	public/index.html:179:39	document	Отмена	C01	запланировано
+UI-c90743e49c	public/index.html:179:118	document	Сохранить	C01	запланировано
+UI-5295e8da01	public/index.html:186:7	document	Закрыть	C01	запланировано
+UI-16b5e80dde	public/index.html:189:7	document	1 Документ	C01	запланировано
+UI-93a465668d	public/index.html:190:7	document	2 Поля	C01	запланировано
+UI-4d348807ce	public/index.html:191:7	document	3 Проверка	C01	запланировано
+UI-39daaef388	public/index.html:204:11	document	Открыть документ	C01	запланировано
+UI-fba4fbd976	public/index.html:216:13	document	Добавить поле	C01	запланировано
+UI-bc98e6433c	public/index.html:223:11	document	Проверить на документе	C01	запланировано
+UI-f1fbb37a7e	public/index.html:228:34	document	Назад	C01	запланировано
+UI-7c5b8cfc20	public/index.html:228:138	document	Далее	C01	запланировано
+UI-ebc4699af2	public/index.html:228:214	document	Сохранить шаблон	C01	запланировано
 UI-b9f9ea4a15	public/preference-controls.js:57:7	ensureUi	Личные подсказки	C01	запланировано
 UI-3b5b49b69b	public/preference-controls.js:59:130	ensureUi	Закрыть	C01	запланировано
 UI-416caa4b99	public/preference-controls.js:111:11	render / callback@108	{dynamic}	C01	запланировано

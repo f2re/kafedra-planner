@@ -5,6 +5,7 @@ import { loadLlmSettings, saveLlmSettings, testLlmConnection } from '../../../pa
 import { searchFaceted } from '../../../packages/storage/src/faceted-search.mjs';
 import { ensureSearchIndexUpToDate } from '../../../packages/storage/src/search.mjs';
 import { canReadSearchResult } from '../../../packages/access-control/src/service.mjs';
+import { resolveReviewItem } from '../../../packages/storage/src/reviews.mjs';
 import { readJson, sendJson } from './http-utils.mjs';
 
 function workspaceOf(database, request) {
@@ -59,10 +60,24 @@ async function resolveSingleReviewSuggestion(database, engine, workspaceId, revi
   }
 
   const issueCode = String(review.issue_code || '');
-  let targetField = 'дата заседания';
-  if (issueCode.includes('date')) targetField = 'дата заседания (в формате YYYY-MM-DD)';
-  else if (issueCode.includes('number') || issueCode.includes('protocol')) targetField = 'номер протокола';
-  else if (issueCode.includes('agenda')) targetField = 'пункты повестки';
+  let targetField = 'дата заседания (в формате YYYY-MM-DD)';
+  if (issueCode.includes('date') || issueCode.includes('year')) {
+    targetField = 'дата заседания (в формате YYYY-MM-DD)';
+  } else if (issueCode.includes('number') || issueCode.includes('protocol')) {
+    targetField = 'номер протокола';
+  } else if (issueCode.includes('agenda')) {
+    targetField = 'пункты повестки дня';
+  } else if (issueCode.includes('chairperson') || issueCode.includes('chairman')) {
+    targetField = 'председатель заседания (ФИО)';
+  } else if (issueCode.includes('secretary')) {
+    targetField = 'секретарь заседания (ФИО)';
+  } else if (issueCode.includes('owner') || issueCode.includes('responsible') || issueCode.includes('executor')) {
+    targetField = 'ответственный исполнитель (ФИО)';
+  } else if (issueCode.includes('period')) {
+    targetField = 'учебный период или год';
+  } else if (issueCode.includes('ocr') || issueCode.includes('empty') || issueCode.includes('unreadable')) {
+    targetField = 'номер и дата протокола';
+  }
 
   const aiRes = await engine.process({
     task: 'field-extract',
@@ -71,10 +86,19 @@ async function resolveSingleReviewSuggestion(database, engine, workspaceId, revi
   });
 
   let val = aiRes.result?.value || '';
-  if (targetField.includes('дата') && val && !/^\d{4}-\d{2}-\d{2}$/.test(val)) {
+  if ((targetField.includes('дата') || issueCode.includes('date') || issueCode.includes('year')) && val && !/^\d{4}-\d{2}-\d{2}$/.test(val)) {
     const dMatch = val.match(/(\d{1,2})[./-](\d{1,2})[./-](\d{4})/);
     if (dMatch) {
       val = `${dMatch[3]}-${dMatch[2].padStart(2, '0')}-${dMatch[1].padStart(2, '0')}`;
+    } else {
+      const ruMonthMatch = val.match(/(\d{1,2})\s+([а-яё]+)\s+(\d{4})/i);
+      if (ruMonthMatch) {
+        const months = { 'янв': '01', 'фев': '02', 'мар': '03', 'апр': '04', 'мая': '05', 'май': '05', 'июн': '06', 'июл': '07', 'авг': '08', 'сен': '09', 'окт': '10', 'ноя': '11', 'дек': '12' };
+        const mKey = ruMonthMatch[2].toLowerCase().slice(0, 3);
+        if (months[mKey]) {
+          val = `${ruMonthMatch[3]}-${months[mKey]}-${ruMonthMatch[1].padStart(2, '0')}`;
+        }
+      }
     }
   }
 
@@ -86,6 +110,39 @@ async function resolveSingleReviewSuggestion(database, engine, workspaceId, revi
     status: aiRes.status,
     durationMs: aiRes.durationMs
   };
+}
+
+function parseHeaderFieldsDeterministic(text) {
+  const fields = { protocolNumber: '', meetingDate: '', chairperson: '', secretary: '', attendees: '' };
+  if (!text) return fields;
+
+  const numMatch = text.match(/(?:протокол[а-яё]*|заседан[а-яё]*)[^\n\r0-9]{0,50}?(?:№|N|номер|\b)\s*([0-9]+)/iu);
+  if (numMatch) fields.protocolNumber = numMatch[1];
+
+  const dateIsoMatch = text.match(/\b(20\d{2})[-/.](\d{1,2})[-/.](\d{1,2})\b/u);
+  if (dateIsoMatch) {
+    fields.meetingDate = `${dateIsoMatch[1]}-${dateIsoMatch[2].padStart(2, '0')}-${dateIsoMatch[3].padStart(2, '0')}`;
+  } else {
+    const dateRuMatch = text.match(/(\d{1,2})\s+([а-яё]+)\s+(20\d{2})/iu);
+    if (dateRuMatch) {
+      const months = { 'янв': '01', 'фев': '02', 'мар': '03', 'апр': '04', 'мая': '05', 'май': '05', 'июн': '06', 'июл': '07', 'авг': '08', 'сен': '09', 'окт': '10', 'ноя': '11', 'дек': '12' };
+      const mKey = dateRuMatch[2].toLowerCase().slice(0, 3);
+      if (months[mKey]) {
+        fields.meetingDate = `${dateRuMatch[3]}-${months[mKey]}-${dateRuMatch[1].padStart(2, '0')}`;
+      }
+    }
+  }
+
+  const chairMatch = text.match(/(?:председатель|председательствующий)[:\s]+([^\n\r,;]{3,80})/iu);
+  if (chairMatch) fields.chairperson = chairMatch[1].trim();
+
+  const secMatch = text.match(/(?:секретарь)[:\s]+([^\n\r,;]{3,80})/iu);
+  if (secMatch) fields.secretary = secMatch[1].trim();
+
+  const attMatch = text.match(/(?:присутствовали|состав кафедры)[:\s]+([^.\n]{3,300})/iu);
+  if (attMatch) fields.attendees = attMatch[1].trim();
+
+  return fields;
 }
 
 export function createAssistantRouter({ database, config, logger, engine: customEngine, fetchImpl = fetch }) {
@@ -428,6 +485,77 @@ export function createAssistantRouter({ database, config, logger, engine: custom
       }
 
       sendJson(response, 200, { ok: true, count: results.length, results });
+      return true;
+    }
+
+    // AI-assisted protocol header extraction for batch edit
+    if (url.pathname === '/api/assistant/extract-header' && request.method === 'POST') {
+      const body = await readJson(request);
+      const documentId = String(body.documentId || '').trim();
+      let text = String(body.text || '');
+
+      if (!text && documentId) {
+        const doc = database.get(`
+          SELECT dv.extracted_text, dv.original_name, d.title
+          FROM documents d JOIN document_versions dv ON dv.id = d.current_version_id
+          WHERE d.id = ?
+        `, documentId);
+        text = doc?.extracted_text || '';
+      }
+
+      const sample = text.slice(0, 3000);
+      const deterministic = parseHeaderFieldsDeterministic(sample);
+
+      if (engine.enabled && sample) {
+        try {
+          const aiRes = await engine.process({
+            task: 'field-extract',
+            text: sample,
+            query: 'шапка протокола: номер, дата (YYYY-MM-DD), председатель, секретарь, присутствовали'
+          });
+          const val = aiRes.result?.value || '';
+          const quote = aiRes.result?.sourceQuote || '';
+          const parsed = parseHeaderFieldsDeterministic(`${quote}\n${val}\n${sample}`);
+          sendJson(response, 200, {
+            ok: true,
+            status: 'completed',
+            fields: {
+              protocolNumber: parsed.protocolNumber || deterministic.protocolNumber,
+              meetingDate: parsed.meetingDate || deterministic.meetingDate,
+              chairperson: parsed.chairperson || deterministic.chairperson,
+              secretary: parsed.secretary || deterministic.secretary,
+              attendees: parsed.attendees || deterministic.attendees
+            }
+          });
+          return true;
+        } catch {}
+      }
+
+      sendJson(response, 200, {
+        ok: true,
+        status: 'deterministic',
+        fields: deterministic
+      });
+      return true;
+    }
+
+    // Apply all prepared AI review resolutions in one click
+    if (url.pathname === '/api/assistant/review-repair-apply-all' && request.method === 'POST') {
+      const body = await readJson(request);
+      const workspace = workspaceOf(database, request);
+      const resolutions = Array.isArray(body.resolutions)
+        ? body.resolutions
+        : (Array.isArray(body.items) ? body.items : []);
+      let resolvedCount = 0;
+      for (const res of resolutions) {
+        if (!res.reviewId || typeof res.appliedValue !== 'string') continue;
+        const ok = resolveReviewItem(database, workspace.id, res.reviewId, {
+          appliedValue: res.appliedValue,
+          resolvedVia: 'ai_assistant_bulk'
+        });
+        if (ok) resolvedCount++;
+      }
+      sendJson(response, 200, { ok: true, resolvedCount });
       return true;
     }
 

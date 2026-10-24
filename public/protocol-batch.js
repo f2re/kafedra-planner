@@ -78,15 +78,40 @@ export function enhanceProtocolBatch(items, {refresh, render}) {
 export async function editHeaders(items, refresh) {
   if (!items.length) return;
   const dialog=protocolDialog('Массовая правка протоколов',`<p>Сохраняются только изменённые поля. Ошибка одной строки не отменяет остальные.</p>
-    <form novalidate><div data-edit-rows></div><div class="protocol-tools-actions"><button type="submit" class="primary-button">Сохранить правки</button><button type="button" data-close-tools>Закрыть</button></div><div role="status" aria-live="polite"></div></form>`);
+    <form novalidate><div data-edit-rows></div><div class="protocol-tools-actions"><button type="submit" class="primary-button">Сохранить правки</button><button type="button" data-fill-ai-all class="quiet-button">✨ Заполнить всё через ИИ</button><button type="button" data-close-tools>Закрыть</button></div><div role="status" aria-live="polite"></div></form>`);
   const form=dialog.querySelector('form');const rows=[];let saving=false;form.onsubmit=(event)=>event.preventDefault();form.querySelector('[type=submit]').disabled=true;
   const fieldDefs=[['protocolNumber','Номер','text'],['meetingDate','Дата заседания','date'],['chairperson','Председатель','text'],['secretary','Секретарь','text'],['attendees','Присутствовали','textarea']];
   for (const item of items) {
     const section=document.createElement('section');section.className='protocol-bulk-row';section.dataset.documentId=item.document_id;
-    section.innerHTML=`<h3>${esc(item.original_name)}</h3><p data-source-info>Загрузка реквизитов…</p><fieldset class="protocol-tools-fields"></fieldset><div role="status" aria-live="polite"></div><div role="alert"></div><button type="button" data-reload-row hidden>Обновить строку</button>`;
+    section.innerHTML=`<div class="protocol-bulk-row-head"><h3>${esc(item.original_name)}</h3><button type="button" class="quiet-button" data-ai-fill-row>✨ Заполнить через ИИ</button></div><p data-source-info>Загрузка реквизитов…</p><fieldset class="protocol-tools-fields"></fieldset><div role="status" aria-live="polite"></div><div role="alert"></div><button type="button" data-reload-row hidden>Обновить строку</button>`;
     form.querySelector('[data-edit-rows]').append(section);rows.push({item,section,data:null});
   }
   dialog.showModal();
+  async function fillRowViaAi(row) {
+    const statusEl = row.section.querySelector('[role=status]');
+    statusEl.textContent = 'ИИ извлекает реквизиты из документа…';
+    try {
+      const res = await meetingApi('/api/assistant/extract-header', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ documentId: row.item.document_id })
+      });
+      if (res.ok && res.fields) {
+        let filled = 0;
+        for (const [key, val] of Object.entries(res.fields)) {
+          if (!val) continue;
+          const input = row.section.querySelector(`[data-field="${key}"]`);
+          if (input && (!input.value || input.value === '—')) {
+            input.value = val;
+            filled++;
+          }
+        }
+        statusEl.textContent = `ИИ заполнил ${filled} реквизитов (проверьте и сохраните)`;
+      }
+    } catch (err) {
+      statusEl.textContent = `Ошибка ИИ: ${err.message}`;
+    }
+  }
   async function load(row, preserve=false) {
     const inputs=[...row.section.querySelectorAll('[data-field]')];
     const draft=Object.fromEntries(inputs.filter((input)=>input.value!==(row.data?.fields[input.dataset.field] || '')).map((input)=>[input.dataset.field,input.value]));
@@ -96,6 +121,16 @@ export async function editHeaders(items, refresh) {
     row.section.querySelector('[role=alert]').textContent='';
     row.section.querySelector('[role=status]').textContent=preserve?`Строка обновлена. Ваши правки оставлены в полях. Сохранено в системе: ${fieldDefs.map(([key,label])=>`${label}: ${fresh.fields[key] || '—'}`).join('; ')}`:'';
     row.section.querySelector('[data-reload-row]').hidden=true;
+    const aiBtn = row.section.querySelector('[data-ai-fill-row]');
+    if (aiBtn) aiBtn.onclick = () => fillRowViaAi(row);
+  }
+  const fillAllBtn = form.querySelector('[data-fill-ai-all]');
+  if (fillAllBtn) {
+    fillAllBtn.onclick = async () => {
+      fillAllBtn.disabled = true;
+      for (const r of rows) await fillRowViaAi(r);
+      fillAllBtn.disabled = false;
+    };
   }
   for (const row of rows) {
     try {await load(row);} catch(error) {row.section.querySelector('[role=alert]').textContent=error.message;row.section.querySelector('[data-reload-row]').hidden=false;}

@@ -1,6 +1,6 @@
 # Проверка изменений
 
-Актуальный рубеж: `0.4.9`, SQLite schema **31**. Проверки выбираются по риску изменения; полный release/deployment regression не запускается на каждый feature PR.
+Актуальный рубеж: `0.4.10`, SQLite schema **31**. Проверки выбираются по риску изменения; полный release/deployment regression не запускается на каждый feature PR.
 
 ## Обычный pull request
 

@@ -1,0 +1,163 @@
+.folder-sync-container {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.folder-sync-intro {
+  margin: 0;
+  color: var(--muted, #64748b);
+  font-size: 13px;
+  line-height: 1.5;
+}
+
+.folder-sync-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: center;
+}
+
+.folder-sync-status {
+  padding: 10px 14px;
+  background: var(--surface-muted, #f1f5f9);
+  border: 1px solid var(--border, #e2e8f0);
+  border-radius: 8px;
+  font-size: 13px;
+  color: var(--text, #0f172a);
+}
+
+.folder-sync-form {
+  padding: 16px;
+  border: 1px solid var(--border, #e2e8f0);
+  border-radius: 12px;
+  background: var(--surface-muted, #f8fafc);
+}
+
+.folder-sync-form h3 {
+  margin: 0 0 12px;
+  font-size: 15px;
+}
+
+.folder-sync-list {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  max-height: 55vh;
+  overflow-y: auto;
+}
+
+.folder-sync-empty {
+  padding: 24px;
+  text-align: center;
+  color: var(--muted, #64748b);
+  border: 1px dashed var(--border, #cbd5e1);
+  border-radius: 12px;
+  font-size: 13px;
+}
+
+.folder-sync-card {
+  padding: 14px 16px;
+  border: 1px solid var(--border, #e2e8f0);
+  border-radius: 10px;
+  background: var(--surface-solid, #ffffff);
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  transition: opacity 0.2s;
+}
+
+.folder-sync-card.is-disabled {
+  opacity: 0.65;
+}
+
+.folder-sync-card-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.folder-sync-title-group {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+}
+
+.folder-sync-icon {
+  font-size: 20px;
+  line-height: 1;
+}
+
+.folder-sync-path {
+  font-family: monospace;
+  font-size: 12px;
+  color: var(--muted, #64748b);
+  word-break: break-all;
+  margin-top: 3px;
+}
+
+.folder-sync-badges {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  align-items: center;
+}
+
+.folder-sync-badge {
+  font-size: 11px;
+  padding: 3px 8px;
+  border-radius: 6px;
+  border: 1px solid var(--border, #cbd5e1);
+  background: var(--surface-muted, #f1f5f9);
+  color: var(--text, #0f172a);
+}
+
+.folder-sync-badge.status.active {
+  background: #ecfdf5;
+  color: #065f46;
+  border-color: #a7f3d0;
+}
+
+.folder-sync-badge.status.scanning {
+  background: #eff6ff;
+  color: #1e40af;
+  border-color: #bfdbfe;
+}
+
+.folder-sync-badge.status.error {
+  background: #fef2f2;
+  color: #991b1b;
+  border-color: #fecaca;
+}
+
+.folder-sync-badge.status.disabled {
+  background: #f3f4f6;
+  color: #6b7280;
+  border-color: #e5e7eb;
+}
+
+.folder-sync-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 14px;
+  font-size: 12px;
+  color: var(--muted, #64748b);
+}
+
+.folder-sync-error {
+  font-size: 12px;
+  color: #b91c1c;
+  background: #fef2f2;
+  padding: 6px 10px;
+  border-radius: 6px;
+  word-break: break-all;
+}
+
+.folder-sync-card-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 2px;
+}

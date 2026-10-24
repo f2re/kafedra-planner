@@ -28,12 +28,17 @@ export function renderProtocolImportLifecycle(root, allItems, visibleItems, { re
   const bar = document.createElement('div');
   bar.className = 'protocol-batch-bar';
   bar.innerHTML = `<button class="secondary-button" type="button" data-protocol-archive-view>${view === 'archived' ? 'К загрузкам' : `Архив (${archived})`}</button>
+    <button class="secondary-button" type="button" data-protocol-folder-sync title="Синхронизация с сетевыми и локальными папками">📁 Папки</button>
     <span class="protocol-batch-notice" role="status">${escMeeting(notice)}</span>`;
   root.prepend(bar);
-  bar.querySelector('button').addEventListener('click', () => {
+  bar.querySelector('[data-protocol-archive-view]').addEventListener('click', () => {
     view = view === 'active' ? 'archived' : 'active';
     notice = '';
     render();
+  });
+  bar.querySelector('[data-protocol-folder-sync]').addEventListener('click', async () => {
+    const { openFolderSyncDialog } = await import('./folder-sync.js');
+    openFolderSyncDialog({ onUpdated: refresh, defaultType: 'protocol' });
   });
   root.querySelectorAll('[data-protocol-import-item]').forEach((row, index) => {
     const item = visibleItems[index];

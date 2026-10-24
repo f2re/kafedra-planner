@@ -22,6 +22,7 @@
 .protocol-tools-actions { display:flex; flex-wrap:wrap; gap:10px; }
 .protocol-tools-actions .primary-button { background:var(--accent-strong); color:var(--surface-solid); }
 .protocol-bulk-row { padding:12px 0; border-bottom:1px solid var(--border); }
+.protocol-bulk-row-head { display:flex; justify-content:space-between; align-items:center; gap:8px; margin-bottom:6px; flex-wrap:wrap; }
 .protocol-bulk-row [role=status],.protocol-bulk-row [role=alert] { margin-top:8px; font-size:13px; overflow-wrap:anywhere; }
 .protocol-tools-dialog a { color:var(--accent-strong); }
 .protocol-tools-dialog summary { cursor:pointer; min-height:28px; padding:6px 0; font-size:13px; }

@@ -104,7 +104,10 @@
       <section class="view" data-view-panel="documents">
         <div class="section-heading">
           <div><h2>Документы</h2><p>Оригинал сохраняется неизменяемо. Обработка продолжается после закрытия страницы.</p></div>
-          <label class="primary-button file-button"><input id="file-input" type="file" multiple hidden><span>Добавить документы</span></label>
+          <div class="heading-actions" style="display:flex; gap:8px; align-items:center;">
+            <button id="folder-sync-open-btn" class="secondary-button" type="button" title="Отслеживание локальных и сетевых папок">📁 Сетевые папки</button>
+            <label class="primary-button file-button"><input id="file-input" type="file" multiple hidden><span>Добавить документы</span></label>
+          </div>
         </div>
         <article class="surface-panel"><div id="documents-table" class="table-wrap"></div></article>
       </section>
@@ -132,6 +135,7 @@
           </div>
           <div class="review-head-actions">
             <button id="review-ai-all-btn" class="secondary-button" type="button" title="Запустить фоновый подбор решений по всем вопросам">✨ Подобрать через ИИ для всех</button>
+            <button id="review-ai-apply-all-btn" class="quiet-button" type="button" title="Применить все подготовленные нейросетью значения">⚡ Применить решения ИИ</button>
             <span id="review-ai-global-status" class="review-ai-global-status" role="status" aria-live="polite"></span>
           </div>
         </div>
