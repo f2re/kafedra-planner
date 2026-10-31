@@ -38,7 +38,10 @@ export function correctProtocolMetadata(database,workspaceId,documentId,input,ac
     const {source,meeting}=protocolImportSource(database,workspaceId,documentId);
     if (source.id !== input.documentVersionId) throw new AppError('protocol_source_changed','Версия документа изменилась. Откройте правку заново.',409);
     if (source.lifecycle_status === 'archived') throw new AppError('protocol_source_archived','Документ находится в архиве. Сначала восстановите его.',409);
-    if (['queued','extracting'].includes(source.processing_status)) throw new AppError('protocol_processing','Документ ещё обрабатывается. Дождитесь результата перед правкой.',409);
+    const uploadAgeMs = source.uploaded_at ? (Date.now() - new Date(source.uploaded_at).getTime()) : 0;
+    if (['queued','extracting'].includes(source.processing_status) && !input.force && uploadAgeMs < 25000) {
+      throw new AppError('protocol_processing','Документ ещё обрабатывается. Дождитесь результата перед правкой.',409);
+    }
     const now=new Date().toISOString();
     let currentMeeting = meeting;
     if (!currentMeeting) {
@@ -65,6 +68,13 @@ export function correctProtocolMetadata(database,workspaceId,documentId,input,ac
       `, now, JSON.stringify({ resolvedBy: 'operator_metadata_entry', meetingId }), workspaceId, source.id);
       return { ...protocolCorrectionView(database, workspaceId, documentId), duplicateRequest: false };
     }
+    database.run("UPDATE document_versions SET processing_status = 'processed', extraction_error = NULL WHERE id = ?", source.id);
+    database.run("UPDATE documents SET status = 'processed', document_type = 'department_protocol', updated_at = ? WHERE id = ?", now, documentId);
+    database.run(`
+      UPDATE review_items
+      SET status = 'resolved', resolved_at = ?, resolution_json = ?
+      WHERE workspace_id = ? AND source_kind = 'document_version' AND source_id = ? AND status = 'open'
+    `, now, JSON.stringify({ resolvedBy: 'operator_metadata_update', meetingId: currentMeeting.id }), workspaceId, source.id);
     const changed=Object.keys(fields).filter((key) => String(currentMeeting[columns[key]] || '') !== fields[key]);
     if (!changed.length) return {...protocolCorrectionView(database,workspaceId,documentId),duplicateRequest:true};
     if (input.expectedUpdatedAt && input.expectedUpdatedAt !== currentMeeting.updated_at) throw new AppError('protocol_correction_stale','Заседание изменилось после открытия формы. Обновите строку; введённые правки сохранены в форме.',409);

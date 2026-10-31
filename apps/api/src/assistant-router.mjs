@@ -6,6 +6,7 @@ import { searchFaceted } from '../../../packages/storage/src/faceted-search.mjs'
 import { ensureSearchIndexUpToDate } from '../../../packages/storage/src/search.mjs';
 import { canReadSearchResult } from '../../../packages/access-control/src/service.mjs';
 import { resolveReviewItem } from '../../../packages/storage/src/reviews.mjs';
+import { STANDARD_AGENDA_TOPICS } from '../../../packages/protocols/src/meeting-agenda.mjs';
 import { readJson, sendJson } from './http-utils.mjs';
 
 function workspaceOf(database, request) {
@@ -150,6 +151,9 @@ export function createAssistantRouter({ database, config, logger, engine: custom
   const effectiveConfig = { ...config, ...dynamicConfig };
   const engine = customEngine || createAssistantEngine({ config: effectiveConfig, fetchImpl });
   const activeTasks = new Map();
+  let cachedStatusData = null;
+  let cachedStatusTime = 0;
+  const STATUS_CACHE_MS = 15000;
 
   function pruneTasks() {
     const cutoff = Date.now() - 3600000;
@@ -159,15 +163,14 @@ export function createAssistantRouter({ database, config, logger, engine: custom
   }
 
   async function resolveCandidates(task, query, text, request) {
-    if (!['archive-query', 'report-synthesis', 'protocol-analysis'].includes(task)) return [];
+    if (!['archive-query', 'report-synthesis', 'protocol-analysis', 'suggest-agenda'].includes(task)) return [];
     try {
       const workspace = workspaceOf(database, request);
       ensureSearchIndexUpToDate(database, workspace.id);
       const searchQuery = query || text;
       const ftsResults = searchFaceted(database, workspace.id, {
-        q: searchQuery,
-        sourceKind: 'meeting'
-      }, 15);
+        q: searchQuery
+      }, 20);
 
       const allowedItems = (ftsResults?.items || []).filter((item) =>
         canReadResult(database, workspace.id, request.auth || {}, item)
@@ -175,6 +178,7 @@ export function createAssistantRouter({ database, config, logger, engine: custom
 
       return allowedItems.map((item) => ({
         id: item.source_id,
+        kind: item.source_kind,
         title: item.title,
         snippet: item.snippet,
         date: item.event_date,
@@ -189,6 +193,11 @@ export function createAssistantRouter({ database, config, logger, engine: custom
   return async function assistantRouter(request, response, url) {
     if (url.pathname === '/api/assistant/status' && request.method === 'GET') {
       const activeConf = engine.config || effectiveConfig;
+      const now = Date.now();
+      if (cachedStatusData && (now - cachedStatusTime) < STATUS_CACHE_MS) {
+        sendJson(response, 200, cachedStatusData);
+        return true;
+      }
       let connTest = {
         ok: false,
         status: !activeConf.llmEnabled ? 'disabled' : !activeConf.llmEndpoint ? 'misconfigured' : 'checking',
@@ -201,30 +210,38 @@ export function createAssistantRouter({ database, config, logger, engine: custom
           endpoint: activeConf.llmEndpoint,
           model: activeConf.llmModel,
           apiKey: activeConf.llmApiKey,
-          timeoutMs: 3000,
+          timeoutMs: 8000,
           fetchImpl
         });
       }
 
-      const availableModels = connTest.models || [];
+      let reportedStatus = connTest.status;
+      if (reportedStatus === 'timeout' && cachedStatusData?.status === 'ready' && (now - cachedStatusTime) < 45000) {
+        reportedStatus = 'ready';
+      }
+
+      const availableModels = connTest.models || cachedStatusData?.models || [];
       const currentModel = activeConf.llmModel || 'local-model';
       const suggestedModel = availableModels.includes(currentModel)
         ? currentModel
         : (availableModels[0] || currentModel);
 
-      sendJson(response, 200, {
+      cachedStatusData = {
         ok: true,
         enabled: engine.enabled,
         configured: Boolean(activeConf.llmEndpoint),
         endpoint: activeConf.llmEndpoint || '',
         model: currentModel,
         suggestedModel,
-        status: connTest.status,
-        latencyMs: connTest.latencyMs,
+        status: reportedStatus,
+        latencyMs: connTest.latencyMs || cachedStatusData?.latencyMs || null,
         models: availableModels,
         timeoutMs: activeConf.llmTimeoutMs || 45000,
         maxTokens: activeConf.llmMaxTokens || 4096
-      });
+      };
+      cachedStatusTime = now;
+
+      sendJson(response, 200, cachedStatusData);
       return true;
     }
 
@@ -296,6 +313,8 @@ export function createAssistantRouter({ database, config, logger, engine: custom
       const task = String(body.task || 'table-extract').trim();
       const text = String(body.text || '');
       const query = String(body.query || '');
+      const customSystemPrompt = body.customSystemPrompt ? String(body.customSystemPrompt).slice(0, 4000) : undefined;
+      const customUserPrompt = body.customUserPrompt ? String(body.customUserPrompt).slice(0, 12000) : undefined;
 
       const candidates = await resolveCandidates(task, query, text, request);
 
@@ -303,7 +322,9 @@ export function createAssistantRouter({ database, config, logger, engine: custom
         task,
         text,
         query,
-        candidates
+        candidates,
+        customSystemPrompt,
+        customUserPrompt
       });
 
       if (logger && result.status !== 'completed' && result.status !== 'disabled') {
@@ -321,6 +342,8 @@ export function createAssistantRouter({ database, config, logger, engine: custom
       const task = String(body.task || 'table-extract').trim();
       const text = String(body.text || '');
       const query = String(body.query || '');
+      const customSystemPrompt = body.customSystemPrompt ? String(body.customSystemPrompt).slice(0, 4000) : undefined;
+      const customUserPrompt = body.customUserPrompt ? String(body.customUserPrompt).slice(0, 12000) : undefined;
 
       const taskId = newId('astask');
       const abortController = new AbortController();
@@ -330,6 +353,8 @@ export function createAssistantRouter({ database, config, logger, engine: custom
         status: 'running',
         startedAt: Date.now(),
         result: null,
+        prompt: null,
+        rawResponse: null,
         error: null,
         abortController
       };
@@ -344,9 +369,13 @@ export function createAssistantRouter({ database, config, logger, engine: custom
             text,
             query,
             candidates,
+            customSystemPrompt,
+            customUserPrompt,
             signal: abortController.signal
           });
           entry.result = res.result || null;
+          entry.prompt = res.prompt || null;
+          entry.rawResponse = res.rawResponse || null;
           entry.status = res.status === 'completed' ? 'completed' : res.status;
           entry.error = res.error || null;
           entry.durationMs = res.durationMs || (Date.now() - entry.startedAt);
@@ -535,6 +564,128 @@ export function createAssistantRouter({ database, config, logger, engine: custom
         ok: true,
         status: 'deterministic',
         fields: deterministic
+      });
+      return true;
+    }
+
+    // AI-formulated agenda questions based on monthly schedule, plans and standard topics
+    if (url.pathname === '/api/assistant/suggest-agenda' && request.method === 'POST') {
+      const body = await readJson(request);
+      const workspace = workspaceOf(database, request);
+      const meetingId = body.meetingId ? String(body.meetingId).trim() : null;
+      let month = body.month ? Number(body.month) : null;
+      let year = body.year ? Number(body.year) : null;
+      let meeting = null;
+      if (meetingId) {
+        meeting = database.get('SELECT * FROM meetings WHERE workspace_id = ? AND id = ?', workspace.id, meetingId);
+        if (meeting?.meeting_date) {
+          const parts = meeting.meeting_date.split('-');
+          year = Number(parts[0]) || year;
+          month = Number(parts[1]) || month;
+        }
+      }
+      if (!year) year = new Date().getFullYear();
+      if (!month) month = new Date().getMonth() + 1;
+
+      const planItems = database.all(`
+        SELECT pi.id, pi.title, pi.item_no, pi.responsible_raw, p.title AS plan_title
+        FROM plan_items pi JOIN plans p ON p.id = pi.plan_id
+        WHERE p.workspace_id = ?
+        LIMIT 15
+      `, workspace.id);
+
+      const recentDecisions = database.all(`
+        SELECT d.id, d.text, d.responsible_raw, d.due_date, ai.title AS agenda_title
+        FROM decisions d JOIN agenda_items ai ON ai.id = d.agenda_item_id
+        JOIN meetings m ON m.id = ai.meeting_id
+        WHERE m.workspace_id = ?
+        ORDER BY d.created_at DESC LIMIT 10
+      `, workspace.id);
+
+      const contextLines = [
+        `Заседание кафедры: месяц ${month}, год ${year}.`,
+        meeting ? `Название заседания: ${meeting.title || 'Заседание кафедры'}. Протокол № ${meeting.protocol_number || '—'}.` : '',
+        'Пункты плана кафедры на учебный год:',
+        ...planItems.map((pi, idx) => `${idx + 1}. [${pi.id}] ${pi.title}`),
+        recentDecisions.length ? '\nНедавние решения и поручения кафедры:' : '',
+        ...recentDecisions.map((rd) => `- По вопросу «${rd.agenda_title}»: ${rd.text} (ответственный: ${rd.responsible_raw || '—'}, срок: ${rd.due_date || '—'})`),
+        '\nТиповые вопросы кафедры:',
+        ...STANDARD_AGENDA_TOPICS.map((std) => `- [${std.id}] ${std.title} (${std.category})`)
+      ].filter(Boolean).join('\n');
+
+      if (engine.enabled) {
+        try {
+          const aiRes = await engine.process({
+            task: 'suggest-agenda',
+            text: contextLines,
+            query: body.prompt || `Сформируй повестку заседания кафедры на ${month} месяц ${year} года`
+          });
+          if (aiRes.status === 'completed' && aiRes.result?.topics?.length) {
+            sendJson(response, 200, {
+              ok: true,
+              status: 'completed',
+              topics: aiRes.result.topics,
+              explanation: aiRes.result.explanation,
+              prompt: aiRes.prompt,
+              rawResponse: aiRes.rawResponse,
+              durationMs: aiRes.durationMs
+            });
+            return true;
+          }
+        } catch (err) {
+          if (logger) logger.warn('suggest-agenda ai failed, using fallback', { error: err.message });
+        }
+      }
+
+      // Deterministic fallback based on month and active plan items
+      const selectedTopics = [];
+      if ([9, 10].includes(month)) {
+        selectedTopics.push(STANDARD_AGENDA_TOPICS.find((t) => t.id === 'std_load_plans'));
+        selectedTopics.push(STANDARD_AGENDA_TOPICS.find((t) => t.id === 'std_vkr_topics'));
+      } else if ([12, 1].includes(month)) {
+        selectedTopics.push(STANDARD_AGENDA_TOPICS.find((t) => t.id === 'std_session_results'));
+        selectedTopics.push(STANDARD_AGENDA_TOPICS.find((t) => t.id === 'std_nir_articles'));
+      } else if ([5, 6].includes(month)) {
+        selectedTopics.push(STANDARD_AGENDA_TOPICS.find((t) => t.id === 'std_vkr_topics'));
+        selectedTopics.push(STANDARD_AGENDA_TOPICS.find((t) => t.id === 'std_postgraduates'));
+      } else {
+        selectedTopics.push(STANDARD_AGENDA_TOPICS.find((t) => t.id === 'std_nir_articles'));
+        selectedTopics.push(STANDARD_AGENDA_TOPICS.find((t) => t.id === 'std_academic_titles'));
+      }
+      selectedTopics.push(STANDARD_AGENDA_TOPICS.find((t) => t.id === 'std_misc'));
+
+      const fallbackTopics = [];
+      let itemNo = 1;
+      for (const t of selectedTopics.filter(Boolean)) {
+        fallbackTopics.push({
+          itemNo: itemNo++,
+          title: t.title,
+          heardText: t.heardText,
+          discussedText: t.discussedText,
+          decisionText: t.decisionText,
+          speaker: 'Заведующий кафедрой',
+          sourceKind: 'standard_template',
+          sourceId: t.id
+        });
+      }
+      for (const pi of planItems.slice(0, 2)) {
+        fallbackTopics.push({
+          itemNo: itemNo++,
+          title: `О выполнении пункта плана «${pi.title}»`,
+          heardText: `Заслушано сообщение ответственного о ходе выполнения пункта плана кафедры «${pi.title}».`,
+          discussedText: 'Вопросов и замечаний не поступило.',
+          decisionText: `Принять к сведению информацию о выполнении пункта плана «${pi.title}».`,
+          speaker: 'Ответственный по направлению',
+          sourceKind: 'plan_item',
+          sourceId: pi.id
+        });
+      }
+
+      sendJson(response, 200, {
+        ok: true,
+        status: 'fallback',
+        topics: fallbackTopics,
+        explanation: `Повестка заседания сформирована на ${month}.${year} на основе плана кафедры и календарного цикла.`
       });
       return true;
     }

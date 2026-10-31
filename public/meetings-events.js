@@ -1,7 +1,7 @@
 import { openAgendaTransferModal } from './meetings-transfer.js';
 import { meetingsState, $m, ensureMeetingsUi, closeMeetingModal, showMeetingNotice } from './meetings-state.js';
 import { activateMeetingsView } from './meetings-view.js';
-import { openAgendaModal, openCreateMeetingModal, openEditMeetingModal, openSettingsModal, openSourceModal, renderSources } from './meetings-modals-flow.js';
+import { openAgendaModal, openCreateMeetingModal, openEditMeetingModal, openSettingsModal, openSourceModal, openAiAgendaModal, renderSources } from './meetings-modals-flow.js';
 import { addSourceQuestion, createMeetingFromForm, deleteAgenda, editMeetingFromForm, generateDocument, generateDocumentFromForm, moveAgenda, saveAgendaForm, saveSettings, uploadMeetingTemplateInput } from './meetings-actions.js';
 import { schedulePlanMeetingLinks } from './meetings-plan-links.js';
 import { loadMeeting } from './meetings-data.js';
@@ -28,6 +28,7 @@ document.addEventListener('click', (event) => {
   if (event.target.closest('[data-edit-meeting]')) return openEditMeetingModal();
   if (event.target.closest('[data-add-manual-question]')) return openAgendaModal();
   if (event.target.closest('[data-add-source-question]')) return openSourceModal().catch((error) => showMeetingNotice(error.message));
+  if (event.target.closest('[data-ai-suggest-agenda]')) return openAiAgendaModal().catch((error) => showMeetingNotice(error.message));
   const source = event.target.closest('[data-source-kind][data-source-id]');
   if (source) return addSourceQuestion(source).catch((error) => showMeetingNotice(error.message));
   const edit = event.target.closest('[data-agenda-edit]');

@@ -118,26 +118,158 @@ export function openAgendaModal(item = null) {
   `);
 }
 
-export async function openSourceModal() {
+export async function openSourceModal(defaultCategory = 'all') {
   const data = await meetingApi('/api/meeting-agenda-sources?limit=700');
   meetingsState.sources = data.items || [];
+  meetingsState.currentSourceFilter = defaultCategory;
   openMeetingModal(`
-    <header class="meeting-modal-head"><div><span>Повестка</span><h3>Добавить из задач и планов</h3></div><button type="button" class="icon-button" data-close-meeting-modal>×</button></header>
+    <header class="meeting-modal-head"><div><span>Повестка заседания</span><h3>Добавить вопрос в повестку</h3></div><button type="button" class="icon-button" data-close-meeting-modal>×</button></header>
     <div class="meeting-modal-body">
-      <label class="meeting-source-search"><span aria-hidden="true">⌕</span><input id="meeting-source-search" type="search" placeholder="Найдите статью, задачу или пункт плана"></label>
+      <div class="meeting-source-tabs" role="tablist">
+        <button type="button" class="meeting-source-tab ${defaultCategory === 'all' ? 'active' : ''}" data-source-filter="all">Все источники</button>
+        <button type="button" class="meeting-source-tab ${defaultCategory === 'plan_item' ? 'active' : ''}" data-source-filter="plan_item">📋 Планы кафедры</button>
+        <button type="button" class="meeting-source-tab ${defaultCategory === 'agenda_item' ? 'active' : ''}" data-source-filter="agenda_item">🏛️ Из других заседаний</button>
+        <button type="button" class="meeting-source-tab ${defaultCategory === 'standard_template' ? 'active' : ''}" data-source-filter="standard_template">⭐ Типовые вопросы</button>
+        <button type="button" class="meeting-source-tab ai-tab" data-source-action="ai-suggest">✨ Подобрать через ИИ</button>
+      </div>
+      <label class="meeting-source-search"><span aria-hidden="true">⌕</span><input id="meeting-source-search" type="search" placeholder="Поиск по названию, номеру протокола, теме..."></label>
       <div id="meeting-source-list" class="meeting-source-list"></div>
     </div>
   `);
-  renderSources('');
+  renderSources('', defaultCategory);
+
+  const modalEl = $m('#meeting-modal');
+  if (modalEl) {
+    modalEl.querySelectorAll('[data-source-filter]').forEach((tab) => {
+      tab.addEventListener('click', () => {
+        modalEl.querySelectorAll('[data-source-filter]').forEach((t) => t.classList.remove('active'));
+        tab.classList.add('active');
+        meetingsState.currentSourceFilter = tab.dataset.sourceFilter;
+        const q = $m('#meeting-source-search')?.value || '';
+        renderSources(q, meetingsState.currentSourceFilter);
+      });
+    });
+    modalEl.querySelector('[data-source-action="ai-suggest"]')?.addEventListener('click', () => {
+      openAiAgendaModal();
+    });
+    const searchInput = modalEl.querySelector('#meeting-source-search');
+    if (searchInput) {
+      searchInput.addEventListener('input', (e) => {
+        renderSources(e.target.value, meetingsState.currentSourceFilter || 'all');
+      });
+    }
+  }
 }
 
-export function renderSources(query) {
+export function renderSources(query, category = 'all') {
   const target = $m('#meeting-source-list');
   if (!target) return;
   const q = String(query || '').trim().toLocaleLowerCase('ru-RU');
-  const items = meetingsState.sources.filter((source) => !q || [source.title, source.questionTitle, source.label, source.meta].join(' ').toLocaleLowerCase('ru-RU').includes(q));
+  const cat = category || meetingsState.currentSourceFilter || 'all';
+
+  const items = meetingsState.sources.filter((source) => {
+    if (cat !== 'all' && source.kind !== cat) return false;
+    if (!q) return true;
+    return [source.title, source.questionTitle, source.label, source.meta].join(' ').toLocaleLowerCase('ru-RU').includes(q);
+  });
+
   target.innerHTML = items.length ? items.map((source) => `
     <button type="button" class="meeting-source-card" data-source-kind="${escMeeting(source.kind)}" data-source-id="${escMeeting(source.id)}">
       <span><strong>${escMeeting(source.questionTitle)}</strong><small>${escMeeting(source.label)}${source.meta ? ` · ${escMeeting(source.meta)}` : ''}</small></span><span aria-hidden="true">＋</span>
-    </button>`).join('') : '<div class="empty-state">Подходящих открытых задач и пунктов планов нет.</div>';
+    </button>`).join('') : '<div class="empty-state">Подходящих источников в этой категории не найдено.</div>';
+}
+
+export async function openAiAgendaModal() {
+  const meeting = meetingsState.meeting;
+  const dateText = meeting?.meeting_date ? meeting.meeting_date : 'текущий месяц';
+  openMeetingModal(`
+    <header class="meeting-modal-head"><div><span>ИИ-ассистент</span><h3>✨ Подбор повестки заседания</h3></div><button type="button" class="icon-button" data-close-meeting-modal>×</button></header>
+    <div class="meeting-modal-body ai-agenda-modal-body">
+      <p class="meeting-helper">ИИ сформирует рекомендованные вопросы заседания на основе планов кафедры на <strong>${escMeeting(dateText)}</strong>, нерешённых поручений и типового годового цикла.</p>
+      <div id="ai-agenda-loading" class="assistant-progress-card">
+        <div class="assistant-progress-spinner"></div>
+        <span>ИИ анализирует планы и поручения кафедры...</span>
+      </div>
+      <div id="ai-agenda-results" class="ai-agenda-results hidden"></div>
+    </div>
+  `);
+  try {
+    const data = await meetingApi('/api/assistant/suggest-agenda', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ meetingId: meeting?.id })
+    });
+    const loading = $m('#ai-agenda-loading');
+    const results = $m('#ai-agenda-results');
+    if (loading) loading.classList.add('hidden');
+    if (!results) return;
+    results.classList.remove('hidden');
+    const topics = data.topics || [];
+    if (!topics.length) {
+      results.innerHTML = '<div class="empty-state">ИИ не сформировал вопросы. Попробуйте выбрать типовые вопросы вручную.</div>';
+      return;
+    }
+    results.innerHTML = `
+      <div class="ai-agenda-explanation">${escMeeting(data.explanation || 'Рекомендованный перечень вопросов повестки:')}</div>
+      <div class="ai-agenda-list">
+        ${topics.map((t, idx) => `
+          <label class="ai-agenda-card">
+            <input type="checkbox" name="aiAgendaSelect" value="${idx}" checked>
+            <div class="ai-agenda-card-body">
+              <strong>${escMeeting(t.title)}</strong>
+              ${t.heardText ? `<div><b>Слушали:</b> ${escMeeting(t.heardText)}</div>` : ''}
+              ${t.decisionText ? `<div><b>Постановили:</b> ${escMeeting(t.decisionText)}</div>` : ''}
+              ${t.speaker ? `<small class="ai-agenda-speaker">Докладчик: ${escMeeting(t.speaker)}</small>` : ''}
+            </div>
+          </label>
+        `).join('')}
+      </div>
+      <div class="meeting-modal-actions">
+        <button type="button" class="secondary-button" data-close-meeting-modal>Отмена</button>
+        <span class="spacer"></span>
+        <button type="button" class="primary-button" id="btn-apply-ai-agenda">Добавить выбранные (${topics.length}) в повестку</button>
+      </div>
+    `;
+    const btnApply = results.querySelector('#btn-apply-ai-agenda');
+    const checkboxes = results.querySelectorAll('input[name="aiAgendaSelect"]');
+    const updateCount = () => {
+      const selected = [...checkboxes].filter((c) => c.checked).length;
+      if (btnApply) {
+        btnApply.textContent = `Добавить выбранные (${selected}) в повестку`;
+        btnApply.disabled = selected === 0;
+      }
+    };
+    checkboxes.forEach((c) => c.addEventListener('change', updateCount));
+    if (btnApply && meeting) {
+      btnApply.addEventListener('click', async () => {
+        btnApply.disabled = true;
+        btnApply.textContent = 'Добавление...';
+        const selectedIndices = [...checkboxes].filter((c) => c.checked).map((c) => Number(c.value));
+        for (const idx of selectedIndices) {
+          const t = topics[idx];
+          try {
+            await meetingApi(`/api/meetings/${encodeURIComponent(meeting.id)}/agenda`, {
+              method: 'POST',
+              headers: { 'content-type': 'application/json' },
+              body: JSON.stringify({
+                title: t.title,
+                heardText: t.heardText || null,
+                discussedText: t.discussedText || null,
+                decisionText: t.decisionText || null,
+                sourceKind: t.sourceKind || 'manual',
+                sourceId: t.sourceId || null
+              })
+            });
+          } catch {}
+        }
+        closeMeetingModal();
+        showMeetingNotice(`В повестку добавлено ${selectedIndices.length} вопросов`);
+        const { loadMeeting } = await import('./meetings-data.js');
+        await loadMeeting(meeting.id);
+      });
+    }
+  } catch (err) {
+    const loading = $m('#ai-agenda-loading');
+    if (loading) loading.innerHTML = `<p class="error-text">Не удалось получить рекомендации: ${escMeeting(err.message)}</p>`;
+  }
 }

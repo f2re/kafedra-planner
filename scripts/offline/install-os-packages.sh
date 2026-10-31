@@ -376,7 +376,11 @@ fi
 sed -n -E 's/^Inst ([^ ]+).*/\1/p' "$WORK/bundle-plan.txt" | sed -E 's/:[a-z0-9-]+$//' | LC_ALL=C sort -u > "$WORK/planned.txt"
 comm -23 "$WORK/planned.txt" "$WORK/included.txt" > "$WORK/missing.txt"
 if [[ -s "$WORK/missing.txt" ]]; then
+  warn "Автономный APT-план запросил зависимости вне списка включенных пакетов:"
   cat "$WORK/missing.txt" >&2
+  if try_direct_dpkg bundle-missing-fallback; then
+    exit 0
+  fi
   die "Автономный APT-план требует пакеты, отсутствующие в bundle"
 fi
 if [[ "$CHECK_ONLY" == true ]]; then
@@ -386,6 +390,10 @@ fi
 info "Добавляем недостающие пакеты из автономного repository без изменения установленных версий"
 if ! LC_ALL=C DEBIAN_FRONTEND=noninteractive apt-get "${BUNDLE_APT_OPTIONS[@]}" \
     "${TARGET_INSTALL_OPTIONS[@]}" --yes install -- "${needed[@]}"; then
+  warn "Автономный APT не смог завершить установку пакетов; пробуем прямое добавление через dpkg..."
+  if try_direct_dpkg bundle-apt-install-failed; then
+    exit 0
+  fi
   warn "Автономный APT начал изменяющую транзакцию и завершился ошибкой; автоматическое исправление запрещено"
   exit "$FATAL_TRANSACTION_EXIT"
 fi

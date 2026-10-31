@@ -5,12 +5,30 @@ export function renderSettingsSummary() {
   if (!target) return;
   const s = meetingsState.settings;
   if (!settingsReady()) {
-    target.innerHTML = '<div><strong>Формирование новых документов не настроено</strong><span>Загруженные протоколы уже можно разбирать и исправлять. Шаблоны нужны только для создания протоколов и выписок.</span></div><button type="button" class="text-button" data-open-meeting-settings>Настроить</button>';
-    target.classList.add('needs-setup');
+    target.className = 'meeting-settings-summary needs-setup';
+    target.innerHTML = `
+      <div class="meeting-settings-info">
+        <span class="meeting-status-chip warning">⚠ Требуется настройка</span>
+        <div>
+          <strong>Параметры оформления заседаний</strong>
+          <span>Для формирования документов выберите председателя, секретаря и шаблон ГОСТ</span>
+        </div>
+      </div>
+      <button type="button" class="secondary-button" data-open-meeting-settings>Настроить</button>
+    `;
     return;
   }
-  target.classList.remove('needs-setup');
-  target.innerHTML = `<div><strong>Параметры кафедры</strong><span>Кворум ${Number(s.quorum)} · ${escMeeting(s.chairperson_name)} — председатель · ${escMeeting(s.secretary_name)} — секретарь</span></div><button type="button" class="text-button" data-open-meeting-settings>Изменить</button>`;
+  target.className = 'meeting-settings-summary';
+  target.innerHTML = `
+    <div class="meeting-settings-info">
+      <span class="meeting-status-chip success">✓ Шаблон ГОСТ активен</span>
+      <div>
+        <strong>Оформление заседаний кафедры</strong>
+        <span>Кворум: ${Number(s.quorum || 1)} · Председатель: <b>${escMeeting(s.chairperson_name || 'Не назначен')}</b> · Секретарь: <b>${escMeeting(s.secretary_name || 'Не назначен')}</b></span>
+      </div>
+    </div>
+    <button type="button" class="secondary-button" data-open-meeting-settings>Параметры</button>
+  `;
 }
 
 function meetingCard(meeting) {
@@ -125,8 +143,12 @@ export function renderMeetingDetail() {
       ${meeting.source_document_id ? `<a href="/api/documents/${encodeURIComponent(meeting.source_document_id)}/content?variant=original" target="_blank" rel="noopener"><b>Источник</b> ${escMeeting(meeting.source_original_name || meeting.source_document_title || 'Открыть')}</a>` : ''}
     </div>
     <div class="agenda-head">
-      <div><h3>Повестка</h3><p>Проверьте отмеченные вопросы. Ответственный и срок решения редактируются вместе с формулировкой.</p></div>
-      <div><button type="button" class="secondary-button" data-add-manual-question>Добавить вопрос</button><button type="button" class="primary-button" data-add-source-question>Из задач и планов</button></div>
+      <div><h3>Повестка заседания</h3><p>Проверьте отмеченные вопросы. Ответственный и срок решения редактируются вместе с формулировкой.</p></div>
+      <div class="agenda-head-actions">
+        <button type="button" class="secondary-button" data-add-manual-question>＋ Вручную</button>
+        <button type="button" class="secondary-button" data-add-source-question>📋 Из задач и планов</button>
+        <button type="button" class="accent-button" data-ai-suggest-agenda title="Сформировать проект повестки с помощью ИИ на основе плана кафедры">✨ Сформировать ИИ</button>
+      </div>
     </div>
     <div class="agenda-list">${agenda.length ? agenda.map((item, index) => agendaItemHtml(item, index, agenda.length)).join('') : '<div class="empty-state">Повестка не распознана. Добавьте вопросы вручную; исходный протокол останется доступен.</div>'}</div>
     <div class="meeting-document-actions">

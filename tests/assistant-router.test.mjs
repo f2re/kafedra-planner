@@ -462,3 +462,77 @@ test('assistant-router search-refine handles AI refinement and offline fallback'
     assert.ok(res.body.ftsQuery.includes('аспирантов'));
   }
 });
+
+test('assistant-router suggest-agenda formulates department topics with AI and fallback', async () => {
+  const root = await mkdtemp(join(tmpdir(), 'kafedra-assistant-agenda-test-'));
+  const database = new Database(join(root, 'test.sqlite3'), { migrationsDir: resolve('migrations') });
+  const workspace = ensureDefaultWorkspace(database);
+
+  const mockEngine = {
+    enabled: true,
+    config: { llmEnabled: true },
+    async process({ task }) {
+      if (task === 'suggest-agenda') {
+        return {
+          status: 'completed',
+          result: {
+            explanation: 'Повестка составлена нейросетью',
+            topics: [
+              {
+                title: 'Об утверждении индивидуальных планов ППС',
+                heardText: 'Заслушан зав. кафедрой.',
+                discussedText: 'Вопросов нет.',
+                decisionText: 'Утвердить планы.',
+                speaker: 'Зав. кафедрой',
+                sourceKind: 'standard_template',
+                sourceId: 'std_load_plans'
+              }
+            ]
+          }
+        };
+      }
+      return { status: 'failed' };
+    }
+  };
+
+  const router = createAssistantRouter({
+    database,
+    config: { dataDir: root },
+    engine: mockEngine
+  });
+
+  // 1. AI suggest-agenda
+  {
+    const { stream, url } = mockRequest('POST', '/api/assistant/suggest-agenda', {
+      month: 9,
+      year: 2026
+    });
+    const res = mockResponse();
+    const handled = await router(stream, res, url);
+    assert.equal(handled, true);
+    assert.equal(res.statusCode, 200);
+    assert.equal(res.body.ok, true);
+    assert.equal(res.body.status, 'completed');
+    assert.equal(res.body.topics.length, 1);
+    assert.equal(res.body.topics[0].title, 'Об утверждении индивидуальных планов ППС');
+  }
+
+  // 2. Offline deterministic fallback
+  {
+    mockEngine.enabled = false;
+    const { stream, url } = mockRequest('POST', '/api/assistant/suggest-agenda', {
+      month: 12,
+      year: 2026
+    });
+    const res = mockResponse();
+    const handled = await router(stream, res, url);
+    assert.equal(handled, true);
+    assert.equal(res.statusCode, 200);
+    assert.equal(res.body.ok, true);
+    assert.equal(res.body.status, 'fallback');
+    assert.ok(res.body.topics.length >= 2);
+    assert.ok(res.body.topics.some((t) => t.title.includes('сессии') || t.title.includes('НИР')));
+  }
+
+  await rm(root, { recursive: true, force: true });
+});

@@ -157,6 +157,26 @@ export const ASSISTANT_TASKS = Object.freeze({
       '{"summary":"Доброжелательное резюме подсказок","suggestions":[{"rule":"...","status":"suggestion|notice|ok","details":"...","suggestedFix":"...","sourceQuote":"..."}],"helpfulNotes":["..."]}.',
       'Никаких карательных формулировок, не объявляй документ недействительным. Тон — конструктивный и помогающий.'
     ].join(' ')
+  }),
+
+  'suggest-agenda': Object.freeze({
+    id: 'suggest-agenda',
+    maxTokens: 2560,
+    system: [
+      'Ты — методист и секретарь кафедры.',
+      'На основе переданного месяца заседания, задач из планов кафедры и типовых кафедральных тем сформируй проект повестки заседания кафедры.',
+      'Для каждого вопроса повестки предложи:',
+      '- title: чёткое официальное наименование («О распределении учебной нагрузки...», «Об утверждении тем ВКР...»);',
+      '- heardText: кого и что заслушали (краткий тезис сообщения);',
+      '- discussedText: краткое содержание обсуждения;',
+      '- decisionText: итоговое постановление/решение кафедры;',
+      '- speaker: предлагаемый докладчик;',
+      '- sourceKind: "plan_item" | "standard_template" | "task" | "manual";',
+      '- sourceId: id источника, если вопрос взят из переданного плана или задачи.',
+      'Верни строго один JSON-объект вида:',
+      '{"explanation":"Пояснение к предложенной повестке","topics":[{"title":"...","heardText":"...","discussedText":"...","decisionText":"...","speaker":"...","sourceKind":"...","sourceId":"..."}]}.',
+      'Сохраняй академический стиль и точность.'
+    ].join(' ')
   })
 });
 
@@ -401,6 +421,25 @@ export function validateAssistantResult(taskType, payload, extra = {}) {
     };
   }
 
+  if (taskType === 'suggest-agenda') {
+    const explanation = String(payload.explanation || 'Проект повестки сформирован').trim().slice(0, 1000);
+    const rawTopics = Array.isArray(payload.topics) ? payload.topics : [];
+    const topics = rawTopics
+      .filter((t) => t && typeof t === 'object')
+      .slice(0, 20)
+      .map((t, idx) => ({
+        itemNo: idx + 1,
+        title: String(t.title || `Вопрос ${idx + 1}`).trim().slice(0, 300),
+        heardText: String(t.heardText || '').trim().slice(0, 1000),
+        discussedText: String(t.discussedText || '').trim().slice(0, 1000),
+        decisionText: String(t.decisionText || '').trim().slice(0, 1500),
+        speaker: String(t.speaker || '').trim().slice(0, 160),
+        sourceKind: String(t.sourceKind || 'manual').trim().slice(0, 40),
+        sourceId: t.sourceId ? String(t.sourceId).trim().slice(0, 80) : null
+      }));
+    return { type: 'suggest-agenda', explanation, topics };
+  }
+
   throw new Error(`unknown_task_type:${taskType}`);
 }
 
@@ -453,7 +492,7 @@ export function createAssistantEngine({ config = {}, fetchImpl = fetch, maxCache
     }
   }
 
-  async function process({ task, text, query, candidates, signal } = {}) {
+  async function process({ task, text, query, candidates, signal, customSystemPrompt, customUserPrompt } = {}) {
     const started = Date.now();
     const taskConfig = ASSISTANT_TASKS[task];
     if (!taskConfig) {
@@ -472,19 +511,27 @@ export function createAssistantEngine({ config = {}, fetchImpl = fetch, maxCache
       candidates: Array.isArray(candidates) ? candidates.slice(0, 12) : []
     };
 
-    const cacheKey = getCacheKey(task, inputPayload);
+    const userContent = customUserPrompt && typeof customUserPrompt === 'string'
+      ? customUserPrompt
+      : JSON.stringify(inputPayload);
+    const systemContent = customSystemPrompt && typeof customSystemPrompt === 'string'
+      ? customSystemPrompt
+      : taskConfig.system;
+
+    const cacheKey = getCacheKey(task, { inputPayload, customSystemPrompt, customUserPrompt });
     const cached = cache.get(cacheKey);
     if (cached && Date.now() - cached.timestamp < ttlMs) {
       return {
         status: 'completed',
         result: cached.result,
         cached: true,
-        durationMs: Date.now() - started
+        durationMs: Date.now() - started,
+        prompt: { system: systemContent, user: userContent },
+        rawResponse: cached.rawResponse || null
       };
     }
 
     // Construct prompt
-    const userContent = JSON.stringify(inputPayload);
     const maxTokens = Math.min(currentConfig?.llmMaxTokens || 2048, taskConfig.maxTokens);
     const requestBody = {
       model: currentConfig?.llmModel || 'local-model',
@@ -493,7 +540,7 @@ export function createAssistantEngine({ config = {}, fetchImpl = fetch, maxCache
       stream: false,
       chat_template_kwargs: { enable_thinking: false },
       messages: [
-        { role: 'system', content: taskConfig.system },
+        { role: 'system', content: systemContent },
         { role: 'user', content: userContent }
       ]
     };
@@ -552,13 +599,15 @@ export function createAssistantEngine({ config = {}, fetchImpl = fetch, maxCache
 
       const validated = validateAssistantResult(task, parsedObj, { candidates, sourceText: cleanText });
       pruneCache();
-      cache.set(cacheKey, { result: validated, timestamp: Date.now() });
+      cache.set(cacheKey, { result: validated, rawResponse: content, timestamp: Date.now() });
 
       return {
         status: 'completed',
         result: validated,
         cached: false,
-        durationMs: Date.now() - started
+        durationMs: Date.now() - started,
+        prompt: { system: systemContent, user: userContent },
+        rawResponse: content
       };
     } catch (error) {
       const name = String(error?.name || '').toLowerCase();

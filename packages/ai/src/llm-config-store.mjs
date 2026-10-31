@@ -116,6 +116,8 @@ export async function testLlmConnection({ endpoint, model, apiKey, timeoutMs = 8
         if (Array.isArray(data?.data)) {
           modelsList = data.data.map((m) => String(m?.id || '')).filter(Boolean);
         }
+      } else if (modelsRes.status === 503 || modelsRes.status === 429) {
+        endpointResponding = true;
       }
     } catch {
       // Models endpoint might not be supported or failed, try health
@@ -128,7 +130,7 @@ export async function testLlmConnection({ endpoint, model, apiKey, timeoutMs = 8
           headers,
           signal: controller.signal
         });
-        if (healthRes.ok) {
+        if (healthRes.ok || healthRes.status === 503) {
           endpointResponding = true;
         }
       } catch {

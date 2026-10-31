@@ -240,12 +240,14 @@ export function createAssistantSheet() {
           <button class="assistant-mode-tab" type="button" data-mode="gap-repair">Пропуски и ошибки</button>
           <button class="assistant-mode-tab" type="button" data-mode="compliance-check">Подсказки к тексту</button>
           <button class="assistant-mode-tab" type="button" data-mode="formula-calc">Формулы Calc</button>
+          <button class="assistant-mode-tab" type="button" data-mode="custom-prompts">Шаблоны промптов</button>
+          <button class="assistant-mode-tab" type="button" data-mode="search-help">Справка по поиску</button>
           <button class="assistant-mode-tab" type="button" data-mode="history">История</button>
         </nav>
 
         <div id="assistant-presets-wrap" class="assistant-presets">
           <span class="assistant-preset-label">Примеры:</span>
-          <div id="assistant-presets" style="display:contents"></div>
+          <div id="assistant-presets" class="assistant-presets-grid"></div>
         </div>
 
         <div class="assistant-input-card">
@@ -255,6 +257,17 @@ export function createAssistantSheet() {
             <span>Ctrl + Enter для запуска</span>
           </div>
         </div>
+
+        <details id="assistant-prompt-accordion" class="assistant-prompt-accordion">
+          <summary class="assistant-prompt-summary">⚙️ Настроить системный промпт (для экспертов)</summary>
+          <div class="assistant-prompt-editor-body">
+            <label for="assistant-custom-system-prompt">Системный промпт модели:</label>
+            <textarea id="assistant-custom-system-prompt" class="assistant-system-textarea" rows="3" placeholder="Оставьте пустым для стандартного промпта режима..."></textarea>
+            <div class="assistant-prompt-editor-actions">
+              <button type="button" id="assistant-reset-system-prompt-btn" class="quiet-button small-button">Сбросить к стандартному</button>
+            </div>
+          </div>
+        </details>
 
         <div class="assistant-actions">
           <button id="assistant-clear-btn" class="quiet-button" type="button">Очистить</button>
@@ -498,12 +511,20 @@ export function createAssistantSheet() {
     });
 
     const isHistory = mode === 'history';
-    sheetEl.querySelector('#assistant-presets-wrap').classList.toggle('hidden', isHistory);
-    sheetEl.querySelector('.assistant-input-card').classList.toggle('hidden', isHistory);
-    sheetEl.querySelector('.assistant-actions').classList.toggle('hidden', isHistory);
+    const isCustomPrompts = mode === 'custom-prompts';
+    const isSearchHelp = mode === 'search-help';
+    const isSpecialView = isHistory || isCustomPrompts || isSearchHelp;
+    sheetEl.querySelector('#assistant-presets-wrap').classList.toggle('hidden', isSpecialView);
+    sheetEl.querySelector('.assistant-input-card').classList.toggle('hidden', isSpecialView);
+    sheetEl.querySelector('#assistant-prompt-accordion')?.classList.toggle('hidden', isSpecialView);
+    sheetEl.querySelector('.assistant-actions').classList.toggle('hidden', isSpecialView);
 
     if (isHistory) {
       renderHistoryView();
+    } else if (isCustomPrompts) {
+      renderCustomPromptsView();
+    } else if (isSearchHelp) {
+      renderSearchHelpView();
     } else {
       updatePlaceholder();
       renderPresets();
@@ -669,28 +690,30 @@ export function createAssistantSheet() {
 
       if (elapsed < 3) {
         if (stageEl) stageEl.textContent = currentMode === 'archive-query' ? '1. Поиск документов в архиве кафедры...' : '1. Анализ входного текста...';
-        if (barEl) barEl.style.width = '25%';
+        if (barEl) barEl.className = 'assistant-progress-bar progress-p25';
       } else if (elapsed < 8) {
         if (step1) { step1.classList.remove('active'); step1.classList.add('completed'); }
         if (step2) step2.classList.add('active');
         if (stageEl) stageEl.textContent = '2. Извлечение фрагментов и подготовка промпта...';
-        if (barEl) barEl.style.width = '50%';
+        if (barEl) barEl.className = 'assistant-progress-bar progress-p50';
       } else {
         if (step2) { step2.classList.remove('active'); step2.classList.add('completed'); }
         if (step3) step3.classList.add('active');
         if (stageEl) stageEl.textContent = `3. Генерация ответа нейросетью (${elapsed} с)...`;
-        if (barEl) barEl.style.width = `${Math.min(92, 50 + (elapsed - 8) * 1.5)}%`;
+        if (barEl) barEl.className = 'assistant-progress-bar progress-p90';
       }
     }, 1000);
 
     try {
+      const customSystemPrompt = sheetEl.querySelector('#assistant-custom-system-prompt')?.value?.trim() || undefined;
       const resp = await fetch('/api/assistant/process', {
         method: 'POST',
         headers: { 'content-type': 'application/json' },
         body: JSON.stringify({
           task: currentMode,
           text: (currentMode === 'table-extract' || currentMode === 'gap-repair') ? text : undefined,
-          query: (currentMode !== 'table-extract' && currentMode !== 'gap-repair') ? text : undefined
+          query: (currentMode !== 'table-extract' && currentMode !== 'gap-repair') ? text : undefined,
+          customSystemPrompt
         }),
         signal: abortController.signal
       });
@@ -729,9 +752,13 @@ export function createAssistantSheet() {
 
       if (step3) { step3.classList.remove('active'); step3.classList.add('completed'); }
       if (step4) step4.classList.add('completed');
-      if (barEl) barEl.style.width = '100%';
+      if (barEl) barEl.className = 'assistant-progress-bar progress-p100';
 
-      renderResult(data.result);
+      renderResult(data.result, {
+        prompt: data.prompt,
+        rawResponse: data.rawResponse,
+        durationMs: data.durationMs
+      });
       saveHistoryItem({ mode: currentMode, query: text, result: data.result, success: true });
     } catch (err) {
       clearInterval(timerInterval);
@@ -763,7 +790,11 @@ export function createAssistantSheet() {
     textareaEl.focus();
   }
 
-  function renderResult(result) {
+  function escapeHtml(str) {
+    return String(str ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+  }
+
+  function renderResult(result, meta = {}) {
     resultsContainerEl.innerHTML = '';
     if (result.type === 'table') {
       renderTableResult(result);
@@ -782,6 +813,201 @@ export function createAssistantSheet() {
     } else if (result.type === 'search-refine') {
       renderSearchRefineResult(result);
     }
+    if (meta && (meta.prompt || meta.rawResponse)) {
+      renderInspectorCard(meta);
+    }
+  }
+
+  function renderInspectorCard(meta) {
+    const card = document.createElement('details');
+    card.className = 'assistant-prompt-inspector';
+    card.innerHTML = `
+      <summary class="assistant-inspector-summary">
+        <span>🔍 Параметры запроса и ответ модели</span>
+        <small>${meta.durationMs ? `${meta.durationMs} мс` : ''}</small>
+      </summary>
+      <div class="assistant-inspector-content">
+        ${meta.prompt?.system ? `
+          <div class="assistant-inspector-block">
+            <strong>Системный промпт:</strong>
+            <pre>${escapeHtml(meta.prompt.system)}</pre>
+          </div>
+        ` : ''}
+        ${meta.prompt?.user ? `
+          <div class="assistant-inspector-block">
+            <strong>Переданный контекст (User prompt):</strong>
+            <pre>${escapeHtml(meta.prompt.user)}</pre>
+          </div>
+        ` : ''}
+        ${meta.rawResponse ? `
+          <div class="assistant-inspector-block">
+            <div class="assistant-inspector-head">
+              <strong>Сырой ответ модели (verbatim):</strong>
+              <button type="button" class="quiet-button small-button" id="ast-copy-raw-btn">Копировать</button>
+            </div>
+            <pre>${escapeHtml(meta.rawResponse)}</pre>
+          </div>
+        ` : ''}
+      </div>
+    `;
+    const copyBtn = card.querySelector('#ast-copy-raw-btn');
+    if (copyBtn && meta.rawResponse) {
+      copyBtn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        navigator.clipboard.writeText(meta.rawResponse).then(() => showToast('Сырой ответ скопирован'));
+      });
+    }
+    resultsContainerEl.append(card);
+  }
+
+  const CUSTOM_PROMPTS_KEY = 'kafedra.assistant.custom_prompts';
+  const DEFAULT_CUSTOM_PROMPTS = [
+    {
+      id: 'cp_agenda',
+      title: '📋 Формирование повестки заседания',
+      mode: 'protocol-analysis',
+      tag: 'Заседания',
+      description: 'Анализирует текст и формирует повестку с докладчиками и проектами решений.',
+      template: 'ПРОТОКОЛ заседания кафедры.\nПовестка дня:\n1. О распределении учебной нагрузки на весенний семестр.\n2. Об утверждении тем выпускных квалификационных работ бакалавров.\n3. Разное.'
+    },
+    {
+      id: 'cp_extract',
+      title: '🎓 Выписка из протокола (ГОСТ)',
+      mode: 'compliance-check',
+      tag: 'Документы',
+      description: 'Проверка формулировок и реквизитов выписки из протокола кафедры.',
+      template: 'ВЫПИСКА ИЗ ПРОТОКОЛА № 3 заседания кафедры от 15.10.2026.\nСЛУШАЛИ: об утверждении темы выпускной квалификационной работы студента Смирнова.\nПОСТАНОВИЛИ: тему утвердить, руководителем назначить доц. Петрова.'
+    },
+    {
+      id: 'cp_archive',
+      title: '🔍 Поиск решений по аспирантам',
+      mode: 'archive-query',
+      tag: 'Поиск',
+      description: 'Находит все заседания и протоколы, где обсуждалась аттестация аспирантов.',
+      template: 'На каком заседании кафедры утверждалась аттестация аспирантов и какие сроки были установлены?'
+    },
+    {
+      id: 'cp_report_nir',
+      title: '📊 Синтез раздела отчёта по НИР',
+      mode: 'report-synthesis',
+      tag: 'Отчёты',
+      description: 'Генерирует связный официальный раздел кафедрального отчёта по научной работе.',
+      template: 'Составить раздел отчёта кафедры по научно-исследовательской работе: публикации в изданиях ВАК и РИНЦ, поданные грантовые заявки и участие в конференциях.'
+    },
+    {
+      id: 'cp_formula_vpr',
+      title: '📐 Формула Calc: ВПР по преподавателю',
+      mode: 'formula-calc',
+      tag: 'Формулы',
+      description: 'Составляет формулу ВПР или ИНДЕКС/ПОИСКПОЗ для подтягивания должности преподавателя.',
+      template: 'Как написать формулу ВПР для подтягивания должности преподавателя по его ФИО из соседней таблицы на листе Справочник'
+    }
+  ];
+
+  function getCustomPrompts() {
+    try {
+      const saved = JSON.parse(localStorage.getItem(CUSTOM_PROMPTS_KEY) || '[]');
+      return [...DEFAULT_CUSTOM_PROMPTS, ...saved];
+    } catch {
+      return DEFAULT_CUSTOM_PROMPTS;
+    }
+  }
+
+  function saveCustomPrompt(item) {
+    try {
+      const saved = JSON.parse(localStorage.getItem(CUSTOM_PROMPTS_KEY) || '[]');
+      saved.unshift({ ...item, id: `user_${Date.now()}` });
+      localStorage.setItem(CUSTOM_PROMPTS_KEY, JSON.stringify(saved));
+    } catch {}
+  }
+
+  function renderCustomPromptsView() {
+    resultsContainerEl.classList.remove('hidden');
+    resultsContainerEl.innerHTML = '';
+    const container = document.createElement('div');
+    container.className = 'assistant-custom-prompts-container';
+
+    const header = document.createElement('div');
+    header.className = 'assistant-history-header';
+    header.innerHTML = `
+      <div><strong>Шаблоны промптов</strong><span>Библиотека готовых кафедральных запросов и свои шаблоны</span></div>
+      <button type="button" class="secondary-button" id="ast-add-prompt-btn">＋ Свой шаблон</button>
+    `;
+    container.append(header);
+
+    const prompts = getCustomPrompts();
+    const list = document.createElement('div');
+    list.className = 'assistant-custom-prompts-list';
+
+    prompts.forEach((p) => {
+      const card = document.createElement('div');
+      card.className = 'assistant-custom-prompt-card';
+      card.innerHTML = `
+        <div class="assistant-custom-prompt-head">
+          <strong>${escapeHtml(p.title)}</strong>
+          <span class="assistant-custom-prompt-tag">${escapeHtml(p.tag || 'Общий')}</span>
+        </div>
+        <div class="assistant-custom-prompt-desc">${escapeHtml(p.description || '')}</div>
+        <div class="assistant-custom-prompt-actions">
+          <button type="button" class="primary-button" data-run-prompt="${escapeHtml(p.id)}">Использовать шаблон</button>
+        </div>
+      `;
+      card.querySelector('[data-run-prompt]')?.addEventListener('click', () => {
+        setMode(p.mode || 'table-extract');
+        textareaEl.value = p.template || '';
+        updateCharCount();
+        saveDraft();
+        textareaEl.focus();
+      });
+      list.append(card);
+    });
+    container.append(list);
+
+    header.querySelector('#ast-add-prompt-btn')?.addEventListener('click', () => {
+      const title = prompt('Название вашего шаблона промпта:');
+      if (!title || !title.trim()) return;
+      const desc = prompt('Краткое описание:') || '';
+      saveCustomPrompt({
+        title: title.trim(),
+        description: desc.trim(),
+        mode: currentMode,
+        tag: 'Пользовательский',
+        template: textareaEl.value || ''
+      });
+      renderCustomPromptsView();
+      showToast('Шаблон сохранён');
+    });
+
+    resultsContainerEl.append(container);
+  }
+
+  function renderSearchHelpView() {
+    resultsContainerEl.classList.remove('hidden');
+    resultsContainerEl.innerHTML = `
+      <div class="assistant-help-card">
+        <h3>📚 Руководство: как искать по документам и протоколам</h3>
+        <div class="assistant-help-section">
+          <h4>1. Полнотекстовый поиск в архиве кафедры</h4>
+          <p>В строке поиска или в режиме «Поиск в архиве» введите ключевые слова: например, <code>влажность статья</code> или <code>аттестация аспирантов</code>. Индекс FTS5 находит совпадения по всем протоколам, решениям и планам кафедры с учётом словоформ русского языка.</p>
+        </div>
+        <div class="assistant-help-section">
+          <h4>2. Поиск точной цитаты или словосочетания</h4>
+          <p>Заключите фразу в двойные кавычки: <code>"учебная нагрузка"</code> или <code>"экзаменационная сессия"</code>. Система найдёт точное вхождение слов именно в этом порядке.</p>
+        </div>
+        <div class="assistant-help-section">
+          <h4>3. Логическое ИЛИ (OR) для синонимов</h4>
+          <p>Соединяйте синонимы через <code>OR</code>: <code>статья OR публикация OR вестник</code>. Это позволяет охватить различные формулировки одной темы.</p>
+        </div>
+        <div class="assistant-help-section">
+          <h4>4. Переход к исходному оригиналу документа</h4>
+          <p>Каждое совпадение и каждая цитата в ответе ассистента снабжены ссылкой на оригинал. Нажмите её, чтобы просмотреть оригинальный неизменяемый DOCX, ODT или PDF-скан.</p>
+        </div>
+        <div class="assistant-help-section">
+          <h4>5. Автоматическая помощь нейросети</h4>
+          <p>Локальная нейросеть анализирует найденные фрагменты, отсекает нерелевантные упоминания и формулирует ответ по существу вопроса с точным указанием номера протокола и даты заседания.</p>
+        </div>
+      </div>
+    `;
   }
 
   function renderGapRepairResult(result) {

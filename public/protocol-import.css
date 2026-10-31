@@ -1,60 +1,62 @@
-.meeting-year-field { display:flex; align-items:center; gap:7px; min-height:36px; padding:4px 9px; border:1px solid var(--border); border-radius:10px; background:var(--surface-solid); }
-.meeting-year-field span { color:var(--muted); font-size:10px; font-weight:650; }
-.meeting-year-field input { width:66px; padding:0; border:0; outline:0; background:transparent; color:var(--text); font:inherit; font-weight:700; }
+.meeting-year-field { display:flex; align-items:center; gap:8px; min-height:38px; padding:4px 12px; border:1px solid var(--border); border-radius:10px; background:var(--surface-solid); }
+.meeting-year-field span { color:var(--muted); font-size:12px; font-weight:650; }
+.meeting-year-field input { width:70px; padding:0; border:0; outline:0; background:transparent; color:var(--text); font:inherit; font-weight:700; font-size:14px; }
 .meeting-upload-button { cursor:pointer; }
-.protocol-import-summary { margin-bottom:12px; border:1px solid var(--border); border-radius:var(--radius-lg); background:var(--surface); box-shadow:var(--shadow-sm); overflow:hidden; }
-.protocol-import-empty { display:grid; gap:3px; padding:12px 14px; }
-.protocol-import-empty strong { font-size:12px; }
-.protocol-import-empty span { color:var(--muted); font-size:11px; }
-.protocol-import-head { display:flex; align-items:center; justify-content:space-between; gap:12px; padding:11px 13px; border-bottom:1px solid var(--border); background:var(--surface-muted); }
-.protocol-import-head > div:first-child { display:grid; gap:2px; }
-.protocol-import-head strong { font-size:12px; }
-.protocol-import-head span { color:var(--muted); font-size:10px; }
-.protocol-import-counters { display:flex; flex-wrap:wrap; justify-content:flex-end; gap:5px; }
-.protocol-import-counters .protocol-counter { padding:4px 7px; border-radius:999px; color:var(--text); background:var(--surface-solid); font-size:10px; font-weight:700; }
-.protocol-counter.ready,.meeting-ready-badge { color:#18794e !important; background:rgba(48,209,88,.12) !important; }
-.protocol-counter.review,.meeting-review-badge,.agenda-review-label { color:#9a6700 !important; background:rgba(255,159,10,.14) !important; }
-.protocol-counter.failed { color:#b42318 !important; background:rgba(255,69,58,.12) !important; }
+.protocol-import-summary { margin-bottom:14px; border:1px solid var(--border); border-radius:var(--radius-lg); background:var(--surface); box-shadow:var(--shadow-sm); overflow:hidden; }
+.protocol-import-empty { display:grid; gap:4px; padding:16px 18px; }
+.protocol-import-empty strong { font-size:14px; }
+.protocol-import-empty span { color:var(--muted); font-size:13px; }
+.protocol-import-head { display:flex; align-items:center; justify-content:space-between; gap:14px; padding:12px 16px; border-bottom:1px solid var(--border); background:var(--surface-muted); }
+.protocol-import-head > div:first-child { display:grid; gap:3px; }
+.protocol-import-head strong { font-size:14px; font-weight:700; }
+.protocol-import-head span { color:var(--muted); font-size:12px; }
+.protocol-import-counters { display:flex; flex-wrap:wrap; justify-content:flex-end; gap:6px; }
+.protocol-import-counters .protocol-counter { padding:5px 10px; border-radius:999px; color:var(--text); background:var(--surface-solid); font-size:12px; font-weight:700; }
+.protocol-counter.ready,.meeting-ready-badge { color:#18794e !important; background:rgba(48,209,88,.14) !important; }
+.protocol-counter.review,.meeting-review-badge,.agenda-review-label { color:#9a6700 !important; background:rgba(255,159,10,.16) !important; }
+.protocol-counter.failed { color:#b42318 !important; background:rgba(255,69,58,.14) !important; }
 .protocol-counter.processing { color:var(--accent-strong) !important; background:var(--accent-soft) !important; }
-.protocol-import-list { display:grid; max-height:270px; overflow:auto; }
-.protocol-import-item { display:grid; grid-template-columns:108px minmax(0,1fr) auto; gap:11px; align-items:center; padding:10px 13px; border-bottom:1px solid var(--border); }
+.protocol-import-list { display:grid; max-height:300px; overflow:auto; }
+.protocol-import-item { display:grid; grid-template-columns:120px minmax(0,1fr) auto; gap:14px; align-items:center; padding:12px 16px; border-bottom:1px solid var(--border); transition:background .15s ease; }
+.protocol-import-item:hover { background:rgba(118,118,128,.04); }
 .protocol-import-item:last-child { border-bottom:0; }
-.protocol-import-item.state-needs_review { background:rgba(255,159,10,.045); }
-.protocol-import-item.state-failed { background:rgba(255,69,58,.04); }
-.protocol-import-state { width:max-content; padding:4px 7px; border-radius:999px; background:var(--surface-muted); color:var(--muted); font-size:9px; font-weight:750; }
-.state-ready .protocol-import-state { color:#18794e; background:rgba(48,209,88,.12); }
-.state-needs_review .protocol-import-state { color:#9a6700; background:rgba(255,159,10,.14); }
-.state-failed .protocol-import-state { color:#b42318; background:rgba(255,69,58,.12); }
+.protocol-import-item.state-needs_review { background:rgba(255,159,10,.05); }
+.protocol-import-item.state-failed { background:rgba(255,69,58,.05); }
+.protocol-import-state { width:max-content; padding:4px 9px; border-radius:999px; background:var(--surface-muted); color:var(--muted); font-size:11px; font-weight:750; text-align:center; }
+.state-ready .protocol-import-state { color:#18794e; background:rgba(48,209,88,.14); }
+.state-needs_review .protocol-import-state { color:#9a6700; background:rgba(255,159,10,.16); }
+.state-failed .protocol-import-state { color:#b42318; background:rgba(255,69,58,.14); }
 .state-processing .protocol-import-state,.state-uploading .protocol-import-state { color:var(--accent-strong); background:var(--accent-soft); }
-.protocol-import-main { display:grid; min-width:0; gap:2px; }
-.protocol-import-main strong { overflow:hidden; text-overflow:ellipsis; white-space:nowrap; font-size:11px; }
-.protocol-import-main span,.protocol-import-main small { overflow:hidden; color:var(--muted); text-overflow:ellipsis; white-space:nowrap; font-size:10px; }
-.protocol-import-actions { display:flex; align-items:center; justify-content:flex-end; gap:7px; }
-.link-button { border:0; padding:4px 2px; background:transparent; color:var(--accent-strong); font:inherit; font-size:10px; font-weight:700; text-decoration:none; cursor:pointer; }
-.link-button:hover { text-decoration:underline; }
-.meeting-review-badge,.meeting-ready-badge,.agenda-review-label { width:max-content; padding:3px 6px; border-radius:999px; font-size:9px !important; font-weight:750; }
+.protocol-import-main { display:grid; min-width:0; gap:3px; }
+.protocol-import-main strong { overflow:hidden; text-overflow:ellipsis; white-space:nowrap; font-size:13px; font-weight:650; }
+.protocol-import-main span { overflow:hidden; color:var(--text); text-overflow:ellipsis; white-space:nowrap; font-size:12px; }
+.protocol-import-main small { overflow:hidden; color:var(--muted); text-overflow:ellipsis; white-space:nowrap; font-size:12px; }
+.protocol-import-actions { display:flex; align-items:center; justify-content:flex-end; gap:8px; flex-wrap:wrap; }
+.link-button { border:1px solid var(--border); padding:5px 10px; border-radius:8px; background:var(--surface-solid); color:var(--accent-strong); font:inherit; font-size:12px; font-weight:650; text-decoration:none; cursor:pointer; transition:all .15s ease; }
+.link-button:hover { background:var(--accent-soft); border-color:var(--accent); text-decoration:none; }
+.meeting-review-badge,.meeting-ready-badge,.agenda-review-label { width:max-content; padding:4px 9px; border-radius:999px; font-size:11px !important; font-weight:750; }
 .meeting-card.needs-review { box-shadow:inset 3px 0 rgba(255,159,10,.7); }
-.meeting-review-summary { display:grid; grid-template-columns:minmax(0,1fr) auto; gap:9px 16px; align-items:center; margin:14px 0; padding:12px 13px; border:1px solid rgba(255,159,10,.35); border-radius:13px; background:rgba(255,159,10,.08); }
-.meeting-review-summary > div { display:grid; gap:2px; }
-.meeting-review-summary strong { font-size:12px; }
-.meeting-review-summary span { color:var(--muted); font-size:10px; }
-.meeting-review-summary ul { grid-column:1 / -1; display:flex; flex-wrap:wrap; gap:5px 16px; margin:0; padding:0; list-style:none; color:var(--text); font-size:10px; }
-.meeting-review-summary li::before { content:'•'; margin-right:5px; color:#9a6700; }
-.meeting-meta-strip a { color:var(--accent-strong); text-decoration:none; }
+.meeting-review-summary { display:grid; grid-template-columns:minmax(0,1fr) auto; gap:10px 18px; align-items:center; margin:14px 0; padding:14px 16px; border:1px solid rgba(255,159,10,.35); border-radius:14px; background:rgba(255,159,10,.08); }
+.meeting-review-summary > div { display:grid; gap:3px; }
+.meeting-review-summary strong { font-size:14px; font-weight:700; }
+.meeting-review-summary span { color:var(--muted); font-size:12px; }
+.meeting-review-summary ul { grid-column:1 / -1; display:flex; flex-wrap:wrap; gap:6px 18px; margin:0; padding:0; list-style:none; color:var(--text); font-size:12px; }
+.meeting-review-summary li::before { content:'•'; margin-right:6px; color:#9a6700; font-weight:bold; }
+.meeting-meta-strip a { color:var(--accent-strong); text-decoration:none; font-weight:600; }
 .meeting-meta-strip a:hover { text-decoration:underline; }
 .agenda-item.needs-review { border-color:rgba(255,159,10,.42); box-shadow:inset 3px 0 rgba(255,159,10,.7); }
 .agenda-review-label { display:inline-block; margin-top:4px; }
-.meeting-source-link { width:max-content; max-width:100%; color:var(--accent-strong); font-size:11px; font-weight:700; text-decoration:none; }
+.meeting-source-link { width:max-content; max-width:100%; color:var(--accent-strong); font-size:12px; font-weight:700; text-decoration:none; }
 .meeting-source-link:hover { text-decoration:underline; }
 @media (max-width:900px) {
-  .protocol-import-item { grid-template-columns:96px minmax(0,1fr); }
+  .protocol-import-item { grid-template-columns:100px minmax(0,1fr); }
   .protocol-import-actions { grid-column:2; justify-content:flex-start; }
 }
 @media (max-width:720px) {
   .meetings-heading-actions .meeting-year-field { flex:0 0 auto; }
   .protocol-import-head { align-items:flex-start; display:grid; }
   .protocol-import-counters { justify-content:flex-start; }
-  .protocol-import-item { grid-template-columns:1fr; gap:5px; }
+  .protocol-import-item { grid-template-columns:1fr; gap:6px; }
   .protocol-import-actions { grid-column:auto; justify-content:flex-start; }
   .protocol-import-main span,.protocol-import-main small { white-space:normal; }
   .meeting-review-summary { grid-template-columns:1fr; }

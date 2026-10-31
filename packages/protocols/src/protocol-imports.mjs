@@ -61,10 +61,11 @@ function materializedMeeting(database, workspaceId, versionId, extraction) {
 }
 
 function itemState(row, meeting, reviews) {
+  if (meeting && ['processed', 'needs_review'].includes(row.processing_status)) return reviews.length ? 'needs_review' : 'ready';
+  if (meeting && row.processing_status === 'failed') return reviews.length ? 'needs_review' : 'ready';
   if (row.processing_status === 'failed') return 'failed';
   if (['queued', 'extracting'].includes(row.processing_status)) return 'processing';
   if (reviews.length) return 'needs_review';
-  if (meeting && ['processed', 'needs_review'].includes(row.processing_status)) return 'ready';
   if (row.processing_status === 'needs_review') return 'needs_review';
   if (row.processing_status === 'processed') return 'needs_review';
   return 'processing';

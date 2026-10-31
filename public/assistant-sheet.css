@@ -837,7 +837,183 @@
   background: rgba(0, 122, 255, 0.08);
 }
 
-.assistant-step.completed {
+.assistant-presets-grid { display: contents; }
+.progress-p25 { width: 25% !important; }
+.progress-p50 { width: 50% !important; }
+.progress-p75 { width: 75% !important; }
+.progress-p90 { width: 90% !important; }
+.progress-p100 { width: 100% !important; }
+
+.assistant-prompt-accordion {
+  border: 1px solid var(--border, rgba(60,60,67,0.15));
+  border-radius: 9px;
+  background: var(--surface-muted, #f8f8fa);
+  overflow: hidden;
+  margin-top: 6px;
+}
+.assistant-prompt-summary {
+  padding: 8px 12px;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  user-select: none;
+  color: var(--muted, #666);
+}
+.assistant-prompt-summary:hover {
+  color: var(--text, #111);
+}
+.assistant-prompt-editor-body {
+  padding: 10px 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  border-top: 1px solid var(--border, rgba(60,60,67,0.12));
+  background: var(--surface, #ffffff);
+}
+.assistant-prompt-editor-body label {
+  font-size: 11.5px;
+  font-weight: 600;
+  color: var(--muted, #666);
+}
+.assistant-system-textarea {
+  width: 100%;
+  padding: 8px 10px;
+  border: 1px solid var(--border, rgba(60,60,67,0.18));
+  border-radius: 6px;
+  font-family: inherit;
+  font-size: 12px;
+  resize: vertical;
+  line-height: 1.4;
+}
+.assistant-prompt-inspector {
+  margin-top: 14px;
+  border: 1px solid var(--border, rgba(60,60,67,0.15));
+  border-radius: 10px;
+  background: var(--surface-muted, #f8f8fa);
+  overflow: hidden;
+}
+.assistant-inspector-summary {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 10px 14px;
+  font-size: 12.5px;
+  font-weight: 650;
+  cursor: pointer;
+  user-select: none;
+}
+.assistant-inspector-content {
+  padding: 12px 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  border-top: 1px solid var(--border, rgba(60,60,67,0.12));
+  background: var(--surface, #ffffff);
+}
+.assistant-inspector-block {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.assistant-inspector-block strong {
+  font-size: 11.5px;
+  color: var(--muted, #666);
+}
+.assistant-inspector-block pre {
+  margin: 0;
+  padding: 8px 10px;
+  border-radius: 6px;
+  background: rgba(118,118,128,.08);
+  font-size: 11.5px;
+  line-height: 1.4;
+  white-space: pre-wrap;
+  word-break: break-all;
+  max-height: 220px;
+  overflow-y: auto;
+}
+.assistant-inspector-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+.assistant-help-card {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  padding: 18px 20px;
+  border-radius: 12px;
+  background: var(--surface, #ffffff);
+  border: 1px solid var(--border, rgba(60,60,67,0.15));
+  box-shadow: 0 1px 3px rgba(0,0,0,0.05);
+}
+.assistant-help-section {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.assistant-help-section h4 {
+  margin: 0;
+  font-size: 13.5px;
+  font-weight: 650;
+  color: var(--accent-strong, #007aff);
+}
+.assistant-help-section p {
+  margin: 0;
+  font-size: 12.5px;
+  line-height: 1.5;
+  color: var(--text, #111);
+}
+.assistant-help-section code {
+  padding: 2px 6px;
+  border-radius: 5px;
+  background: rgba(118,118,128,.12);
+  font-size: 12px;
+}
+.assistant-custom-prompts-container {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+.assistant-custom-prompt-card {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 14px 16px;
+  border-radius: 10px;
+  border: 1px solid var(--border, rgba(60,60,67,0.15));
+  background: var(--surface, #ffffff);
+  transition: all .15s ease;
+}
+.assistant-custom-prompt-card:hover {
+  border-color: var(--accent, #007aff);
+}
+.assistant-custom-prompt-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+.assistant-custom-prompt-head strong {
+  font-size: 13.5px;
+  font-weight: 700;
+}
+.assistant-custom-prompt-tag {
+  padding: 2px 8px;
+  border-radius: 999px;
+  font-size: 11px;
+  font-weight: 650;
+  background: var(--accent-soft, rgba(0,122,255,.12));
+  color: var(--accent-strong, #007aff);
+}
+.assistant-custom-prompt-desc {
+  font-size: 12px;
+  color: var(--muted, #666);
+  line-height: 1.4;
+}
+.assistant-custom-prompt-actions {
+  display: flex;
+  gap: 8px;
+  justify-content: flex-end;
+}
   color: #248a3d;
   font-weight: 500;
 }

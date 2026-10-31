@@ -4,6 +4,7 @@ import {
   openEditMeetingModal,
   openSettingsModal,
   openSourceModal,
+  openAiAgendaModal,
   renderSources,
   templateOptions
 } from './meetings-modals.js';
@@ -13,6 +14,7 @@ export {
   openEditMeetingModal,
   openSettingsModal,
   openSourceModal,
+  openAiAgendaModal,
   renderSources,
   templateOptions
 };

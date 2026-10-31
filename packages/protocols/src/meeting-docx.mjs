@@ -151,6 +151,29 @@ export async function validateMeetingTemplateFile(templatePath) {
   return true;
 }
 
+function formatAgendaLine(pTemplate, line) {
+  const sectionMatch = /^(СЛУШАЛИ:|ОБСУДИЛИ:|ВЫСТУПИЛИ:|РЕШИЛИ:|ПОСТАНОВИЛИ:)(.*)$/u.exec(line);
+  if (sectionMatch) {
+    const kw = sectionMatch[1];
+    const rest = sectionMatch[2] || '';
+    const safeRest = rest.replaceAll('&', '&amp;').replaceAll('<', '&lt;').replaceAll('>', '&gt;');
+    const replacement = `<w:r><w:rPr><w:b/></w:rPr><w:t xml:space="preserve">${kw}</w:t></w:r><w:r><w:t xml:space="preserve">${safeRest}</w:t></w:r>`;
+    if (/<w:r\b[\s\S]*?<\/w:r>/u.test(pTemplate)) {
+      return pTemplate.replace(/<w:r\b[\s\S]*?<\/w:r>/u, replacement);
+    }
+  }
+  if (/^\d+\.\s+/u.test(line)) {
+    const safeLine = line.replaceAll('&', '&amp;').replaceAll('<', '&lt;').replaceAll('>', '&gt;');
+    const replacement = `<w:r><w:rPr><w:b/></w:rPr><w:t xml:space="preserve">${safeLine}</w:t></w:r>`;
+    if (/<w:r\b[\s\S]*?<\/w:r>/u.test(pTemplate)) {
+      return pTemplate.replace(/<w:r\b[\s\S]*?<\/w:r>/u, replacement);
+    }
+  }
+  const rendered = replaceVisibleText(pTemplate, '{{AGENDA}}', line);
+  if (!rendered.changed) fail('meeting_template_agenda_marker_required');
+  return rendered.xml;
+}
+
 function legacyMeetingDocumentXml(templateXml, model) {
   let xml = String(templateXml || '');
   for (const [marker, getter] of Object.entries(GLOBAL_MARKERS)) {
@@ -165,9 +188,7 @@ function legacyMeetingDocumentXml(templateXml, model) {
   const paragraphs = [];
   for (const item of model.items) {
     for (const line of agendaLines(item)) {
-      const rendered = replaceVisibleText(agendaParagraph.xml, '{{AGENDA}}', line);
-      if (!rendered.changed) fail('meeting_template_agenda_marker_required');
-      paragraphs.push(rendered.xml);
+      paragraphs.push(formatAgendaLine(agendaParagraph.xml, line));
     }
   }
   return replaceBodyChild(xml, agendaParagraph, paragraphs.join(''));
