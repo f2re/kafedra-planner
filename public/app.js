@@ -131,8 +131,13 @@ function setView(view) {
 
 window.kafedraSetView = setView;
 
-function setCalendarMode(mode) {
+function setCalendarMode(mode, force = false) {
   if (!['month', 'week', 'tasks'].includes(mode)) return;
+  const monthHidden = $('#month-view')?.classList.contains('hidden');
+  const expectedMonthHidden = mode !== 'month';
+  if (!force && state.calendarMode === mode && monthHidden === expectedMonthHidden) {
+    return;
+  }
   state.calendarMode = mode;
   localStorage.setItem('kafedra-calendar-mode', mode);
   $$('[data-calendar-mode]').forEach((button) => {

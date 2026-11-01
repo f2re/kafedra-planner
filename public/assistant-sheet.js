@@ -229,6 +229,7 @@ export function createAssistantSheet() {
         </div>
         <div class="assistant-settings-actions">
           <button id="assistant-settings-test-btn" class="secondary-button" type="button">Проверить связь</button>
+          <button id="assistant-settings-reindex-btn" class="secondary-button" type="button" title="Переиндексировать документы, протоколы и решения для ИИ">🔄 Индексация базы</button>
           <button id="assistant-settings-save-btn" class="primary-button" type="button">Сохранить</button>
         </div>
         <div id="assistant-settings-feedback" class="assistant-settings-feedback hidden"></div>
@@ -315,6 +316,38 @@ export function createAssistantSheet() {
     testBtn.addEventListener('click', handleTestConnection);
     saveBtn.addEventListener('click', handleSaveSettings);
     refreshModelsBtn.addEventListener('click', handleRefreshModels);
+
+    const reindexBtn = sheetEl.querySelector('#assistant-settings-reindex-btn');
+    if (reindexBtn) {
+      reindexBtn.addEventListener('click', async () => {
+        reindexBtn.disabled = true;
+        const originalText = reindexBtn.textContent;
+        reindexBtn.textContent = 'Индексация...';
+        const feedback = sheetEl.querySelector('#assistant-settings-feedback');
+        if (feedback) {
+          feedback.textContent = 'Выполняется переиндексация документов и заседаний...';
+          feedback.className = 'assistant-settings-feedback';
+          feedback.classList.remove('hidden');
+        }
+        try {
+          const resp = await fetch('/api/search/reindex', { method: 'POST' });
+          const data = await resp.json();
+          if (!resp.ok) throw new Error(data?.error?.message || 'Ошибка');
+          if (feedback) {
+            feedback.textContent = `База актуализирована: ${data.indexedCount || 0} фрагментов (протоколы: ${data.meetingsCount || 0}, документы: ${data.documentsCount || 0}, планы: ${data.plansCount || 0}).`;
+            feedback.className = 'assistant-settings-feedback success';
+          }
+        } catch (err) {
+          if (feedback) {
+            feedback.textContent = `Ошибка индексации: ${err.message}`;
+            feedback.className = 'assistant-settings-feedback error';
+          }
+        } finally {
+          reindexBtn.disabled = false;
+          reindexBtn.textContent = originalText;
+        }
+      });
+    }
 
     modelsSelect.addEventListener('change', () => {
       if (modelsSelect.value) {

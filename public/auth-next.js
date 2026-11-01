@@ -281,12 +281,33 @@ function showPasswordDialog(required = false) {
     .catch((error) => window.alert(error.message));
 }
 
+window.kafedraAuthReady = initializeAuth().catch((error) => {
+  showLogin(error.message, authState.payload || { authMode: 'pin', pinConfigured: true });
+  return { authEnabled: true, authenticated: false };
+});
+window.kafedraAuth = authState;
+
 window.fetch = async function authenticatedFetch(input, init = {}) {
-  const response = await authBaseFetch(input, requestWithCsrf(input, init));
   const url = new URL(
     input instanceof Request ? input.url : String(input),
     window.location.origin
   );
+  const method = String(
+    init.method || (input instanceof Request ? input.method : 'GET')
+  ).toUpperCase();
+  const isMutating = ['POST', 'PUT', 'DELETE', 'PATCH'].includes(method);
+
+  if (isMutating && url.origin === window.location.origin && !url.pathname.startsWith('/api/auth/')) {
+    if (window.kafedraAuthReady) {
+      try {
+        await window.kafedraAuthReady;
+      } catch {}
+    }
+  }
+
+  let finalInit = requestWithCsrf(input, init);
+  let response = await authBaseFetch(input, finalInit);
+
   if (
     response.status === 401
     && url.origin === window.location.origin
@@ -314,17 +335,28 @@ window.fetch = async function authenticatedFetch(input, init = {}) {
     const cloned = response.clone();
     const data = await cloned.json().catch(() => null);
     if (data?.error?.code === 'csrf_token_invalid') {
-      window.setTimeout(() => window.location.reload(), 50);
+      try {
+        const fresh = await authBaseFetch('/api/auth/me').then((r) => r.json());
+        if (fresh?.csrfToken && fresh.csrfToken !== authState.payload?.csrfToken) {
+          authState.payload = { ...(authState.payload || {}), ...fresh };
+          finalInit = requestWithCsrf(input, init);
+          const retried = await authBaseFetch(input, finalInit);
+          if (retried.ok) return retried;
+        }
+      } catch {}
+
+      const now = Date.now();
+      const lastReload = Number(sessionStorage.getItem('kafedra-csrf-reload-time') || 0);
+      if (now - lastReload > 15000) {
+        sessionStorage.setItem('kafedra-csrf-reload-time', String(now));
+        window.setTimeout(() => window.location.reload(), 150);
+      } else {
+        console.warn('Защитный токен CSRF недействителен, автоматическая перезагрузка заблокирована от цикла.');
+      }
     }
   }
   return response;
 };
-
-window.kafedraAuthReady = initializeAuth().catch((error) => {
-  showLogin(error.message, authState.payload || { authMode: 'pin', pinConfigured: true });
-  return { authEnabled: true, authenticated: false };
-});
-window.kafedraAuth = authState;
 
 async function submitAuthForm(form, path, payload, { clearPinOnError = false } = {}) {
   if (form.dataset.submitting === 'true') return false;

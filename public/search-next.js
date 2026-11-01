@@ -83,7 +83,10 @@ function ensureUi() {
           <label><span>Период</span><input name="period" placeholder="2026, 2026/27, семестр…"></label>
           <label><span>Отчёт</span><select name="report"><option value="">Не важно</option><option value="with">Есть отчёт</option><option value="without">Нет отчёта</option><option value="submitted">На проверке</option><option value="confirmed">Подтверждён</option></select></label>
         </div>
-        <div class="search-filter-actions"><button type="button" class="secondary-button" data-search-reset>Сбросить условия</button></div>
+        <div class="search-filter-actions">
+          <button type="button" class="secondary-button" data-search-reset>Сбросить условия</button>
+          <button type="button" class="secondary-button" data-search-reindex title="Переиндексировать документы, протоколы, планы и материалы">🔄 Переиндексировать всё</button>
+        </div>
       </details>
     </div>
   </form>`);
@@ -511,6 +514,32 @@ resetButton?.addEventListener('lostpointercapture', (event) => {
 });
 resetButton?.addEventListener('click', (event) => {
   if (event.detail === 0 || !window.PointerEvent) resetSearch();
+});
+
+document.addEventListener('click', async (event) => {
+  const reindexBtn = event.target.closest('[data-search-reindex]');
+  if (!reindexBtn) return;
+  reindexBtn.disabled = true;
+  const originalText = reindexBtn.textContent;
+  reindexBtn.textContent = 'Индексация…';
+  try {
+    const res = await fetch('/api/search/reindex', { method: 'POST' });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data?.error?.message || 'Ошибка переиндексации');
+    reindexBtn.textContent = `✔ Актуально (${data.indexedCount || 0})`;
+    performSearch();
+    setTimeout(() => {
+      reindexBtn.disabled = false;
+      reindexBtn.textContent = originalText;
+    }, 3000);
+  } catch (err) {
+    reindexBtn.textContent = 'Ошибка';
+    alert(`Не удалось переиндексировать: ${err.message}`);
+    setTimeout(() => {
+      reindexBtn.disabled = false;
+      reindexBtn.textContent = originalText;
+    }, 2000);
+  }
 });
 
 window.addEventListener('kafedra:view-changed', (event) => {

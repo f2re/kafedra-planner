@@ -20,6 +20,7 @@
     "backup:verify": "node scripts/backup-verify.mjs",
     "backup:restore": "node scripts/backup-restore.mjs",
     "backup:selftest": "node scripts/backup-selftest.mjs",
+    "search:reindex": "node scripts/reindex-search.mjs",
     "preflight": "node scripts/system-preflight.mjs",
     "design:check": "node scripts/design-governance.mjs",
     "check": "node scripts/check.mjs && node scripts/design-governance.mjs",

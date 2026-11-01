@@ -6,6 +6,7 @@ import { AppError } from '../../../packages/core/src/errors.mjs';
 import { canReadSearchResult } from '../../../packages/access-control/src/service.mjs';
 import { resolvePlanAccess, resolvePlanItemAccess } from '../../../packages/plans/src/access.mjs';
 import { buildSearchFacets, searchFaceted } from '../../../packages/storage/src/faceted-search.mjs';
+import { rebuildSearchIndex } from '../../../packages/storage/src/search.mjs';
 import { sendJson } from './http-utils.mjs';
 
 function workspaceId(database, request) {
@@ -108,6 +109,17 @@ export function routeForSearchResult(database, workspace, item) {
 export function createSearchRouter({ database, config = {} }) {
   const assistant = createSearchAssistant({ config });
   return async function routeSearch(request, response, url) {
+    if (request.method === 'POST' && url.pathname === '/api/search/reindex') {
+      const workspace = workspaceId(database, request);
+      if (!workspace) throw new AppError('workspace_not_initialized', 'Рабочее пространство не создано.', 500);
+      const result = rebuildSearchIndex(database, workspace);
+      sendJson(response, 200, {
+        ok: true,
+        message: 'Поисковый индекс полностью перестроен',
+        ...result
+      });
+      return true;
+    }
     if ((request.method || 'GET') !== 'GET' || url.pathname !== '/api/search') return false;
     const workspace = workspaceId(database, request);
     if (!workspace) throw new AppError('workspace_not_initialized', 'Рабочее пространство не создано.', 500);
