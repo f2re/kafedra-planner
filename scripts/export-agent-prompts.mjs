@@ -100,12 +100,25 @@ set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "\${BASH_SOURCE[0]}")" && pwd)"
 ENDPOINT="\${LLM_ENDPOINT:-http://127.0.0.1:8081}"
+EMBED_ENDPOINT="\${EMBED_ENDPOINT:-http://127.0.0.1:8082}"
 MODEL="\${LLM_MODEL:-department-assistant}"
-AGENTS_FILE="\${AGENTS_FILE:-\$SCRIPT_DIR/department-agents.json}"
 
-if [[ ! -f "$AGENTS_FILE" ]]; then
-  echo "ОШИБКА: Манифест агентов не найден: \$AGENTS_FILE" >&2
-  exit 1
+# Поиск манифеста агентов по стандартным путям
+AGENTS_FILE="\${AGENTS_FILE:-}"
+if [[ -z "\$AGENTS_FILE" ]]; then
+  for candidate in \\
+    "\$SCRIPT_DIR/department-agents.json" \\
+    "/etc/local-llm/agents/department-agents.json" \\
+    "/opt/local-llm/current/agents/department-agents.json" \\
+    "/usr/local/share/kafedra-planner/department-agents.json" \\
+    "/usr/local/bin/department-agents.json" \\
+    "/tmp/local-llm-patch-kafedra-agents/department-agents.json" \\
+    "\$SCRIPT_DIR/agents/department-agents.json"; do
+    if [[ -f "\$candidate" ]]; then
+      AGENTS_FILE="\$candidate"
+      break
+    fi
+  done
 fi
 
 JSON_RUNNER=""
@@ -118,8 +131,42 @@ else
   exit 1
 fi
 
+test_embeddings() {
+  echo "=========================================================="
+  echo "Тестирование векторных эмбеддингов (RAG BGE-M3)"
+  echo "Эндпоинт: \$EMBED_ENDPOINT/v1/embeddings"
+  echo "=========================================================="
+  local payload='{"input":"Заседание кафедры №3 от 15 октября 2026 года","model":"text-embedding"}'
+  local resp=""
+  if resp=\$(curl -s -f -X POST "\$EMBED_ENDPOINT/v1/embeddings" \\
+       -H "Content-Type: application/json" \\
+       -d "\$payload" 2>/dev/null); then
+    echo "✓ Ответ сервера эмбеддингов получен:"
+    echo "\$resp" | head -c 200
+    echo ""
+    echo "✓ Векторная служба BGE-M3 работает корректно!"
+    return 0
+  else
+    echo "✗ Не удалось подключиться к службе эмбеддингов \$EMBED_ENDPOINT/v1/embeddings" >&2
+    echo "  Убедитесь, что служба запущена: systemctl status local-llm-embeddings.service" >&2
+    return 1
+  fi
+}
+
+ensure_agents_file() {
+  if [[ -z "\$AGENTS_FILE" || ! -f "\$AGENTS_FILE" ]]; then
+    echo "ОШИБКА: Манифест агентов не найден в стандартных каталогах:" >&2
+    echo "  - /etc/local-llm/agents/department-agents.json" >&2
+    echo "  - /opt/local-llm/current/agents/department-agents.json" >&2
+    echo "  - \$SCRIPT_DIR/department-agents.json" >&2
+    echo "Укажите путь вручную через переменную окружения AGENTS_FILE." >&2
+    exit 1
+  fi
+}
+
 list_agents() {
-  echo "Доступные агенты Кафедры в манифесте:"
+  ensure_agents_file
+  echo "Доступные агенты Кафедры в манифесте (\$AGENTS_FILE):"
   if [[ "$JSON_RUNNER" == "python3" ]]; then
     python3 -c "
 import json
@@ -137,6 +184,7 @@ d.agents.forEach(a => console.log('  • ' + a.id.padEnd(20) + ' - ' + (a.role||
 }
 
 run_agent_test() {
+  ensure_agents_file
   local agent_id="$1"
   echo "=========================================================="
   echo "Тестирование агента кафедры: \$agent_id"
@@ -292,19 +340,25 @@ try {
 
 case "\${1:-protocol-analysis}" in
   -h|--help)
-    echo "Использование: \$0 [AGENT_ID | --list | --all]"
+    echo "Использование: \$0 [AGENT_ID | --list | --all | --embeddings]"
     echo ""
     echo "Переменные окружения:"
     echo "  LLM_ENDPOINT   URL сервера (по умолчанию: http://127.0.0.1:8081)"
+    echo "  EMBED_ENDPOINT URL сервера эмбеддингов (по умолчанию: http://127.0.0.1:8082)"
     echo "  LLM_MODEL      Имя модели или alias (по умолчанию: department-assistant)"
     echo "  AGENTS_FILE    Путь к department-agents.json"
     exit 0
+    ;;
+  --embeddings)
+    test_embeddings
+    exit \$?
     ;;
   --list)
     list_agents
     exit 0
     ;;
   --all)
+    ensure_agents_file
     echo "Запуск тестирования всех агентов..."
     agents_list=()
     if [[ "\$JSON_RUNNER" == "python3" ]]; then
