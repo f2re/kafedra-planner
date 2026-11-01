@@ -1,7 +1,18 @@
 import { AppError } from '../../../packages/core/src/errors.mjs';
 import { newId } from '../../../packages/core/src/ids.mjs';
 import { createAssistantEngine } from '../../../packages/ai/src/assistant-tasks.mjs';
-import { loadLlmSettings, saveLlmSettings, testLlmConnection } from '../../../packages/ai/src/llm-config-store.mjs';
+import {
+  loadLlmSettings,
+  saveLlmSettings,
+  testLlmConnection,
+  loadCustomPrompts,
+  saveSingleCustomPrompt,
+  deleteCustomPrompt,
+  toggleFavoritePrompt,
+  installPromptPack,
+  DEFAULT_PROMPTS_PACK
+} from '../../../packages/ai/src/llm-config-store.mjs';
+import { buildDocumentSemanticGraph, searchAllDocumentEntities } from '../../../packages/storage/src/document-graph.mjs';
 import { searchFaceted } from '../../../packages/storage/src/faceted-search.mjs';
 import { ensureSearchIndexUpToDate } from '../../../packages/storage/src/search.mjs';
 import { canReadSearchResult } from '../../../packages/access-control/src/service.mjs';
@@ -707,6 +718,248 @@ export function createAssistantRouter({ database, config, logger, engine: custom
         if (ok) resolvedCount++;
       }
       sendJson(response, 200, { ok: true, resolvedCount });
+      return true;
+    }
+
+    // --- PROMPTS SYSTEM & SYNC ---
+    if (url.pathname === '/api/assistant/prompts' && request.method === 'GET') {
+      const prompts = loadCustomPrompts(config?.dataDir);
+      sendJson(response, 200, { ok: true, prompts, defaultCount: DEFAULT_PROMPTS_PACK.length });
+      return true;
+    }
+
+    if (url.pathname === '/api/assistant/prompts' && request.method === 'POST') {
+      const body = await readJson(request);
+      const saved = saveSingleCustomPrompt(config?.dataDir, body);
+      sendJson(response, 200, { ok: true, prompt: saved });
+      return true;
+    }
+
+    if (url.pathname === '/api/assistant/prompts/toggle-favorite' && request.method === 'POST') {
+      const body = await readJson(request);
+      const updated = toggleFavoritePrompt(config?.dataDir, body?.id);
+      sendJson(response, 200, { ok: Boolean(updated), prompt: updated });
+      return true;
+    }
+
+    if (url.pathname.startsWith('/api/assistant/prompts/') && request.method === 'DELETE') {
+      const id = url.pathname.slice('/api/assistant/prompts/'.length);
+      deleteCustomPrompt(config?.dataDir, id);
+      sendJson(response, 200, { ok: true, id });
+      return true;
+    }
+
+    if (url.pathname === '/api/assistant/prompts/install' && request.method === 'POST') {
+      const body = await readJson(request);
+      const res = installPromptPack(config?.dataDir, body);
+      sendJson(response, 200, { ok: true, ...res });
+      return true;
+    }
+
+    // --- DOCUMENT SEMANTIC GRAPH & GLOBAL ENTITY SEARCH ---
+    if ((url.pathname === '/api/documents/graph' || url.pathname === '/api/assistant/document-graph') && request.method === 'GET') {
+      const workspace = workspaceOf(database, request);
+      const graph = buildDocumentSemanticGraph(database, workspace.id, {
+        query: url.searchParams.get('query') || url.searchParams.get('q') || '',
+        type: url.searchParams.get('type') || '',
+        focusId: url.searchParams.get('focusId') || '',
+        limit: Number(url.searchParams.get('limit') || 150)
+      });
+      sendJson(response, 200, graph);
+      return true;
+    }
+
+    if ((url.pathname === '/api/documents/search-all' || url.pathname === '/api/assistant/search-all') && request.method === 'GET') {
+      const workspace = workspaceOf(database, request);
+      const q = url.searchParams.get('query') || url.searchParams.get('q') || '';
+      const results = searchAllDocumentEntities(database, workspace.id, q, Number(url.searchParams.get('limit') || 30));
+      sendJson(response, 200, { ok: true, results });
+      return true;
+    }
+
+    // --- TEMPLATE PARSING & VARIABLE EXTRACTION VIA LLM ---
+    if (url.pathname === '/api/assistant/template-analyze' && request.method === 'POST') {
+      const body = await readJson(request);
+      const workspace = workspaceOf(database, request);
+      let documentText = String(body.text || '').trim();
+
+      if (!documentText && body.meetingId) {
+        const meeting = database.get('SELECT * FROM meetings WHERE workspace_id = ? AND id = ?', workspace.id, body.meetingId);
+        if (meeting) {
+          const agenda = database.all('SELECT * FROM agenda_items WHERE meeting_id = ? ORDER BY item_no', meeting.id);
+          const lines = [
+            `ПРОТОКОЛ № ${meeting.protocol_number || '1'} заседания кафедры от ${meeting.meeting_date || '2026-10-15'}.`,
+            `Председатель: ${meeting.chairperson_raw || 'Зав. кафедрой'}.`,
+            `Секретарь: ${meeting.secretary_raw || 'Секретарь кафедры'}.`,
+            meeting.quorum_required ? `Кворум: ${meeting.quorum_required}.` : '',
+            'Повестка дня:'
+          ];
+          agenda.forEach((a, idx) => {
+            lines.push(`${idx + 1}. ${a.title}`);
+            if (a.heard_text) lines.push(`СЛУШАЛИ: ${a.heard_text}`);
+            if (a.discussed_text) lines.push(`ОБСУДИЛИ: ${a.discussed_text}`);
+            if (a.decision_text) lines.push(`ПОСТАНОВИЛИ: ${a.decision_text}`);
+          });
+          documentText = lines.filter(Boolean).join('\n');
+        }
+      } else if (!documentText && body.documentId) {
+        const doc = database.get('SELECT current_version_id, title FROM documents WHERE workspace_id = ? AND id = ?', workspace.id, body.documentId);
+        if (doc?.current_version_id) {
+          const ver = database.get('SELECT extracted_text FROM document_versions WHERE id = ?', doc.current_version_id);
+          documentText = ver?.extracted_text || doc.title || '';
+        }
+      }
+
+      if (!documentText) {
+        documentText = 'ПРОТОКОЛ № 1 заседания кафедры от 15.10.2026.\nПредседатель: проф. Иванов И.И.\nСекретарь: доц. Петрова А.С.\nКворум: 18 из 20 членов кафедры.\nПовестка дня:\n1. О распределении учебной нагрузки на весенний семестр.\nСЛУШАЛИ: зав. кафедрой о плане часов.\nПОСТАНОВИЛИ: нагрузку утвердить.';
+      }
+
+      if (engine.enabled) {
+        try {
+          const aiRes = await engine.process({
+            task: 'template-analyze',
+            text: documentText,
+            customSystemPrompt: body.customSystemPrompt
+          });
+          if (aiRes.status === 'completed' && aiRes.result?.fields?.length) {
+            sendJson(response, 200, {
+              ok: true,
+              status: 'completed',
+              summary: aiRes.result.summary,
+              fields: aiRes.result.fields,
+              templateRecommendation: aiRes.result.templateRecommendation,
+              prompt: aiRes.prompt,
+              rawResponse: aiRes.rawResponse,
+              durationMs: aiRes.durationMs
+            });
+            return true;
+          }
+        } catch (err) {
+          if (logger) logger.warn('template-analyze ai failed, using fallback', { error: err.message });
+        }
+      }
+
+      // Offline deterministic heuristic fallback
+      const fallbackFields = [];
+      const numMatch = /(?:протокол\s*№|№)\s*([\p{L}\p{N}./-]+)/iu.exec(documentText);
+      if (numMatch) {
+        fallbackFields.push({
+          key: 'protocol_number',
+          label: 'Номер протокола',
+          sampleValue: numMatch[1],
+          suggestedMarker: '{{PROTOCOL_NUMBER}}',
+          scope: 'document',
+          isRepeating: false,
+          confidence: 0.95,
+          reason: 'Номер в заголовке протокола'
+        });
+      }
+
+      const dateMatch = /(?:дата|от)\s*:?\s*([0-3]?\d(?:[.\s-]+)[^\n]{3,30})/iu.exec(documentText);
+      if (dateMatch) {
+        fallbackFields.push({
+          key: 'meeting_date',
+          label: 'Дата заседания',
+          sampleValue: dateMatch[1].trim(),
+          suggestedMarker: '{{MEETING_DATE}}',
+          scope: 'document',
+          isRepeating: false,
+          confidence: 0.92,
+          reason: 'Дата проведения заседания'
+        });
+      }
+
+      const chairMatch = /председатель\s*:?\s*([^\n,.]+)/iu.exec(documentText);
+      if (chairMatch) {
+        fallbackFields.push({
+          key: 'chairperson',
+          label: 'Председатель',
+          sampleValue: chairMatch[1].trim(),
+          suggestedMarker: '{{CHAIRPERSON}}',
+          scope: 'document',
+          isRepeating: false,
+          confidence: 0.94,
+          reason: 'ФИО председателя заседания'
+        });
+      }
+
+      const secMatch = /секретар[ьия]\s*:?\s*([^\n,.]+)/iu.exec(documentText);
+      if (secMatch) {
+        fallbackFields.push({
+          key: 'secretary',
+          label: 'Секретарь',
+          sampleValue: secMatch[1].trim(),
+          suggestedMarker: '{{SECRETARY}}',
+          scope: 'document',
+          isRepeating: false,
+          confidence: 0.94,
+          reason: 'ФИО секретаря заседания'
+        });
+      }
+
+      const quorumMatch = /кворум\s*:?\s*([^\n.]+)/iu.exec(documentText);
+      if (quorumMatch) {
+        fallbackFields.push({
+          key: 'quorum',
+          label: 'Кворум',
+          sampleValue: quorumMatch[1].trim(),
+          suggestedMarker: '{{QUORUM}}',
+          scope: 'document',
+          isRepeating: false,
+          confidence: 0.90,
+          reason: 'Данные о явке и кворуме'
+        });
+      }
+
+      // Agenda repeating fields
+      fallbackFields.push({
+        key: 'item_no',
+        label: 'Номер вопроса повестки',
+        sampleValue: '1',
+        suggestedMarker: '{{ITEM_NO}}',
+        scope: 'agenda',
+        isRepeating: true,
+        confidence: 0.95,
+        reason: 'Порядковый номер вопроса'
+      });
+      fallbackFields.push({
+        key: 'title',
+        label: 'Наименование вопроса',
+        sampleValue: 'О распределении учебной нагрузки',
+        suggestedMarker: '{{AGENDA_TITLE}}',
+        scope: 'agenda',
+        isRepeating: true,
+        confidence: 0.95,
+        reason: 'Заголовок вопроса повестки'
+      });
+      fallbackFields.push({
+        key: 'heard',
+        label: 'Слушали (докладчик и тезисы)',
+        sampleValue: 'Заслушано сообщение о плане часов',
+        suggestedMarker: '{{HEARD}}',
+        scope: 'agenda',
+        isRepeating: true,
+        confidence: 0.93,
+        reason: 'Текст раздела «СЛУШАЛИ»'
+      });
+      fallbackFields.push({
+        key: 'decision',
+        label: 'Постановили / Решили',
+        sampleValue: 'Нагрузку утвердить и передать в деканат',
+        suggestedMarker: '{{DECISION}}',
+        scope: 'agenda',
+        isRepeating: true,
+        confidence: 0.95,
+        reason: 'Текст принятого постановления кафедры'
+      });
+
+      sendJson(response, 200, {
+        ok: true,
+        status: 'fallback',
+        summary: 'Выявлены 9 стандартных полей документа (общие реквизиты и повторяющийся блок повестки)',
+        fields: fallbackFields,
+        templateRecommendation: 'Рекомендуется использовать полужирные заголовки {{ITEM_NO}}. {{AGENDA_TITLE}} и блоки СЛУШАЛИ / ПОСТАНОВИЛИ по ГОСТ Р 7.0.97-2016.'
+      });
       return true;
     }
 

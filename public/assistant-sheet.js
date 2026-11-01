@@ -19,6 +19,11 @@ const PRESETS = {
     { label: '🎓 Утверждение тем ВКР', text: 'Заседание кафедры № 2 от 25.09.2026.\nПредседатель: проф. Иванов И.И. Секретарь: доц. Смирнова Е.А.\nПовестка: утверждение тем выпускных квалификационных работ специалистов и бакалавров.\nПОСТАНОВИЛИ:\nУтвердить темы ВКР согласно приложению. Научным руководителям выдать индивидуальные задания обучающимся до 10.10.2026.' },
     { label: '🔬 Аттестация аспирантов', text: 'СЛУШАЛИ: об итогах промежуточной аттестации аспирантов очной формы обучения за 2025/2026 уч. год.\nПОСТАНОВИЛИ:\nАттестовать аспиранта Смирнова А.В. Срок сдачи кандидатского минимума по специальности — 15 мая 2027 г.' }
   ],
+  'template-analyze': [
+    { label: '🏛️ Протокол заседания кафедры', text: 'ПРОТОКОЛ № 4 заседания кафедры от 15.10.2026.\nПредседатель: проф. Иванов И.И.\nСекретарь: доц. Петрова А.С.\nКворум: 18 из 20 членов кафедры.\nПовестка дня:\n1. О распределении учебной нагрузки на весенний семестр.\nСЛУШАЛИ: зав. кафедрой о плане часов.\nВЫСТУПИЛИ: доц. Сидоров.\nПОСТАНОВИЛИ: нагрузку утвердить.\n2. Об утверждении тем ВКР бакалавров.\nСЛУШАЛИ: доц. Петрову о темах студентов.\nПОСТАНОВИЛИ: темы утвердить, назначить руководителей.' },
+    { label: '📄 Выписка по ВКР студента', text: 'ВЫПИСКА ИЗ ПРОТОКОЛА № 3 заседания кафедры от 20.09.2026.\nСЛУШАЛИ: Об утверждении темы выпускной квалификационной работы студента группы 521 Иванова И.И. «Разработка веб-системы планирования».\nПОСТАНОВИЛИ: Тему утвердить, научным руководителем назначить доцента Смирнова А.А.' },
+    { label: '📜 Распоряжение по кафедре', text: 'РАСПОРЯЖЕНИЕ № 12 по кафедре информационных систем от 05.10.2026.\nО подготовке к зимней экзаменационной сессии.\n1. Преподавателям подготовить экзаменационные билеты до 01.12.2026.\n2. Контроль возложить на зам. зав. кафедрой доц. Сидорова В.В.' }
+  ],
   'report-synthesis': [
     { label: '📊 Отчёт по НИР за семестр', text: 'Подготовить раздел отчёта кафедры по научно-исследовательской работе за осенний семестр 2026 года: рассмотренные статьи и публикации ВАК/РИНЦ, поданные заявки на гранты и утверждённые темы исследований.' },
     { label: '📚 Учебно-методическая работа', text: 'Сформировать официальный раздел отчёта по учебно-методической работе кафедры: переработка РПД, подготовка методических указаний к лабораторным работам и проведение открытых лекций.' },
@@ -235,8 +240,10 @@ export function createAssistantSheet() {
         <nav class="assistant-modes" role="tablist" aria-label="Режимы ассистента">
           <button class="assistant-mode-tab active" type="button" data-mode="table-extract">Таблицы</button>
           <button class="assistant-mode-tab" type="button" data-mode="protocol-analysis">Разбор протокола</button>
+          <button class="assistant-mode-tab" type="button" data-mode="template-analyze">Анализ шаблонов</button>
           <button class="assistant-mode-tab" type="button" data-mode="report-synthesis">Составление отчёта</button>
           <button class="assistant-mode-tab" type="button" data-mode="archive-query">Поиск в архиве</button>
+          <button class="assistant-mode-tab" type="button" data-mode="document-graph">Смысловой граф</button>
           <button class="assistant-mode-tab" type="button" data-mode="gap-repair">Пропуски и ошибки</button>
           <button class="assistant-mode-tab" type="button" data-mode="compliance-check">Подсказки к тексту</button>
           <button class="assistant-mode-tab" type="button" data-mode="formula-calc">Формулы Calc</button>
@@ -513,7 +520,8 @@ export function createAssistantSheet() {
     const isHistory = mode === 'history';
     const isCustomPrompts = mode === 'custom-prompts';
     const isSearchHelp = mode === 'search-help';
-    const isSpecialView = isHistory || isCustomPrompts || isSearchHelp;
+    const isDocumentGraph = mode === 'document-graph';
+    const isSpecialView = isHistory || isCustomPrompts || isSearchHelp || isDocumentGraph;
     sheetEl.querySelector('#assistant-presets-wrap').classList.toggle('hidden', isSpecialView);
     sheetEl.querySelector('.assistant-input-card').classList.toggle('hidden', isSpecialView);
     sheetEl.querySelector('#assistant-prompt-accordion')?.classList.toggle('hidden', isSpecialView);
@@ -525,6 +533,8 @@ export function createAssistantSheet() {
       renderCustomPromptsView();
     } else if (isSearchHelp) {
       renderSearchHelpView();
+    } else if (isDocumentGraph) {
+      renderDocumentGraphView();
     } else {
       updatePlaceholder();
       renderPresets();
@@ -540,6 +550,8 @@ export function createAssistantSheet() {
       textareaEl.placeholder = 'Вставьте неформатированный текст (поручения, список статей, учебную нагрузку)...';
     } else if (currentMode === 'protocol-analysis') {
       textareaEl.placeholder = 'Вставьте текст или черновик протокола заседания (СЛУШАЛИ / ПОСТАНОВИЛИ)...';
+    } else if (currentMode === 'template-analyze') {
+      textareaEl.placeholder = 'Вставьте текст протокола, выписки или распоряжения для ИИ-поиска заменяемых полей и переменных...';
     } else if (currentMode === 'report-synthesis') {
       textareaEl.placeholder = 'Опишите тему отчёта (НИР, УМР, кадры, сессия) или перечислите факты для синтеза раздела...';
     } else if (currentMode === 'archive-query') {
@@ -706,13 +718,14 @@ export function createAssistantSheet() {
 
     try {
       const customSystemPrompt = sheetEl.querySelector('#assistant-custom-system-prompt')?.value?.trim() || undefined;
+      const isTextTask = ['table-extract', 'gap-repair', 'template-analyze'].includes(currentMode);
       const resp = await fetch('/api/assistant/process', {
         method: 'POST',
         headers: { 'content-type': 'application/json' },
         body: JSON.stringify({
           task: currentMode,
-          text: (currentMode === 'table-extract' || currentMode === 'gap-repair') ? text : undefined,
-          query: (currentMode !== 'table-extract' && currentMode !== 'gap-repair') ? text : undefined,
+          text: isTextTask ? text : undefined,
+          query: !isTextTask ? text : undefined,
           customSystemPrompt
         }),
         signal: abortController.signal
@@ -812,6 +825,8 @@ export function createAssistantSheet() {
       renderComplianceCheckResult(result);
     } else if (result.type === 'search-refine') {
       renderSearchRefineResult(result);
+    } else if (result.type === 'template-analyze') {
+      renderTemplateAnalyzeResult(result);
     }
     if (meta && (meta.prompt || meta.rawResponse)) {
       renderInspectorCard(meta);
@@ -904,25 +919,123 @@ export function createAssistantSheet() {
     }
   ];
 
-  function getCustomPrompts() {
+  let customPromptsCache = null;
+  let promptActiveFilter = 'all';
+  let promptSearchQuery = '';
+
+  async function fetchPromptsList() {
+    try {
+      const resp = await fetch('/api/assistant/prompts');
+      if (resp.ok) {
+        const data = await resp.json();
+        if (data.prompts && Array.isArray(data.prompts)) {
+          customPromptsCache = data.prompts;
+          return customPromptsCache;
+        }
+      }
+    } catch {}
     try {
       const saved = JSON.parse(localStorage.getItem(CUSTOM_PROMPTS_KEY) || '[]');
-      return [...DEFAULT_CUSTOM_PROMPTS, ...saved];
+      customPromptsCache = [...DEFAULT_CUSTOM_PROMPTS, ...saved];
     } catch {
-      return DEFAULT_CUSTOM_PROMPTS;
+      customPromptsCache = [...DEFAULT_CUSTOM_PROMPTS];
+    }
+    return customPromptsCache;
+  }
+
+  function getCustomPrompts() {
+    return customPromptsCache || DEFAULT_CUSTOM_PROMPTS;
+  }
+
+  async function savePromptItem(item) {
+    try {
+      const resp = await fetch('/api/assistant/prompts', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify(item)
+      });
+      if (resp.ok) {
+        const data = await resp.json();
+        await fetchPromptsList();
+        return data.prompt;
+      }
+    } catch {}
+    const id = item.id || `user_${Date.now()}`;
+    const saved = JSON.parse(localStorage.getItem(CUSTOM_PROMPTS_KEY) || '[]');
+    const idx = saved.findIndex((p) => p.id === id);
+    const full = { ...item, id };
+    if (idx >= 0) saved[idx] = full;
+    else saved.unshift(full);
+    localStorage.setItem(CUSTOM_PROMPTS_KEY, JSON.stringify(saved));
+    await fetchPromptsList();
+    return full;
+  }
+
+  async function deletePromptItem(id) {
+    try {
+      await fetch(`/api/assistant/prompts/${encodeURIComponent(id)}`, { method: 'DELETE' });
+    } catch {}
+    try {
+      const saved = JSON.parse(localStorage.getItem(CUSTOM_PROMPTS_KEY) || '[]');
+      const filtered = saved.filter((p) => p.id !== id);
+      localStorage.setItem(CUSTOM_PROMPTS_KEY, JSON.stringify(filtered));
+    } catch {}
+    await fetchPromptsList();
+  }
+
+  async function togglePromptStar(id) {
+    try {
+      const resp = await fetch('/api/assistant/prompts/toggle-favorite', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ id })
+      });
+      if (resp.ok) {
+        await fetchPromptsList();
+        return;
+      }
+    } catch {}
+    if (customPromptsCache) {
+      const item = customPromptsCache.find((p) => p.id === id);
+      if (item) {
+        item.isFavorite = !item.isFavorite;
+        try {
+          const saved = JSON.parse(localStorage.getItem(CUSTOM_PROMPTS_KEY) || '[]');
+          const s = saved.find((p) => p.id === id);
+          if (s) s.isFavorite = item.isFavorite;
+          else saved.push({ ...item });
+          localStorage.setItem(CUSTOM_PROMPTS_KEY, JSON.stringify(saved));
+        } catch {}
+      }
     }
   }
 
-  function saveCustomPrompt(item) {
+  async function installPromptPack(pack) {
     try {
-      const saved = JSON.parse(localStorage.getItem(CUSTOM_PROMPTS_KEY) || '[]');
-      saved.unshift({ ...item, id: `user_${Date.now()}` });
-      localStorage.setItem(CUSTOM_PROMPTS_KEY, JSON.stringify(saved));
+      const resp = await fetch('/api/assistant/prompts/install', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ pack })
+      });
+      if (resp.ok) {
+        const data = await resp.json();
+        await fetchPromptsList();
+        return data;
+      }
     } catch {}
+    const saved = JSON.parse(localStorage.getItem(CUSTOM_PROMPTS_KEY) || '[]');
+    const incoming = Array.isArray(pack) ? pack : pack?.prompts || [];
+    const merged = [...incoming, ...saved];
+    localStorage.setItem(CUSTOM_PROMPTS_KEY, JSON.stringify(merged));
+    await fetchPromptsList();
+    return { success: true, installed: incoming.length };
   }
 
-  function renderCustomPromptsView() {
+  async function renderCustomPromptsView() {
     resultsContainerEl.classList.remove('hidden');
+    resultsContainerEl.innerHTML = '<div class="helper" style="padding: 24px; text-align: center;">Загрузка шаблонов промптов...</div>';
+    await fetchPromptsList();
+
     resultsContainerEl.innerHTML = '';
     const container = document.createElement('div');
     container.className = 'assistant-custom-prompts-container';
@@ -930,55 +1043,978 @@ export function createAssistantSheet() {
     const header = document.createElement('div');
     header.className = 'assistant-history-header';
     header.innerHTML = `
-      <div><strong>Шаблоны промптов</strong><span>Библиотека готовых кафедральных запросов и свои шаблоны</span></div>
-      <button type="button" class="secondary-button" id="ast-add-prompt-btn">＋ Свой шаблон</button>
+      <div>
+        <strong>Библиотека промптов кафедры</strong>
+        <span>Готовые кафедральные шаблоны, избранное и персональные инструкции</span>
+      </div>
     `;
     container.append(header);
 
-    const prompts = getCustomPrompts();
-    const list = document.createElement('div');
-    list.className = 'assistant-custom-prompts-list';
+    const toolbar = document.createElement('div');
+    toolbar.className = 'assistant-prompt-toolbar';
 
-    prompts.forEach((p) => {
-      const card = document.createElement('div');
-      card.className = 'assistant-custom-prompt-card';
-      card.innerHTML = `
-        <div class="assistant-custom-prompt-head">
-          <strong>${escapeHtml(p.title)}</strong>
-          <span class="assistant-custom-prompt-tag">${escapeHtml(p.tag || 'Общий')}</span>
+    const searchWrap = document.createElement('div');
+    searchWrap.className = 'assistant-prompt-search-wrap';
+    const searchInput = document.createElement('input');
+    searchInput.type = 'text';
+    searchInput.className = 'assistant-prompt-search';
+    searchInput.placeholder = '🔍 Поиск по шаблонам (название, описание, текст, тег)...';
+    searchInput.value = promptSearchQuery;
+    searchInput.addEventListener('input', (e) => {
+      promptSearchQuery = e.target.value.toLowerCase().trim();
+      updateFilteredCards();
+    });
+    searchWrap.append(searchInput);
+    toolbar.append(searchWrap);
+
+    const filtersRow = document.createElement('div');
+    filtersRow.className = 'assistant-prompt-filters';
+
+    const standardTags = ['Заседания', 'Документы', 'Отчёты', 'Поиск', 'Формулы'];
+    const filterDefs = [
+      { id: 'all', label: 'Все' },
+      { id: 'favorites', label: '★ Избранные' },
+      { id: 'standards', label: '🏛️ Стандартные' },
+      { id: 'custom', label: '👤 Мои шаблоны' }
+    ];
+
+    filterDefs.forEach((f) => {
+      const btn = document.createElement('button');
+      btn.type = 'button';
+      btn.className = `assistant-prompt-filter-btn ${promptActiveFilter === f.id ? 'active' : ''}`;
+      btn.textContent = f.label;
+      btn.addEventListener('click', () => {
+        promptActiveFilter = f.id;
+        toolbar.querySelectorAll('.assistant-prompt-filter-btn').forEach((b) => b.classList.remove('active'));
+        btn.classList.add('active');
+        updateFilteredCards();
+      });
+      filtersRow.append(btn);
+    });
+
+    standardTags.forEach((tag) => {
+      const btn = document.createElement('button');
+      btn.type = 'button';
+      btn.className = `assistant-prompt-filter-btn ${promptActiveFilter === `tag:${tag}` ? 'active' : ''}`;
+      btn.textContent = tag;
+      btn.addEventListener('click', () => {
+        promptActiveFilter = `tag:${tag}`;
+        toolbar.querySelectorAll('.assistant-prompt-filter-btn').forEach((b) => b.classList.remove('active'));
+        btn.classList.add('active');
+        updateFilteredCards();
+      });
+      filtersRow.append(btn);
+    });
+    toolbar.append(filtersRow);
+
+    const actionsBar = document.createElement('div');
+    actionsBar.className = 'assistant-prompt-actions-bar';
+
+    const addBtn = document.createElement('button');
+    addBtn.type = 'button';
+    addBtn.className = 'primary-button small-button';
+    addBtn.textContent = '＋ Свой шаблон';
+    addBtn.addEventListener('click', () => openPromptEditorModal());
+
+    const rightActions = document.createElement('div');
+    rightActions.style.display = 'flex';
+    rightActions.style.gap = '8px';
+
+    const importBtn = document.createElement('button');
+    importBtn.type = 'button';
+    importBtn.className = 'quiet-button small-button';
+    importBtn.textContent = '📥 Импорт JSON';
+    importBtn.title = 'Импортировать пакет промптов из JSON-файла';
+
+    const fileInput = document.createElement('input');
+    fileInput.type = 'file';
+    fileInput.accept = '.json,application/json';
+    fileInput.className = 'hidden';
+    fileInput.addEventListener('change', async (e) => {
+      const file = e.target.files?.[0];
+      if (!file) return;
+      try {
+        const text = await file.text();
+        const parsed = JSON.parse(text);
+        const res = await installPromptPack(parsed);
+        showToast(`Импортировано шаблонов: ${res.installed || 0}`);
+        renderCustomPromptsView();
+      } catch (err) {
+        showToast(`Ошибка импорта JSON: ${err.message}`);
+      }
+    });
+
+    importBtn.addEventListener('click', () => fileInput.click());
+
+    const exportBtn = document.createElement('button');
+    exportBtn.type = 'button';
+    exportBtn.className = 'quiet-button small-button';
+    exportBtn.textContent = '📤 Экспорт JSON';
+    exportBtn.title = 'Экспортировать текущие шаблоны в JSON-файл';
+    exportBtn.addEventListener('click', () => {
+      const pack = customPromptsCache || [];
+      const blob = new Blob([JSON.stringify(pack, null, 2)], { type: 'application/json' });
+      const dl = document.createElement('a');
+      dl.href = URL.createObjectURL(blob);
+      dl.download = `kafedra-prompts-pack-${new Date().toISOString().slice(0, 10)}.json`;
+      dl.click();
+      URL.revokeObjectURL(dl.href);
+      showToast('Пакет промптов сохранён');
+    });
+
+    rightActions.append(importBtn, exportBtn, fileInput);
+    actionsBar.append(addBtn, rightActions);
+    toolbar.append(actionsBar);
+    container.append(toolbar);
+
+    const listWrap = document.createElement('div');
+    listWrap.className = 'assistant-custom-prompts-list';
+    container.append(listWrap);
+
+    function updateFilteredCards() {
+      listWrap.innerHTML = '';
+      const all = customPromptsCache || [];
+      const filtered = all.filter((p) => {
+        if (promptActiveFilter === 'favorites' && !p.isFavorite) return false;
+        if (promptActiveFilter === 'standards' && (p.isStandard === false || p.id?.startsWith('user_'))) return false;
+        if (promptActiveFilter === 'custom' && (p.isStandard !== false && !p.id?.startsWith('user_') && !p.id?.startsWith('custom_'))) return false;
+        if (promptActiveFilter.startsWith('tag:')) {
+          const reqTag = promptActiveFilter.replace('tag:', '');
+          if (p.tag !== reqTag) return false;
+        }
+        if (promptSearchQuery) {
+          const haystack = `${p.title || ''} ${p.description || ''} ${p.tag || ''} ${p.template || ''} ${p.systemPrompt || ''}`.toLowerCase();
+          if (!haystack.includes(promptSearchQuery)) return false;
+        }
+        return true;
+      });
+
+      if (filtered.length === 0) {
+        const empty = document.createElement('div');
+        empty.className = 'empty-state';
+        empty.innerHTML = '<p>Шаблоны по заданным критериям не найдены.</p>';
+        listWrap.append(empty);
+        return;
+      }
+
+      filtered.forEach((p) => {
+        const card = document.createElement('div');
+        card.className = 'assistant-custom-prompt-card';
+
+        const head = document.createElement('div');
+        head.className = 'assistant-custom-prompt-head';
+
+        const titleWrap = document.createElement('div');
+        titleWrap.className = 'assistant-prompt-title-wrap';
+
+        const starBtn = document.createElement('button');
+        starBtn.type = 'button';
+        starBtn.className = `assistant-star-btn ${p.isFavorite ? 'active' : ''}`;
+        starBtn.textContent = '★';
+        starBtn.title = p.isFavorite ? 'Убрать из избранного' : 'Добавить в избранное';
+        starBtn.addEventListener('click', async (e) => {
+          e.stopPropagation();
+          await togglePromptStar(p.id);
+          starBtn.classList.toggle('active', Boolean(p.isFavorite));
+          updateFilteredCards();
+        });
+
+        const strongTitle = document.createElement('strong');
+        strongTitle.textContent = p.title || 'Без названия';
+        titleWrap.append(starBtn, strongTitle);
+
+        const tagBadge = document.createElement('span');
+        tagBadge.className = 'assistant-custom-prompt-tag';
+        tagBadge.textContent = p.tag || 'Общий';
+
+        head.append(titleWrap, tagBadge);
+        card.append(head);
+
+        if (p.description) {
+          const desc = document.createElement('div');
+          desc.className = 'assistant-custom-prompt-desc';
+          desc.textContent = p.description;
+          card.append(desc);
+        }
+
+        if (p.template) {
+          const preview = document.createElement('div');
+          preview.className = 'assistant-prompt-preview';
+          preview.textContent = p.template;
+          card.append(preview);
+        }
+
+        const actions = document.createElement('div');
+        actions.className = 'assistant-custom-prompt-actions';
+
+        const isUserItem = p.isStandard === false || p.id?.startsWith('user_') || p.id?.startsWith('custom_');
+
+        if (isUserItem) {
+          const delBtn = document.createElement('button');
+          delBtn.type = 'button';
+          delBtn.className = 'quiet-button small-button';
+          delBtn.textContent = '🗑️ Удалить';
+          delBtn.addEventListener('click', async () => {
+            if (confirm(`Удалить шаблон «${p.title}»?`)) {
+              await deletePromptItem(p.id);
+              showToast('Шаблон удалён');
+              updateFilteredCards();
+            }
+          });
+          actions.append(delBtn);
+        }
+
+        const editBtn = document.createElement('button');
+        editBtn.type = 'button';
+        editBtn.className = 'secondary-button small-button';
+        editBtn.textContent = '✏️ Изменить';
+        editBtn.addEventListener('click', () => openPromptEditorModal(p));
+        actions.append(editBtn);
+
+        const useBtn = document.createElement('button');
+        useBtn.type = 'button';
+        useBtn.className = 'primary-button small-button';
+        useBtn.textContent = 'Использовать шаблон';
+        useBtn.addEventListener('click', () => {
+          setMode(p.mode || 'table-extract');
+          textareaEl.value = p.template || '';
+          const sysInput = sheetEl.querySelector('#assistant-custom-system-prompt');
+          if (sysInput && p.systemPrompt) {
+            sysInput.value = p.systemPrompt;
+            const accord = sheetEl.querySelector('#assistant-prompt-accordion');
+            if (accord) accord.open = true;
+          }
+          updateCharCount();
+          saveDraft();
+          textareaEl.focus();
+          showToast(`Шаблон «${p.title}» загружен`);
+        });
+        actions.append(useBtn);
+
+        card.append(actions);
+        listWrap.append(card);
+      });
+    }
+
+    updateFilteredCards();
+    resultsContainerEl.append(container);
+  }
+
+  function openPromptEditorModal(promptData = null) {
+    const existingModal = document.getElementById('assistant-prompt-modal-backdrop');
+    if (existingModal) existingModal.remove();
+
+    const isEdit = Boolean(promptData);
+    const backdrop = document.createElement('div');
+    backdrop.className = 'assistant-modal-backdrop';
+    backdrop.id = 'assistant-prompt-modal-backdrop';
+
+    backdrop.innerHTML = `
+      <div class="assistant-modal-dialog" role="dialog" aria-modal="true">
+        <h3>${isEdit ? 'Редактирование шаблона промпта' : 'Новый шаблон промпта'}</h3>
+        <div class="assistant-form-group">
+          <label for="ast-modal-title">Название шаблона *</label>
+          <input type="text" id="ast-modal-title" value="${escapeHtml(promptData?.title || '')}" placeholder="например: 📋 Проверка повестки заседания" />
         </div>
-        <div class="assistant-custom-prompt-desc">${escapeHtml(p.description || '')}</div>
-        <div class="assistant-custom-prompt-actions">
-          <button type="button" class="primary-button" data-run-prompt="${escapeHtml(p.id)}">Использовать шаблон</button>
+        <div class="assistant-form-row">
+          <div class="assistant-form-group">
+            <label for="ast-modal-tag">Категория / Раздел</label>
+            <input type="text" id="ast-modal-tag" value="${escapeHtml(promptData?.tag || 'Заседания')}" placeholder="Заседания, Документы, Отчёты..." />
+          </div>
+          <div class="assistant-form-group">
+            <label for="ast-modal-mode">Режим ассистента</label>
+            <select id="ast-modal-mode">
+              <option value="protocol-analysis" ${promptData?.mode === 'protocol-analysis' ? 'selected' : ''}>Заседания и повестки</option>
+              <option value="template-analyze" ${promptData?.mode === 'template-analyze' ? 'selected' : ''}>Анализ шаблонов (переменные)</option>
+              <option value="compliance-check" ${promptData?.mode === 'compliance-check' ? 'selected' : ''}>Нормоконтроль и ГОСТ</option>
+              <option value="report-synthesis" ${promptData?.mode === 'report-synthesis' ? 'selected' : ''}>Синтез отчётов</option>
+              <option value="table-extract" ${promptData?.mode === 'table-extract' ? 'selected' : ''}>Извлечение таблиц</option>
+              <option value="gap-repair" ${promptData?.mode === 'gap-repair' ? 'selected' : ''}>Поиск пропусков</option>
+              <option value="archive-query" ${promptData?.mode === 'archive-query' ? 'selected' : ''}>Поиск в архиве</option>
+              <option value="formula-calc" ${promptData?.mode === 'formula-calc' ? 'selected' : ''}>Формулы Calc / Excel</option>
+            </select>
+          </div>
+        </div>
+        <div class="assistant-form-group">
+          <label for="ast-modal-desc">Краткое описание</label>
+          <input type="text" id="ast-modal-desc" value="${escapeHtml(promptData?.description || '')}" placeholder="Пояснение, что делает этот шаблон..." />
+        </div>
+        <div class="assistant-form-group">
+          <label for="ast-modal-sys">Системная инструкция (System prompt, необязательно)</label>
+          <textarea id="ast-modal-sys" rows="3" placeholder="Роль и правила поведения для локальной модели...">${escapeHtml(promptData?.systemPrompt || '')}</textarea>
+        </div>
+        <div class="assistant-form-group">
+          <label for="ast-modal-template">Текст шаблона (User template / заготовка запроса)</label>
+          <textarea id="ast-modal-template" rows="5" placeholder="Текст запроса или заготовка с переменными {{...}}...">${escapeHtml(promptData?.template || textareaEl.value || '')}</textarea>
+        </div>
+        <label class="assistant-form-check">
+          <input type="checkbox" id="ast-modal-fav" ${promptData?.isFavorite ? 'checked' : ''} />
+          <span>★ Закрепить в избранном</span>
+        </label>
+        <div class="assistant-modal-footer">
+          <button type="button" class="quiet-button" id="ast-modal-cancel">Отмена</button>
+          <button type="button" class="primary-button" id="ast-modal-save">Сохранить шаблон</button>
+        </div>
+      </div>
+    `;
+
+    backdrop.querySelector('#ast-modal-cancel')?.addEventListener('click', () => backdrop.remove());
+    backdrop.addEventListener('click', (e) => {
+      if (e.target === backdrop) backdrop.remove();
+    });
+
+    backdrop.querySelector('#ast-modal-save')?.addEventListener('click', async () => {
+      const title = backdrop.querySelector('#ast-modal-title')?.value?.trim();
+      if (!title) {
+        alert('Пожалуйста, укажите название шаблона');
+        return;
+      }
+      const tag = backdrop.querySelector('#ast-modal-tag')?.value?.trim() || 'Общий';
+      const mode = backdrop.querySelector('#ast-modal-mode')?.value || 'table-extract';
+      const description = backdrop.querySelector('#ast-modal-desc')?.value?.trim() || '';
+      const systemPrompt = backdrop.querySelector('#ast-modal-sys')?.value?.trim() || '';
+      const template = backdrop.querySelector('#ast-modal-template')?.value?.trim() || '';
+      const isFavorite = Boolean(backdrop.querySelector('#ast-modal-fav')?.checked);
+
+      await savePromptItem({
+        id: promptData?.id,
+        title,
+        tag,
+        mode,
+        description,
+        systemPrompt,
+        template,
+        isFavorite
+      });
+
+      backdrop.remove();
+      showToast('Шаблон сохранён');
+      if (currentMode === 'custom-prompts') {
+        renderCustomPromptsView();
+      }
+    });
+
+    document.body.append(backdrop);
+  }
+
+  async function renderDocumentGraphView() {
+    resultsContainerEl.classList.remove('hidden');
+    resultsContainerEl.innerHTML = '<div class="helper" style="padding: 24px; text-align: center;">Построение смыслового графа документов...</div>';
+
+    let graphData = null;
+    try {
+      const resp = await fetch('/api/documents/graph');
+      if (resp.ok) {
+        graphData = await resp.json();
+      }
+    } catch {}
+
+    if (!graphData || !graphData.nodes || graphData.nodes.length === 0) {
+      resultsContainerEl.innerHTML = `
+        <div class="empty-state">
+          <strong>Граф документов пуст</strong>
+          <p>В базе кафедры пока нет загруженных протоколов, планов или заседаний для построения смыслового графа.</p>
         </div>
       `;
-      card.querySelector('[data-run-prompt]')?.addEventListener('click', () => {
-        setMode(p.mode || 'table-extract');
-        textareaEl.value = p.template || '';
-        updateCharCount();
-        saveDraft();
-        textareaEl.focus();
-      });
-      list.append(card);
-    });
-    container.append(list);
+      return;
+    }
 
-    header.querySelector('#ast-add-prompt-btn')?.addEventListener('click', () => {
-      const title = prompt('Название вашего шаблона промпта:');
-      if (!title || !title.trim()) return;
-      const desc = prompt('Краткое описание:') || '';
-      saveCustomPrompt({
-        title: title.trim(),
-        description: desc.trim(),
-        mode: currentMode,
-        tag: 'Пользовательский',
-        template: textareaEl.value || ''
-      });
-      renderCustomPromptsView();
-      showToast('Шаблон сохранён');
+    resultsContainerEl.innerHTML = '';
+    const container = document.createElement('div');
+    container.className = 'assistant-graph-container';
+
+    let activeTypeFilter = 'all';
+    let graphSearchQuery = '';
+    let selectedNodeId = null;
+
+    const toolbar = document.createElement('div');
+    toolbar.className = 'assistant-graph-toolbar';
+
+    const searchInput = document.createElement('input');
+    searchInput.type = 'text';
+    searchInput.className = 'assistant-graph-search';
+    searchInput.placeholder = '🔍 Поиск по узлам (протоколы, темы, преподаватели)...';
+    searchInput.addEventListener('input', (e) => {
+      graphSearchQuery = e.target.value.toLowerCase().trim();
+      updateGraphSelection();
     });
+    toolbar.append(searchInput);
+
+    const filters = document.createElement('div');
+    filters.className = 'assistant-graph-filters';
+    const filterTypes = [
+      { id: 'all', label: 'Все' },
+      { id: 'meeting', label: '🏛️ Заседания' },
+      { id: 'plan', label: '📅 Планы' },
+      { id: 'person', label: '👤 Преподаватели' },
+      { id: 'topic', label: '🏷️ Темы' },
+      { id: 'document', label: '📄 Документы' }
+    ];
+    filterTypes.forEach((ft) => {
+      const btn = document.createElement('button');
+      btn.type = 'button';
+      btn.className = `assistant-graph-filter-btn ${activeTypeFilter === ft.id ? 'active' : ''}`;
+      btn.textContent = ft.label;
+      btn.addEventListener('click', () => {
+        activeTypeFilter = ft.id;
+        filters.querySelectorAll('.assistant-graph-filter-btn').forEach((b) => b.classList.remove('active'));
+        btn.classList.add('active');
+        updateGraphSelection();
+      });
+      filters.append(btn);
+    });
+    toolbar.append(filters);
+
+    const zoomBar = document.createElement('div');
+    zoomBar.className = 'assistant-graph-zoom-bar';
+    let zoomLevel = 1.0;
+    let panX = 0;
+    let panY = 0;
+
+    const zoomInBtn = document.createElement('button');
+    zoomInBtn.type = 'button';
+    zoomInBtn.className = 'assistant-graph-btn';
+    zoomInBtn.textContent = '＋';
+    zoomInBtn.title = 'Приблизить';
+    zoomInBtn.addEventListener('click', () => {
+      zoomLevel = Math.min(2.5, zoomLevel * 1.25);
+      applyTransform();
+    });
+
+    const zoomOutBtn = document.createElement('button');
+    zoomOutBtn.type = 'button';
+    zoomOutBtn.className = 'assistant-graph-btn';
+    zoomOutBtn.textContent = '－';
+    zoomOutBtn.title = 'Отдалить';
+    zoomOutBtn.addEventListener('click', () => {
+      zoomLevel = Math.max(0.4, zoomLevel / 1.25);
+      applyTransform();
+    });
+
+    const zoomResetBtn = document.createElement('button');
+    zoomResetBtn.type = 'button';
+    zoomResetBtn.className = 'assistant-graph-btn';
+    zoomResetBtn.textContent = '⟲';
+    zoomResetBtn.title = 'Сбросить масштаб';
+    zoomResetBtn.addEventListener('click', () => {
+      zoomLevel = 1.0;
+      panX = 0;
+      panY = 0;
+      applyTransform();
+    });
+
+    zoomBar.append(zoomInBtn, zoomOutBtn, zoomResetBtn);
+    toolbar.append(zoomBar);
+    container.append(toolbar);
+
+    const width = 800;
+    const height = 440;
+    const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+    svg.setAttribute('viewBox', `0 0 ${width} ${height}`);
+    svg.setAttribute('class', 'assistant-graph-svg');
+
+    const viewport = document.createElementNS('http://www.w3.org/2000/svg', 'g');
+    viewport.setAttribute('class', 'assistant-graph-viewport');
+    svg.append(viewport);
+
+    function applyTransform() {
+      viewport.setAttribute('transform', `translate(${panX}, ${panY}) scale(${zoomLevel})`);
+    }
+
+    let isPanning = false;
+    let startX = 0;
+    let startY = 0;
+
+    svg.addEventListener('mousedown', (e) => {
+      if (e.target.closest('.graph-node-group')) return;
+      isPanning = true;
+      startX = e.clientX - panX;
+      startY = e.clientY - panY;
+    });
+
+    window.addEventListener('mousemove', (e) => {
+      if (!isPanning) return;
+      panX = e.clientX - startX;
+      panY = e.clientY - startY;
+      applyTransform();
+    });
+
+    window.addEventListener('mouseup', () => {
+      isPanning = false;
+    });
+
+    svg.addEventListener('wheel', (e) => {
+      e.preventDefault();
+      const delta = e.deltaY > 0 ? 0.9 : 1.1;
+      zoomLevel = Math.max(0.4, Math.min(2.5, zoomLevel * delta));
+      applyTransform();
+    }, { passive: false });
+
+    const nodes = graphData.nodes.map((n, i) => {
+      const angle = (i / graphData.nodes.length) * Math.PI * 2;
+      const radius = n.type === 'topic' ? 120 : 160 + (i % 3) * 30;
+      return {
+        ...n,
+        x: 400 + Math.cos(angle) * radius,
+        y: 220 + Math.sin(angle) * radius,
+        vx: 0,
+        vy: 0
+      };
+    });
+
+    const nodeMap = new Map(nodes.map((n) => [n.id, n]));
+    const edges = (graphData.edges || []).map((e) => ({
+      ...e,
+      sourceNode: nodeMap.get(e.source),
+      targetNode: nodeMap.get(e.target)
+    })).filter((e) => e.sourceNode && e.targetNode);
+
+    // Run quick relaxation loop
+    for (let iter = 0; iter < 32; iter++) {
+      for (let i = 0; i < nodes.length; i++) {
+        for (let j = i + 1; j < nodes.length; j++) {
+          const n1 = nodes[i];
+          const n2 = nodes[j];
+          const dx = n1.x - n2.x;
+          const dy = n1.y - n2.y;
+          const dist = Math.hypot(dx, dy) || 1;
+          if (dist < 180) {
+            const force = 1800 / (dist * dist + 80);
+            const fx = (dx / dist) * force;
+            const fy = (dy / dist) * force;
+            n1.vx += fx; n1.vy += fy;
+            n2.vx -= fx; n2.vy -= fy;
+          }
+        }
+      }
+
+      for (let e = 0; e < edges.length; e++) {
+        const edge = edges[e];
+        const dx = edge.targetNode.x - edge.sourceNode.x;
+        const dy = edge.targetNode.y - edge.sourceNode.y;
+        const dist = Math.hypot(dx, dy) || 1;
+        const spring = (dist - 80) * 0.04;
+        const sx = (dx / dist) * spring;
+        const sy = (dy / dist) * spring;
+        edge.sourceNode.vx += sx; edge.sourceNode.vy += sy;
+        edge.targetNode.vx -= sx; edge.targetNode.vy -= sy;
+      }
+
+      for (let i = 0; i < nodes.length; i++) {
+        const n = nodes[i];
+        n.vx += (400 - n.x) * 0.008;
+        n.vy += (220 - n.y) * 0.008;
+        n.x = Math.max(45, Math.min(755, n.x + n.vx * 0.5));
+        n.y = Math.max(35, Math.min(405, n.y + n.vy * 0.5));
+        n.vx = 0;
+        n.vy = 0;
+      }
+    }
+
+    const NODE_COLORS = {
+      meeting: '#38bdf8',
+      protocol: '#38bdf8',
+      plan: '#34d399',
+      person: '#fbbf24',
+      topic: '#a78bfa',
+      document: '#22d3ee',
+      decision: '#f43f5e'
+    };
+
+    const edgeGroup = document.createElementNS('http://www.w3.org/2000/svg', 'g');
+    edgeGroup.setAttribute('class', 'assistant-graph-edges');
+
+    const edgeElements = edges.map((edge) => {
+      const line = document.createElementNS('http://www.w3.org/2000/svg', 'line');
+      line.setAttribute('x1', edge.sourceNode.x);
+      line.setAttribute('y1', edge.sourceNode.y);
+      line.setAttribute('x2', edge.targetNode.x);
+      line.setAttribute('y2', edge.targetNode.y);
+      line.setAttribute('stroke', 'rgba(148, 163, 184, 0.25)');
+      line.setAttribute('stroke-width', '1.2');
+      edgeGroup.append(line);
+      return { edge, line };
+    });
+    viewport.append(edgeGroup);
+
+    const nodeGroup = document.createElementNS('http://www.w3.org/2000/svg', 'g');
+    nodeGroup.setAttribute('class', 'assistant-graph-nodes');
+
+    const inspector = document.createElement('div');
+    inspector.className = 'assistant-graph-inspector hidden';
+
+    const nodeElements = nodes.map((node) => {
+      const g = document.createElementNS('http://www.w3.org/2000/svg', 'g');
+      g.setAttribute('class', 'graph-node-group');
+      g.setAttribute('transform', `translate(${node.x}, ${node.y})`);
+      g.style.cursor = 'pointer';
+
+      const circle = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
+      const radius = node.type === 'topic' ? 14 : (node.type === 'meeting' ? 12 : 10);
+      circle.setAttribute('r', radius);
+      circle.setAttribute('fill', NODE_COLORS[node.type] || '#94a3b8');
+      circle.setAttribute('stroke', 'rgba(255, 255, 255, 0.2)');
+      circle.setAttribute('stroke-width', '2');
+
+      const text = document.createElementNS('http://www.w3.org/2000/svg', 'text');
+      text.setAttribute('y', radius + 11);
+      text.setAttribute('text-anchor', 'middle');
+      text.setAttribute('fill', '#f8fafc');
+      text.setAttribute('font-size', '9.5');
+      text.setAttribute('font-weight', '500');
+      const label = node.label || node.id;
+      text.textContent = label.length > 18 ? `${label.slice(0, 16)}…` : label;
+
+      g.append(circle, text);
+
+      g.addEventListener('click', (e) => {
+        e.stopPropagation();
+        selectedNodeId = node.id;
+        updateGraphSelection();
+      });
+
+      nodeGroup.append(g);
+      return { node, g, circle, text };
+    });
+    viewport.append(nodeGroup);
+    container.append(svg);
+
+    svg.addEventListener('click', (e) => {
+      if (e.target === svg || e.target === viewport) {
+        selectedNodeId = null;
+        updateGraphSelection();
+      }
+    });
+
+    container.append(inspector);
+
+    function updateGraphSelection() {
+      const matchingType = (n) => activeTypeFilter === 'all' || n.type === activeTypeFilter;
+      const matchingSearch = (n) => {
+        if (!graphSearchQuery) return true;
+        const haystack = `${n.label || ''} ${n.type || ''} ${JSON.stringify(n.meta || {})}`.toLowerCase();
+        return haystack.includes(graphSearchQuery);
+      };
+
+      const selectedNode = selectedNodeId ? nodeMap.get(selectedNodeId) : null;
+      const connectedNodeIds = new Set();
+      if (selectedNode) {
+        connectedNodeIds.add(selectedNode.id);
+        edges.forEach((e) => {
+          if (e.source === selectedNode.id) connectedNodeIds.add(e.target);
+          if (e.target === selectedNode.id) connectedNodeIds.add(e.source);
+        });
+      }
+
+      nodeElements.forEach(({ node, g, circle }) => {
+        const matchesFilter = matchingType(node) && matchingSearch(node);
+        const isSelected = selectedNode && node.id === selectedNode.id;
+        const isNeighbor = selectedNode && connectedNodeIds.has(node.id);
+
+        if (!matchesFilter) {
+          g.style.opacity = '0.12';
+          circle.setAttribute('stroke', 'none');
+          return;
+        }
+
+        if (selectedNode) {
+          if (isSelected) {
+            g.style.opacity = '1';
+            circle.setAttribute('stroke', '#ffffff');
+            circle.setAttribute('stroke-width', '3.5');
+          } else if (isNeighbor) {
+            g.style.opacity = '0.95';
+            circle.setAttribute('stroke', '#38bdf8');
+            circle.setAttribute('stroke-width', '2');
+          } else {
+            g.style.opacity = '0.22';
+            circle.setAttribute('stroke', 'none');
+          }
+        } else {
+          g.style.opacity = '1';
+          circle.setAttribute('stroke', 'rgba(255, 255, 255, 0.2)');
+          circle.setAttribute('stroke-width', '2');
+        }
+      });
+
+      edgeElements.forEach(({ edge, line }) => {
+        if (selectedNode) {
+          const isConnected = edge.source === selectedNode.id || edge.target === selectedNode.id;
+          if (isConnected) {
+            line.setAttribute('stroke', '#38bdf8');
+            line.setAttribute('stroke-width', '2.2');
+            line.style.opacity = '1';
+          } else {
+            line.style.opacity = '0.08';
+          }
+        } else {
+          line.setAttribute('stroke', 'rgba(148, 163, 184, 0.25)');
+          line.setAttribute('stroke-width', '1.2');
+          line.style.opacity = '1';
+        }
+      });
+
+      if (selectedNode) {
+        inspector.classList.remove('hidden');
+        renderInspector(selectedNode, connectedNodeIds);
+      } else {
+        inspector.classList.add('hidden');
+        inspector.innerHTML = '';
+      }
+    }
+
+    function renderInspector(node, neighborIds) {
+      inspector.innerHTML = '';
+      const head = document.createElement('div');
+      head.className = 'assistant-graph-inspector-head';
+
+      const titleWrap = document.createElement('div');
+      titleWrap.innerHTML = `<strong>${escapeHtml(node.label)}</strong> <span class="assistant-custom-prompt-tag">${escapeHtml(node.type)}</span>`;
+
+      const closeBtn = document.createElement('button');
+      closeBtn.type = 'button';
+      closeBtn.className = 'quiet-button small-button';
+      closeBtn.textContent = '✕';
+      closeBtn.addEventListener('click', () => {
+        selectedNodeId = null;
+        updateGraphSelection();
+      });
+
+      head.append(titleWrap, closeBtn);
+      inspector.append(head);
+
+      if (node.meta) {
+        const metaList = document.createElement('div');
+        metaList.style.fontSize = '12px';
+        metaList.style.color = 'var(--muted, #666)';
+        const metaEntries = Object.entries(node.meta).slice(0, 4);
+        metaList.textContent = metaEntries.map(([k, v]) => `${k}: ${v}`).join(' • ');
+        inspector.append(metaList);
+      }
+
+      const neighborsWrap = document.createElement('div');
+      neighborsWrap.className = 'assistant-graph-neighbors';
+
+      const neighborNodes = Array.from(neighborIds)
+        .filter((id) => id !== node.id)
+        .map((id) => nodeMap.get(id))
+        .filter(Boolean);
+
+      if (neighborNodes.length > 0) {
+        const titleSpan = document.createElement('span');
+        titleSpan.style.fontSize = '11.5px';
+        titleSpan.style.fontWeight = '600';
+        titleSpan.textContent = 'Связанные объекты:';
+        neighborsWrap.append(titleSpan);
+
+        neighborNodes.forEach((nb) => {
+          const chip = document.createElement('button');
+          chip.type = 'button';
+          chip.className = 'assistant-graph-neighbor-chip';
+          chip.textContent = `${nb.label} (${nb.type})`;
+          chip.addEventListener('click', () => {
+            selectedNodeId = nb.id;
+            updateGraphSelection();
+          });
+          neighborsWrap.append(chip);
+        });
+        inspector.append(neighborsWrap);
+      }
+
+      const actions = document.createElement('div');
+      actions.style.display = 'flex';
+      actions.style.gap = '8px';
+      actions.style.marginTop = '8px';
+
+      const searchBtn = document.createElement('button');
+      searchBtn.type = 'button';
+      searchBtn.className = 'primary-button small-button';
+      searchBtn.textContent = `🔍 Найти в архиве «${node.label.slice(0, 20)}»`;
+      searchBtn.addEventListener('click', () => {
+        setMode('archive-query');
+        textareaEl.value = node.label;
+        updateCharCount();
+        handleProcess();
+      });
+      actions.append(searchBtn);
+      inspector.append(actions);
+    }
 
     resultsContainerEl.append(container);
+  }
+
+  function renderTemplateAnalyzeResult(result) {
+    const wrap = document.createElement('div');
+    wrap.className = 'assistant-template-result-wrap';
+
+    if (result.templateRecommendation) {
+      const rec = document.createElement('div');
+      rec.className = 'assistant-summary-card';
+      rec.innerHTML = `<strong>💡 Рекомендация по шаблону:</strong> ${escapeHtml(result.templateRecommendation)}`;
+      wrap.append(rec);
+    }
+
+    if (result.summary) {
+      const sumCard = document.createElement('div');
+      sumCard.className = 'assistant-help-section';
+      sumCard.style.marginBottom = '12px';
+      sumCard.innerHTML = `<p>${escapeHtml(result.summary)}</p>`;
+      wrap.append(sumCard);
+    }
+
+    const fields = Array.isArray(result.fields) ? [...result.fields] : [];
+
+    const tableWrap = document.createElement('div');
+    tableWrap.className = 'assistant-template-table-wrap';
+
+    const table = document.createElement('table');
+    table.className = 'assistant-template-table';
+    table.innerHTML = `
+      <thead>
+        <tr>
+          <th style="width: 26%;">Название реквизита</th>
+          <th style="width: 28%;">Пример в тексте</th>
+          <th style="width: 26%;">Маркер шаблона</th>
+          <th style="width: 12%;">Область</th>
+          <th style="width: 8%;"></th>
+        </tr>
+      </thead>
+      <tbody></tbody>
+    `;
+
+    const tbody = table.querySelector('tbody');
+
+    function renderRows() {
+      tbody.innerHTML = '';
+      fields.forEach((f, idx) => {
+        const tr = document.createElement('tr');
+
+        const tdLabel = document.createElement('td');
+        const labelInput = document.createElement('input');
+        labelInput.type = 'text';
+        labelInput.className = 'assistant-template-input';
+        labelInput.value = f.label || '';
+        labelInput.addEventListener('input', (e) => { f.label = e.target.value; });
+        tdLabel.append(labelInput);
+
+        const tdSample = document.createElement('td');
+        tdSample.textContent = f.sampleValue || '—';
+        tdSample.style.color = 'var(--muted, #555)';
+        tdSample.style.fontSize = '12px';
+
+        const tdMarker = document.createElement('td');
+        const markerInput = document.createElement('input');
+        markerInput.type = 'text';
+        markerInput.className = 'assistant-template-input assistant-template-marker';
+        markerInput.value = f.suggestedMarker || `{{${f.key || 'field'}}}`;
+        markerInput.addEventListener('input', (e) => { f.suggestedMarker = e.target.value; });
+        tdMarker.append(markerInput);
+
+        const tdScope = document.createElement('td');
+        const badge = document.createElement('span');
+        badge.className = 'assistant-check-badge suggestion';
+        badge.textContent = f.scope || 'document';
+        tdScope.append(badge);
+
+        const tdActions = document.createElement('td');
+        const delBtn = document.createElement('button');
+        delBtn.type = 'button';
+        delBtn.className = 'quiet-button small-button';
+        delBtn.textContent = '✕';
+        delBtn.title = 'Удалить поле';
+        delBtn.addEventListener('click', () => {
+          fields.splice(idx, 1);
+          renderRows();
+        });
+        tdActions.append(delBtn);
+
+        tr.append(tdLabel, tdSample, tdMarker, tdScope, tdActions);
+        tbody.append(tr);
+      });
+    }
+
+    renderRows();
+    tableWrap.append(table);
+    wrap.append(tableWrap);
+
+    const toolbar = document.createElement('div');
+    toolbar.style.display = 'flex';
+    toolbar.style.flexWrap = 'wrap';
+    toolbar.style.gap = '8px';
+    toolbar.style.marginTop = '12px';
+    toolbar.style.justifyContent = 'space-between';
+
+    const leftButtons = document.createElement('div');
+    leftButtons.style.display = 'flex';
+    leftButtons.style.gap = '8px';
+
+    const addFieldBtn = document.createElement('button');
+    addFieldBtn.type = 'button';
+    addFieldBtn.className = 'secondary-button small-button';
+    addFieldBtn.textContent = '＋ Добавить реквизит';
+    addFieldBtn.addEventListener('click', () => {
+      const key = `custom_${Date.now()}`;
+      fields.push({
+        key,
+        label: 'Новый реквизит',
+        sampleValue: '',
+        suggestedMarker: `{{${key}}}`,
+        scope: 'custom'
+      });
+      renderRows();
+    });
+
+    const copyMarkersBtn = document.createElement('button');
+    copyMarkersBtn.type = 'button';
+    copyMarkersBtn.className = 'quiet-button small-button';
+    copyMarkersBtn.textContent = '📋 Скопировать маркеры';
+    copyMarkersBtn.addEventListener('click', () => {
+      const text = fields.map((f) => f.suggestedMarker).filter(Boolean).join('\n');
+      navigator.clipboard.writeText(text).then(() => showToast('Маркеры скопированы в буфер'));
+    });
+
+    leftButtons.append(addFieldBtn, copyMarkersBtn);
+
+    const rightButtons = document.createElement('div');
+    rightButtons.style.display = 'flex';
+    rightButtons.style.gap = '8px';
+
+    const applyToEditorBtn = document.createElement('button');
+    applyToEditorBtn.type = 'button';
+    applyToEditorBtn.className = 'primary-button small-button';
+    applyToEditorBtn.textContent = '📄 Разметить текст в редакторе';
+    applyToEditorBtn.title = 'Заменяет примеры значений на маркеры {{...}} в поле ввода';
+    applyToEditorBtn.addEventListener('click', () => {
+      let templated = textareaEl.value || '';
+      fields.forEach((f) => {
+        if (f.sampleValue && f.suggestedMarker && f.sampleValue.length > 1) {
+          templated = templated.split(f.sampleValue).join(f.suggestedMarker);
+        }
+      });
+      textareaEl.value = templated;
+      updateCharCount();
+      saveDraft();
+      showToast('Текст в редакторе размечен маркерами шаблона!');
+    });
+
+    const saveAsPromptBtn = document.createElement('button');
+    saveAsPromptBtn.type = 'button';
+    saveAsPromptBtn.className = 'secondary-button small-button';
+    saveAsPromptBtn.textContent = '💾 Сохранить как шаблон';
+    saveAsPromptBtn.addEventListener('click', () => {
+      openPromptEditorModal({
+        title: 'Шаблон документа',
+        mode: 'template-analyze',
+        tag: 'Шаблоны',
+        template: textareaEl.value
+      });
+    });
+
+    rightButtons.append(applyToEditorBtn, saveAsPromptBtn);
+    toolbar.append(leftButtons, rightButtons);
+    wrap.append(toolbar);
+
+    resultsContainerEl.append(wrap);
   }
 
   function renderSearchHelpView() {

@@ -177,6 +177,27 @@ export const ASSISTANT_TASKS = Object.freeze({
       '{"explanation":"Пояснение к предложенной повестке","topics":[{"title":"...","heardText":"...","discussedText":"...","decisionText":"...","speaker":"...","sourceKind":"...","sourceId":"..."}]}.',
       'Сохраняй академический стиль и точность.'
     ].join(' ')
+  }),
+
+  'template-analyze': Object.freeze({
+    id: 'template-analyze',
+    maxTokens: 2560,
+    system: [
+      'Ты — эксперт по анализу деловых документов и проектированию DOCX-шаблонов по ГОСТ Р 7.0.97-2016.',
+      'Твоя задача — проанализировать текст документа (протокола, выписки, распоряжения, плана) и определить все заменяемые/повторяющиеся поля, переменные и реквизиты, чтобы превратить документ в шаблон.',
+      'Для каждого найденного поля определи:',
+      '- key: техническое имя на английском (например, meeting_date, protocol_number, chairperson, secretary, quorum, title, heard, discussed, decision, student_name, topic);',
+      '- label: понятное наименование на русском («Номер протокола», «Дата заседания», «Председатель»);',
+      '- sampleValue: исходное значение из текста образца;',
+      '- suggestedMarker: предлагаемый маркер для вставки в DOCX (например, {{PROTOCOL_NUMBER}}, {{MEETING_DATE}}, {{CHAIRPERSON}}, {{STUDENT_NAME}});',
+      '- scope: "document" (общий реквизит документа), "agenda" (повторяющийся блок вопроса/решения), "custom" (пользовательская переменная);',
+      '- isRepeating: true/false (является ли поле повторяющимся элементом списка/повестки);',
+      '- confidence: число от 0.0 до 1.0;',
+      '- reason: краткое обоснование, почему поле выделено как заменяемое.',
+      'Верни строго один JSON-объект вида:',
+      '{"summary":"Краткое резюме структуры шаблона","fields":[{"key":"...","label":"...","sampleValue":"...","suggestedMarker":"...","scope":"document|agenda|custom","isRepeating":false,"confidence":0.95,"reason":"..."}],"templateRecommendation":"Рекомендация по оформлению"}.',
+      'Не выдумывай полей, которых нет в тексте. Сохраняй терминологию делопроизводства.'
+    ].join(' ')
   })
 });
 
@@ -438,6 +459,26 @@ export function validateAssistantResult(taskType, payload, extra = {}) {
         sourceId: t.sourceId ? String(t.sourceId).trim().slice(0, 80) : null
       }));
     return { type: 'suggest-agenda', explanation, topics };
+  }
+
+  if (taskType === 'template-analyze') {
+    const summary = String(payload.summary || 'Структура шаблона проанализирована').trim().slice(0, 1000);
+    const templateRecommendation = String(payload.templateRecommendation || '').trim().slice(0, 1000);
+    const rawFields = Array.isArray(payload.fields) ? payload.fields : [];
+    const fields = rawFields
+      .filter((f) => f && typeof f === 'object')
+      .slice(0, 40)
+      .map((f, idx) => ({
+        key: String(f.key || `field_${idx + 1}`).trim().replace(/[^a-zA-Z0-9_]/g, '_').slice(0, 60),
+        label: String(f.label || f.key || `Поле ${idx + 1}`).trim().slice(0, 120),
+        sampleValue: String(f.sampleValue || '').trim().slice(0, 500),
+        suggestedMarker: String(f.suggestedMarker || `{{${(f.key || `FIELD_${idx + 1}`).toUpperCase()}}}`).trim().slice(0, 80),
+        scope: ['document', 'agenda', 'custom'].includes(f.scope) ? f.scope : 'document',
+        isRepeating: Boolean(f.isRepeating),
+        confidence: Math.max(0, Math.min(1, Number(f.confidence !== undefined ? f.confidence : 0.9))),
+        reason: String(f.reason || '').trim().slice(0, 500)
+      }));
+    return { type: 'template-analyze', summary, fields, templateRecommendation };
   }
 
   throw new Error(`unknown_task_type:${taskType}`);

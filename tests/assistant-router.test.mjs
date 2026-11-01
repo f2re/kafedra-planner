@@ -8,6 +8,8 @@ import { ensureDefaultWorkspace } from '../packages/storage/src/bootstrap.mjs';
 import { addSearchFragment } from '../packages/storage/src/search.mjs';
 import { createAssistantRouter } from '../apps/api/src/assistant-router.mjs';
 
+const migrationsDir = resolve('migrations');
+
 function mockRequest(method, urlString, body = null, headers = {}) {
   const url = new URL(urlString, 'http://127.0.0.1');
   const buffer = body ? Buffer.from(JSON.stringify(body)) : Buffer.alloc(0);
@@ -532,6 +534,255 @@ test('assistant-router suggest-agenda formulates department topics with AI and f
     assert.equal(res.body.status, 'fallback');
     assert.ok(res.body.topics.length >= 2);
     assert.ok(res.body.topics.some((t) => t.title.includes('сессии') || t.title.includes('НИР')));
+  }
+
+  await rm(root, { recursive: true, force: true });
+});
+
+test('assistant-router manages custom and favorite prompts (CRUD, toggle, install)', async () => {
+  const root = await mkdtemp(join(tmpdir(), 'assistant-prompts-test-'));
+  const dbPath = join(root, 'test.db');
+  const database = new Database(dbPath, { migrationsDir });
+  ensureDefaultWorkspace(database);
+
+  const router = createAssistantRouter({
+    database,
+    config: { dataDir: root }
+  });
+
+  // 1. GET prompts
+  {
+    const { stream, url } = mockRequest('GET', '/api/assistant/prompts');
+    const res = mockResponse();
+    const handled = await router(stream, res, url);
+    assert.equal(handled, true);
+    assert.equal(res.statusCode, 200);
+    assert.equal(res.body.ok, true);
+    assert.ok(Array.isArray(res.body.prompts));
+    assert.ok(res.body.prompts.length >= 7);
+  }
+
+  // 2. POST create prompt
+  let createdId = null;
+  {
+    const { stream, url } = mockRequest('POST', '/api/assistant/prompts', {
+      title: 'Мой промпт для ВКР',
+      tag: 'ВКР',
+      mode: 'suggest-agenda',
+      isFavorite: true,
+      description: 'Тестовое описание',
+      template: 'Шаблон запроса'
+    });
+    const res = mockResponse();
+    const handled = await router(stream, res, url);
+    assert.equal(handled, true);
+    assert.equal(res.statusCode, 200);
+    assert.equal(res.body.ok, true);
+    assert.equal(res.body.prompt.title, 'Мой промпт для ВКР');
+    assert.equal(res.body.prompt.isFavorite, true);
+    createdId = res.body.prompt.id;
+  }
+
+  // 3. Toggle favorite
+  {
+    const { stream, url } = mockRequest('POST', '/api/assistant/prompts/toggle-favorite', {
+      id: createdId
+    });
+    const res = mockResponse();
+    const handled = await router(stream, res, url);
+    assert.equal(handled, true);
+    assert.equal(res.statusCode, 200);
+    assert.equal(res.body.ok, true);
+    assert.equal(res.body.prompt.isFavorite, false);
+  }
+
+  // 4. Install prompt pack
+  {
+    const { stream, url } = mockRequest('POST', '/api/assistant/prompts/install', {
+      name: 'Учебный пакет',
+      prompts: [
+        {
+          id: 'pack_1',
+          title: 'Импортированный промпт 1',
+          tag: 'Учеба',
+          template: 'Тест 1'
+        }
+      ]
+    });
+    const res = mockResponse();
+    const handled = await router(stream, res, url);
+    assert.equal(handled, true);
+    assert.equal(res.statusCode, 200);
+    assert.equal(res.body.ok, true);
+    assert.equal(res.body.installedCount, 1);
+  }
+
+  // 5. DELETE prompt
+  {
+    const { stream, url } = mockRequest('DELETE', `/api/assistant/prompts/${createdId}`);
+    const res = mockResponse();
+    const handled = await router(stream, res, url);
+    assert.equal(handled, true);
+    assert.equal(res.statusCode, 200);
+    assert.equal(res.body.ok, true);
+  }
+
+  await rm(root, { recursive: true, force: true });
+});
+
+test('assistant-router builds document semantic graph and global search', async () => {
+  const root = await mkdtemp(join(tmpdir(), 'assistant-graph-test-'));
+  const dbPath = join(root, 'test.db');
+  const database = new Database(dbPath, { migrationsDir });
+  const ws = ensureDefaultWorkspace(database);
+
+  // Seed sample data: a meeting, a plan, a document
+  database.run(`
+    INSERT INTO meetings (id, workspace_id, meeting_date, protocol_number, title, chairperson_raw, secretary_raw, status, evidence_json, created_at, updated_at)
+    VALUES ('m_test_1', ?, '2026-10-15', '5', 'Заседание кафедры по ВКР', 'Иванов И.И.', 'Петрова А.С.', 'draft', '{}', '2026-10-15T10:00:00Z', '2026-10-15T10:00:00Z')
+  `, ws.id);
+
+  database.run(`
+    INSERT INTO agenda_items (id, meeting_id, item_no, title, heard_text, discussed_text, decision_text, evidence_json, created_at, updated_at)
+    VALUES ('ai_test_1', 'm_test_1', 1, 'Об утверждении тем ВКР бакалавров', 'Заслушали зав. кафедрой', 'Обсудили', 'Темы утвердить', '{}', '2026-10-15T10:05:00Z', '2026-10-15T10:05:00Z')
+  `);
+
+  database.run(`
+    INSERT INTO file_blobs (sha256, size_bytes, media_type, storage_path, created_at)
+    VALUES ('sha_dummy', 100, 'application/docx', '/tmp/dummy', '2026-10-10T10:00:00Z')
+  `);
+
+  database.run(`
+    INSERT INTO documents (id, workspace_id, title, document_type, status, created_at, updated_at)
+    VALUES ('doc_test_1', ?, 'Распоряжение о проведении сессии', 'directive', 'processed', '2026-10-10T10:00:00Z', '2026-10-10T10:00:00Z')
+  `, ws.id);
+
+  database.run(`
+    INSERT INTO document_versions (id, document_id, version_no, blob_sha256, original_name, media_type, detected_format, processing_status, uploaded_at)
+    VALUES ('dv_test_1', 'doc_test_1', 1, 'sha_dummy', 'directive.docx', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document', 'docx', 'processed', '2026-10-10T10:00:00Z')
+  `);
+
+  database.run(`
+    INSERT INTO plans (id, workspace_id, source_document_version_id, plan_kind, title, year_start, year_end, period_key, status, created_at, updated_at)
+    VALUES ('plan_test_1', ?, 'dv_test_1', 'department_work', 'План учебной нагрузки кафедры', 2026, 2027, '2026-2027', 'active', '2026-09-01T10:00:00Z', '2026-09-01T10:00:00Z')
+  `, ws.id);
+
+  const router = createAssistantRouter({
+    database,
+    config: { dataDir: root }
+  });
+
+  // 1. GET /api/documents/graph
+  {
+    const { stream, url } = mockRequest('GET', '/api/documents/graph');
+    const res = mockResponse();
+    const handled = await router(stream, res, url);
+    assert.equal(handled, true);
+    assert.equal(res.statusCode, 200);
+    assert.equal(res.body.ok, true);
+    assert.ok(Array.isArray(res.body.nodes));
+    assert.ok(Array.isArray(res.body.edges));
+    assert.ok(res.body.stats.totalNodes > 0);
+    assert.ok(res.body.nodes.some((n) => n.id === 'meet_m_test_1'));
+    assert.ok(res.body.nodes.some((n) => n.id === 'plan_plan_test_1'));
+    assert.ok(res.body.nodes.some((n) => n.id === 'doc_doc_test_1'));
+  }
+
+  // 2. GET /api/documents/graph with search query
+  {
+    const { stream, url } = mockRequest('GET', '/api/documents/graph?query=ВКР');
+    const res = mockResponse();
+    const handled = await router(stream, res, url);
+    assert.equal(handled, true);
+    assert.equal(res.statusCode, 200);
+    assert.equal(res.body.ok, true);
+    assert.ok(res.body.nodes.some((n) => n.id === 'meet_m_test_1'));
+  }
+
+  // 3. GET /api/documents/search-all
+  {
+    const { stream, url } = mockRequest('GET', '/api/documents/search-all?query=сессии');
+    const res = mockResponse();
+    const handled = await router(stream, res, url);
+    assert.equal(handled, true);
+    assert.equal(res.statusCode, 200);
+    assert.equal(res.body.ok, true);
+    assert.ok(res.body.results.some((r) => r.id === 'doc_test_1'));
+  }
+
+  await rm(root, { recursive: true, force: true });
+});
+
+test('assistant-router analyzes template and extracts variables via AI and fallback', async () => {
+  const root = await mkdtemp(join(tmpdir(), 'assistant-template-test-'));
+  const dbPath = join(root, 'test.db');
+  const database = new Database(dbPath, { migrationsDir });
+  ensureDefaultWorkspace(database);
+
+  const mockEngine = {
+    enabled: true,
+    async process(params) {
+      if (params.task === 'template-analyze') {
+        return {
+          status: 'completed',
+          result: {
+            summary: 'ИИ-анализ полей шаблона',
+            fields: [
+              {
+                key: 'protocol_number',
+                label: 'Номер протокола',
+                sampleValue: '4',
+                suggestedMarker: '{{PROTOCOL_NUMBER}}',
+                scope: 'document',
+                isRepeating: false,
+                confidence: 0.98,
+                reason: 'Реквизит протокола'
+              }
+            ],
+            templateRecommendation: 'Оформить шапку по ГОСТ'
+          }
+        };
+      }
+      return { status: 'failed' };
+    }
+  };
+
+  const router = createAssistantRouter({
+    database,
+    config: { dataDir: root },
+    engine: mockEngine
+  });
+
+  // 1. AI analyze
+  {
+    const { stream, url } = mockRequest('POST', '/api/assistant/template-analyze', {
+      text: 'ПРОТОКОЛ № 4 заседания кафедры от 20.10.2026'
+    });
+    const res = mockResponse();
+    const handled = await router(stream, res, url);
+    assert.equal(handled, true);
+    assert.equal(res.statusCode, 200);
+    assert.equal(res.body.ok, true);
+    assert.equal(res.body.status, 'completed');
+    assert.equal(res.body.fields.length, 1);
+    assert.equal(res.body.fields[0].key, 'protocol_number');
+  }
+
+  // 2. Fallback analyze
+  {
+    mockEngine.enabled = false;
+    const { stream, url } = mockRequest('POST', '/api/assistant/template-analyze', {
+      text: 'ПРОТОКОЛ № 2 заседания кафедры от 12.11.2026.\nПредседатель: проф. Смирнов А.А.\nСекретарь: доц. Васильев В.В.'
+    });
+    const res = mockResponse();
+    const handled = await router(stream, res, url);
+    assert.equal(handled, true);
+    assert.equal(res.statusCode, 200);
+    assert.equal(res.body.ok, true);
+    assert.equal(res.body.status, 'fallback');
+    assert.ok(res.body.fields.length >= 4);
+    assert.ok(res.body.fields.some((f) => f.key === 'protocol_number'));
+    assert.ok(res.body.fields.some((f) => f.key === 'chairperson'));
   }
 
   await rm(root, { recursive: true, force: true });
