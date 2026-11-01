@@ -9,9 +9,14 @@ ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 INTEGRATION_DIR="/home/YaremenkoIA/Загрузки/local-llm-offline/integration"
 LLM_DIST_DIR="/home/YaremenkoIA/Загрузки/local-llm-offline/dist"
 KAFEDRA_RELEASE_DIR="$ROOT/release"
+USB_DIR="/run/user/1010/media/by-id-usb-SanDisk_Cruzer_Glide_200445301002E8918770-0:0-part1"
 
+VERSION="$(node -p "require('$ROOT/package.json').version")"
 DATE_TAG="$(date +%Y%m%d)"
-ARCHIVE_NAME="local-llm-patch-kafedra-agents-$DATE_TAG.tar.gz"
+ARCHIVE_NAME="local-llm-patch-kafedra-agents-v${VERSION}-${DATE_TAG}.tar.gz"
+VERSION_ONLY_NAME="local-llm-patch-kafedra-agents-v${VERSION}.tar.gz"
+LEGACY_ARCHIVE_NAME="local-llm-patch-kafedra-agents-${DATE_TAG}.tar.gz"
+
 WORK_DIR="$(mktemp -d)"
 PACKAGE_DIR="$WORK_DIR/local-llm-patch-kafedra-agents"
 
@@ -49,18 +54,25 @@ if [[ -d "$MODELS_DIR" ]]; then
   find "$PACKAGE_DIR/models" -name "*.gguf" -exec ls -lh {} +
 fi
 
-# Создание краткой памятки README.txt
-cat > "$PACKAGE_DIR/README.txt" << 'EOF'
+# Создание файла версии и краткой памятки README.txt
+cat > "$PACKAGE_DIR/VERSION" << EOF
+KAFEDRA_VERSION=$VERSION
+BUILD_DATE=$DATE_TAG
+ARCHIVE_NAME=$ARCHIVE_NAME
+EOF
+
+cat > "$PACKAGE_DIR/README.txt" << EOF
 ==============================================================================
 КОМПЛЕКСНЫЙ ПАТЧ-БАНДЛ ИИ-АГЕНТОВ И МОДЕЛЕЙ ДЛЯ LOCAL-LLM СЕРВЕРА
+Версия Кафедра-планера: v$VERSION (сборка: $DATE_TAG)
 ==============================================================================
 Комплект для обновления сервера llama.cpp, установки моделей BGE-M3 и Qwen
-и полной интеграции с Кафедра-планером.
+и полной интеграции с Кафедра-планером v$VERSION.
 
 В состав бандла включены:
  • Модель BGE-M3 (418 МБ) для нечеткого/векторного RAG-поиска
  • Модель Qwen 2.5 0.5B (469 МБ) для высокоскоростной генерации
- • Манифест всех 11 специализированных агентов кафедры
+ • Манифест всех 11 специализированных агентов кафедры (v$VERSION)
  • Служба векторизации local-llm-embeddings.service (порт 8082)
  • Оптимизации CPU, памяти и сетевого доступа для llama-server (порт 8081)
 
@@ -95,36 +107,57 @@ chmod +x "$PACKAGE_DIR/apply-patch.sh" "$PACKAGE_DIR/optimize-system.sh" "$PACKA
 [[ -f "$PACKAGE_DIR/install-models.sh" ]] && chmod +x "$PACKAGE_DIR/install-models.sh"
 [[ -f "$PACKAGE_DIR/run-embeddings.sh" ]] && chmod +x "$PACKAGE_DIR/run-embeddings.sh"
 
-echo "▶ 3. Создание tar.gz архива патча..."
+echo "▶ 3. Создание tar.gz архива патча (v$VERSION)..."
 mkdir -p "$KAFEDRA_RELEASE_DIR"
 
 TAR_OPTS=(--owner=0 --group=0 --numeric-owner --sort=name)
 tar "${TAR_OPTS[@]}" -C "$WORK_DIR" -czf "$KAFEDRA_RELEASE_DIR/$ARCHIVE_NAME" "local-llm-patch-kafedra-agents"
 
-# Генерация SHA-256
-(cd "$KAFEDRA_RELEASE_DIR" && sha256sum "$ARCHIVE_NAME" > "$ARCHIVE_NAME.sha256")
+# Создание алиасов по имени (с версией и датой) и подсчёт SHA-256
+(cd "$KAFEDRA_RELEASE_DIR" && {
+  ln -f "$ARCHIVE_NAME" "$VERSION_ONLY_NAME" 2>/dev/null || cp -a "$ARCHIVE_NAME" "$VERSION_ONLY_NAME"
+  ln -f "$ARCHIVE_NAME" "$LEGACY_ARCHIVE_NAME" 2>/dev/null || cp -a "$ARCHIVE_NAME" "$LEGACY_ARCHIVE_NAME"
+  sha256sum "$ARCHIVE_NAME" > "$ARCHIVE_NAME.sha256"
+  sha256sum "$VERSION_ONLY_NAME" > "$VERSION_ONLY_NAME.sha256"
+  sha256sum "$LEGACY_ARCHIVE_NAME" > "$LEGACY_ARCHIVE_NAME.sha256"
+})
 
 # Размещение в integration каталоге local-llm-offline
-cp -a "$KAFEDRA_RELEASE_DIR/$ARCHIVE_NAME" "$INTEGRATION_DIR/"
-cp -a "$KAFEDRA_RELEASE_DIR/$ARCHIVE_NAME.sha256" "$INTEGRATION_DIR/"
+cp -a "$KAFEDRA_RELEASE_DIR/$ARCHIVE_NAME"* "$INTEGRATION_DIR/"
+cp -a "$KAFEDRA_RELEASE_DIR/$VERSION_ONLY_NAME"* "$INTEGRATION_DIR/"
+cp -a "$KAFEDRA_RELEASE_DIR/$LEGACY_ARCHIVE_NAME"* "$INTEGRATION_DIR/"
 
 # Размещение в dist каталоге local-llm-offline (если доступен на запись)
 if [[ -w "$LLM_DIST_DIR" ]]; then
-  cp -a "$KAFEDRA_RELEASE_DIR/$ARCHIVE_NAME" "$LLM_DIST_DIR/"
-  cp -a "$KAFEDRA_RELEASE_DIR/$ARCHIVE_NAME.sha256" "$LLM_DIST_DIR/"
+  cp -a "$KAFEDRA_RELEASE_DIR/$ARCHIVE_NAME"* "$LLM_DIST_DIR/"
+  cp -a "$KAFEDRA_RELEASE_DIR/$VERSION_ONLY_NAME"* "$LLM_DIST_DIR/"
+  cp -a "$KAFEDRA_RELEASE_DIR/$LEGACY_ARCHIVE_NAME"* "$LLM_DIST_DIR/"
+fi
+
+# Доставка на подключённый USB-накопитель (если доступен)
+if [[ -d "$USB_DIR" && -w "$USB_DIR" ]]; then
+  echo "▶ 4. Автоматическая синхронизация с USB-накопителем..."
+  cp -a "$KAFEDRA_RELEASE_DIR/$ARCHIVE_NAME"* "$USB_DIR/"
+  sync
+  echo "✓ Бандл доставлен на USB: $USB_DIR/$ARCHIVE_NAME"
 fi
 
 ARCHIVE_SIZE=$(du -h "$KAFEDRA_RELEASE_DIR/$ARCHIVE_NAME" | awk '{print $1}')
 SHA256_HASH=$(awk '{print $1}' "$KAFEDRA_RELEASE_DIR/$ARCHIVE_NAME.sha256")
 
 echo "=============================================================================="
-echo "✓ Патч-бандл успешно собран!"
-echo "Файл:         $ARCHIVE_NAME"
+echo "✓ Патч-бандл версии v$VERSION успешно собран!"
+echo "Файл версии:  $ARCHIVE_NAME"
+echo "Алиасы:       $VERSION_ONLY_NAME"
+echo "              $LEGACY_ARCHIVE_NAME"
 echo "Размер:       $ARCHIVE_SIZE"
 echo "SHA-256:      $SHA256_HASH"
 echo "Размещение 1: $KAFEDRA_RELEASE_DIR/$ARCHIVE_NAME"
 echo "Размещение 2: $INTEGRATION_DIR/$ARCHIVE_NAME"
 if [[ -w "$LLM_DIST_DIR" ]]; then
   echo "Размещение 3: $LLM_DIST_DIR/$ARCHIVE_NAME"
+fi
+if [[ -d "$USB_DIR" && -w "$USB_DIR" ]]; then
+  echo "Размещение 4: $USB_DIR/$ARCHIVE_NAME"
 fi
 echo "=============================================================================="

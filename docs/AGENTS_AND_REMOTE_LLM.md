@@ -43,7 +43,7 @@ node scripts/export-agent-prompts.mjs
 npm run bundle:patch:llm
 ```
 
-Сборщик формирует архив `release/local-llm-patch-kafedra-agents-YYYYMMDD.tar.gz` (и копирует его в `local-llm-offline/integration/`), содержащий:
+Сборщик формирует архив `release/local-llm-patch-kafedra-agents-v<версия>-YYYYMMDD.tar.gz` (а также алиасы без даты или только с датой), содержащий:
 1. `apply-patch.sh` — скрипт автоматической установки манифеста, настройки `threads = nproc`, разрешения доступа по локальной сети (`host: 0.0.0.0`) и перезапуска `local-llm.service`.
 2. `optimize-system.sh` — тюнинг ядра Linux для максимальной скорости CPU-инференса (CPU governor `performance`, Transparent Huge Pages, `sysctl`, `limits.d`).
 3. `test-remote-agents.sh` — автономную утилиту экспресс-тестирования любого агента прямо на сервере нейросети.
