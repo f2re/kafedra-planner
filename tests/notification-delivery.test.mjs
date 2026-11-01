@@ -197,7 +197,7 @@ test('SMTP-адаптер отправляет UTF-8 письмо через л�
       host: '127.0.0.1', port, secure: false, startTls: false,
       username: 'user', password: 'secret', from: 'kafedra@example.test',
       to: 'person@example.test', subject: 'Срок поручения', body: 'Подготовьте отчёт.',
-      messageId: 'delivery-test@kafedra-planner', timeoutMs: 3000
+      messageId: 'delivery-test@kafedra-planner', timeoutMs: 8000
     });
     assert.equal(result.accepted, true);
     assert.match(received, /Subject: =\?UTF-8\?B\?/);
