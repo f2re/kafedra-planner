@@ -35,27 +35,38 @@ cp -a "$INTEGRATION_DIR/project-contracts.json" "$PACKAGE_DIR/"
 cp -a "$INTEGRATION_DIR/kafedra-planner.env" "$PACKAGE_DIR/"
 cp -a "$INTEGRATION_DIR/AGENTS_GUIDE.md" "$PACKAGE_DIR/"
 cp -a "$INTEGRATION_DIR/profiles/." "$PACKAGE_DIR/profiles/"
+[[ -f "$INTEGRATION_DIR/install-models.sh" ]] && cp -a "$INTEGRATION_DIR/install-models.sh" "$PACKAGE_DIR/"
+[[ -f "$INTEGRATION_DIR/local-llm-embeddings.service.example" ]] && cp -a "$INTEGRATION_DIR/local-llm-embeddings.service.example" "$PACKAGE_DIR/"
 
 # Создание краткой памятки README.txt
 cat > "$PACKAGE_DIR/README.txt" << 'EOF'
 ==============================================================================
-ПАТЧ-БАНДЛ АКТУАЛИЗАЦИИ ИИ-АГЕНТОВ ДЛЯ LOCAL-LLM СЕРВЕРА
+ПАТЧ-БАНДЛ АКТУАЛИЗАЦИИ ИИ-АГЕНТОВ И МИНИ-МОДЕЛЕЙ ДЛЯ LOCAL-LLM СЕРВЕРА
 ==============================================================================
 Комплект для обновления сервера llama.cpp и интеграции с Кафедра-планером.
 
 Установка в 1 команду:
   sudo ./apply-patch.sh
 
+Опции:
+  sudo ./apply-patch.sh --profile cpu-0.5b-fast      # переключение на 0.5B
+  sudo ./apply-patch.sh --profile cpu-1.5b-fast      # переключение на 1.5B
+  sudo ./apply-patch.sh --with-embeddings            # запуск векторного RAG (BGE-M3 на порту 8082)
+  sudo ./install-models.sh [каталог]                 # установка .gguf моделей в /opt/local-llm/current/models
+
 Скрипт автоматически:
- 1. Доставит манифест 9 агентов кафедры в /etc/local-llm/agents/;
- 2. Оптимизирует потоки CPU (/etc/local-llm/server.json) под число vCPU;
- 3. Разрешит доступ по локальной сети для узлов кафедры (host 0.0.0.0);
- 4. Применит настройки ядра Linux (CPU governor 'performance', THP, limits);
- 5. Перезапустит службу local-llm.service и выполнит тест ответа модели.
+ 1. Доставит манифест 11 агентов кафедры в /etc/local-llm/agents/;
+ 2. Разместит профили мини-моделей в /etc/local-llm/profiles/;
+ 3. Оптимизирует потоки CPU (/etc/local-llm/server.json) под число vCPU;
+ 4. Разрешит доступ по локальной сети для узлов кафедры (host 0.0.0.0);
+ 5. Применит настройки ядра Linux (CPU governor 'performance', THP, limits);
+ 6. Перезапустит службу local-llm.service и выполнит экспресс-тест.
 
 Тестирование агентов:
   ./test-remote-agents.sh --list
   ./test-remote-agents.sh protocol-analysis
+  ./test-remote-agents.sh suggest-agenda
+  ./test-remote-agents.sh --embeddings
   ./test-remote-agents.sh --all
 
 Подробности: AGENTS_GUIDE.md
@@ -63,6 +74,7 @@ cat > "$PACKAGE_DIR/README.txt" << 'EOF'
 EOF
 
 chmod +x "$PACKAGE_DIR/apply-patch.sh" "$PACKAGE_DIR/optimize-system.sh" "$PACKAGE_DIR/test-remote-agents.sh"
+[[ -f "$PACKAGE_DIR/install-models.sh" ]] && chmod +x "$PACKAGE_DIR/install-models.sh"
 
 echo "▶ 3. Создание tar.gz архива патча..."
 mkdir -p "$KAFEDRA_RELEASE_DIR"
