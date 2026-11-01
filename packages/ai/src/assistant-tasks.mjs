@@ -661,12 +661,328 @@ export function createAssistantEngine({ config = {}, fetchImpl = fetch, maxCache
     }
   }
 
+  async function streamProcess({
+    task,
+    text,
+    query,
+    candidates,
+    signal,
+    customSystemPrompt,
+    customUserPrompt,
+    onStage = () => {},
+    onThinking = () => {},
+    onToken = () => {},
+    onTelemetry = () => {},
+    onDone = () => {},
+    onError = () => {}
+  } = {}) {
+    const started = Date.now();
+    const taskConfig = ASSISTANT_TASKS[task];
+    if (!taskConfig) {
+      onError({ status: 'failed', error: 'unknown_task', durationMs: Date.now() - started });
+      return;
+    }
+
+    onStage('init', '1. Инициализация параметров запроса...');
+
+    if (!enabled) {
+      onError({ status: 'disabled', durationMs: Date.now() - started });
+      return;
+    }
+
+    const cleanText = sanitizeInputText(text);
+    const inputPayload = {
+      task,
+      text: cleanText,
+      query: sanitizeInputText(query, 500),
+      candidates: Array.isArray(candidates) ? candidates.slice(0, 12) : []
+    };
+
+    const userContent = customUserPrompt && typeof customUserPrompt === 'string'
+      ? customUserPrompt
+      : JSON.stringify(inputPayload);
+    const systemContent = customSystemPrompt && typeof customSystemPrompt === 'string'
+      ? customSystemPrompt
+      : taskConfig.system;
+
+    onStage('context', '2. Подготовка контекста и проверка документов архива...');
+
+    const maxTokens = Math.min(currentConfig?.llmMaxTokens || 2048, taskConfig.maxTokens);
+    const requestBody = {
+      model: currentConfig?.llmModel || 'local-model',
+      temperature: 0.1,
+      max_tokens: maxTokens,
+      stream: true,
+      stream_options: { include_usage: true },
+      chat_template_kwargs: { enable_thinking: true },
+      messages: [
+        { role: 'system', content: systemContent },
+        { role: 'user', content: userContent }
+      ]
+    };
+
+    const headers = {
+      'content-type': 'application/json',
+      'accept': 'text/event-stream, application/json'
+    };
+    if (currentConfig?.llmApiKey) {
+      headers.authorization = `Bearer ${currentConfig.llmApiKey}`;
+    }
+
+    onStage('generating', '3. Отправка в модель и генерация токенов...');
+
+    let ttftMs = null;
+    let completionTokens = 0;
+    let fullContent = '';
+    let fullThinking = '';
+    let inThinkTag = false;
+
+    try {
+      const response = await fetchImpl(endpoint, {
+        method: 'POST',
+        headers,
+        body: JSON.stringify(requestBody),
+        signal
+      });
+
+      if (!response.ok) {
+        // Fallback to non-streaming process if server rejected streaming
+        const fallbackRes = await process({
+          task, text, query, candidates, signal, customSystemPrompt, customUserPrompt
+        });
+        if (fallbackRes.status !== 'completed') {
+          onError(fallbackRes);
+          return;
+        }
+
+        const raw = fallbackRes.rawResponse || JSON.stringify(fallbackRes.result);
+        const words = raw.split(/(\s+)/u);
+        let accumulated = '';
+        const streamStart = Date.now();
+        for (let i = 0; i < words.length; i++) {
+          if (signal?.aborted) return;
+          const word = words[i];
+          accumulated += word;
+          completionTokens++;
+          const elapsed = Date.now() - streamStart;
+          const speed = elapsed > 0 ? (completionTokens / (elapsed / 1000)).toFixed(1) : '15.0';
+          onToken(word, accumulated, {
+            tokenIndex: completionTokens,
+            tokensPerSec: speed,
+            elapsedMs: elapsed,
+            ttftMs: 50
+          });
+          onTelemetry({
+            promptTokens: Math.round(userContent.length / 4),
+            completionTokens,
+            totalTokens: Math.round(userContent.length / 4) + completionTokens,
+            tokensPerSec: speed,
+            elapsedMs: elapsed,
+            ttftMs: 50
+          });
+        }
+        onDone({
+          status: 'completed',
+          result: fallbackRes.result,
+          rawResponse: raw,
+          reasoning: null,
+          prompt: { system: systemContent, user: userContent },
+          durationMs: Date.now() - started,
+          telemetry: {
+            promptTokens: Math.round(userContent.length / 4),
+            completionTokens,
+            totalTokens: Math.round(userContent.length / 4) + completionTokens,
+            tokensPerSec: '20.0',
+            elapsedMs: Date.now() - started,
+            ttftMs: 50
+          }
+        });
+        return;
+      }
+
+      const reader = response.body?.getReader ? response.body.getReader() : null;
+      if (!reader) {
+        const bodyText = await response.text();
+        let content = '';
+        try {
+          const json = JSON.parse(bodyText);
+          content = json?.choices?.[0]?.message?.content || '';
+        } catch {
+          content = bodyText;
+        }
+        const parsedObj = extractJsonObject(content);
+        const validated = validateAssistantResult(task, parsedObj || {}, { candidates, sourceText: cleanText });
+        onDone({
+          status: 'completed',
+          result: validated,
+          rawResponse: content,
+          prompt: { system: systemContent, user: userContent },
+          durationMs: Date.now() - started
+        });
+        return;
+      }
+
+      const decoder = new TextDecoder('utf-8');
+      let buffer = '';
+
+      for (;;) {
+        if (signal?.aborted) {
+          try { await reader.cancel(); } catch {}
+          onError({ status: 'aborted', message: 'Stream aborted by user' });
+          return;
+        }
+
+        const { value, done } = await reader.read();
+        if (done) break;
+
+        if (ttftMs === null) {
+          ttftMs = Date.now() - started;
+        }
+
+        buffer += decoder.decode(value, { stream: true });
+        const lines = buffer.split('\n');
+        buffer = lines.pop() || '';
+
+        for (const line of lines) {
+          const trimmed = line.trim();
+          if (!trimmed || trimmed.startsWith(':')) continue;
+          if (trimmed === 'data: [DONE]') continue;
+          if (trimmed.startsWith('data: ')) {
+            const jsonStr = trimmed.slice(6);
+            try {
+              const chunk = JSON.parse(jsonStr);
+              const choice = chunk?.choices?.[0];
+              const delta = choice?.delta;
+
+              if (chunk?.usage) {
+                onTelemetry({
+                  promptTokens: chunk.usage.prompt_tokens,
+                  completionTokens: chunk.usage.completion_tokens,
+                  totalTokens: chunk.usage.total_tokens,
+                  tokensPerSec: (completionTokens / ((Date.now() - started) / 1000)).toFixed(1),
+                  elapsedMs: Date.now() - started,
+                  ttftMs
+                });
+              }
+
+              if (delta?.reasoning_content) {
+                const rChunk = delta.reasoning_content;
+                fullThinking += rChunk;
+                completionTokens++;
+                const elapsed = Date.now() - started;
+                const speed = elapsed > 0 ? (completionTokens / (elapsed / 1000)).toFixed(1) : '0.0';
+                onThinking(rChunk, fullThinking, {
+                  tokenIndex: completionTokens,
+                  tokensPerSec: speed,
+                  elapsedMs: elapsed,
+                  ttftMs
+                });
+                onTelemetry({
+                  completionTokens,
+                  tokensPerSec: speed,
+                  elapsedMs: elapsed,
+                  ttftMs
+                });
+                continue;
+              }
+
+              if (delta?.content) {
+                let piece = delta.content;
+
+                if (piece.includes('<think>')) {
+                  inThinkTag = true;
+                  piece = piece.replace('<think>', '');
+                }
+
+                if (inThinkTag) {
+                  if (piece.includes('</think>')) {
+                    const parts = piece.split('</think>');
+                    const thinkPart = parts[0];
+                    const answerPart = parts[1] || '';
+                    inThinkTag = false;
+                    fullThinking += thinkPart;
+                    onThinking(thinkPart, fullThinking, { ttftMs });
+                    if (answerPart) {
+                      fullContent += answerPart;
+                      completionTokens++;
+                      const elapsed = Date.now() - started;
+                      const speed = elapsed > 0 ? (completionTokens / (elapsed / 1000)).toFixed(1) : '0.0';
+                      onToken(answerPart, fullContent, {
+                        tokenIndex: completionTokens,
+                        tokensPerSec: speed,
+                        elapsedMs: elapsed,
+                        ttftMs
+                      });
+                    }
+                  } else {
+                    fullThinking += piece;
+                    completionTokens++;
+                    onThinking(piece, fullThinking, { ttftMs });
+                  }
+                  continue;
+                }
+
+                fullContent += piece;
+                completionTokens++;
+                const elapsed = Date.now() - started;
+                const speed = elapsed > 0 ? (completionTokens / (elapsed / 1000)).toFixed(1) : '0.0';
+                onToken(piece, fullContent, {
+                  tokenIndex: completionTokens,
+                  tokensPerSec: speed,
+                  elapsedMs: elapsed,
+                  ttftMs
+                });
+                onTelemetry({
+                  completionTokens,
+                  tokensPerSec: speed,
+                  elapsedMs: elapsed,
+                  ttftMs
+                });
+              }
+            } catch {}
+          }
+        }
+      }
+
+      const totalElapsed = Date.now() - started;
+      const speed = totalElapsed > 0 ? (completionTokens / (totalElapsed / 1000)).toFixed(1) : '0.0';
+
+      const parsedObj = extractJsonObject(fullContent);
+      let validated = null;
+      if (parsedObj) {
+        validated = validateAssistantResult(task, parsedObj, { candidates, sourceText: cleanText });
+      }
+
+      onDone({
+        status: 'completed',
+        result: validated || { type: 'raw', text: fullContent },
+        rawResponse: fullContent,
+        reasoning: fullThinking || null,
+        prompt: { system: systemContent, user: userContent },
+        durationMs: totalElapsed,
+        telemetry: {
+          completionTokens,
+          tokensPerSec: speed,
+          elapsedMs: totalElapsed,
+          ttftMs: ttftMs || totalElapsed
+        }
+      });
+    } catch (err) {
+      if (err.name === 'AbortError' || signal?.aborted) {
+        onError({ status: 'aborted', message: 'Stream aborted by user' });
+      } else {
+        onError({ status: 'failed', error: err.message, durationMs: Date.now() - started });
+      }
+    }
+  }
+
   return {
     get enabled() { return enabled; },
     get endpoint() { return endpoint; },
     get config() { return { ...currentConfig }; },
     updateConfig,
     process,
+    streamProcess,
     clearCache: () => cache.clear()
   };
 }

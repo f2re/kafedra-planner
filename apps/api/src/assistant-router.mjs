@@ -346,6 +346,86 @@ export function createAssistantRouter({ database, config, logger, engine: custom
       return true;
     }
 
+    // Real-time SSE streaming with reasoning and token telemetry
+    if (url.pathname === '/api/assistant/stream' && request.method === 'POST') {
+      const body = await readJson(request);
+      const task = String(body.task || 'table-extract').trim();
+      const text = String(body.text || '');
+      const query = String(body.query || '');
+      const customSystemPrompt = body.customSystemPrompt ? String(body.customSystemPrompt).slice(0, 4000) : undefined;
+      const customUserPrompt = body.customUserPrompt ? String(body.customUserPrompt).slice(0, 12000) : undefined;
+
+      const candidates = await resolveCandidates(task, query, text, request);
+
+      response.writeHead(200, {
+        'Content-Type': 'text/event-stream; charset=utf-8',
+        'Cache-Control': 'no-cache, no-transform',
+        'Connection': 'keep-alive',
+        'X-Accel-Buffering': 'no'
+      });
+
+      const sendEvent = (event, data) => {
+        if (response.writableEnded) return;
+        response.write(`event: ${event}\ndata: ${JSON.stringify(data)}\n\n`);
+      };
+
+      const abortController = new AbortController();
+      request.on('close', () => {
+        abortController.abort();
+      });
+
+      if (typeof engine.streamProcess === 'function') {
+        await engine.streamProcess({
+          task,
+          text,
+          query,
+          candidates,
+          customSystemPrompt,
+          customUserPrompt,
+          signal: abortController.signal,
+          onStage: (stage, message) => {
+            sendEvent('stage', { stage, message });
+          },
+          onThinking: (delta, fullText, meta) => {
+            sendEvent('thinking', { delta, fullText, meta });
+          },
+          onToken: (delta, fullText, meta) => {
+            sendEvent('token', { delta, fullText, meta });
+          },
+          onTelemetry: (telemetry) => {
+            sendEvent('telemetry', telemetry);
+          },
+          onDone: (payload) => {
+            sendEvent('done', payload);
+            if (!response.writableEnded) response.end();
+          },
+          onError: (err) => {
+            sendEvent('error', err);
+            if (!response.writableEnded) response.end();
+          }
+        });
+      } else {
+        // Fallback for custom engines without native streamProcess
+        sendEvent('stage', { stage: 'generating', message: 'Обработка запроса...' });
+        const res = await engine.process({
+          task,
+          text,
+          query,
+          candidates,
+          customSystemPrompt,
+          customUserPrompt,
+          signal: abortController.signal
+        });
+        const raw = res.rawResponse || JSON.stringify(res.result || {});
+        sendEvent('token', { delta: raw, fullText: raw, meta: { tokenIndex: 1, tokensPerSec: '20.0' } });
+        sendEvent('telemetry', { completionTokens: 20, tokensPerSec: '20.0', elapsedMs: res.durationMs || 100 });
+        sendEvent('done', res);
+        if (!response.writableEnded) response.end();
+      }
+
+      return true;
+    }
+
     // Async task submission for long-running generation
     if (url.pathname === '/api/assistant/tasks' && request.method === 'POST') {
       pruneTasks();

@@ -38,54 +38,58 @@ UI-ad09874579	public/assistant-sheet.js:280:11	ensureElements	Очистить	C
 UI-83f1bd1f7a	public/assistant-sheet.js:281:11	ensureElements	Отмена	C01	запланировано
 UI-381dd79da5	public/assistant-sheet.js:282:11	ensureElements	Обработать	C01	запланировано
 UI-2ecc801d47	public/assistant-sheet.js:572:20	renderPresets / callback@571	динамическая подпись	C01	запланировано
-UI-0c8a0e81e4	public/assistant-sheet.js:861:15	renderInspectorCard	Копировать	C01	запланировано
-UI-dc2619e42c	public/assistant-sheet.js:1082:19	renderCustomPromptsView / callback@1081	динамическая подпись	C01	запланировано
-UI-9080235381	public/assistant-sheet.js:1096:19	renderCustomPromptsView / callback@1095	динамическая подпись	C01	запланировано
-UI-2ca82d0cb8	public/assistant-sheet.js:1113:20	renderCustomPromptsView	＋ Свой шаблон	C01	запланировано
-UI-1475f961f1	public/assistant-sheet.js:1123:23	renderCustomPromptsView	📥 Импорт JSON	C01	запланировано
-UI-786ac85e46	public/assistant-sheet.js:1149:23	renderCustomPromptsView	📤 Экспорт JSON	C01	запланировано
-UI-256ba0ae4b	public/assistant-sheet.js:1210:25	updateFilteredCards / callback@1200	★	C01	запланировано
-UI-f5d689ff9e	public/assistant-sheet.js:1253:26	updateFilteredCards / callback@1200	🗑️ Удалить	C01	запланировано
-UI-dd08e52737	public/assistant-sheet.js:1267:25	updateFilteredCards / callback@1200	✏️ Изменить	C01	запланировано
-UI-6db3b743d5	public/assistant-sheet.js:1274:24	updateFilteredCards / callback@1200	Использовать шаблон	C01	запланировано
-UI-8226d6ec08	public/assistant-sheet.js:1355:11	openPromptEditorModal	Отмена	C01	запланировано
-UI-d7061379cf	public/assistant-sheet.js:1356:11	openPromptEditorModal	Сохранить шаблон	C01	запланировано
-UI-f44b93a64f	public/assistant-sheet.js:1454:19	renderDocumentGraphView / callback@1453	динамическая подпись	C01	запланировано
-UI-240381a3f4	public/assistant-sheet.js:1474:23	renderDocumentGraphView	＋	C01	запланировано
-UI-3d17060617	public/assistant-sheet.js:1484:24	renderDocumentGraphView	－	C01	запланировано
-UI-6c2f0b42ef	public/assistant-sheet.js:1494:26	renderDocumentGraphView	⟲	C01	запланировано
-UI-bc21d3af84	public/assistant-sheet.js:1774:24	renderInspector	✕	C01	запланировано
-UI-90b1603577	public/assistant-sheet.js:1811:24	renderInspector / callback@1810	динамическая подпись	C01	запланировано
-UI-591293e054	public/assistant-sheet.js:1829:25	renderInspector	динамическая подпись	C01	запланировано
-UI-f5e18c9a1e	public/assistant-sheet.js:1920:24	renderRows / callback@1889	✕	C01	запланировано
-UI-4a0a32c4ba	public/assistant-sheet.js:1951:25	renderTemplateAnalyzeResult	＋ Добавить реквизит	C01	запланировано
-UI-bea524e2c5	public/assistant-sheet.js:1967:28	renderTemplateAnalyzeResult	📋 Скопировать маркеры	C01	запланировано
-UI-08dc74e737	public/assistant-sheet.js:1982:30	renderTemplateAnalyzeResult	📄 Разметить текст в редакторе	C01	запланировано
-UI-3ea7cac17f	public/assistant-sheet.js:2000:29	renderTemplateAnalyzeResult	💾 Сохранить как шаблон	C01	запланировано
-UI-f4e6637224	public/assistant-sheet.js:2073:27	renderGapRepairResult	✓ Принять всё сразу	C01	запланировано
-UI-9fa6b16e0d	public/assistant-sheet.js:2080:26	renderGapRepairResult	📋 Скопировать готовый текст	C01	запланировано
-UI-a86da781f0	public/assistant-sheet.js:2092:32	renderGapRepairResult	🔍 Проверить цитаты и обоснования	C01	запланировано
-UI-e4fa336a72	public/assistant-sheet.js:2171:26	renderGapRepairResult / callback@2148	✓ Принять	C01	запланировано
-UI-cb9410c2b7	public/assistant-sheet.js:2177:25	renderGapRepairResult / callback@2148	📋	C01	запланировано
-UI-3220480dd3	public/assistant-sheet.js:2293:21	renderTableResult	📋 Скопировать в Excel / Calc	C01	запланировано
-UI-d228c927c7	public/assistant-sheet.js:2299:23	renderTableResult	+ Строка	C01	запланировано
-UI-402154c129	public/assistant-sheet.js:2387:20	createTableRow	✕	C01	запланировано
-UI-d71d9e842d	public/assistant-sheet.js:2417:21	renderFormulaResult	📋 Копировать	C01	запланировано
-UI-2d918fea74	public/assistant-sheet.js:2509:25	renderArchiveMatches / callback@2474	📋 Скопировать реквизиты	C01	запланировано
-UI-c83fad95a2	public/assistant-sheet.js:2526:34	renderArchiveMatches / callback@2474	👁️ Открыть заседание	C01	запланировано
-UI-864a82f7ff	public/assistant-sheet.js:2585:21	renderProtocolAnalysisResult	📋 Скопировать решения и поручения	C01	запланировано
-UI-fd4de3d4ce	public/assistant-sheet.js:2696:21	renderReportSynthesisResult	📋 Скопировать раздел отчёта	C01	запланировано
-UI-71728bd2ff	public/assistant-sheet.js:2810:29	renderComplianceCheckResult	✓ Принять все предложения	C01	запланировано
-UI-bf42da44c6	public/assistant-sheet.js:2816:28	renderComplianceCheckResult	📋 Скопировать список советов	C01	запланировано
-UI-4b55712a4a	public/assistant-sheet.js:2921:28	renderComplianceCheckResult / callback@2873	✓ Принять формулировку	C01	запланировано
-UI-337905eb6e	public/assistant-sheet.js:2927:32	renderComplianceCheckResult / callback@2873	📋	C01	запланировано
-UI-32e6fce39b	public/assistant-sheet.js:3065:22	renderSearchRefineResult	🔍 Искать в архиве	C01	запланировано
-UI-d1976d7479	public/assistant-sheet.js:3096:20	renderHistoryView	динамическая подпись	C01	запланировано
-UI-da86a96bea	public/assistant-sheet.js:3102:20	renderHistoryView	динамическая подпись	C01	запланировано
-UI-eebe572dad	public/assistant-sheet.js:3108:24	renderHistoryView	динамическая подпись	C01	запланировано
-UI-5f4511b593	public/assistant-sheet.js:3117:22	renderHistoryView	Очистить историю	C01	запланировано
-UI-bfabcf7279	public/assistant-sheet.js:3152:23	renderHistoryView / callback@3147	динамическая подпись	C01	запланировано
-UI-7ebc538102	public/assistant-sheet.js:3184:24	renderHistoryView / callback@3147	Открыть ↵	C01	запланировано
+UI-96f8b8e71d	public/assistant-sheet.js:687:13	handleProcess	⏹ Стоп	C01	запланировано
+UI-083e28ecb9	public/assistant-sheet.js:871:11	handleProcess	✨ Структурированный результат	C01	запланировано
+UI-87f0150e6b	public/assistant-sheet.js:872:11	handleProcess	🧠 Ход мыслей модели	C01	запланировано
+UI-8ee3cd0ac0	public/assistant-sheet.js:873:11	handleProcess	⚡ Лог токенов и телеметрия	C01	запланировано
+UI-fbbbad2116	public/assistant-sheet.js:1029:15	renderInspectorCard	Копировать	C01	запланировано
+UI-7febb3d2da	public/assistant-sheet.js:1250:19	renderCustomPromptsView / callback@1249	динамическая подпись	C01	запланировано
+UI-a7fe0211dc	public/assistant-sheet.js:1264:19	renderCustomPromptsView / callback@1263	динамическая подпись	C01	запланировано
+UI-30f9aa3ab1	public/assistant-sheet.js:1281:20	renderCustomPromptsView	＋ Свой шаблон	C01	запланировано
+UI-4ada91fb97	public/assistant-sheet.js:1291:23	renderCustomPromptsView	📥 Импорт JSON	C01	запланировано
+UI-7f53726bbd	public/assistant-sheet.js:1317:23	renderCustomPromptsView	📤 Экспорт JSON	C01	запланировано
+UI-5fd3abec88	public/assistant-sheet.js:1378:25	updateFilteredCards / callback@1368	★	C01	запланировано
+UI-0b157deefb	public/assistant-sheet.js:1421:26	updateFilteredCards / callback@1368	🗑️ Удалить	C01	запланировано
+UI-414035fceb	public/assistant-sheet.js:1435:25	updateFilteredCards / callback@1368	✏️ Изменить	C01	запланировано
+UI-317b12e52d	public/assistant-sheet.js:1442:24	updateFilteredCards / callback@1368	Использовать шаблон	C01	запланировано
+UI-bda6ccbc72	public/assistant-sheet.js:1523:11	openPromptEditorModal	Отмена	C01	запланировано
+UI-361e8207de	public/assistant-sheet.js:1524:11	openPromptEditorModal	Сохранить шаблон	C01	запланировано
+UI-76acc003e4	public/assistant-sheet.js:1622:19	renderDocumentGraphView / callback@1621	динамическая подпись	C01	запланировано
+UI-d04c3c001f	public/assistant-sheet.js:1642:23	renderDocumentGraphView	＋	C01	запланировано
+UI-c1b669a1bc	public/assistant-sheet.js:1652:24	renderDocumentGraphView	－	C01	запланировано
+UI-a825a90574	public/assistant-sheet.js:1662:26	renderDocumentGraphView	⟲	C01	запланировано
+UI-84ab5adbff	public/assistant-sheet.js:1942:24	renderInspector	✕	C01	запланировано
+UI-84e93b0ca5	public/assistant-sheet.js:1979:24	renderInspector / callback@1978	динамическая подпись	C01	запланировано
+UI-9e58d376c5	public/assistant-sheet.js:1997:25	renderInspector	динамическая подпись	C01	запланировано
+UI-1b2c31c610	public/assistant-sheet.js:2088:24	renderRows / callback@2057	✕	C01	запланировано
+UI-f975b79645	public/assistant-sheet.js:2119:25	renderTemplateAnalyzeResult	＋ Добавить реквизит	C01	запланировано
+UI-f37eda39c5	public/assistant-sheet.js:2135:28	renderTemplateAnalyzeResult	📋 Скопировать маркеры	C01	запланировано
+UI-4b8cf6179b	public/assistant-sheet.js:2150:30	renderTemplateAnalyzeResult	📄 Разметить текст в редакторе	C01	запланировано
+UI-fc58b6762b	public/assistant-sheet.js:2168:29	renderTemplateAnalyzeResult	💾 Сохранить как шаблон	C01	запланировано
+UI-cf6e635f70	public/assistant-sheet.js:2241:27	renderGapRepairResult	✓ Принять всё сразу	C01	запланировано
+UI-a4e2c5a779	public/assistant-sheet.js:2248:26	renderGapRepairResult	📋 Скопировать готовый текст	C01	запланировано
+UI-f8d5cac30b	public/assistant-sheet.js:2260:32	renderGapRepairResult	🔍 Проверить цитаты и обоснования	C01	запланировано
+UI-57c4e55ab0	public/assistant-sheet.js:2339:26	renderGapRepairResult / callback@2316	✓ Принять	C01	запланировано
+UI-ed89839c75	public/assistant-sheet.js:2345:25	renderGapRepairResult / callback@2316	📋	C01	запланировано
+UI-18064b202d	public/assistant-sheet.js:2461:21	renderTableResult	📋 Скопировать в Excel / Calc	C01	запланировано
+UI-910cf17354	public/assistant-sheet.js:2467:23	renderTableResult	+ Строка	C01	запланировано
+UI-afe2e54ffa	public/assistant-sheet.js:2555:20	createTableRow	✕	C01	запланировано
+UI-ef4e2aca1a	public/assistant-sheet.js:2585:21	renderFormulaResult	📋 Копировать	C01	запланировано
+UI-2600b68a40	public/assistant-sheet.js:2677:25	renderArchiveMatches / callback@2642	📋 Скопировать реквизиты	C01	запланировано
+UI-7e6e28e606	public/assistant-sheet.js:2694:34	renderArchiveMatches / callback@2642	👁️ Открыть заседание	C01	запланировано
+UI-893a9f46dd	public/assistant-sheet.js:2753:21	renderProtocolAnalysisResult	📋 Скопировать решения и поручения	C01	запланировано
+UI-6f908aa573	public/assistant-sheet.js:2864:21	renderReportSynthesisResult	📋 Скопировать раздел отчёта	C01	запланировано
+UI-877ffa941c	public/assistant-sheet.js:2978:29	renderComplianceCheckResult	✓ Принять все предложения	C01	запланировано
+UI-a2238aa5f6	public/assistant-sheet.js:2984:28	renderComplianceCheckResult	📋 Скопировать список советов	C01	запланировано
+UI-2d70f522de	public/assistant-sheet.js:3089:28	renderComplianceCheckResult / callback@3041	✓ Принять формулировку	C01	запланировано
+UI-bce19c2ed5	public/assistant-sheet.js:3095:32	renderComplianceCheckResult / callback@3041	📋	C01	запланировано
+UI-6e25a1bde2	public/assistant-sheet.js:3233:22	renderSearchRefineResult	🔍 Искать в архиве	C01	запланировано
+UI-10056e9a5c	public/assistant-sheet.js:3264:20	renderHistoryView	динамическая подпись	C01	запланировано
+UI-d3d826d17b	public/assistant-sheet.js:3270:20	renderHistoryView	динамическая подпись	C01	запланировано
+UI-b1140e7f66	public/assistant-sheet.js:3276:24	renderHistoryView	динамическая подпись	C01	запланировано
+UI-4d2f7a94d1	public/assistant-sheet.js:3285:22	renderHistoryView	Очистить историю	C01	запланировано
+UI-5ee7c0d143	public/assistant-sheet.js:3320:23	renderHistoryView / callback@3315	динамическая подпись	C01	запланировано
+UI-5f00e17b70	public/assistant-sheet.js:3352:24	renderHistoryView / callback@3315	Открыть ↵	C01	запланировано
 UI-6ba70a3f7b	public/calendar-start-settings.js:66:7	ensureDialog	Закрыть	C01	запланировано
 UI-e132b40aed	public/calendar-start-settings.js:81:9	ensureDialog	Закрыть	C01	запланировано
 UI-dee1a42f69	public/calendar-start-settings.js:82:9	ensureDialog	Сохранить	C01	запланировано

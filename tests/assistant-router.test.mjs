@@ -14,6 +14,7 @@ function mockRequest(method, urlString, body = null, headers = {}) {
   const url = new URL(urlString, 'http://127.0.0.1');
   const buffer = body ? Buffer.from(JSON.stringify(body)) : Buffer.alloc(0);
   let read = false;
+  const listeners = {};
   const stream = {
     method,
     url: urlString,
@@ -22,6 +23,13 @@ function mockRequest(method, urlString, body = null, headers = {}) {
       ...headers
     },
     auth: { authenticated: true, enabled: false, role: 'admin' },
+    on(event, fn) {
+      listeners[event] = listeners[event] || [];
+      listeners[event].push(fn);
+    },
+    emit(event, ...args) {
+      (listeners[event] || []).forEach((fn) => fn(...args));
+    },
     async *[Symbol.asyncIterator]() {
       if (!read && buffer.length) {
         read = true;
@@ -44,12 +52,19 @@ function mockResponse() {
     setHeader(name, val) {
       headers[name] = val;
     },
+    write(data) {
+      if (data) body += data;
+    },
     end(data) {
       if (data) body += data;
     },
     get statusCode() { return statusCode; },
     get headers() { return headers; },
-    get body() { return body ? JSON.parse(body) : null; }
+    get rawBody() { return body; },
+    get body() {
+      try { return body ? JSON.parse(body) : null; }
+      catch { return null; }
+    }
   };
 }
 
@@ -784,6 +799,55 @@ test('assistant-router analyzes template and extracts variables via AI and fallb
     assert.ok(res.body.fields.some((f) => f.key === 'protocol_number'));
     assert.ok(res.body.fields.some((f) => f.key === 'chairperson'));
   }
+
+  await rm(root, { recursive: true, force: true });
+});
+
+test('assistant-router streams SSE events with reasoning, tokens and telemetry', async () => {
+  const root = await mkdtemp(join(tmpdir(), 'ast-stream-'));
+  const database = null;
+
+  const mockEngine = {
+    enabled: true,
+    async streamProcess({ onStage, onThinking, onToken, onTelemetry, onDone }) {
+      onStage('context', 'Подготовка контекста');
+      onThinking('Анализирую', 'Анализирую', { tokenIndex: 1, tokensPerSec: '25.0', elapsedMs: 50 });
+      onThinking(' структуру', 'Анализирую структуру', { tokenIndex: 2, tokensPerSec: '25.0', elapsedMs: 100 });
+      onToken('{"title"', '{"title"', { tokenIndex: 3, tokensPerSec: '30.0', elapsedMs: 150 });
+      onTelemetry({ promptTokens: 12, completionTokens: 3, totalTokens: 15, tokensPerSec: '30.0', elapsedMs: 150, ttftMs: 50 });
+      onDone({
+        status: 'completed',
+        result: { type: 'table', title: 'Результат анализа', columns: [], rows: [] },
+        telemetry: { completionTokens: 3, tokensPerSec: '30.0', elapsedMs: 150, ttftMs: 50 }
+      });
+    }
+  };
+
+  const router = createAssistantRouter({
+    database,
+    config: { dataDir: root },
+    engine: mockEngine
+  });
+
+  const { stream, url } = mockRequest('POST', '/api/assistant/stream', {
+    task: 'table-extract',
+    text: 'Тестовый текст заседания'
+  });
+  const res = mockResponse();
+  const handled = await router(stream, res, url);
+
+  assert.equal(handled, true);
+  assert.equal(res.statusCode, 200);
+  assert.equal(res.headers['Content-Type'], 'text/event-stream; charset=utf-8');
+
+  const raw = res.rawBody;
+  assert.ok(raw.includes('event: stage'));
+  assert.ok(raw.includes('event: thinking'));
+  assert.ok(raw.includes('event: token'));
+  assert.ok(raw.includes('event: telemetry'));
+  assert.ok(raw.includes('event: done'));
+  assert.ok(raw.includes('Анализирую структуру'));
+  assert.ok(raw.includes('Результат анализа'));
 
   await rm(root, { recursive: true, force: true });
 });

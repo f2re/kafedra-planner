@@ -661,65 +661,100 @@ export function createAssistantSheet() {
     resultsContainerEl.classList.remove('hidden');
 
     const startTime = Date.now();
-    processBtn.textContent = 'Обработка... (0 с)';
+    processBtn.textContent = 'Генерация...';
 
+    // Render the live telemetry and streaming terminal
     resultsContainerEl.innerHTML = `
-      <div class="assistant-progress-card">
-        <div class="assistant-progress-header">
-          <div class="assistant-progress-spinner"></div>
-          <div class="assistant-progress-title" id="assistant-progress-stage">
-            ${currentMode === 'archive-query' ? '1. Поиск документов в архиве кафедры...' : '1. Анализ текста и подготовка контекста...'}
+      <div class="assistant-live-terminal" id="assistant-live-terminal">
+        <div class="assistant-telemetry-bar">
+          <div class="assistant-telemetry-left">
+            <div class="telemetry-pill status-pill" id="ast-stream-stage-pill">
+              <span class="telemetry-dot pulse" id="ast-stream-dot"></span>
+              <span id="ast-stream-stage-label">Инициализация...</span>
+            </div>
+            <div class="telemetry-pill telemetry-speed" id="ast-telemetry-speed" title="Скорость генерации токенов">
+              <span>⚡</span> <span id="ast-stream-speed">0.0</span> <small>ток/с</small>
+            </div>
+            <div class="telemetry-pill telemetry-count" id="ast-telemetry-count" title="Сгенерировано токенов">
+              <span>🔢</span> <span id="ast-stream-tokens">0</span> <small>ток</small>
+            </div>
+            <div class="telemetry-pill telemetry-timer" id="ast-telemetry-timer" title="Время генерации и задержка первого токена">
+              <span>⏱️</span> <span id="ast-stream-time">0.0 с</span>
+              <small id="ast-stream-ttft" style="margin-left: 4px; opacity: 0.85;"></small>
+            </div>
           </div>
-          <div class="assistant-progress-timer" id="assistant-progress-timer">0 с</div>
+          <div class="assistant-telemetry-right">
+            <button type="button" class="assistant-stop-stream-btn" id="ast-stop-stream-btn" title="Остановить генерацию">
+              ⏹ Стоп
+            </button>
+          </div>
         </div>
-        <div class="assistant-progress-bar-wrap">
-          <div class="assistant-progress-bar" id="assistant-progress-bar"></div>
+
+        <div class="assistant-live-progress-wrap">
+          <div class="assistant-live-progress-bar" id="ast-stream-progress-bar"></div>
         </div>
-        <div class="assistant-progress-steps">
-          <div class="assistant-step active" id="ast-step-1">1. ${currentMode === 'archive-query' ? 'Поиск протоколов и решений в архиве' : 'Анализ входного текста'}</div>
-          <div class="assistant-step" id="ast-step-2">2. Извлечение цитат и подготовка контекста</div>
-          <div class="assistant-step" id="ast-step-3">3. Генерация ответа локальной нейросетью</div>
-          <div class="assistant-step" id="ast-step-4">4. Проверка реквизитов и формул</div>
+
+        <details class="assistant-reasoning-panel hidden" id="ast-reasoning-panel" open>
+          <summary class="assistant-reasoning-summary">
+            <div class="reasoning-summary-left">
+              <span>🧠</span>
+              <strong>Ход мыслей и рассуждения модели</strong>
+              <span class="reasoning-live-badge" id="ast-reasoning-badge">Думает...</span>
+            </div>
+            <div class="reasoning-summary-meta" id="ast-reasoning-meta"></div>
+          </summary>
+          <div class="assistant-reasoning-body">
+            <pre class="assistant-reasoning-text" id="ast-reasoning-text"></pre>
+          </div>
+        </details>
+
+        <div class="assistant-live-stream-box" id="ast-live-stream-box">
+          <div class="assistant-live-stream-head">
+            <span>Поток ответа модели:</span>
+            <small id="ast-stream-meta-status">приём токенов...</small>
+          </div>
+          <pre class="assistant-live-stream-content" id="ast-stream-content"><span class="assistant-streaming-cursor" id="ast-stream-cursor">▋</span></pre>
         </div>
-        <p class="assistant-progress-note">
-          💡 Локальная модель работает полностью автономно на сервере кафедры (CPU). При сложных запросах генерация занимает 15–45 секунд.
-        </p>
       </div>
+      <div id="assistant-final-result-wrap" class="hidden"></div>
     `;
 
-    const stageEl = resultsContainerEl.querySelector('#assistant-progress-stage');
-    const timerEl = resultsContainerEl.querySelector('#assistant-progress-timer');
-    const barEl = resultsContainerEl.querySelector('#assistant-progress-bar');
-    const step1 = resultsContainerEl.querySelector('#ast-step-1');
-    const step2 = resultsContainerEl.querySelector('#ast-step-2');
-    const step3 = resultsContainerEl.querySelector('#ast-step-3');
-    const step4 = resultsContainerEl.querySelector('#ast-step-4');
+    const terminalEl = resultsContainerEl.querySelector('#assistant-live-terminal');
+    const stageLabelEl = resultsContainerEl.querySelector('#ast-stream-stage-label');
+    const stageDotEl = resultsContainerEl.querySelector('#ast-stream-dot');
+    const speedValEl = resultsContainerEl.querySelector('#ast-stream-speed');
+    const tokensValEl = resultsContainerEl.querySelector('#ast-stream-tokens');
+    const timeValEl = resultsContainerEl.querySelector('#ast-stream-time');
+    const ttftValEl = resultsContainerEl.querySelector('#ast-stream-ttft');
+    const stopBtn = resultsContainerEl.querySelector('#ast-stop-stream-btn');
+    const progressBar = resultsContainerEl.querySelector('#ast-stream-progress-bar');
+    const reasoningPanel = resultsContainerEl.querySelector('#ast-reasoning-panel');
+    const reasoningBadge = resultsContainerEl.querySelector('#ast-reasoning-badge');
+    const reasoningTextEl = resultsContainerEl.querySelector('#ast-reasoning-text');
+    const streamContentEl = resultsContainerEl.querySelector('#ast-stream-content');
+    const streamCursorEl = resultsContainerEl.querySelector('#ast-stream-cursor');
+    const streamMetaStatus = resultsContainerEl.querySelector('#ast-stream-meta-status');
+    const finalResultWrap = resultsContainerEl.querySelector('#assistant-final-result-wrap');
+
+    stopBtn?.addEventListener('click', () => {
+      handleCancel();
+      if (stageLabelEl) stageLabelEl.textContent = '⏹ Остановлено оператором';
+      if (stageDotEl) stageDotEl.className = 'telemetry-dot';
+      if (streamCursorEl) streamCursorEl.remove();
+      if (streamMetaStatus) streamMetaStatus.textContent = 'генерация прервана';
+    });
 
     timerInterval = setInterval(() => {
-      const elapsed = Math.round((Date.now() - startTime) / 1000);
-      processBtn.textContent = `Обработка... (${elapsed} с)`;
-      if (timerEl) timerEl.textContent = `${elapsed} с`;
-
-      if (elapsed < 3) {
-        if (stageEl) stageEl.textContent = currentMode === 'archive-query' ? '1. Поиск документов в архиве кафедры...' : '1. Анализ входного текста...';
-        if (barEl) barEl.className = 'assistant-progress-bar progress-p25';
-      } else if (elapsed < 8) {
-        if (step1) { step1.classList.remove('active'); step1.classList.add('completed'); }
-        if (step2) step2.classList.add('active');
-        if (stageEl) stageEl.textContent = '2. Извлечение фрагментов и подготовка промпта...';
-        if (barEl) barEl.className = 'assistant-progress-bar progress-p50';
-      } else {
-        if (step2) { step2.classList.remove('active'); step2.classList.add('completed'); }
-        if (step3) step3.classList.add('active');
-        if (stageEl) stageEl.textContent = `3. Генерация ответа нейросетью (${elapsed} с)...`;
-        if (barEl) barEl.className = 'assistant-progress-bar progress-p90';
-      }
-    }, 1000);
+      const elapsed = ((Date.now() - startTime) / 1000).toFixed(1);
+      processBtn.textContent = `Генерация... (${elapsed} с)`;
+      if (timeValEl) timeValEl.textContent = `${elapsed} с`;
+    }, 100);
 
     try {
       const customSystemPrompt = sheetEl.querySelector('#assistant-custom-system-prompt')?.value?.trim() || undefined;
       const isTextTask = ['table-extract', 'gap-repair', 'template-analyze'].includes(currentMode);
-      const resp = await fetch('/api/assistant/process', {
+
+      const resp = await fetch('/api/assistant/stream', {
         method: 'POST',
         headers: { 'content-type': 'application/json' },
         body: JSON.stringify({
@@ -731,19 +766,90 @@ export function createAssistantSheet() {
         signal: abortController.signal
       });
 
+      if (!resp.ok) {
+        throw new Error(`HTTP ${resp.status}`);
+      }
+
+      const reader = resp.body.getReader();
+      const decoder = new TextDecoder('utf-8');
+      let buffer = '';
+      let finalData = null;
+      let streamedRawText = '';
+      let streamedThinkingText = '';
+
+      for (;;) {
+        const { value, done } = await reader.read();
+        if (done) break;
+
+        buffer += decoder.decode(value, { stream: true });
+        const events = buffer.split('\n\n');
+        buffer = events.pop() || '';
+
+        for (const evText of events) {
+          if (!evText.trim()) continue;
+          const lines = evText.split('\n');
+          let eventName = 'message';
+          let dataStr = '';
+
+          for (const line of lines) {
+            if (line.startsWith('event: ')) eventName = line.slice(7).trim();
+            else if (line.startsWith('data: ')) dataStr = line.slice(6).trim();
+          }
+
+          if (!dataStr) continue;
+
+          try {
+            const data = JSON.parse(dataStr);
+
+            if (eventName === 'stage') {
+              if (stageLabelEl) stageLabelEl.textContent = data.message || data.stage;
+            } else if (eventName === 'thinking') {
+              if (reasoningPanel) reasoningPanel.classList.remove('hidden');
+              streamedThinkingText = data.fullText || (streamedThinkingText + (data.delta || ''));
+              if (reasoningTextEl) {
+                reasoningTextEl.textContent = streamedThinkingText;
+                reasoningTextEl.scrollTop = reasoningTextEl.scrollHeight;
+              }
+            } else if (eventName === 'token') {
+              streamedRawText = data.fullText || (streamedRawText + (data.delta || ''));
+              if (streamContentEl) {
+                streamContentEl.textContent = streamedRawText;
+                const cur = document.createElement('span');
+                cur.className = 'assistant-streaming-cursor';
+                cur.textContent = '▋';
+                streamContentEl.append(cur);
+                streamContentEl.scrollTop = streamContentEl.scrollHeight;
+              }
+              if (data.meta) {
+                if (speedValEl && data.meta.tokensPerSec) speedValEl.textContent = data.meta.tokensPerSec;
+                if (tokensValEl && data.meta.tokenIndex) tokensValEl.textContent = data.meta.tokenIndex;
+                if (ttftValEl && data.meta.ttftMs) ttftValEl.textContent = `(TTFT: ${data.meta.ttftMs} мс)`;
+              }
+            } else if (eventName === 'telemetry') {
+              if (speedValEl && data.tokensPerSec) speedValEl.textContent = data.tokensPerSec;
+              if (tokensValEl && data.completionTokens) tokensValEl.textContent = data.completionTokens;
+              if (ttftValEl && data.ttftMs) ttftValEl.textContent = `(TTFT: ${data.ttftMs} мс)`;
+            } else if (eventName === 'done') {
+              finalData = data;
+            } else if (eventName === 'error') {
+              throw new Error(data.message || data.error || 'Ошибка стриминга');
+            }
+          } catch {
+            // ignore partial json
+          }
+        }
+      }
+
       clearInterval(timerInterval);
       processBtn.textContent = 'Обработать';
       processBtn.disabled = false;
       cancelBtn.classList.add('hidden');
+      if (stopBtn) stopBtn.remove();
+      if (stageDotEl) stageDotEl.className = 'telemetry-dot';
+      if (progressBar) progressBar.style.animation = 'none';
+      if (streamCursorEl) streamCursorEl.remove();
 
-      if (!resp.ok) {
-        const errorData = await resp.json().catch(() => ({}));
-        resultsContainerEl.innerHTML = `<p class="error-text">Ошибка HTTP ${resp.status}: ${errorData.message || 'Сбой обработки запроса'}</p>`;
-        return;
-      }
-
-      const data = await resp.json();
-      if (data.status === 'disabled') {
+      if (finalData && finalData.status === 'disabled') {
         resultsContainerEl.innerHTML = `
           <div class="empty-state">
             <strong>LLM выключен</strong>
@@ -753,26 +859,86 @@ export function createAssistantSheet() {
         return;
       }
 
-      if (data.status === 'timeout') {
-        resultsContainerEl.innerHTML = `<p class="error-text">Тайм-аут: сервер модели не ответил вовремя. Попробуйте уменьшить объём текста.</p>`;
-        return;
+      if (finalData && finalData.result) {
+        if (stageLabelEl) stageLabelEl.textContent = `✓ Завершено (${tokensValEl?.textContent || 0} токенов)`;
+        if (reasoningBadge) reasoningBadge.textContent = '✓ Завершено';
+        if (streamMetaStatus) streamMetaStatus.textContent = 'ответ принят';
+
+        // Add view toggles between Structured Result, Reasoning, and Token Stream
+        const togglesWrap = document.createElement('div');
+        togglesWrap.className = 'assistant-view-toggles';
+        togglesWrap.innerHTML = `
+          <button type="button" class="assistant-view-toggle-btn active" data-view="structured">✨ Структурированный результат</button>
+          <button type="button" class="assistant-view-toggle-btn" data-view="reasoning">🧠 Ход мыслей модели</button>
+          <button type="button" class="assistant-view-toggle-btn" data-view="stream">⚡ Лог токенов и телеметрия</button>
+        `;
+
+        const structBtn = togglesWrap.querySelector('[data-view="structured"]');
+        const reasonBtn = togglesWrap.querySelector('[data-view="reasoning"]');
+        const streamBtn = togglesWrap.querySelector('[data-view="stream"]');
+
+        const liveStreamBox = resultsContainerEl.querySelector('#ast-live-stream-box');
+
+        structBtn?.addEventListener('click', () => {
+          structBtn.classList.add('active');
+          reasonBtn.classList.remove('active');
+          streamBtn.classList.remove('active');
+          if (finalResultWrap) finalResultWrap.classList.remove('hidden');
+          if (liveStreamBox) liveStreamBox.classList.add('hidden');
+          if (reasoningPanel) reasoningPanel.classList.add('hidden');
+        });
+
+        reasonBtn?.addEventListener('click', () => {
+          reasonBtn.classList.add('active');
+          structBtn.classList.remove('active');
+          streamBtn.classList.remove('active');
+          if (finalResultWrap) finalResultWrap.classList.add('hidden');
+          if (liveStreamBox) liveStreamBox.classList.add('hidden');
+          if (reasoningPanel) {
+            reasoningPanel.classList.remove('hidden');
+            reasoningPanel.open = true;
+          }
+        });
+
+        streamBtn?.addEventListener('click', () => {
+          streamBtn.classList.add('active');
+          structBtn.classList.remove('active');
+          reasonBtn.classList.remove('active');
+          if (finalResultWrap) finalResultWrap.classList.add('hidden');
+          if (liveStreamBox) liveStreamBox.classList.remove('hidden');
+          if (reasoningPanel) reasoningPanel.classList.remove('hidden');
+        });
+
+        terminalEl.before(togglesWrap);
+
+        // Hide live stream box by default once structured result is ready
+        if (liveStreamBox) liveStreamBox.classList.add('hidden');
+        if (reasoningPanel) reasoningPanel.open = false;
+
+        if (finalResultWrap) {
+          finalResultWrap.classList.remove('hidden');
+          const origResultsEl = resultsContainerEl;
+          resultsContainerEl = finalResultWrap;
+          try {
+            renderResult(finalData.result, {
+              prompt: finalData.prompt,
+              rawResponse: finalData.rawResponse,
+              durationMs: finalData.durationMs
+            });
+          } finally {
+            resultsContainerEl = origResultsEl;
+          }
+        }
+
+        saveHistoryItem({
+          mode: currentMode,
+          query: text,
+          result: finalData.result,
+          success: true,
+          reasoning: streamedThinkingText || null,
+          telemetry: finalData.telemetry || null
+        });
       }
-
-      if (data.status !== 'completed' || !data.result) {
-        resultsContainerEl.innerHTML = `<p class="error-text">Не удалось обработать запрос: ${data.error || 'неизвестная ошибка'}</p>`;
-        return;
-      }
-
-      if (step3) { step3.classList.remove('active'); step3.classList.add('completed'); }
-      if (step4) step4.classList.add('completed');
-      if (barEl) barEl.className = 'assistant-progress-bar progress-p100';
-
-      renderResult(data.result, {
-        prompt: data.prompt,
-        rawResponse: data.rawResponse,
-        durationMs: data.durationMs
-      });
-      saveHistoryItem({ mode: currentMode, query: text, result: data.result, success: true });
     } catch (err) {
       clearInterval(timerInterval);
       processBtn.textContent = 'Обработать';
@@ -780,9 +946,11 @@ export function createAssistantSheet() {
       cancelBtn.classList.add('hidden');
 
       if (err.name === 'AbortError') {
-        resultsContainerEl.innerHTML = '<p class="helper">Запрос отменён пользователем.</p>';
+        if (stageLabelEl) stageLabelEl.textContent = '⏹ Остановлено оператором';
+        if (streamCursorEl) streamCursorEl.remove();
+        showToast('Генерация остановлена');
       } else {
-        resultsContainerEl.innerHTML = `<p class="error-text">Ошибка соединения: ${err.message}</p>`;
+        resultsContainerEl.innerHTML = `<p class="error-text">Ошибка генерации: ${escapeHtml(err.message)}</p>`;
       }
     }
   }
