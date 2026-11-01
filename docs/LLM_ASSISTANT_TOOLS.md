@@ -51,9 +51,40 @@
 * **Отмена генерации**: кнопка `«Отмена»` прерывает сетевой запрос через `AbortController`, освобождая ресурсы сервера модели.
 * **Автономия**: при выключенном LLM ассистент сообщает о выключенном режиме, а все остальные функции системы работают штатно.
 
-## API
+## API и сетевые контракты
 
-* `GET /api/assistant/status` — возвращает `{ ok, enabled, configured, endpoint, model, status, latencyMs, models }`.
+### Базовое управление подключением
+* `GET /api/assistant/status` — возвращает текущее состояние подключения `{ ok, enabled, configured, endpoint, model, status, latencyMs, models }`.
 * `POST /api/assistant/test-connection` — принимает `{ endpoint, model, apiKey }` и выполняет проверку связи в реальном времени.
 * `POST /api/assistant/config` — принимает `{ enabled, endpoint, model, apiKey }`, сохраняет настройки в `data/llm-settings.json` и обновляет активную конфигурацию.
-* `POST /api/assistant/process` — принимает `{ task, text, query }` (`table-extract`, `gap-repair`, `formula-calc`, `archive-query`) и возвращает структурированный ответ.
+
+### Синхронная и потоковая обработка
+* `POST /api/assistant/process` — синхронное выполнение задачи. Принимает `{ task, text, query, promptId, stream: false }` (`table-extract`, `gap-repair`, `formula-calc`, `archive-query`, `compliance-check`, `template-analysis`, `agenda-generate`) и возвращает структурированный JSON `{ ok, task, result, cached, latencyMs, usage }`.
+* `POST /api/assistant/stream` — потоковая передача результатов и хода рассуждений модели (Server-Sent Events).
+  - Заголовки ответа: `Content-Type: text/event-stream; charset=utf-8`, `Cache-Control: no-cache, no-transform`, `X-Accel-Buffering: no`.
+  - Прерывание: закрытие HTTP-соединения клиентом или вызов `AbortSignal` мгновенно прерывает запрос к серверу LLM.
+  - Потоковые события (SSE):
+    - `event: stage` — текущий этап обработки (`{"stage": "Подготовка запроса..."}`).
+    - `event: thinking` — дельта хода мыслей модели из `delta.reasoning_content` или `<think>...</think>` (`{"text": "Анализирую пункты повестки..."}`).
+    - `event: token` — дельта результирующего текста (`{"text": "Постановили: утвердить..."}`).
+    - `event: telemetry` — промежуточные метрики (`{"completionTokens": 142, "tokensPerSec": 38.5, "elapsedMs": 3680, "ttftMs": 420}`).
+    - `event: done` — итоговый структурированный результат (`{"ok": true, "task": "...", "result": {...}, "telemetry": {...}, "thinking": "..."}`).
+    - `event: error` — ошибка инференса (`{"ok": false, "error": "Текст ошибки"}`).
+
+### Библиотека промптов и специализированные агенты
+* `GET /api/assistant/prompts` — список встроенных и пользовательских промптов `{ ok: true, prompts: [...] }`.
+* `POST /api/assistant/prompts` — создание или обновление избранного промпта `{ id, title, role, systemPrompt, userTemplate, isDefault, category }`.
+* `DELETE /api/assistant/prompts/:id` — удаление пользовательского промпта.
+* `GET /api/assistant/prompts/export` — выгрузка библиотеки промптов в переносимый JSON-файл.
+* `POST /api/assistant/prompts/import` — импорт коллекции промптов с валидацией схемы.
+
+### Семантический анализ и шаблоны
+* `GET /api/assistant/semantic-graph` — построение графа смысловых связей между документами кафедры. Возвращает `{ nodes: [...], links: [...], clusters: [...] }`.
+* `POST /api/assistant/analyze-template` — выявление заменяемых полей в тексте протокола/документа. Принимает `{ text }`, возвращает структуру `{ ok: true, fields: [{ id, name, type, defaultValue, occurrences, required }] }`.
+* `POST /api/assistant/agenda-generate` — подготовка проекта повестки заседания на основе планов и контекста кафедры.
+* `GET /api/assistant/search-meetings` — гибридный семантический и FTS5-поиск по протоколам заседаний.
+
+### Мониторинг сетевых и локальных папок
+* `GET /api/directory-watch/status` — состояние фоновой службы синхронизации каталогов.
+* `POST /api/directory-watch/folders` — добавление отслеживаемой папки (локальный путь или смонтированный сетевой ресурс SMB/NFS).
+* `POST /api/directory-watch/sync-now` — принудительный запуск сканирования и версионирования изменённых документов.

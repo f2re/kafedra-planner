@@ -34,8 +34,8 @@
 .agenda-head h3 { margin:0 0 4px; font-size:17px; font-weight:700; }
 .agenda-head p { margin:0; color:var(--muted); font-size:12px; }
 .agenda-head-actions { display:flex; gap:8px; flex-wrap:wrap; justify-content:flex-end; }
-.accent-button { display:inline-flex; align-items:center; justify-content:center; gap:6px; min-height:36px; padding:6px 14px; border-radius:10px; border:1px solid rgba(138,58,245,.3); background:linear-gradient(135deg,rgba(138,58,245,.14),rgba(0,113,227,.12)); color:var(--accent-strong); font:inherit; font-size:13px; font-weight:700; cursor:pointer; transition:all .15s ease; }
-.accent-button:hover { background:linear-gradient(135deg,rgba(138,58,245,.24),rgba(0,113,227,.2)); transform:translateY(-1px); box-shadow:0 3px 8px rgba(138,58,245,.18); }
+.accent-button { display:inline-flex; align-items:center; justify-content:center; gap:6px; min-height:36px; padding:6px 14px; border-radius:10px; border:1px solid var(--accent); background:var(--accent-soft, rgba(0,122,255,.08)); color:var(--accent-strong, #007aff); font:inherit; font-size:13px; font-weight:700; cursor:pointer; transition:background .15s ease, border-color .15s ease; }
+.accent-button:hover { background:var(--accent-soft-hover, rgba(0,122,255,.16)); border-color:var(--accent-strong, #007aff); }
 .agenda-list { display:grid; gap:10px; }
 .agenda-item { display:grid; grid-template-columns:46px minmax(0,1fr) auto; gap:12px; align-items:start; padding:14px; border:1px solid var(--border); border-radius:14px; background:var(--surface); box-shadow:var(--shadow-sm); }
 .agenda-select { display:grid; place-items:center; position:relative; width:40px; height:40px; cursor:pointer; }
