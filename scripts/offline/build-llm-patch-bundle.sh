@@ -36,38 +36,56 @@ cp -a "$INTEGRATION_DIR/kafedra-planner.env" "$PACKAGE_DIR/"
 cp -a "$INTEGRATION_DIR/AGENTS_GUIDE.md" "$PACKAGE_DIR/"
 cp -a "$INTEGRATION_DIR/profiles/." "$PACKAGE_DIR/profiles/"
 [[ -f "$INTEGRATION_DIR/install-models.sh" ]] && cp -a "$INTEGRATION_DIR/install-models.sh" "$PACKAGE_DIR/"
+[[ -f "$INTEGRATION_DIR/run-embeddings.sh" ]] && cp -a "$INTEGRATION_DIR/run-embeddings.sh" "$PACKAGE_DIR/"
 [[ -f "$INTEGRATION_DIR/local-llm-embeddings.service.example" ]] && cp -a "$INTEGRATION_DIR/local-llm-embeddings.service.example" "$PACKAGE_DIR/"
+
+# Включение моделей в состав бандла
+MODELS_DIR="/home/YaremenkoIA/Загрузки/local-llm-offline/models"
+if [[ -d "$MODELS_DIR" ]]; then
+  echo "▶ 2.1. Включение моделей в состав бандла ($MODELS_DIR)..."
+  mkdir -p "$PACKAGE_DIR/models"
+  cp -a "$MODELS_DIR"/* "$PACKAGE_DIR/models/"
+  echo "Включенные модели:"
+  find "$PACKAGE_DIR/models" -name "*.gguf" -exec ls -lh {} +
+fi
 
 # Создание краткой памятки README.txt
 cat > "$PACKAGE_DIR/README.txt" << 'EOF'
 ==============================================================================
-ПАТЧ-БАНДЛ АКТУАЛИЗАЦИИ ИИ-АГЕНТОВ И МИНИ-МОДЕЛЕЙ ДЛЯ LOCAL-LLM СЕРВЕРА
+КОМПЛЕКСНЫЙ ПАТЧ-БАНДЛ ИИ-АГЕНТОВ И МОДЕЛЕЙ ДЛЯ LOCAL-LLM СЕРВЕРА
 ==============================================================================
-Комплект для обновления сервера llama.cpp и интеграции с Кафедра-планером.
+Комплект для обновления сервера llama.cpp, установки моделей BGE-M3 и Qwen
+и полной интеграции с Кафедра-планером.
+
+В состав бандла включены:
+ • Модель BGE-M3 (418 МБ) для нечеткого/векторного RAG-поиска
+ • Модель Qwen 2.5 0.5B (469 МБ) для высокоскоростной генерации
+ • Манифест всех 11 специализированных агентов кафедры
+ • Служба векторизации local-llm-embeddings.service (порт 8082)
+ • Оптимизации CPU, памяти и сетевого доступа для llama-server (порт 8081)
 
 Установка в 1 команду:
   sudo ./apply-patch.sh
 
-Опции:
-  sudo ./apply-patch.sh --profile cpu-0.5b-fast      # переключение на 0.5B
-  sudo ./apply-patch.sh --profile cpu-1.5b-fast      # переключение на 1.5B
-  sudo ./apply-patch.sh --with-embeddings            # запуск векторного RAG (BGE-M3 на порту 8082)
-  sudo ./install-models.sh [каталог]                 # установка .gguf моделей в /opt/local-llm/current/models
-
 Скрипт автоматически:
- 1. Доставит манифест 11 агентов кафедры в /etc/local-llm/agents/;
- 2. Разместит профили мини-моделей в /etc/local-llm/profiles/;
- 3. Оптимизирует потоки CPU (/etc/local-llm/server.json) под число vCPU;
- 4. Разрешит доступ по локальной сети для узлов кафедры (host 0.0.0.0);
- 5. Применит настройки ядра Linux (CPU governor 'performance', THP, limits);
- 6. Перезапустит службу local-llm.service и выполнит экспресс-тест.
+ 1. Установит скачанные модели в /opt/local-llm/current/models/;
+ 2. Доставит манифест 11 агентов кафедры в /etc/local-llm/agents/;
+ 3. Разместит профили мини-моделей в /etc/local-llm/profiles/;
+ 4. Настроит и запустит службу векторных эмбеддингов на порту 8082;
+ 5. Оптимизирует потоки CPU (/etc/local-llm/server.json) под число ядер;
+ 6. Разрешит доступ по локальной сети для узлов кафедры (host 0.0.0.0);
+ 7. Применит настройки ядра Linux (CPU governor 'performance', THP, limits);
+ 8. Перезапустит службы и выполнит комплексный самотест.
 
-Тестирование агентов:
-  ./test-remote-agents.sh --list
-  ./test-remote-agents.sh protocol-analysis
-  ./test-remote-agents.sh suggest-agenda
-  ./test-remote-agents.sh --embeddings
-  ./test-remote-agents.sh --all
+Опционально:
+  sudo ./apply-patch.sh --profile cpu-0.5b-fast      # принудительно переключить LLM на 0.5B
+  sudo ./apply-patch.sh --profile cpu-1.5b-fast      # переключить LLM на 1.5B
+
+Тестирование служб:
+  test-kafedra-agents --list
+  test-kafedra-agents protocol-analysis
+  test-kafedra-agents --embeddings
+  test-kafedra-agents --all
 
 Подробности: AGENTS_GUIDE.md
 ==============================================================================
@@ -75,6 +93,7 @@ EOF
 
 chmod +x "$PACKAGE_DIR/apply-patch.sh" "$PACKAGE_DIR/optimize-system.sh" "$PACKAGE_DIR/test-remote-agents.sh"
 [[ -f "$PACKAGE_DIR/install-models.sh" ]] && chmod +x "$PACKAGE_DIR/install-models.sh"
+[[ -f "$PACKAGE_DIR/run-embeddings.sh" ]] && chmod +x "$PACKAGE_DIR/run-embeddings.sh"
 
 echo "▶ 3. Создание tar.gz архива патча..."
 mkdir -p "$KAFEDRA_RELEASE_DIR"
