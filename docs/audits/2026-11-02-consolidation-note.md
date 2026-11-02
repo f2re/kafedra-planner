@@ -1,1 +1,0 @@
-The consolidation branch is intentionally additive and will be squashed before merge. This note exists only to keep the branch self-describing while code fixes are applied.
