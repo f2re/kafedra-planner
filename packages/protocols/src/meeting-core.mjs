@@ -66,9 +66,12 @@ function deleteMeetingSearch(database, workspaceId, meetingId) {
         OR (source_kind = 'agenda_item' AND source_id IN (
           SELECT id FROM agenda_items WHERE meeting_id = ?
         ))
+        OR (source_kind = 'decision' AND source_id IN (
+          SELECT d.id FROM decisions d JOIN agenda_items ai ON ai.id = d.agenda_item_id WHERE ai.meeting_id = ?
+        ))
       )
     )
-  `, workspaceId, meetingId, meetingId);
+  `, workspaceId, meetingId, meetingId, meetingId);
   database.run(`
     DELETE FROM search_fragments
     WHERE workspace_id = ? AND (
@@ -76,8 +79,11 @@ function deleteMeetingSearch(database, workspaceId, meetingId) {
       OR (source_kind = 'agenda_item' AND source_id IN (
         SELECT id FROM agenda_items WHERE meeting_id = ?
       ))
+      OR (source_kind = 'decision' AND source_id IN (
+        SELECT d.id FROM decisions d JOIN agenda_items ai ON ai.id = d.agenda_item_id WHERE ai.meeting_id = ?
+      ))
     )
-  `, workspaceId, meetingId, meetingId);
+  `, workspaceId, meetingId, meetingId, meetingId);
 }
 
 export function syncMeetingSearch(database, workspaceId, meetingId) {
@@ -88,6 +94,10 @@ export function syncMeetingSearch(database, workspaceId, meetingId) {
     SELECT * FROM decisions WHERE agenda_item_id = ? ORDER BY created_at, id
   `, item.id)]));
   deleteMeetingSearch(database, workspaceId, meetingId);
+  const meetingEvidence = parseJson(meeting.evidence_json, {});
+  const quorumStr = meetingEvidence.quorum?.text
+    || (typeof meetingEvidence.quorum === 'string' ? meetingEvidence.quorum : null)
+    || (meeting.quorum_required ? `Кворум: ${meeting.quorum_required}` : null);
   addSearchFragment(database, {
     workspaceId,
     sourceKind: 'meeting',
@@ -95,7 +105,11 @@ export function syncMeetingSearch(database, workspaceId, meetingId) {
     documentVersionId: meeting.source_document_version_id || null,
     title: `Протокол №${meeting.protocol_number || '—'} · ${meeting.meeting_date || 'дата не указана'}`,
     content: [
-      meeting.title, meeting.chairperson_raw, meeting.secretary_raw,
+      meeting.title,
+      meeting.chairperson_raw ? `Председатель: ${meeting.chairperson_raw}` : null,
+      meeting.secretary_raw ? `Секретарь: ${meeting.secretary_raw}` : null,
+      meeting.attendees_raw ? `Присутствовали: ${meeting.attendees_raw}` : null,
+      quorumStr,
       ...agenda.flatMap((item) => [
         `Вопрос ${item.item_no}: ${item.title}`, item.source_label, item.heard_text, item.discussed_text, item.decision_text,
         ...(decisions.get(item.id) || []).flatMap((decision) => [

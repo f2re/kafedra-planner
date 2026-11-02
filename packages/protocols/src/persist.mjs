@@ -1,6 +1,7 @@
 import { hasRelocatedAgendaSource } from './meeting-transfer-origin.mjs';
 import { newId } from '../../core/src/ids.mjs';
 import { addSearchFragment } from '../../storage/src/search.mjs';
+import { syncMeetingSearch } from './meeting-core.mjs';
 
 function parseJson(value, fallback = {}) {
   try { return JSON.parse(value); } catch { return fallback; }
@@ -43,6 +44,7 @@ function sourceEvidence(raw, {
 }
 
 function review(database, workspaceId, sourceId, issueCode, title, explanation, proposedAction, context = {}) {
+  if (!sourceId) return null;
   const existing = database.get(`
     SELECT id FROM review_items
     WHERE workspace_id = ? AND source_kind = 'document_version'
@@ -427,22 +429,24 @@ function createMeeting(database, {
     locator: result.evidence,
     relation: 'primary_source'
   });
+  if (result.quorum) evidence.quorum = result.quorum;
+  const quorumRequired = Number(result.quorumRequired || result.quorum?.required) || null;
   database.run(`
     INSERT INTO meetings(
       id, workspace_id, source_document_version_id, protocol_number, meeting_date,
-      title, chairperson_raw, secretary_raw, attendees_raw, confidence, status,
+      title, chairperson_raw, secretary_raw, attendees_raw, quorum_required, confidence, status,
       evidence_json, created_at, updated_at
-    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
   `, meetingId, workspaceId, documentVersionId, result.protocolNumber, result.meetingDate,
-  result.title, result.chairperson, result.secretary, result.attendees, result.confidence,
+  result.title, result.chairperson, result.secretary, result.attendees, quorumRequired, result.confidence,
   result.confidence >= 0.75 ? 'confirmed_auto' : 'proposed', JSON.stringify(evidence), now, now);
 
   const meeting = database.get('SELECT * FROM meetings WHERE id = ?', meetingId);
   ensureMeetingCalendar(database, workspaceId, meeting, documentTitle, now);
-  addMeetingSearch(database, { workspaceId, meetingId, documentVersionId, documentTitle, result });
   for (const item of result.agendaItems) {
     insertAgenda(database, { workspaceId, meetingId, documentVersionId, documentTitle, item, now });
   }
+  syncMeetingSearch(database, workspaceId, meetingId);
   exposeRoute(result, meetingId, 'created', 'new_meeting');
   return meetingId;
 }
@@ -480,6 +484,8 @@ function mergeMeeting(database, {
     locator: result.evidence,
     relation: 'matching_protocol'
   });
+  if (result.quorum && !evidence.quorum) evidence.quorum = result.quorum;
+  const quorumRequired = Number(result.quorumRequired || result.quorum?.required) || null;
   database.run(`
     UPDATE meetings
     SET protocol_number = COALESCE(?, protocol_number),
@@ -487,11 +493,12 @@ function mergeMeeting(database, {
       chairperson_raw = COALESCE(?, chairperson_raw),
       secretary_raw = COALESCE(?, secretary_raw),
       attendees_raw = COALESCE(?, attendees_raw),
+      quorum_required = COALESCE(?, quorum_required),
       confidence = MAX(confidence, ?), evidence_json = ?, updated_at = ?
     WHERE id = ?
   `, scalarUpdates.protocol_number || null, scalarUpdates.meeting_date || null,
   scalarUpdates.chairperson_raw || null, scalarUpdates.secretary_raw || null,
-  scalarUpdates.attendees_raw || null, result.confidence,
+  scalarUpdates.attendees_raw || null, quorumRequired, result.confidence,
   JSON.stringify(evidence), now, meeting.id);
 
   mergeAgenda(database, {
@@ -505,13 +512,7 @@ function mergeMeeting(database, {
   });
   const updated = database.get('SELECT * FROM meetings WHERE id = ?', meeting.id);
   ensureMeetingCalendar(database, workspaceId, updated, documentTitle, now);
-  addMeetingSearch(database, {
-    workspaceId,
-    meetingId: meeting.id,
-    documentVersionId,
-    documentTitle,
-    result
-  });
+  syncMeetingSearch(database, workspaceId, meeting.id);
   exposeRoute(result, meeting.id, 'merged', matchedBy);
   return meeting.id;
 }

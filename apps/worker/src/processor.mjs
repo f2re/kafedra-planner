@@ -228,7 +228,7 @@ export async function processDocumentJob(database, payload, logger, config) {
           protocolResult.quorumRequired = out.quorum.required;
         }
       }
-      if (out.attendees && Array.isArray(out.attendees) && out.attendees.length > 0) {
+      if (!protocolResult.attendees && out.attendees && Array.isArray(out.attendees) && out.attendees.length > 0) {
         protocolResult.attendees = out.attendees.join(', ');
       }
       const rawLlmItems = Array.isArray(out.agendaItems) ? out.agendaItems : (Array.isArray(out.agenda) ? out.agenda : []);
