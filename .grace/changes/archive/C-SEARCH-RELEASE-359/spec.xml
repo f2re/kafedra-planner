@@ -31,8 +31,12 @@
     </AcceptanceCriteria>
     <AffectedAreas><M-API /><M-CI-GATE /></AffectedAreas>
     <VerificationIntent>
-      <ExpectedCommand>npm run check</ExpectedCommand><ExpectedCommand>npm run docs:check</ExpectedCommand><ExpectedCommand>npm test</ExpectedCommand><ExpectedCommand>npm run smoke</ExpectedCommand><ExpectedCommand>grace lint --path . --change C-SEARCH-RELEASE-359 --assertions final</ExpectedCommand>
-      <ExpectedEvidence>Historical change completed by the shipped 0.4.7+ line; archived during #369 consolidation after repository reached 0.4.11.</ExpectedEvidence>
+      <ExpectedCommand>npm run check</ExpectedCommand>
+      <ExpectedCommand>npm run docs:check</ExpectedCommand>
+      <ExpectedCommand>npm test</ExpectedCommand>
+      <ExpectedCommand>npm run smoke</ExpectedCommand>
+      <ExpectedCommand>grace lint --path . --change C-SEARCH-RELEASE-359 --assertions final</ExpectedCommand>
+      <ExpectedEvidence>Exact-head CI and focused browser checks, then one exact-main Release with verified Debian 12/Astra 1.7/Astra 1.8 artifacts and an upgrade from published 0.4.6.</ExpectedEvidence>
     </VerificationIntent>
   </C-SEARCH-RELEASE-359>
 </GraceChangeSpec>
