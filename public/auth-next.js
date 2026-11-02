@@ -3,7 +3,8 @@ const authState = {
   ready: false,
   payload: null,
   showingLogin: false,
-  setupPin: ''
+  setupPin: '',
+  secretReturnFocus: null
 };
 const authSafe = (value) => String(value ?? '')
   .replaceAll('&', '&amp;')
@@ -147,12 +148,30 @@ async function authJson(path, options = {}) {
   return data;
 }
 
+function closeNativeDialog(dialog) {
+  if (typeof dialog?.close === 'function') dialog.close();
+  else dialog?.removeAttribute('open');
+}
+
+function rememberSecretOrigin() {
+  const active = document.activeElement;
+  authState.secretReturnFocus = active instanceof HTMLElement ? active : null;
+}
+
+function restoreSecretOrigin() {
+  const target = authState.secretReturnFocus;
+  authState.secretReturnFocus = null;
+  if (target?.isConnected && typeof target.focus === 'function') {
+    setTimeout(() => target.focus({ preventScroll: true }), 0);
+  }
+}
+
 function ensurePinDialog() {
   let dialog = document.querySelector('#auth-pin-dialog');
   if (dialog) return dialog;
   dialog = document.createElement('dialog');
   dialog.id = 'auth-pin-dialog';
-  dialog.className = 'auth-pin-dialog';
+  dialog.className = 'auth-pin-dialog auth-secret-dialog';
   dialog.innerHTML = `<form id="auth-pin-change-form" method="dialog" class="auth-form">
     <div class="auth-dialog-header">
       <div><strong>Сменить PIN-код</strong><p>Текущий код нужен один раз. Новый код — четыре цифры.</p></div>
@@ -164,11 +183,13 @@ function ensurePinDialog() {
     <p id="auth-pin-change-error" class="auth-error" role="alert" aria-live="polite"></p>
     <button type="submit">Сохранить PIN-код</button>
   </form>`;
+  dialog.addEventListener('close', restoreSecretOrigin);
   document.body.append(dialog);
   return dialog;
 }
 
 function showPinDialog() {
+  rememberSecretOrigin();
   const dialog = ensurePinDialog();
   dialog.querySelector('#auth-pin-change-form')?.reset();
   dialog.querySelector('#auth-pin-change-error').textContent = '';
@@ -176,6 +197,106 @@ function showPinDialog() {
   else dialog.setAttribute('open', '');
   setTimeout(() => dialog.querySelector('input[name="currentPin"]')?.focus(), 0);
 }
+
+function ensurePasswordDialog() {
+  let dialog = document.querySelector('#auth-password-dialog');
+  if (dialog) return dialog;
+  dialog = document.createElement('dialog');
+  dialog.id = 'auth-password-dialog';
+  dialog.className = 'auth-password-dialog auth-secret-dialog';
+  dialog.innerHTML = `<form id="auth-password-change-form" method="dialog" class="auth-form">
+    <div class="auth-dialog-header">
+      <div><strong id="auth-password-title">Сменить пароль</strong><p>Пароль хранится локально в виде стойкого хэша.</p></div>
+      <button class="auth-dialog-close" type="button" data-auth-password-close aria-label="Закрыть">×</button>
+    </div>
+    <label><span id="auth-current-password-label">Текущий пароль</span><input name="currentPassword" type="password" autocomplete="current-password" required></label>
+    <label>Новый пароль<input name="newPassword" type="password" minlength="12" autocomplete="new-password" required></label>
+    <label>Повторите новый пароль<input name="newPasswordConfirm" type="password" minlength="12" autocomplete="new-password" required></label>
+    <p id="auth-password-change-error" class="auth-error" role="alert" aria-live="polite"></p>
+    <button type="submit">Сохранить пароль</button>
+  </form>`;
+  dialog.addEventListener('close', restoreSecretOrigin);
+  document.body.append(dialog);
+  return dialog;
+}
+
+function showPasswordDialog(required = false) {
+  rememberSecretOrigin();
+  const dialog = ensurePasswordDialog();
+  const form = dialog.querySelector('#auth-password-change-form');
+  form?.reset();
+  if (form) form.dataset.submitting = 'false';
+  dialog.querySelector('#auth-password-change-error').textContent = '';
+  dialog.querySelector('#auth-password-title').textContent = required ? 'Задайте постоянный пароль' : 'Сменить пароль';
+  dialog.querySelector('#auth-current-password-label').textContent = required ? 'Временный пароль' : 'Текущий пароль';
+  if (typeof dialog.showModal === 'function') dialog.showModal();
+  else dialog.setAttribute('open', '');
+  setTimeout(() => dialog.querySelector('input[name="currentPassword"]')?.focus(), 0);
+}
+
+function ensureSecretRequestDialog() {
+  let dialog = document.querySelector('#auth-secret-request-dialog');
+  if (dialog) return dialog;
+  dialog = document.createElement('dialog');
+  dialog.id = 'auth-secret-request-dialog';
+  dialog.className = 'auth-secret-request-dialog auth-secret-dialog';
+  dialog.innerHTML = `<form id="auth-secret-request-form" method="dialog" class="auth-form">
+    <div class="auth-dialog-header">
+      <div><strong data-secret-title>Введите пароль</strong><p data-secret-description></p></div>
+      <button class="auth-dialog-close" type="button" data-auth-secret-close aria-label="Закрыть">×</button>
+    </div>
+    <label><span data-secret-label>Пароль</span><input name="secret" type="password" autocomplete="new-password" required></label>
+    <p class="auth-error" role="alert" aria-live="polite"></p>
+    <button type="submit" data-secret-submit>Продолжить</button>
+  </form>`;
+  document.body.append(dialog);
+  return dialog;
+}
+
+window.kafedraRequestSecret = function requestSecret({
+  title = 'Введите пароль',
+  description = '',
+  label = 'Пароль',
+  submitLabel = 'Продолжить',
+  minLength = 1
+} = {}) {
+  rememberSecretOrigin();
+  const dialog = ensureSecretRequestDialog();
+  const form = dialog.querySelector('#auth-secret-request-form');
+  const input = form.querySelector('input[name="secret"]');
+  dialog.querySelector('[data-secret-title]').textContent = title;
+  dialog.querySelector('[data-secret-description]').textContent = description;
+  dialog.querySelector('[data-secret-label]').textContent = label;
+  dialog.querySelector('[data-secret-submit]').textContent = submitLabel;
+  form.querySelector('.auth-error').textContent = '';
+  input.minLength = Math.max(1, Number(minLength) || 1);
+  form.reset();
+  if (typeof dialog.showModal === 'function') dialog.showModal();
+  else dialog.setAttribute('open', '');
+  setTimeout(() => input.focus(), 0);
+  return new Promise((resolve) => {
+    const finish = (value) => {
+      form.removeEventListener('submit', submit);
+      dialog.removeEventListener('close', cancel);
+      restoreSecretOrigin();
+      resolve(value);
+    };
+    const submit = (event) => {
+      event.preventDefault();
+      const value = input.value;
+      if (value.length < input.minLength) {
+        form.querySelector('.auth-error').textContent = `Не менее ${input.minLength} символов.`;
+        input.focus();
+        return;
+      }
+      closeNativeDialog(dialog);
+      finish(value);
+    };
+    const cancel = () => finish(null);
+    form.addEventListener('submit', submit);
+    dialog.addEventListener('close', cancel, { once: true });
+  });
+};
 
 function applyProfile(payload) {
   authState.payload = payload;
@@ -261,24 +382,6 @@ async function initializeAuth() {
     showPasswordDialog(true);
   }
   return payload;
-}
-
-function showPasswordDialog(required = false) {
-  const currentPassword = window.prompt(
-    required ? 'Введите временный пароль:' : 'Введите текущий пароль:'
-  );
-  if (currentPassword === null) return;
-  const newPassword = window.prompt(
-    'Введите новый пароль: не менее 12 символов, буквы и цифры.'
-  );
-  if (newPassword === null) return;
-  authJson('/api/auth/change-password', {
-    method: 'POST',
-    headers: { 'content-type': 'application/json' },
-    body: JSON.stringify({ currentPassword, newPassword })
-  })
-    .then(() => window.location.reload())
-    .catch((error) => window.alert(error.message));
 }
 
 window.kafedraAuthReady = initializeAuth().catch((error) => {
@@ -504,6 +607,37 @@ document.addEventListener('submit', (event) => {
         form.querySelector('input[name="currentPin"]').value = '';
         form.querySelector('input[name="currentPin"]')?.focus();
       });
+    return;
+  }
+  if (form.id === 'auth-password-change-form') {
+    event.preventDefault();
+    const values = Object.fromEntries(new FormData(form));
+    const errorNode = form.querySelector('#auth-password-change-error');
+    if (values.newPassword !== values.newPasswordConfirm) {
+      errorNode.textContent = 'Новые пароли не совпадают.';
+      form.querySelector('input[name="newPassword"]').value = '';
+      form.querySelector('input[name="newPasswordConfirm"]').value = '';
+      form.querySelector('input[name="newPassword"]')?.focus();
+      return;
+    }
+    const button = form.querySelector('button[type="submit"]');
+    if (form.dataset.submitting === 'true') return;
+    form.dataset.submitting = 'true';
+    button.disabled = true;
+    errorNode.textContent = '';
+    authJson('/api/auth/change-password', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ currentPassword: values.currentPassword, newPassword: values.newPassword })
+    })
+      .then(() => window.location.reload())
+      .catch((error) => {
+        errorNode.textContent = error.message;
+        form.dataset.submitting = 'false';
+        button.disabled = false;
+        form.querySelector('input[name="currentPassword"]').value = '';
+        form.querySelector('input[name="currentPassword"]')?.focus();
+      });
   }
 });
 
@@ -536,11 +670,9 @@ document.addEventListener('click', (event) => {
     const open = menu.classList.toggle('hidden') === false;
     userButton.setAttribute('aria-expanded', String(open));
   }
-  if (event.target.closest('[data-auth-pin-close]')) {
-    const dialog = document.querySelector('#auth-pin-dialog');
-    if (typeof dialog?.close === 'function') dialog.close();
-    else dialog?.removeAttribute('open');
-  }
+  if (event.target.closest('[data-auth-pin-close]')) closeNativeDialog(document.querySelector('#auth-pin-dialog'));
+  if (event.target.closest('[data-auth-password-close]')) closeNativeDialog(document.querySelector('#auth-password-dialog'));
+  if (event.target.closest('[data-auth-secret-close]')) closeNativeDialog(document.querySelector('#auth-secret-request-dialog'));
   const action = event.target.closest('[data-auth-action]')?.dataset.authAction;
   if (action) closeAuthMenu();
   if (action === 'pin') showPinDialog();
