@@ -136,9 +136,26 @@ function patchPlanItemForm(form) {
   syncPlanPrimary(form);
 }
 
+function patchTemplateForm() {
+  const panel = one('#wizard-step-1');
+  if (!panel || panel.dataset.r7FastPatched === '1') return;
+  const technicalType = fieldLabel('#template-document-type', panel);
+  const helper = one('.helper', panel);
+  if (!technicalType || !helper) return;
+
+  const details = document.createElement('details');
+  details.id = 'template-more-fields';
+  details.className = 'r7-fast-details';
+  details.innerHTML = '<summary><span>Дополнительно</span><small>внутренний вид документа</small></summary><div class="r7-fast-details-body"></div>';
+  one('.r7-fast-details-body', details)?.append(technicalType);
+  panel.insertBefore(details, helper);
+  panel.dataset.r7FastPatched = '1';
+}
+
 function reconcile() {
   patchEventForm();
   patchPlanItemForm(one('#manual-plan-item-form'));
+  patchTemplateForm();
 }
 
 window.addEventListener('click', (event) => {
