@@ -1,0 +1,44 @@
+<GraceChangeSpec graceVersion="4.0" status="approved">
+  <C-CONSOLIDATION-369>
+    <Summary>Consolidate confirmed audit defects in authentication UI, review bulk writes and duplicated frontend code without changing schema or the canonical business workflow.</Summary>
+    <Problem>The 0.4.10 runtime retains unreachable frontend generations, system password prompts, silent Plan/Fact refresh failures and a bulk AI review path that can overwrite a newer non-empty meeting value. The backlog also contains historical contracts that conflict with the direct-completion model.</Problem>
+    <Goals>
+      <Goal>Keep the canonical flow source-first and direct-completion while removing only proven dead frontend modules.</Goal>
+      <Goal>Use masked application-owned dialogs for account password changes and administrator password reset without changing PIN/account authorization semantics.</Goal>
+      <Goal>Preserve a newer manual meeting date or protocol number when bulk AI repair is applied.</Goal>
+      <Goal>Expose Plan/Fact refresh failures and hide the technical template document type from the frequent path through existing progressive disclosure.</Goal>
+    </Goals>
+    <Constraints>
+      <Constraint>Exact base main is 36396a4b15b7be8902d6164846da9a51fa8c5407, issue authority is #369.</Constraint>
+      <Constraint>SQLite schema remains 31. Applied migrations, immutable document versions, blob hashes and extraction evidence are unchanged.</Constraint>
+      <Constraint>PIN setup/login, account roles, ACL checks, CSRF and password hashing are not weakened or replaced.</Constraint>
+      <Constraint>Bulk AI repair is explicit operator action and may fill only an empty target field or confirm the same current value; it must not overwrite a conflicting current value.</Constraint>
+      <Constraint>No new mandatory service, cloud dependency, LLM dependency or parallel task/document registry.</Constraint>
+      <Constraint>GRACE owns scope/lint for the high-risk auth/write change; project CI and targeted auth/browser tests own functional evidence.</Constraint>
+    </Constraints>
+    <NonGoals>
+      <NonGoal>New product features, schema migrations, release workflow redesign or changes to immutable evidence.</NonGoal>
+      <NonGoal>Replacing the existing PIN model or requiring account mode for normal local operation.</NonGoal>
+      <NonGoal>Claiming physical Astra Linux acceptance from GitHub CI.</NonGoal>
+    </NonGoals>
+    <AcceptanceCriteria>
+      <Criterion>Unreachable lifecycle-next.js and plan-fact-origin.js are removed while lifecycle-safe and current Plan/Fact entry points remain intact.</Criterion>
+      <Criterion>Account password change uses masked current/new/confirmation fields with inline errors; administrator reset uses the same application-owned secret-dialog contract in the active path.</Criterion>
+      <Criterion>Cancellation does not mutate credentials and focus returns to the initiating control.</Criterion>
+      <Criterion>Bulk AI repair cannot overwrite a non-empty conflicting meeting date or protocol number; skipped review remains open.</Criterion>
+      <Criterion>Plan/Fact refresh/rebuild/card failures have an observable error state instead of an empty catch.</Criterion>
+      <Criterion>The template internal document type remains compatible but is under additional fields in the frequent wizard path.</Criterion>
+      <Criterion>npm run check, npm test, npm run smoke, existing auth regression and affected Plan/Fact/browser regressions pass on the exact PR head.</Criterion>
+    </AcceptanceCriteria>
+    <AffectedAreas><M-API /><M-DATABASE /><M-CI-GATE /></AffectedAreas>
+    <VerificationIntent>
+      <ExpectedCommand>npm run check</ExpectedCommand>
+      <ExpectedCommand>npm test</ExpectedCommand>
+      <ExpectedCommand>npm run smoke</ExpectedCommand>
+      <ExpectedCommand>npm run test:browser:auth</ExpectedCommand>
+      <ExpectedCommand>npm run test:browser:plan-fact</ExpectedCommand>
+      <ExpectedCommand>grace lint --path . --change C-CONSOLIDATION-369 --assertions final</ExpectedCommand>
+      <ExpectedEvidence>Exact-head project CI plus targeted authentication, review-write and Plan/Fact evidence; no schema migration gate because schema is unchanged.</ExpectedEvidence>
+    </VerificationIntent>
+  </C-CONSOLIDATION-369>
+</GraceChangeSpec>
