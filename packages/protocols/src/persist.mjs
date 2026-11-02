@@ -74,13 +74,14 @@ function addMeetingSearch(database, {
   documentTitle,
   result
 }) {
+  const quorumStr = result.quorum?.text || (typeof result.quorum === 'string' ? result.quorum : (result.quorum ? `Кворум: ${JSON.stringify(result.quorum)}` : ''));
   addSearchFragment(database, {
     workspaceId,
     sourceKind: 'meeting',
     sourceId: meetingId,
     documentVersionId,
     title: result.protocolNumber ? `Протокол № ${result.protocolNumber}` : documentTitle,
-    content: [result.title, result.chairperson, result.secretary, result.attendees]
+    content: [result.title, result.chairperson, result.secretary, result.attendees, quorumStr]
       .filter(Boolean).join('\n'),
     locator: result.evidence
   });

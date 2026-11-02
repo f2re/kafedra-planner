@@ -99,9 +99,13 @@ function runHtml(run) {
   return `<span class="${classes.join(' ')}">${escMeeting(run.text)}</span>`;
 }
 
-function elementHtml(element) {
+function elementHtml(element, flags = {}) {
+  const classes = paragraphClasses(element.style);
+  if (flags.isRepeat) classes.push('is-agenda-block');
+  if (flags.isStart) classes.push('is-agenda-block-start');
+  if (flags.isEnd) classes.push('is-agenda-block-end');
   const runs = (element.runs || []).map(runHtml).join('') || escMeeting(element.text || ' ');
-  return `<p class="${paragraphClasses(element.style).join(' ')}" data-template-element="${escMeeting(element.elementId)}">${runs}</p>`;
+  return `<p class="${classes.join(' ')}" data-template-element="${escMeeting(element.elementId)}" data-child-index="${element.childIndex || ''}">${runs}</p>`;
 }
 
 function widthClass(width, total) {
@@ -110,8 +114,12 @@ function widthClass(width, total) {
   return `meeting-template-width-${percentage}`;
 }
 
-function tableHtml(block) {
-  return `<table class="meeting-template-table"><tbody>${(block.rows || []).map((row) => {
+function tableHtml(block, flags = {}) {
+  const tableClasses = ['meeting-template-table'];
+  if (flags.isRepeat) tableClasses.push('is-agenda-block');
+  if (flags.isStart) tableClasses.push('is-agenda-block-start');
+  if (flags.isEnd) tableClasses.push('is-agenda-block-end');
+  return `<table class="${tableClasses.join(' ')}" data-template-element="${escMeeting(block.elementId || '')}" data-child-index="${block.childIndex || ''}"><tbody>${(block.rows || []).map((row) => {
     const total = row.cells.reduce((sum, cell) => sum + (Number(cell.widthPt) || 0), 0);
     return `<tr>${(row.cells || []).map((cell) => {
       const classes = [];
@@ -122,7 +130,7 @@ function tableHtml(block) {
       if (cell.verticalMerge) classes.push(`meeting-template-vmerge-${cell.verticalMerge}`);
       const span = Number.isInteger(Number(cell.columnSpan)) && Number(cell.columnSpan) > 1
         ? ` colspan="${Number(cell.columnSpan)}"` : '';
-      return `<td${span}${classes.length ? ` class="${classes.join(' ')}"` : ''}>${(cell.paragraphs || []).map(elementHtml).join('')}</td>`;
+      return `<td${span}${classes.length ? ` class="${classes.join(' ')}"` : ''}>${(cell.paragraphs || []).map((p) => elementHtml(p, flags)).join('')}</td>`;
     }).join('')}</tr>`;
   }).join('')}</tbody></table>`;
 }
@@ -131,12 +139,36 @@ function fieldLabel(key) {
   return editorState?.analysis?.fields?.find((field) => field.key === key)?.label || key;
 }
 
+function getBlockForElement(elementId) {
+  if (!editorState?.analysis?.blocks || !elementId) return null;
+  const pMatch = /#body\/p:(\d+)$/u.exec(elementId);
+  if (pMatch) {
+    return editorState.analysis.blocks.find((b) => b.elementId === elementId) || null;
+  }
+  const tblMatch = /#table:(\d+)/u.exec(elementId);
+  if (tblMatch) {
+    const tblIdx = Number(tblMatch[1]);
+    return editorState.analysis.blocks.find((b) => b.kind === 'table' && b.tableIndex === tblIdx) || null;
+  }
+  return editorState.analysis.blocks.find((b) => b.elementId === elementId) || null;
+}
+
 function renderDocument() {
   const page = $m('#meeting-template-page');
   if (!page || !editorState?.analysis) return;
-  page.innerHTML = editorState.analysis.blocks.map((block) =>
-    block.kind === 'table' ? tableHtml(block) : elementHtml(block)
-  ).join('');
+  const repeat = editorState.repeat;
+  let startChild = null;
+  let endChild = null;
+  if (repeat?.kind === 'block_range') {
+    startChild = Number(repeat.startChildIndex);
+    endChild = Number(repeat.endChildIndex);
+  }
+  page.innerHTML = editorState.analysis.blocks.map((block) => {
+    const isRepeat = startChild && endChild && block.childIndex >= startChild && block.childIndex <= endChild;
+    const isStart = block.childIndex === startChild;
+    const isEnd = block.childIndex === endChild;
+    return block.kind === 'table' ? tableHtml(block, { isRepeat, isStart, isEnd }) : elementHtml(block, { isRepeat, isStart, isEnd });
+  }).join('');
   for (const element of page.querySelectorAll('[data-template-element]')) {
     const fields = editorState.bindings
       .filter((binding) => binding.elementId === element.dataset.templateElement)
@@ -157,20 +189,29 @@ function requiredState() {
 }
 
 function inferredRepeat() {
+  if (editorState.repeat?.kind === 'block_range') {
+    return `Блоки ${editorState.repeat.startChildIndex}–${editorState.repeat.endChildIndex} (текст, таблицы, списки)`;
+  }
+  if (editorState.repeat?.kind === 'paragraph_range') {
+    return `Абзацы ${editorState.repeat.startParagraphIndex}–${editorState.repeat.endParagraphIndex}`;
+  }
+  if (editorState.repeat?.kind === 'table_row') {
+    return `Строка ${editorState.repeat.rowIndex} таблицы ${editorState.repeat.tableIndex}`;
+  }
   const agendaFields = new Set((editorState.analysis.fields || [])
     .filter((field) => field.scope === 'agenda').map((field) => field.key));
   const ids = editorState.bindings.filter((binding) => agendaFields.has(binding.field)).map((binding) => binding.elementId);
-  if (!ids.length) return 'Повторяемый вопрос ещё не определён.';
+  if (!ids.length) return 'Не определён (выделите мышкой в документе)';
   const table = ids.map((id) => /#table:(\d+)\/row:(\d+)\//u.exec(id));
   if (table.every(Boolean) && table.every((match) => match[1] === table[0][1] && match[2] === table[0][2])) {
-    return `Будет повторяться строка ${table[0][2]} таблицы ${table[0][1]}.`;
+    return `Строка ${table[0][2]} таблицы ${table[0][1]}`;
   }
   const paragraphs = ids.map((id) => /#body\/p:(\d+)$/u.exec(id));
   if (paragraphs.every(Boolean)) {
     const values = paragraphs.map((match) => Number(match[1]));
-    return `Будут повторяться абзацы ${Math.min(...values)}–${Math.max(...values)}.`;
+    return `Абзацы ${Math.min(...values)}–${Math.max(...values)}`;
   }
-  return 'Поля вопроса находятся в несовместимых частях документа.';
+  return 'Определяется по выделению мышкой';
 }
 
 function renderStatus(profile = null) {
@@ -181,10 +222,20 @@ function renderStatus(profile = null) {
   const progress = Math.max(0, Math.min(100, Math.round(percent / 10) * 10));
   const status = profile?.status || editorState.analysis.latestProfile?.status || (state.missing.length ? 'draft' : 'ready');
   target.innerHTML = `
-    <strong>${status === 'ready' ? 'Шаблон готов' : `Назначено ${state.ready} из ${state.required.length} обязательных полей`}</strong>
+    <div class="meeting-template-status-header">
+      <strong>${status === 'ready' ? '✓ Шаблон готов к использованию' : `Назначено ${state.ready} из ${state.required.length} обязательных полей`}</strong>
+      <span class="meeting-template-status-pill ${status}">${status === 'ready' ? 'Готов' : 'Черновик'}</span>
+    </div>
     <div class="meeting-template-progress"><span class="meeting-template-progress-${progress}"></span></div>
-    <span>${state.missing.length ? `Осталось: ${state.missing.map((field) => escMeeting(field.label)).join(', ')}` : escMeeting(inferredRepeat())}</span>
-    ${editorState.analysis.legacyReady ? '<div class="meeting-template-legacy-note">Это совместимый старый шаблон с {{AGENDA}}. Его можно использовать без профиля или постепенно разметить визуально.</div>' : ''}
+    ${state.missing.length ? `<div class="meeting-template-missing-note">Осталось: <strong>${state.missing.map((field) => escMeeting(field.label)).join(', ')}</strong></div>` : ''}
+    <div class="meeting-template-repeat-status">
+      <div class="meeting-template-repeat-status-header">
+        <small><strong>Повторяемый вопрос:</strong> ${escMeeting(inferredRepeat())}</small>
+        ${editorState.repeat ? '<button type="button" class="meeting-template-link-btn" id="meeting-template-clear-repeat" title="Сбросить границы вопроса">Сбросить</button>' : ''}
+      </div>
+      <span class="meeting-template-repeat-hint">💡 Выделите мышкой область вопроса в документе слева для фиксации границ.</span>
+    </div>
+    ${editorState.analysis.legacyReady ? '<div class="meeting-template-legacy-note">Совместимый старый шаблон с {{AGENDA}}. Его можно использовать без профиля или постепенно разметить визуально.</div>' : ''}
   `;
 }
 
@@ -209,6 +260,21 @@ function fieldOptions(selected = '') {
     .join('')}</optgroup>`).join('');
 }
 
+function quickChipsHtml() {
+  if (!editorState?.analysis?.fields) return '';
+  const assigned = new Set(editorState.bindings.map((b) => b.field));
+  const unassigned = editorState.analysis.fields.filter((f) => !assigned.has(f.key));
+  const chips = unassigned.slice(0, 6);
+  if (!chips.length) {
+    return '<span class="meeting-template-chips-done">Все обязательные поля назначены</span>';
+  }
+  return chips.map((f) => `
+    <button type="button" class="meeting-template-chip ${f.required ? 'is-required' : ''}" data-quick-assign="${escMeeting(f.key)}" title="Назначить ${escMeeting(f.label)}">
+      ${escMeeting(f.label)}
+    </button>
+  `).join('');
+}
+
 function showSelection(selection) {
   editorState.selection = selection;
   for (const element of document.querySelectorAll('[data-template-element]')) {
@@ -216,35 +282,117 @@ function showSelection(selection) {
   }
   const target = $m('#meeting-template-selection');
   target.innerHTML = `
-    <strong>Что находится в выделенном месте?</strong>
+    <div class="meeting-template-selection-header">
+      <strong>Выделенный фрагмент</strong>
+      <button id="meeting-template-clear-selection" type="button" class="meeting-template-link-btn">Снять</button>
+    </div>
     <blockquote>${escMeeting(selection.expectedText)}</blockquote>
-    <select id="meeting-template-field-select" aria-label="Назначение выделенного текста">
-      <option value="">Выберите поле</option>${fieldOptions()}
-    </select>
-    <div class="meeting-template-selection-actions">
-      <button id="meeting-template-assign" type="button" class="primary-button">Назначить поле</button>
-      <button id="meeting-template-clear-selection" type="button" class="secondary-button">Снять</button>
+    <div class="meeting-template-quick-chips">
+      <span class="meeting-template-chips-label">Быстрое назначение в один клик:</span>
+      <div class="meeting-template-chips-list">${quickChipsHtml()}</div>
+    </div>
+    <div class="meeting-template-field-picker">
+      <select id="meeting-template-field-select" aria-label="Все поля">
+        <option value="">Другое поле…</option>${fieldOptions()}
+      </select>
+      <button id="meeting-template-assign" type="button" class="primary-button">Назначить</button>
+    </div>
+    <div class="meeting-template-single-block-repeat">
+      <button id="meeting-template-make-repeat-single" type="button" class="secondary-button meeting-template-btn-block" title="Зафиксировать этот блок целиком как повторяемый вопрос">
+        🔁 Зафиксировать этот блок как вопрос
+      </button>
     </div>
   `;
 }
 
-function selectionInside(target) {
+function findTemplateElement(node) {
+  if (!node) return null;
+  const element = node.nodeType === Node.ELEMENT_NODE ? node : node.parentElement;
+  return element?.closest?.('[data-template-element]') || null;
+}
+
+function parseElementLocator(elementId) {
+  if (!elementId) return null;
+  const body = /#body\/p:(\d+)$/u.exec(elementId);
+  if (body) return { kind: 'body_paragraph', paragraphIndex: Number(body[1]) };
+  const bodyTable = /#body\/table:(\d+)$/u.exec(elementId);
+  if (bodyTable) return { kind: 'body_table', tableIndex: Number(bodyTable[1]) };
+  const table = /#table:(\d+)\/row:(\d+)\/cell:(\d+)\/p:(\d+)$/u.exec(elementId);
+  if (table) {
+    return {
+      kind: 'table_paragraph', tableIndex: Number(table[1]), rowIndex: Number(table[2]),
+      cellIndex: Number(table[3]), paragraphIndex: Number(table[4])
+    };
+  }
+  return null;
+}
+
+function handleSelection() {
+  const page = $m('#meeting-template-page');
   const selection = window.getSelection();
-  if (!selection || selection.rangeCount !== 1) return null;
+  if (!page || !selection || selection.rangeCount === 0 || selection.isCollapsed) return;
   const range = selection.getRangeAt(0);
-  if (!target.contains(range.commonAncestorContainer)) return null;
-  const selectedText = range.toString();
-  if (!selectedText) return null;
-  const before = document.createRange();
-  before.selectNodeContents(target);
-  before.setEnd(range.startContainer, range.startOffset);
-  const startOffset = before.toString().length;
-  return {
-    elementId: target.dataset.templateElement,
-    startOffset,
-    endOffset: startOffset + selectedText.length,
-    expectedText: selectedText
-  };
+  if (!page.contains(range.commonAncestorContainer) && !range.intersectsNode(page)) return;
+
+  const startEl = findTemplateElement(range.startContainer);
+  const endEl = findTemplateElement(range.endContainer);
+  if (!startEl || !endEl) return;
+
+  // Single element selection -> field candidate
+  if (startEl === endEl) {
+    const text = range.toString().trim();
+    if (!text) return;
+    const before = document.createRange();
+    before.selectNodeContents(startEl);
+    before.setEnd(range.startContainer, range.startOffset);
+    const startOffset = before.toString().length;
+    showSelection({
+      elementId: startEl.dataset.templateElement,
+      startOffset,
+      endOffset: startOffset + range.toString().length,
+      expectedText: range.toString()
+    });
+    return;
+  }
+
+  // Multi-element selection -> Dragged across multiple blocks / elements!
+  // Automatically fix the repeat boundary!
+  const startLoc = parseElementLocator(startEl.dataset.templateElement);
+  const endLoc = parseElementLocator(endEl.dataset.templateElement);
+
+  // If both are in the same table and same row
+  if (startLoc?.kind === 'table_paragraph' && endLoc?.kind === 'table_paragraph'
+      && startLoc.tableIndex === endLoc.tableIndex && startLoc.rowIndex === endLoc.rowIndex) {
+    editorState.repeat = {
+      kind: 'table_row',
+      tableIndex: startLoc.tableIndex,
+      rowIndex: startLoc.rowIndex
+    };
+    window.getSelection()?.removeAllRanges();
+    renderBindings();
+    showMeetingNotice(`✓ Строка №${startLoc.rowIndex} таблицы зафиксирована как вопрос заседания.`);
+    return;
+  }
+
+  // Otherwise, it's a block_range across body blocks
+  const startChild = Number(startEl.dataset.childIndex);
+  const endChild = Number(endEl.dataset.childIndex);
+  if (startChild && endChild) {
+    const minChild = Math.min(startChild, endChild);
+    const maxChild = Math.max(startChild, endChild);
+    const startBlock = editorState.analysis.blocks[minChild - 1];
+    const endBlock = editorState.analysis.blocks[maxChild - 1];
+    editorState.repeat = {
+      kind: 'block_range',
+      startChildIndex: minChild,
+      endChildIndex: maxChild,
+      startElementId: startBlock?.elementId || startEl.dataset.templateElement,
+      endElementId: endBlock?.elementId || endEl.dataset.templateElement
+    };
+    window.getSelection()?.removeAllRanges();
+    renderBindings();
+    showMeetingNotice(`✓ Границы вопроса зафиксированы: блоки №${minChild}–${maxChild}.`);
+  }
 }
 
 function selectWholeElement(target) {
@@ -253,10 +401,9 @@ function selectWholeElement(target) {
   showSelection({ elementId: target.dataset.templateElement, startOffset: 0, endOffset: text.length, expectedText: text });
 }
 
-function assignSelection() {
-  const field = $m('#meeting-template-field-select')?.value || '';
+function assignField(field) {
   if (!field || !editorState.selection) {
-    showMeetingNotice('Выберите назначение выделенного текста.');
+    showMeetingNotice('Сначала выделите изменяемый текст.');
     return;
   }
   const candidate = { field, ...editorState.selection };
@@ -272,24 +419,149 @@ function assignSelection() {
   }
   editorState.bindings = [...remaining, candidate].sort((left, right) => left.field.localeCompare(right.field, 'ru'));
   editorState.selection = null;
-  $m('#meeting-template-selection').innerHTML = '<p>Выделите текст или щёлкните по абзацу, затем назначьте поле.</p>';
+  $m('#meeting-template-selection').innerHTML = '<p>Выделите текст для назначения поля или протяните мышь по блокам вопроса.</p>';
   window.getSelection()?.removeAllRanges();
   renderBindings();
+}
+
+function assignSelection() {
+  const field = $m('#meeting-template-field-select')?.value || '';
+  if (!field) {
+    showMeetingNotice('Выберите назначение выделенного текста.');
+    return;
+  }
+  assignField(field);
+}
+
+function makeRepeatSingleFromSelection() {
+  const elementId = editorState.selection?.elementId;
+  if (!elementId) {
+    showMeetingNotice('Сначала выберите блок в документе.');
+    return;
+  }
+  const block = getBlockForElement(elementId);
+  if (!block || !block.childIndex) {
+    showMeetingNotice('Не удалось сопоставить блок документа.');
+    return;
+  }
+  editorState.repeat = {
+    kind: 'block_range',
+    startChildIndex: block.childIndex,
+    endChildIndex: block.childIndex,
+    startElementId: block.elementId || elementId,
+    endElementId: block.elementId || elementId
+  };
+  editorState.selection = null;
+  $m('#meeting-template-selection').innerHTML = '<p>Выделите текст для назначения поля или протяните мышь по блокам вопроса.</p>';
+  renderBindings();
+  showMeetingNotice(`✓ Блок №${block.childIndex} зафиксирован как вопрос заседания.`);
+}
+
+function clearRepeat() {
+  editorState.repeat = null;
+  renderBindings();
+  showMeetingNotice('Границы вопроса сброшены.');
+}
+
+async function runAiAnalyze() {
+  const button = $m('#meeting-template-ai-analyze');
+  if (button) {
+    button.disabled = true;
+    button.textContent = '✨ Анализ…';
+  }
+  try {
+    const response = await meetingApi(
+      `/api/meeting-templates/${encodeURIComponent(editorState.versionId)}/ai-analysis?kind=${encodeURIComponent(editorState.kind)}`,
+      { method: 'POST' }
+    );
+    if (response?.status === 'disabled') {
+      showMeetingNotice(response.message || 'Локальная LLM не запущена. Используются стандартные правила разметки.');
+      return;
+    }
+    const proposal = response?.proposal;
+    if (!proposal) {
+      showMeetingNotice('LLM не вернула разметку для этого шаблона.');
+      return;
+    }
+    let appliedCount = 0;
+    if (Array.isArray(proposal.bindings) && proposal.bindings.length) {
+      const validElements = new Map(editorState.analysis.elements.map((el) => [el.elementId, el]));
+      const newBindings = [...editorState.bindings];
+      for (const candidate of proposal.bindings) {
+        const el = validElements.get(candidate.elementId);
+        if (!el) continue;
+        const start = Number(candidate.startOffset);
+        const end = Number(candidate.endOffset);
+        if (Number.isInteger(start) && Number.isInteger(end) && start >= 0 && end > start && end <= el.text.length) {
+          const expected = el.text.slice(start, end);
+          if (!candidate.expectedText || candidate.expectedText === expected) {
+            const idx = newBindings.findIndex((b) => b.field === candidate.field);
+            const entry = {
+              field: candidate.field,
+              elementId: candidate.elementId,
+              startOffset: start,
+              endOffset: end,
+              expectedText: expected
+            };
+            if (idx >= 0) {
+              newBindings[idx] = entry;
+            } else {
+              newBindings.push(entry);
+            }
+            appliedCount += 1;
+          }
+        }
+      }
+      editorState.bindings = newBindings;
+    }
+    if (proposal.repeatKind === 'block_range' && proposal.startChildIndex && proposal.endChildIndex) {
+      editorState.repeat = {
+        kind: 'block_range',
+        startChildIndex: Number(proposal.startChildIndex),
+        endChildIndex: Number(proposal.endChildIndex),
+        startElementId: editorState.analysis.blocks[Number(proposal.startChildIndex) - 1]?.elementId || null,
+        endElementId: editorState.analysis.blocks[Number(proposal.endChildIndex) - 1]?.elementId || null
+      };
+    } else if (proposal.repeatKind === 'table_row' && proposal.tableIndex && proposal.rowIndex) {
+      editorState.repeat = {
+        kind: 'table_row',
+        tableIndex: Number(proposal.tableIndex),
+        rowIndex: Number(proposal.rowIndex)
+      };
+    }
+    renderBindings();
+    showMeetingNotice(`✨ LLM успешно применила ${appliedCount} полей и определила структуру вопроса!`);
+  } catch (error) {
+    showMeetingNotice(error.message || 'Не удалось выполнить анализ структуры через LLM.');
+  } finally {
+    if (button) {
+      button.disabled = false;
+      button.textContent = '✨ Авторазметка';
+    }
+  }
 }
 
 async function saveProfile() {
   const button = $m('#meeting-template-save-profile');
   if (button) button.disabled = true;
   try {
+    const payload = {
+      structureSha256: editorState.analysis.structureSha256,
+      bindings: editorState.bindings
+    };
+    if (editorState.repeat) {
+      payload.repeat = editorState.repeat;
+    }
     const profile = await meetingApi(
       `/api/meeting-templates/${encodeURIComponent(editorState.versionId)}/profiles?kind=${encodeURIComponent(editorState.kind)}`,
       {
         method: 'POST',
         headers: { 'content-type': 'application/json' },
-        body: JSON.stringify({ structureSha256: editorState.analysis.structureSha256, bindings: editorState.bindings })
+        body: JSON.stringify(payload)
       }
     );
     editorState.analysis.latestProfile = profile;
+    if (profile.repeat) editorState.repeat = profile.repeat;
     renderStatus(profile);
     showMeetingNotice(profile.status === 'ready'
       ? 'Профиль сохранён. Шаблон можно использовать для заседаний.'
@@ -304,20 +576,24 @@ async function saveProfile() {
 
 function bindEditorEvents() {
   const modal = $m('#meeting-modal');
-  modal.addEventListener('mouseup', (event) => {
-    const target = event.target.closest?.('[data-template-element]');
-    if (!target) return;
-    const selection = selectionInside(target);
-    if (selection) showSelection(selection);
+  modal.addEventListener('mouseup', () => {
+    handleSelection();
   });
   modal.addEventListener('click', (event) => {
     const target = event.target.closest?.('[data-template-element]');
-    if (target && !window.getSelection()?.toString()) selectWholeElement(target);
+    if (target && !window.getSelection()?.toString() && !event.target.closest('button, select, input, a')) {
+      selectWholeElement(target);
+    }
+    const quick = event.target.closest?.('[data-quick-assign]');
+    if (quick) assignField(quick.dataset.quickAssign);
     if (event.target.closest?.('#meeting-template-assign')) assignSelection();
+    if (event.target.closest?.('#meeting-template-make-repeat-single')) makeRepeatSingleFromSelection();
+    if (event.target.closest?.('#meeting-template-clear-repeat')) clearRepeat();
+    if (event.target.closest?.('#meeting-template-ai-analyze')) runAiAnalyze();
     if (event.target.closest?.('#meeting-template-clear-selection')) {
       editorState.selection = null;
       window.getSelection()?.removeAllRanges();
-      $m('#meeting-template-selection').innerHTML = '<p>Выделите текст или щёлкните по абзацу, затем назначьте поле.</p>';
+      $m('#meeting-template-selection').innerHTML = '<p>Выделите текст для назначения поля или протяните мышь по блокам вопроса.</p>';
       renderDocument();
     }
     const remove = event.target.closest?.('[data-remove-template-binding]');
@@ -328,13 +604,22 @@ function bindEditorEvents() {
     if (event.target.closest?.('#meeting-template-save-profile')) saveProfile();
     if (event.target.closest?.('[data-template-editor-back]') && typeof editorState.onBack === 'function') editorState.onBack();
   });
+  modal.addEventListener('keydown', (event) => {
+    if (event.key === 'Enter' && event.target.closest?.('#meeting-template-field-select')) {
+      event.preventDefault();
+      assignSelection();
+    }
+  });
 }
 
 function editorShell(kind, title) {
   return `
     <header class="meeting-modal-head">
       <div><span>${kind === 'protocol' ? 'Шаблон протокола' : 'Шаблон выписки'}</span><h3>${escMeeting(title || 'Назначение полей DOCX')}</h3></div>
-      <button type="button" class="secondary-button" data-template-editor-back>Назад к настройкам</button>
+      <div class="meeting-template-head-actions">
+        <button id="meeting-template-ai-analyze" type="button" class="secondary-button" title="Автоматический анализ структуры через локальную LLM">✨ Авторазметка</button>
+        <button type="button" class="secondary-button" data-template-editor-back>Назад к настройкам</button>
+      </div>
     </header>
     <div class="meeting-template-editor-body">
       <section class="meeting-template-workspace" aria-label="Предпросмотр DOCX">
@@ -354,7 +639,7 @@ function editorShell(kind, title) {
 
 export async function openMeetingTemplateEditor({ kind, versionId, title, onBack, onSaved }) {
   ensureStyles();
-  editorState = { kind, versionId, title, onBack, onSaved, analysis: null, bindings: [], selection: null };
+  editorState = { kind, versionId, title, onBack, onSaved, analysis: null, bindings: [], selection: null, repeat: null };
   openMeetingModal(editorShell(kind, title));
   $m('#meeting-modal')?.classList.add('meeting-template-editor-modal');
   try {
@@ -370,6 +655,7 @@ export async function openMeetingTemplateEditor({ kind, versionId, title, onBack
       endOffset: Number(binding.endOffset),
       expectedText: binding.expectedText
     }));
+    editorState.repeat = analysis.latestProfile?.repeat || null;
     renderDocument();
     renderBindings();
     bindEditorEvents();

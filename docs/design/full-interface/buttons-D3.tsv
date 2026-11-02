@@ -1,10 +1,14 @@
 id	source	context	label	acceptance	status
-UI-7c9d804283	public/meeting-template-editor.js:197:7	renderBindings / callback@194	Убрать поле ________________________________________	C02	запланировано
-UI-b004dce0b2	public/meeting-template-editor.js:225:7	showSelection	Назначить поле	C01	запланировано
-UI-cb68ee6ae2	public/meeting-template-editor.js:226:7	showSelection	Снять	C01	запланировано
-UI-90276589b9	public/meeting-template-editor.js:337:7	editorShell	Назад к настройкам	C01	запланировано
-UI-35134d0df2	public/meeting-template-editor.js:348:11	editorShell	Сохранить профиль	C01	запланировано
-UI-041b9c1413	public/meeting-template-editor.js:457:22	enhanceSettingsForm	динамическая подпись	C01	запланировано
+UI-36baa99cab	public/meeting-template-editor.js:234:33	renderStatus	Сбросить	C01	запланировано
+UI-dad6dd3181	public/meeting-template-editor.js:248:7	renderBindings / callback@245	Убрать поле ________________________________________	C02	запланировано
+UI-52a4fe3ed5	public/meeting-template-editor.js:272:5	quickChipsHtml / callback@271	{dynamic}	C01	запланировано
+UI-7d6567a320	public/meeting-template-editor.js:287:7	showSelection	Снять	C01	запланировано
+UI-ab4644788c	public/meeting-template-editor.js:298:7	showSelection	Назначить	C01	запланировано
+UI-14519fd75d	public/meeting-template-editor.js:301:7	showSelection	🔁 Зафиксировать этот блок как вопрос	C01	запланировано
+UI-ecaf1aae9a	public/meeting-template-editor.js:620:9	editorShell	✨ Авторазметка	C01	запланировано
+UI-f519b97004	public/meeting-template-editor.js:621:9	editorShell	Назад к настройкам	C01	запланировано
+UI-4dc00c110a	public/meeting-template-editor.js:633:11	editorShell	Сохранить профиль	C01	запланировано
+UI-3514a6117a	public/meeting-template-editor.js:743:22	enhanceSettingsForm	динамическая подпись	C01	запланировано
 UI-826de76c12	public/meeting-template-library.js:53:13	actionButtons	Восстановить	C02	запланировано
 UI-8491b83903	public/meeting-template-library.js:57:5	actionButtons	{dynamic}	C01	запланировано
 UI-a2eaf9c736	public/meeting-template-library.js:58:5	actionButtons	Тестовое заполнение	C01	запланировано

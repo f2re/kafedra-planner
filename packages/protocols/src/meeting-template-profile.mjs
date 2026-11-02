@@ -227,13 +227,17 @@ function cellStyle(cellXml) {
 function projectDocumentXml(xml) {
   const blocks = [];
   const elements = [];
+  let childIndex = 0;
   for (const child of bodyChildren(xml)) {
+    childIndex += 1;
     if (child.tag === 'p') {
       const paragraph = paragraphProjection(child.xml, `${DOCUMENT_XML}#body/p:${child.paragraphIndex}`);
+      paragraph.childIndex = childIndex;
       blocks.push(paragraph);
       elements.push(paragraph);
       continue;
     }
+    const tableElementId = `${DOCUMENT_XML}#body/table:${child.tableIndex}`;
     const rows = tableRows(child.xml).map((row, rowIndex) => ({
       rowIndex: rowIndex + 1,
       cells: row.cells.map((cell, cellIndex) => {
@@ -242,13 +246,14 @@ function projectDocumentXml(xml) {
             paragraph.xml,
             `${DOCUMENT_XML}#table:${child.tableIndex}/row:${rowIndex + 1}/cell:${cellIndex + 1}/p:${paragraphIndex + 1}`
           );
+          projected.childIndex = childIndex;
           elements.push(projected);
           return projected;
         });
         return { cellIndex: cellIndex + 1, ...cellStyle(cell.xml), paragraphs };
       })
     }));
-    blocks.push({ kind: 'table', tableIndex: child.tableIndex, rows });
+    blocks.push({ kind: 'table', tableIndex: child.tableIndex, elementId: tableElementId, childIndex, rows });
   }
   return { blocks, elements };
 }
@@ -328,6 +333,8 @@ function escapedPattern(value) {
 function parseLocator(elementId) {
   const body = new RegExp(`^${escapedPattern(DOCUMENT_XML)}#body/p:(\\d+)$`, 'u').exec(elementId);
   if (body) return { kind: 'body_paragraph', paragraphIndex: Number(body[1]) };
+  const bodyTable = new RegExp(`^${escapedPattern(DOCUMENT_XML)}#body/table:(\\d+)$`, 'u').exec(elementId);
+  if (bodyTable) return { kind: 'body_table', tableIndex: Number(bodyTable[1]) };
   const table = new RegExp(`^${escapedPattern(DOCUMENT_XML)}#table:(\\d+)/row:(\\d+)/cell:(\\d+)/p:(\\d+)$`, 'u').exec(elementId);
   if (table) {
     return {
@@ -379,7 +386,7 @@ function normalizeBindings(input, analysis) {
   return bindings.sort((left, right) => left.field.localeCompare(right.field, 'en'));
 }
 
-function inferRepeat(bindings) {
+function inferRepeat(bindings, analysis = null) {
   const agenda = bindings.filter((binding) => FIELD_BY_KEY.get(binding.field)?.scope === 'agenda');
   if (!agenda.length) return null;
   const locators = agenda.map((binding) => parseLocator(binding.elementId));
@@ -390,6 +397,36 @@ function inferRepeat(bindings) {
       fail('meeting_template_repeat_incompatible');
     }
     return { kind: 'table_row', tableIndex: first.tableIndex, rowIndex: first.rowIndex };
+  }
+  if (analysis?.blocks) {
+    const childIndices = [];
+    for (const binding of agenda) {
+      const loc = parseLocator(binding.elementId);
+      if (loc?.kind === 'body_paragraph') {
+        const block = analysis.blocks.find((b) => b.elementId === binding.elementId);
+        if (block?.childIndex) childIndices.push(block.childIndex);
+      } else if (loc?.kind === 'table_paragraph') {
+        const block = analysis.blocks.find((b) => b.kind === 'table' && b.tableIndex === loc.tableIndex);
+        if (block?.childIndex) childIndices.push(block.childIndex);
+      }
+    }
+    if (childIndices.length > 0) {
+      const minChild = Math.min(...childIndices);
+      const maxChild = Math.max(...childIndices);
+      const startBlock = analysis.blocks[minChild - 1];
+      const endBlock = analysis.blocks[maxChild - 1];
+      const slice = analysis.blocks.slice(minChild - 1, maxChild);
+      const hasTable = slice.some((b) => b.kind === 'table');
+      if (hasTable || locators.some((l) => l.kind === 'table_paragraph')) {
+        return {
+          kind: 'block_range',
+          startChildIndex: minChild,
+          endChildIndex: maxChild,
+          startElementId: startBlock.elementId || `${DOCUMENT_XML}#body/p:${startBlock.paragraphIndex}`,
+          endElementId: endBlock.elementId || `${DOCUMENT_XML}#body/p:${endBlock.paragraphIndex}`
+        };
+      }
+    }
   }
   if (locators.every((locator) => locator.kind === 'body_paragraph')) {
     return {
@@ -404,8 +441,10 @@ function inferRepeat(bindings) {
 function validateRepeat(repeat, bindings, analysis) {
   const agenda = bindings.filter((binding) => FIELD_BY_KEY.get(binding.field)?.scope === 'agenda');
   if (!agenda.length) return null;
-  const value = repeat || inferRepeat(bindings);
-  if (!value || !['table_row', 'paragraph_range'].includes(value.kind)) fail('meeting_template_repeat_required');
+  const value = repeat || inferRepeat(bindings, analysis);
+  if (!value || !['table_row', 'paragraph_range', 'block_range'].includes(value.kind)) {
+    fail('meeting_template_repeat_required');
+  }
   const locators = agenda.map((binding) => parseLocator(binding.elementId));
   if (value.kind === 'table_row') {
     const tableIndex = Number(value.tableIndex);
@@ -417,6 +456,43 @@ function validateRepeat(repeat, bindings, analysis) {
       fail('meeting_template_repeat_incompatible');
     }
     return { kind: 'table_row', tableIndex, rowIndex };
+  }
+  if (value.kind === 'block_range') {
+    let startChildIndex = Number(value.startChildIndex);
+    let endChildIndex = Number(value.endChildIndex);
+    if ((!Number.isInteger(startChildIndex) || !Number.isInteger(endChildIndex)) && analysis.blocks) {
+      if (value.startElementId) {
+        const found = analysis.blocks.findIndex((b) => b.elementId === value.startElementId);
+        if (found >= 0) startChildIndex = found + 1;
+      }
+      if (value.endElementId) {
+        const found = analysis.blocks.findIndex((b) => b.elementId === value.endElementId);
+        if (found >= 0) endChildIndex = found + 1;
+      }
+    }
+    if (!Number.isInteger(startChildIndex) || !Number.isInteger(endChildIndex)
+      || startChildIndex <= 0 || endChildIndex < startChildIndex || endChildIndex > analysis.blocks.length) {
+      fail('meeting_template_repeat_invalid');
+    }
+    const startBlock = analysis.blocks[startChildIndex - 1];
+    const endBlock = analysis.blocks[endChildIndex - 1];
+    const startElementId = value.startElementId || startBlock.elementId;
+    const endElementId = value.endElementId || endBlock.elementId;
+    for (const binding of agenda) {
+      const loc = parseLocator(binding.elementId);
+      let childIdx = null;
+      if (loc?.kind === 'body_paragraph') {
+        const block = analysis.blocks.find((b) => b.elementId === binding.elementId);
+        childIdx = block?.childIndex;
+      } else if (loc?.kind === 'table_paragraph') {
+        const block = analysis.blocks.find((b) => b.kind === 'table' && b.tableIndex === loc.tableIndex);
+        childIdx = block?.childIndex;
+      }
+      if (childIdx === null || childIdx < startChildIndex || childIdx > endChildIndex) {
+        fail('meeting_template_repeat_incompatible');
+      }
+    }
+    return { kind: 'block_range', startChildIndex, endChildIndex, startElementId, endElementId };
   }
   const startParagraphIndex = Number(value.startParagraphIndex);
   const endParagraphIndex = Number(value.endParagraphIndex);
@@ -621,8 +697,31 @@ function replaceElementInDocument(xml, elementId, transform) {
 
 function applyRanges(elementXml, bindings, values) {
   let result = elementXml;
-  for (const binding of [...bindings].sort((left, right) => right.startOffset - left.startOffset)) {
-    result = replaceVisibleRange(result, binding.startOffset, binding.endOffset, values[binding.field] ?? '');
+  const sorted = [...bindings].sort((left, right) => right.startOffset - left.startOffset);
+  const multiParagraphs = [];
+
+  for (const binding of sorted) {
+    const rawVal = values[binding.field];
+    const val = rawVal === null || rawVal === undefined ? '' : String(rawVal);
+    if (val.includes('\n')) {
+      const lines = val.split(/\r?\n/).map((line) => line.trim()).filter(Boolean);
+      if (lines.length > 1 && sorted.length === 1) {
+        result = replaceVisibleRange(result, binding.startOffset, binding.endOffset, lines[0]);
+        const pPrMatch = /<w:pPr\b[^>]*>([\s\S]*?)<\/w:pPr>/iu.exec(result);
+        const pPr = pPrMatch ? pPrMatch[0] : '';
+        const rPrMatch = /<w:rPr\b[^>]*>([\s\S]*?)<\/w:rPr>/iu.exec(result);
+        const rPr = rPrMatch ? rPrMatch[0] : '';
+        for (let i = 1; i < lines.length; i += 1) {
+          multiParagraphs.push(`<w:p>${pPr}<w:r>${rPr}<w:t xml:space="preserve">${escapeXmlText(lines[i])}</w:t></w:r></w:p>`);
+        }
+        continue;
+      }
+    }
+    result = replaceVisibleRange(result, binding.startOffset, binding.endOffset, val);
+  }
+
+  if (multiParagraphs.length > 0) {
+    return result + multiParagraphs.join('');
   }
   return result;
 }
@@ -664,19 +763,72 @@ function applyRowBindings(rowXml, bindings, values) {
   return result;
 }
 
-function renderParagraphBlock(xml, repeat, bindings, items) {
-  const paragraphs = bodyChildren(xml).filter((child) => child.tag === 'p');
-  const first = paragraphs[repeat.startParagraphIndex - 1];
-  const last = paragraphs[repeat.endParagraphIndex - 1];
-  if (!first || !last) fail('meeting_template_repeat_invalid');
-  const rendered = [];
-  for (const values of items) {
-    for (let paragraphIndex = repeat.startParagraphIndex; paragraphIndex <= repeat.endParagraphIndex; paragraphIndex += 1) {
-      const source = paragraphs[paragraphIndex - 1];
-      const group = bindings.filter((binding) => parseLocator(binding.elementId)?.paragraphIndex === paragraphIndex);
-      rendered.push(applyRanges(source.xml, group, values));
+function renderBodyBlock(xml, repeat, bindings, items) {
+  const children = bodyChildren(xml);
+  let first = null;
+  let last = null;
+
+  if (repeat.kind === 'paragraph_range') {
+    first = children.find((c) => c.tag === 'p' && c.paragraphIndex === repeat.startParagraphIndex);
+    last = children.find((c) => c.tag === 'p' && c.paragraphIndex === repeat.endParagraphIndex);
+  } else if (repeat.kind === 'block_range') {
+    if (Number.isInteger(repeat.startChildIndex) && Number.isInteger(repeat.endChildIndex)) {
+      first = children[repeat.startChildIndex - 1];
+      last = children[repeat.endChildIndex - 1];
+    } else {
+      first = children.find((c) =>
+        (c.tag === 'p' && `${DOCUMENT_XML}#body/p:${c.paragraphIndex}` === repeat.startElementId) ||
+        (c.tag === 'tbl' && `${DOCUMENT_XML}#body/table:${c.tableIndex}` === repeat.startElementId)
+      );
+      last = children.find((c) =>
+        (c.tag === 'p' && `${DOCUMENT_XML}#body/p:${c.paragraphIndex}` === repeat.endElementId) ||
+        (c.tag === 'tbl' && `${DOCUMENT_XML}#body/table:${c.tableIndex}` === repeat.endElementId)
+      );
     }
   }
+
+  if (!first || !last) fail('meeting_template_repeat_invalid');
+  const firstIdx = children.indexOf(first);
+  const lastIdx = children.indexOf(last);
+  if (firstIdx < 0 || lastIdx < firstIdx) fail('meeting_template_repeat_invalid');
+
+  const slice = children.slice(firstIdx, lastIdx + 1);
+  const rendered = [];
+
+  for (const values of items) {
+    for (const child of slice) {
+      if (child.tag === 'p') {
+        const group = bindings.filter((binding) => {
+          const loc = parseLocator(binding.elementId);
+          return loc?.kind === 'body_paragraph' && loc.paragraphIndex === child.paragraphIndex;
+        });
+        rendered.push(applyRanges(child.xml, group, values));
+      } else if (child.tag === 'tbl') {
+        const group = bindings.filter((binding) => {
+          const loc = parseLocator(binding.elementId);
+          return loc?.kind === 'table_paragraph' && loc.tableIndex === child.tableIndex;
+        });
+        if (group.length > 0) {
+          const rows = tableRows(child.xml);
+          let tableXml = child.xml;
+          for (let rIdx = 0; rIdx < rows.length; rIdx += 1) {
+            const rowNumber = rIdx + 1;
+            const rowBindings = group.filter((b) => parseLocator(b.elementId)?.rowIndex === rowNumber);
+            if (rowBindings.length > 0) {
+              const updatedRow = applyRowBindings(rows[rIdx].xml, rowBindings, values);
+              tableXml = replaceTableRows(tableXml, rowNumber, rowNumber, [updatedRow]);
+            }
+          }
+          rendered.push(tableXml);
+        } else {
+          rendered.push(child.xml);
+        }
+      } else {
+        rendered.push(child.xml);
+      }
+    }
+  }
+
   return xml.slice(0, first.start) + rendered.join('') + xml.slice(last.end);
 }
 
@@ -700,8 +852,8 @@ export function renderVisualMeetingTemplateXml(templateXml, profile, globalValue
   if (!Array.isArray(agendaValues) || !agendaValues.length) fail('meeting_agenda_empty');
   if (profile.repeat?.kind === 'table_row') {
     xml = renderTableRowBlock(xml, profile.repeat, agendaBindings, agendaValues);
-  } else if (profile.repeat?.kind === 'paragraph_range') {
-    xml = renderParagraphBlock(xml, profile.repeat, agendaBindings, agendaValues);
+  } else if (profile.repeat?.kind === 'paragraph_range' || profile.repeat?.kind === 'block_range') {
+    xml = renderBodyBlock(xml, profile.repeat, agendaBindings, agendaValues);
   } else {
     fail('meeting_template_repeat_required');
   }

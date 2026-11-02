@@ -91,7 +91,7 @@ export function ensureSearchIndexUpToDate(database, workspaceId) {
   // 1. Index meetings without search_fragments
   if (tableExists(database, 'meetings')) {
     const unindexedMeetings = database.all(`
-      SELECT m.id, m.protocol_number, m.meeting_date, m.chairperson_raw, m.secretary_raw, m.source_document_version_id
+      SELECT m.id, m.protocol_number, m.meeting_date, m.chairperson_raw, m.secretary_raw, m.attendees_raw, m.quorum_required, m.source_document_version_id
       FROM meetings m
       LEFT JOIN search_fragments sf ON sf.source_id = m.id AND sf.source_kind = 'meeting'
       WHERE sf.id IS NULL AND m.workspace_id = ?
@@ -122,6 +122,8 @@ export function ensureSearchIndexUpToDate(database, workspaceId) {
         `Заседание кафедры №${m.protocol_number || 'б/н'} от ${m.meeting_date || ''}`,
         m.chairperson_raw ? `Председатель: ${m.chairperson_raw}` : '',
         m.secretary_raw ? `Секретарь: ${m.secretary_raw}` : '',
+        m.attendees_raw ? `Присутствовали: ${m.attendees_raw}` : '',
+        m.quorum_required ? `Кворум: ${m.quorum_required}` : '',
         agendaContent
       ].filter(Boolean).join('\n');
 

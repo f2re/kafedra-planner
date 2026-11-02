@@ -252,3 +252,85 @@ test('черновик и готовый профиль сохраняются �
     await rm(root, { recursive: true, force: true });
   }
 });
+
+test('составной блок вопроса (block_range) с таблицей и многоабзацным текстом тиражируется корректно', async () => {
+  const root = await mkdtemp(join(tmpdir(), 'kafedra-meeting-profile-multiblock-'));
+  const path = join(root, 'protocol.docx');
+  try {
+    const cell = (text) => `<w:tc><w:tcPr><w:tcW w:w="2400" w:type="dxa"/></w:tcPr>${paragraph(text)}</w:tc>`;
+    const votingTable = `<w:tbl><w:tblPr/><w:tblGrid><w:gridCol w:w="2400"/><w:gridCol w:w="2400"/></w:tblGrid>`
+      + `<w:tr>${cell('Результаты голосования:')}${cell('За: 15, Против: 0')}</w:tr></w:tbl>`;
+
+    const xml = documentXml([
+      paragraph('ПРОТОКОЛ', '<w:b/>'),
+      paragraph('Протокол № 00'),
+      paragraph('Дата: 15 сентября 2026 года'),
+      paragraph('Заседание кафедры', '<w:b/><w:sz w:val="28"/>', '<w:jc w:val="center"/>'),
+      paragraph('Председатель: Иванов И.И.'),
+      paragraph('Секретарь: Петрова А.А.'),
+      paragraph('Кворум: 5 человек'),
+      paragraph('1. Вопрос повестки', '<w:b/>'),
+      paragraph('СЛУШАЛИ: Доклад', '<w:i/>'),
+      votingTable,
+      paragraph('РЕШИЛИ: Текст решения', '<w:u w:val="single"/>')
+    ].join(''));
+
+    await writeDocx(path, xml);
+    const analysis = await analyzeMeetingTemplatePath(path, 'fixture-sha');
+    assert.equal(analysis.blocks.length, 11);
+    const tableBlock = analysis.blocks.find((b) => b.kind === 'table');
+    assert.ok(tableBlock);
+    assert.equal(tableBlock.childIndex, 10);
+
+    const profile = {
+      status: 'ready',
+      bindings: analysis.suggestions,
+      repeat: {
+        kind: 'block_range',
+        startChildIndex: 8,
+        endChildIndex: 11,
+        startElementId: analysis.blocks[7].elementId,
+        endElementId: analysis.blocks[10].elementId
+      }
+    };
+
+    const data = {
+      globals: {
+        protocol_number: '21',
+        meeting_date: '10 октября 2026 года',
+        meeting_title: 'Заседание кафедры программной инженерии',
+        chairperson: 'Смирнов А.А.',
+        secretary: 'Васильева Е.В.',
+        quorum: '12 человек'
+      },
+      agenda: [
+        {
+          item_no: '1',
+          title: 'О распределении нагрузки',
+          heard: 'Первый абзац доклада зав. кафедрой.\nВторой абзац с анализом часов кафедры.\nТретий абзац с заключением.',
+          decision: 'Утвердить распределение учебной нагрузки'
+        },
+        {
+          item_no: '2',
+          title: 'Об утверждении тем ВКР',
+          heard: 'Доклад ответственного за дипломное проектирование.',
+          decision: 'Утвердить предложенный перечень тем ВКР'
+        }
+      ]
+    };
+
+    const rendered = renderVisualMeetingTemplateXml(xml, profile, data.globals, data.agenda);
+
+    assert.match(rendered, /Заседание кафедры программной инженерии/u);
+    assert.match(rendered, /О распределении нагрузки/u);
+    assert.match(rendered, /Об утверждении тем ВКР/u);
+    assert.match(rendered, /Первый абзац доклада зав\. кафедрой/u);
+    assert.match(rendered, /Второй абзац с анализом часов кафедры/u);
+    assert.match(rendered, /Третий абзац с заключением/u);
+    assert.equal((rendered.match(/Результаты голосования:/gu) || []).length, 2);
+    assert.equal((rendered.match(/За: 15, Против: 0/gu) || []).length, 2);
+    assert.ok((rendered.match(/<w:p>/gu) || []).length >= 14);
+  } finally {
+    await rm(root, { recursive: true, force: true });
+  }
+});

@@ -31,6 +31,7 @@ import {
   updateMeeting,
   uploadMeetingTemplate
 } from '../../../packages/protocols/src/meetings.mjs';
+import { analyzeTemplateWithLlama } from '../../../packages/ai/src/llama-client.mjs';
 import { readJson, sendJson } from './http-utils.mjs';
 
 function workspaceOf(database, request) {
@@ -126,6 +127,7 @@ export function createMeetingsRouter({ database, config }) {
     const documentsMatch = path.match(/^\/api\/meetings\/([^/]+)\/documents$/u);
     const templateAnalysisMatch = path.match(/^\/api\/meeting-templates\/([^/]+)\/analysis$/u);
     const templateProfilesMatch = path.match(/^\/api\/meeting-templates\/([^/]+)\/profiles$/u);
+    const templateAiAnalysisMatch = path.match(/^\/api\/meeting-templates\/([^/]+)\/ai-analysis$/u);
     const libraryActionMatch = path.match(/^\/api\/meeting-template-library\/([^/]+)\/(default|impact|archive|restore|test)$/u);
     const recognized = path === '/api/meeting-settings'
       || path === '/api/meeting-agenda-sources'
@@ -135,7 +137,7 @@ export function createMeetingsRouter({ database, config }) {
       || path === '/api/protocol-imports'
       || path === '/api/meetings'
       || meetingMatch || agendaCollectionMatch || agendaItemMatch || agendaMoveMatch || agendaTransferMatch || documentsMatch
-      || templateAnalysisMatch || templateProfilesMatch || libraryActionMatch;
+      || templateAnalysisMatch || templateProfilesMatch || templateAiAnalysisMatch || libraryActionMatch;
     if (!recognized) return false;
 
     const workspace = workspaceOf(database, request);
@@ -209,6 +211,13 @@ export function createMeetingsRouter({ database, config }) {
         const versionId = decodeURIComponent(templateAnalysisMatch[1]);
         const kind = String(url.searchParams.get('kind') || '');
         return sendJson(response, 200, await analyzeMeetingTemplate(database, workspace.id, versionId, kind));
+      }
+      if (templateAiAnalysisMatch && method === 'POST') {
+        const versionId = decodeURIComponent(templateAiAnalysisMatch[1]);
+        const kind = String(url.searchParams.get('kind') || '');
+        const analysis = await analyzeMeetingTemplate(database, workspace.id, versionId, kind);
+        const aiResult = await analyzeTemplateWithLlama({ config, analysis });
+        return sendJson(response, 200, aiResult);
       }
       if (templateProfilesMatch && method === 'POST') {
         const versionId = decodeURIComponent(templateProfilesMatch[1]);

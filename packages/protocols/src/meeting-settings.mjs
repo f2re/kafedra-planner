@@ -4,8 +4,10 @@ import { storeIncomingStream } from '../../document-intake/src/blob-store.mjs';
 import { ensureObjectPolicy } from '../../access-control/src/service.mjs';
 import {
   analyzeMeetingTemplatePath,
-  latestMeetingTemplateProfile
+  latestMeetingTemplateProfile,
+  saveMeetingTemplateProfile
 } from './meeting-template-profile.mjs';
+import { analyzeTemplateWithLlama } from '../../ai/src/llama-client.mjs';
 import {
   activePerson, assertDocxTemplate, fail, positiveInteger, required, writeAudit
 } from './meeting-common.mjs';
@@ -90,6 +92,23 @@ export async function uploadMeetingTemplate(database, config, workspaceId, strea
       templateMode: analysis.legacyReady ? 'legacy_markers' : 'visual_profile'
     }, now);
   });
+
+  let initialProfile = null;
+  if (!analysis.legacyReady && config?.llmEnabled && config?.llmEndpoint) {
+    try {
+      const aiResult = await analyzeTemplateWithLlama({ config, analysis });
+      if (aiResult?.status === 'completed' && Array.isArray(aiResult.bindings) && aiResult.bindings.length >= 2) {
+        initialProfile = await saveMeetingTemplateProfile(database, config, workspaceId, versionId, kind, {
+          structureSha256: analysis.structureSha256,
+          bindings: aiResult.bindings,
+          repeat: aiResult.repeat
+        }, actorPersonId);
+      }
+    } catch {
+      // LLM is optional; fallback to manual template markup
+    }
+  }
+
   return {
     document_id: documentId,
     version_id: versionId,
@@ -97,7 +116,7 @@ export async function uploadMeetingTemplate(database, config, workspaceId, strea
     original_name: fileName,
     structure_status: structureStatus,
     legacyReady: analysis.legacyReady,
-    profile: null,
+    profile: initialProfile || null,
     duplicateRequest: false
   };
 }

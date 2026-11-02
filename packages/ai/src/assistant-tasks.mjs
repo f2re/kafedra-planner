@@ -198,6 +198,41 @@ export const ASSISTANT_TASKS = Object.freeze({
       '{"summary":"Краткое резюме структуры шаблона","fields":[{"key":"...","label":"...","sampleValue":"...","suggestedMarker":"...","scope":"document|agenda|custom","isRepeating":false,"confidence":0.95,"reason":"..."}],"templateRecommendation":"Рекомендация по оформлению"}.',
       'Не выдумывай полей, которых нет в тексте. Сохраняй терминологию делопроизводства.'
     ].join(' ')
+  }),
+
+  'protocol-extract-v1': Object.freeze({
+    id: 'protocol-extract-v1',
+    maxTokens: 3072,
+    system: [
+      'Ты — официальный аналитик протоколов заседаний кафедры.',
+      'Твоя задача — извлечь из текста протокола точные реквизиты, кворум, состав участников и структурированную повестку дня.',
+      'Извлеки:',
+      '1) protocolNumber: номер протокола (строка);',
+      '2) meetingDate: дата в формате YYYY-MM-DD;',
+      '3) meetingDateRaw: точная фраза даты из текста;',
+      '4) chairperson: председатель заседания (ФИО);',
+      '5) secretary: секретарь заседания (ФИО);',
+      '6) quorum: сведения о кворуме (всего членов кафедры, присутствовало, норма кворума, текстовая формулировка);',
+      '7) attendees: список присутствовавших сотрудников и приглашенных (массив строк);',
+      '8) agendaItems: упорядоченный список вопросов повестки дня.',
+      'Для каждого вопроса повестки определи: itemNo (целое число), title (формулировка), startBoundary (начальная фраза вопроса), heard (кого и что заслушали), speaker (докладчик), discussed (ход обсуждения, выступления, результаты голосования), decision (принятое решение или постановление), responsibleRaw (ответственные лица), dueDate (срок исполнения YYYY-MM-DD), endBoundary (замыкающая фраза вопроса), sourceQuote (точная непрерывная выдержка из текста длиной 20-240 символов для подтверждения).',
+      'Верни строго один валидный JSON-объект без Markdown вида:',
+      '{"protocolNumber":"...","meetingDate":"YYYY-MM-DD","meetingDateRaw":"...","chairperson":"...","secretary":"...","quorum":{"total":15,"present":12,"required":10,"text":"..."},"attendees":["..."],"agendaItems":[{"itemNo":1,"title":"...","startBoundary":"...","heard":"...","speaker":"...","discussed":"...","decision":"...","responsibleRaw":"...","dueDate":"YYYY-MM-DD","endBoundary":"...","sourceQuote":"..."}]}.',
+      'Не придумывай дат, фамилий и решений, которых нет в тексте.'
+    ].join(' ')
+  }),
+
+  'template-structure-analyze-v1': Object.freeze({
+    id: 'template-structure-analyze-v1',
+    maxTokens: 2560,
+    system: [
+      'Ты — эксперт по анализу структуры шаблонов деловых документов (протоколов заседаний кафедры и выписок из протоколов).',
+      'На вход передается текстовая проекция DOCX-документа с идентификаторами элементов [elem:word/document.xml#body/...].',
+      'Определи места реквизитов (document_kind, protocol_number, meeting_date, meeting_title, chairperson, secretary, quorum) и границы повторяемого блока вопроса (startElementId, endElementId), а также поля внутри блока вопроса (item_no, title, heard, discussed, decision).',
+      'Верни строго один JSON-объект вида:',
+      '{"documentKind":"protocol","bindings":[{"field":"protocol_number","elementId":"word/document.xml#body/p:2","sampleText":"..."}],"repeat":{"kind":"block_range","startElementId":"word/document.xml#body/p:8","endElementId":"word/document.xml#body/p:12"},"confidence":0.95}.',
+      'Используй только реально существующие в тексте идентификаторы [elem:...].'
+    ].join(' ')
   })
 });
 
@@ -479,6 +514,86 @@ export function validateAssistantResult(taskType, payload, extra = {}) {
         reason: String(f.reason || '').trim().slice(0, 500)
       }));
     return { type: 'template-analyze', summary, fields, templateRecommendation };
+  }
+
+  if (taskType === 'protocol-extract-v1') {
+    const protocolNumber = String(payload.protocolNumber || payload.meetingNumber || '').trim().slice(0, 40);
+    const meetingDate = String(payload.meetingDate || '').trim().slice(0, 32);
+    const meetingDateRaw = String(payload.meetingDateRaw || '').trim().slice(0, 120);
+    const chairperson = String(payload.chairperson || payload.chairman || '').trim().slice(0, 160);
+    const secretary = String(payload.secretary || '').trim().slice(0, 160);
+    const rawQuorum = payload.quorum;
+    let quorum = null;
+    if (rawQuorum && typeof rawQuorum === 'object' && !Array.isArray(rawQuorum)) {
+      quorum = {
+        total: Number.isFinite(Number(rawQuorum.total)) ? Number(rawQuorum.total) : null,
+        present: Number.isFinite(Number(rawQuorum.present)) ? Number(rawQuorum.present) : null,
+        required: Number.isFinite(Number(rawQuorum.required)) ? Number(rawQuorum.required) : null,
+        text: String(rawQuorum.text || '').trim().slice(0, 300)
+      };
+    } else if (rawQuorum) {
+      quorum = { text: String(rawQuorum).trim().slice(0, 300) };
+    }
+    const attendees = (Array.isArray(payload.attendees) ? payload.attendees : [])
+      .map((a) => String(a || '').trim().slice(0, 160))
+      .filter(Boolean);
+
+    const rawAgenda = Array.isArray(payload.agendaItems) ? payload.agendaItems : (Array.isArray(payload.agenda) ? payload.agenda : []);
+    const agendaItems = rawAgenda
+      .filter((it) => it && typeof it === 'object')
+      .slice(0, 30)
+      .map((item, idx) => ({
+        itemNo: Number.isInteger(Number(item.itemNo || item.itemNumber)) ? Number(item.itemNo || item.itemNumber) : idx + 1,
+        title: String(item.title || item.topic || `Вопрос ${idx + 1}`).trim().slice(0, 500),
+        startBoundary: String(item.startBoundary || '').trim().slice(0, 200),
+        heard: String(item.heard || item.heardText || '').trim().slice(0, 4000),
+        speaker: String(item.speaker || '').trim().slice(0, 160),
+        discussed: String(item.discussed || item.discussedText || '').trim().slice(0, 4000),
+        decision: String(item.decision || item.decisionText || '').trim().slice(0, 4000),
+        responsibleRaw: String(item.responsibleRaw || item.assignee || '').trim().slice(0, 200),
+        dueDate: String(item.dueDate || item.deadline || '').trim().slice(0, 32),
+        endBoundary: String(item.endBoundary || '').trim().slice(0, 200),
+        sourceQuote: String(item.sourceQuote || '').trim().slice(0, 500)
+      }));
+
+    return {
+      type: 'protocol-extract-v1',
+      protocolNumber,
+      meetingDate,
+      meetingDateRaw,
+      chairperson,
+      secretary,
+      quorum,
+      attendees,
+      agendaItems
+    };
+  }
+
+  if (taskType === 'template-structure-analyze-v1') {
+    const documentKind = ['protocol', 'extract'].includes(payload.documentKind) ? payload.documentKind : 'protocol';
+    const confidence = Math.max(0, Math.min(1, Number(payload.confidence !== undefined ? payload.confidence : 0.9)));
+    const rawBindings = Array.isArray(payload.bindings) ? payload.bindings : [];
+    const bindings = rawBindings
+      .filter((b) => b && typeof b === 'object' && b.field && b.elementId)
+      .slice(0, 40)
+      .map((b) => ({
+        field: String(b.field).trim().slice(0, 60),
+        elementId: String(b.elementId).trim().slice(0, 160),
+        sampleText: String(b.sampleText || b.expectedText || '').trim().slice(0, 500)
+      }));
+    const repeat = payload.repeat && typeof payload.repeat === 'object' ? {
+      kind: ['block_range', 'paragraph_range', 'table_row'].includes(payload.repeat.kind) ? payload.repeat.kind : 'block_range',
+      startElementId: payload.repeat.startElementId ? String(payload.repeat.startElementId).trim().slice(0, 160) : null,
+      endElementId: payload.repeat.endElementId ? String(payload.repeat.endElementId).trim().slice(0, 160) : null
+    } : null;
+
+    return {
+      type: 'template-structure-analyze-v1',
+      documentKind,
+      bindings,
+      repeat,
+      confidence
+    };
   }
 
   throw new Error(`unknown_task_type:${taskType}`);

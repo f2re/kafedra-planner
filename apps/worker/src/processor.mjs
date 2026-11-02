@@ -10,7 +10,7 @@ import { addSearchFragment } from '../../../packages/storage/src/search.mjs';
 import { replaceDocumentBlocks } from '../../../packages/storage/src/document-structure.mjs';
 import { looksLikeDirective, extractDirective } from '../../../packages/work-management/src/extractor.mjs';
 import { persistDirective, recordLlmRun } from '../../../packages/work-management/src/service.mjs';
-import { proposeDirectiveWithLlama } from '../../../packages/ai/src/llama-client.mjs';
+import { proposeDirectiveWithLlama, proposeProtocolWithLlama } from '../../../packages/ai/src/llama-client.mjs';
 import { generateReportMatchCandidates } from '../../../packages/reports/src/service.mjs';
 import { looksLikeScientificMaterial, extractScientificMaterial } from '../../../packages/science/src/extractor.mjs';
 import { persistScientificItem } from '../../../packages/science/src/service.mjs';
@@ -205,6 +205,70 @@ export async function processDocumentJob(database, payload, logger, config) {
     const requestedProtocol = payload.requestedType === 'protocol';
     const isProtocol = requestedProtocol || (Boolean(text) && looksLikeDepartmentProtocol(text));
     const protocolResult = isProtocol ? extractDepartmentProtocol(text || '') : null;
+    const llmProtocolResult = isProtocol && config?.llmEnabled && config?.llmEndpoint
+      ? await proposeProtocolWithLlama({ config, text, deterministic: protocolResult })
+      : null;
+    if (protocolResult && llmProtocolResult?.status === 'completed' && llmProtocolResult.output) {
+      const out = llmProtocolResult.output;
+      if (!protocolResult.protocolNumber && out.protocolNumber) {
+        protocolResult.protocolNumber = out.protocolNumber;
+      }
+      if (!protocolResult.meetingDate && out.meetingDate) {
+        protocolResult.meetingDate = out.meetingDate;
+      }
+      if (!protocolResult.chairperson && (out.chairperson || out.chairman)) {
+        protocolResult.chairperson = out.chairperson || out.chairman;
+      }
+      if (!protocolResult.secretary && out.secretary) {
+        protocolResult.secretary = out.secretary;
+      }
+      if (out.quorum) {
+        protocolResult.quorum = out.quorum;
+        if (typeof out.quorum === 'object' && out.quorum.required) {
+          protocolResult.quorumRequired = out.quorum.required;
+        }
+      }
+      if (out.attendees && Array.isArray(out.attendees) && out.attendees.length > 0) {
+        protocolResult.attendees = out.attendees.join(', ');
+      }
+      const rawLlmItems = Array.isArray(out.agendaItems) ? out.agendaItems : (Array.isArray(out.agenda) ? out.agenda : []);
+      if (rawLlmItems.length > 0) {
+        if (!protocolResult.agendaItems || protocolResult.agendaItems.length === 0) {
+          protocolResult.agendaItems = rawLlmItems.map((item, idx) => ({
+            itemNo: Number(item.itemNo || item.itemNumber || idx + 1),
+            title: String(item.title || item.topic || `Вопрос ${idx + 1}`).trim(),
+            heardText: String(item.heard || item.heardText || '').trim() || null,
+            discussedText: String(item.discussed || item.discussedText || '').trim() || null,
+            decisionText: String(item.decision || item.decisionText || '').trim() || null,
+            responsibleRaw: String(item.responsibleRaw || item.assignee || '').trim() || null,
+            dueDate: item.dueDate || item.deadline || null,
+            evidence: { startBoundary: item.startBoundary, endBoundary: item.endBoundary, sourceQuote: item.sourceQuote }
+          }));
+        } else {
+          for (const llmItem of rawLlmItems) {
+            const no = Number(llmItem.itemNo || llmItem.itemNumber);
+            const existing = protocolResult.agendaItems.find((it) => Number(it.itemNo) === no);
+            if (existing) {
+              if (!existing.heardText && (llmItem.heard || llmItem.heardText)) {
+                existing.heardText = String(llmItem.heard || llmItem.heardText).trim();
+              }
+              if (!existing.discussedText && (llmItem.discussed || llmItem.discussedText)) {
+                existing.discussedText = String(llmItem.discussed || llmItem.discussedText).trim();
+              }
+              if (!existing.decisionText && (llmItem.decision || llmItem.decisionText)) {
+                existing.decisionText = String(llmItem.decision || llmItem.decisionText).trim();
+              }
+              if (!existing.responsibleRaw && (llmItem.responsibleRaw || llmItem.assignee)) {
+                existing.responsibleRaw = String(llmItem.responsibleRaw || llmItem.assignee).trim();
+              }
+              if (!existing.dueDate && (llmItem.dueDate || llmItem.deadline)) {
+                existing.dueDate = llmItem.dueDate || llmItem.deadline;
+              }
+            }
+          }
+        }
+      }
+    }
     const requestedDirective = ['directive', 'order', 'decree'].includes(payload.requestedType);
     const isDirective = Boolean(text) && !isProtocol && (requestedDirective || looksLikeDirective(text));
     const directiveResult = isDirective
@@ -281,6 +345,13 @@ export async function processDocumentJob(database, payload, logger, config) {
             `Для загрузки выбран ${importYear} год, а в документе найдена дата ${protocolResult.meetingDate}.`,
             'Проверьте дату в исходнике и исправьте её в карточке заседания либо загрузите файл в нужный год.',
             { meetingId: persistedProtocolId, importYear, meetingDate: protocolResult.meetingDate });
+        }
+        if (llmProtocolResult?.status === 'completed') {
+          insertReview(database, version.workspace_id, version.id, 'llm_protocol_proposal',
+            'Локальная модель уточнила разбор протокола',
+            'Детерминированные реквизиты и повестка обогащены извлечёнными моделью данными.',
+            'Сверьте кворум, повестку и решения с исходным документом.',
+            { meetingId: persistedProtocolId, proposal: llmProtocolResult.output });
         }
         protocolResult.reviewCount = openReviewCount(database, version.workspace_id, version.id);
         finalStatus = protocolResult.reviewCount > 0 ? 'needs_review' : 'processed';
