@@ -1,0 +1,10 @@
+<GraceChangePlan graceVersion="4.0" status="applied">
+  <C-SEARCH-RELEASE-359>
+    <IntentSummary>Integrate the pending search vertical, verify actual API/UI behavior and publish a bounded feature release without duplicating domain storage or release infrastructure. Historical change is terminal after the repository advanced through 0.4.7 to 0.4.11.</IntentSummary>
+    <BaselineAssertions><MustExist><Value>apps/api/src/search-router.mjs</Value></MustExist><MustExist><Value>packages/storage/src/search.mjs</Value></MustExist><MustExist><Value>public/search-next.js</Value></MustExist><MustExist><Value>.github/workflows/release.yml</Value></MustExist><MustVerify><Module>M-API</Module></MustVerify></BaselineAssertions>
+    <TargetAssertions><MustContain><File>apps/api/src/search-router.mjs</File><Text>retrieveMaterials</Text></MustContain><MustContain><File>packages/search/src/retrieval.mjs</File><Text>fts5vocab</Text></MustContain><MustContain><File>packages/ai/src/search-tasks.mjs</File><Text>search-expand-v1</Text></MustContain><MustContain><File>public/search-next.js</File><Text>kafedraOpenExactRoute</Text></MustContain><MustExist><Value>tests/search-meaning-api.test.mjs</Value></MustExist><MustVerify><Module>M-API</Module></MustVerify><MustVerify><Module>M-CI-GATE</Module></MustVerify></TargetAssertions>
+    <DurableScope><GraphAnchors><M-API /><M-CI-GATE /></GraphAnchors><VerificationAnchors><V-M-API /><V-M-CI-GATE /></VerificationAnchors><ContextArtifacts><ContextArtifact>principles.xml</ContextArtifact><ContextArtifact>technology.xml</ContextArtifact></ContextArtifacts></DurableScope>
+    <ObservedWriteScope><Glob>.grace/changes/archive/C-SEARCH-RELEASE-359/**</Glob></ObservedWriteScope>
+    <ImplementationPlan><T-001><Title>Historical terminal transition</Title><DependsOn></DependsOn><AcceptanceCriteria><Criterion>The completed 0.4.7 search/release change no longer occupies the active GRACE slot.</Criterion></AcceptanceCriteria><Verification><Command>Repository history and release evidence</Command></Verification></T-001></ImplementationPlan>
+  </C-SEARCH-RELEASE-359>
+</GraceChangePlan>
