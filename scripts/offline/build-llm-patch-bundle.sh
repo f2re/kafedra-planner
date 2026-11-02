@@ -137,9 +137,11 @@ fi
 # Доставка на подключённый USB-накопитель (если доступен)
 if [[ -d "$USB_DIR" && -w "$USB_DIR" ]]; then
   echo "▶ 4. Автоматическая синхронизация с USB-накопителем..."
-  cp -a "$KAFEDRA_RELEASE_DIR/$ARCHIVE_NAME"* "$USB_DIR/"
-  sync
-  echo "✓ Бандл доставлен на USB: $USB_DIR/$ARCHIVE_NAME"
+  if cp -a "$KAFEDRA_RELEASE_DIR/$ARCHIVE_NAME"* "$USB_DIR/" 2>/dev/null && sync; then
+    echo "✓ Бандл доставлен на USB: $USB_DIR/$ARCHIVE_NAME"
+  else
+    echo "⚠ Предупреждение: запись на USB-накопитель ($USB_DIR) не удалась; бандл сохранён локально."
+  fi
 fi
 
 ARCHIVE_SIZE=$(du -h "$KAFEDRA_RELEASE_DIR/$ARCHIVE_NAME" | awk '{print $1}')
