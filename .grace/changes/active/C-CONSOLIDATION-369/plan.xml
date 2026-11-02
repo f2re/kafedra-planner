@@ -1,0 +1,53 @@
+<GraceChangePlan graceVersion="4.0" status="approved">
+  <C-CONSOLIDATION-369>
+    <IntentSummary>Repair confirmed regressions from the 2026-11-02 audit with the smallest existing contracts: one active lifecycle module, application-owned credential dialogs, safe bulk review resolution, visible Plan/Fact failures and existing progressive disclosure. No new domain entity or schema is introduced.</IntentSummary>
+    <BaselineAssertions>
+      <MustExist><Value>public/auth-next.js</Value></MustExist>
+      <MustExist><Value>public/lifecycle-safe.js</Value></MustExist>
+      <MustExist><Value>public/plan-fact-next.js</Value></MustExist>
+      <MustExist><Value>packages/storage/src/reviews.mjs</Value></MustExist>
+      <MustVerify><Module>M-API</Module></MustVerify>
+      <MustVerify><Module>M-DATABASE</Module></MustVerify>
+    </BaselineAssertions>
+    <TargetAssertions>
+      <MustContain><File>public/auth-next.js</File><Text>auth-password-dialog</Text></MustContain>
+      <MustContain><File>public/auth-next.js</File><Text>kafedraRequestSecret</Text></MustContain>
+      <MustContain><File>public/admin-password-reset.js</File><Text>data-admin-reset</Text></MustContain>
+      <MustContain><File>packages/storage/src/reviews.mjs</File><Text>ai_assistant_bulk</Text></MustContain>
+      <MustContain><File>public/plan-fact-next.js</File><Text>showPlanFactError</Text></MustContain>
+      <MustContain><File>public/fast-form-disclosure.js</File><Text>template-more-fields</Text></MustContain>
+      <MustExist><Value>tests/review-bulk-safety.test.mjs</Value></MustExist>
+      <MustExist><Value>tests/consolidation-ui-contract.test.mjs</Value></MustExist>
+      <MustVerify><Module>M-API</Module></MustVerify>
+      <MustVerify><Module>M-DATABASE</Module></MustVerify>
+      <MustVerify><Module>M-CI-GATE</Module></MustVerify>
+    </TargetAssertions>
+    <DurableScope>
+      <GraphAnchors><M-API /><M-DATABASE /><M-CI-GATE /></GraphAnchors>
+      <VerificationAnchors><V-M-API /><V-M-DATABASE /><V-M-CI-GATE /></VerificationAnchors>
+      <ContextArtifacts><ContextArtifact>principles.xml</ContextArtifact><ContextArtifact>technology.xml</ContextArtifact></ContextArtifacts>
+    </DurableScope>
+    <ObservedWriteScope>
+      <Glob>.grace/changes/active/C-CONSOLIDATION-369/**</Glob>
+      <File>packages/storage/src/reviews.mjs</File>
+      <File>public/auth-next.js</File>
+      <File>public/auth-next.css</File>
+      <File>public/admin-password-reset.js</File>
+      <File>public/ux-next.js</File>
+      <File>public/fast-form-disclosure.js</File>
+      <File>public/lifecycle-next.js</File>
+      <File>public/plan-fact-next.js</File>
+      <File>public/plan-fact-origin.js</File>
+      <Glob>tests/**</Glob>
+    </ObservedWriteScope>
+    <ImplementationPlan>
+      <T-001><Title>kafedra-flow-intake: backlog and canonical flow</Title><DependsOn></DependsOn><AcceptanceCriteria><Criterion>Close only explicit probe, duplicate or superseded work; direct completion and source-first intake remain authoritative.</Criterion></AcceptanceCriteria><Verification><Command>GitHub issue audit</Command></Verification></T-001>
+      <T-002><Title>kafedra-feature: remove proven dead frontend generations</Title><DependsOn><T-001 /></DependsOn><AcceptanceCriteria><Criterion>Remove only modules proven unreachable by the source graph and code search; current lifecycle and Plan/Fact entry points remain.</Criterion></AcceptanceCriteria><Verification><Command>npm run check</Command></Verification></T-002>
+      <T-003><Title>kafedra-design: credential and exception UX</Title><DependsOn><T-002 /></DependsOn><AcceptanceCriteria><Criterion>Use masked application dialogs, inline errors, cancellation and focus return; technical template type is under additional fields; no new motion model.</Criterion></AcceptanceCriteria><Verification><Command>npm run test:browser:auth</Command></Verification></T-003>
+      <T-004><Title>kafedra-feature and kafedra-data: safe bulk review writes</Title><DependsOn><T-003 /></DependsOn><AcceptanceCriteria><Criterion>AI bulk apply fills empty/same values only; a conflicting non-empty current value is preserved and its review stays open.</Criterion></AcceptanceCriteria><Verification><Command>node --test tests/review-bulk-safety.test.mjs</Command></Verification></T-004>
+      <T-005><Title>kafedra-tests: targeted integration and regression</Title><DependsOn><T-004 /></DependsOn><AcceptanceCriteria><Criterion>Project tests, smoke, auth regression, Plan/Fact regression and consolidation contract tests pass on the same head. Existing checks are reused rather than duplicated into GRACE.</Criterion></AcceptanceCriteria><Verification><Command>npm run check</Command><Command>npm test</Command><Command>npm run smoke</Command><Command>npm run test:browser:auth</Command><Command>npm run test:browser:plan-fact</Command></Verification></T-005>
+      <T-006><Title>kafedra-design-audit: integration audit</Title><DependsOn><T-005 /></DependsOn><AcceptanceCriteria><Criterion>No prompt-based active password path, no duplicate lifecycle UI, no hidden error on changed Plan/Fact actions and no automatic overwrite of manual facts.</Criterion></AcceptanceCriteria><Verification><Command>grace lint --path . --change C-CONSOLIDATION-369 --assertions final</Command></Verification></T-006>
+      <T-007><Title>kafedra-release: merge and release follow-up</Title><DependsOn><T-006 /></DependsOn><AcceptanceCriteria><Criterion>Squash merge uses exact head. Release versioning is a separate patch step from fresh main through the universal release workflow; physical Astra acceptance remains separate.</Criterion></AcceptanceCriteria><Verification><Command>GitHub exact-head checks and post-merge smoke</Command></Verification></T-007>
+    </ImplementationPlan>
+  </C-CONSOLIDATION-369>
+</GraceChangePlan>
