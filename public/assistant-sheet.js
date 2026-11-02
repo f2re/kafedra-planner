@@ -2686,6 +2686,14 @@ export function createAssistantSheet() {
         title.textContent = `${numPart}${datePart}${itemPart}`;
 
         head.append(title);
+        if (m.verified) {
+          const verifiedBadge = document.createElement('span');
+          verifiedBadge.className = 'status-pill success';
+          verifiedBadge.style.fontSize = '11px';
+          verifiedBadge.style.padding = '2px 6px';
+          verifiedBadge.textContent = '✓ Подтверждено';
+          head.append(verifiedBadge);
+        }
         card.append(head);
 
         if (m.itemTitle) {

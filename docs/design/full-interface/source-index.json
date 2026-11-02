@@ -1,6 +1,6 @@
 {
   "schema": "kafedra-ui-source-index-v1",
-  "sourceFingerprint": "985e1c762f99f3480092cfb392ccc80f3209244c01ad78587c4d09eee61d6d54",
+  "sourceFingerprint": "63e238cdbd5b31cc935ff566d90ce886357012e8e7be5173fae64ef0fc93c980",
   "kindCodes": {
     "control": "c",
     "choice": "o",
@@ -30,14 +30,14 @@
     "windows": 30,
     "forms": 65,
     "surfaces": 428,
-    "calls": 2162,
+    "calls": 2163,
     "actions": 15,
     "unreachable": [
       "public/lifecycle-next.js",
       "public/plan-fact-origin.js"
     ],
-    "elements": 2005,
-    "records": 4182
+    "elements": 2006,
+    "records": 4184
   },
   "actions": [
     {

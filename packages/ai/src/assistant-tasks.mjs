@@ -303,7 +303,9 @@ export function validateAssistantResult(taskType, payload, extra = {}) {
     const summary = String(payload.summary || '').trim().slice(0, 1000);
     const rawMatches = Array.isArray(payload.matches) ? payload.matches : [];
     const candidates = Array.isArray(extra.candidates) ? extra.candidates : [];
-    const allowedTexts = candidates.map((c) => String(c.text || c.snippet || '').toLocaleLowerCase('ru-RU'));
+    const allowedTexts = candidates.map((c) =>
+      String(c.text || c.snippet || '').toLocaleLowerCase('ru-RU').replace(/\s+/gu, ' ')
+    );
 
     const matches = rawMatches
       .filter((m) => m && typeof m === 'object')

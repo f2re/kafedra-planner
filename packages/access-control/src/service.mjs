@@ -328,12 +328,33 @@ export function canReadSearchResult(database, workspaceId, context, result) {
     return Boolean(documentId && resolveObjectAccess(database, workspaceId, context, 'document', documentId).allowed);
   }
   if (kind === 'meeting') {
-    const documentId = database.get(`
-      SELECT dv.document_id FROM meetings m
-      JOIN document_versions dv ON dv.id = m.source_document_version_id
+    const meeting = database.get(`
+      SELECT m.workspace_id, m.created_by_person_id, dv.document_id FROM meetings m
+      LEFT JOIN document_versions dv ON dv.id = m.source_document_version_id
       WHERE m.workspace_id = ? AND m.id = ?
-    `, workspaceId, sourceId)?.document_id;
-    return Boolean(documentId && resolveObjectAccess(database, workspaceId, context, 'document', documentId).allowed);
+    `, workspaceId, sourceId);
+    if (!meeting) return false;
+    if (meeting.document_id) {
+      return resolveObjectAccess(database, workspaceId, context, 'document', meeting.document_id).allowed;
+    }
+    return Boolean(!context?.enabled || (context?.authenticated && (context.role === 'admin'
+      || (context.personId && meeting.created_by_person_id === context.personId))));
+  }
+  if (kind === 'decision') {
+    const row = database.get(`
+      SELECT dv.document_id, m.created_by_person_id
+      FROM decisions d
+      JOIN agenda_items ai ON ai.id = d.agenda_item_id
+      JOIN meetings m ON m.id = ai.meeting_id
+      LEFT JOIN document_versions dv ON dv.id = m.source_document_version_id
+      WHERE m.workspace_id = ? AND d.id = ?
+    `, workspaceId, sourceId);
+    if (!row) return false;
+    if (row.document_id) {
+      return resolveObjectAccess(database, workspaceId, context, 'document', row.document_id).allowed;
+    }
+    return Boolean(!context?.enabled || (context?.authenticated && (context.role === 'admin'
+      || (context.personId && row.created_by_person_id === context.personId))));
   }
   if (result.document_version_id || result.documentVersionId) {
     const documentId = documentIdForVersion(

@@ -72,7 +72,7 @@ function assignmentMeta(database, workspaceId, sourceId, facets) {
   };
 }
 
-function sourceMeta(database, workspaceId, sourceKind, sourceId) {
+export function sourceMeta(database, workspaceId, sourceKind, sourceId) {
   const facets = facetMap(database, workspaceId, sourceKind, sourceId);
   if (sourceKind === 'document') {
     const row = database.get(`SELECT document_type, status, updated_at FROM documents WHERE workspace_id = ? AND id = ?`, workspaceId, sourceId);
@@ -241,6 +241,7 @@ function candidateFragments(database, workspaceId, query, limit) {
   if (normalized(query)) return search(database, workspaceId, query, limit);
   return database.all(`
     SELECT id, source_kind, source_id, document_version_id, title,
+      content,
       substr(content, 1, 360) AS snippet, locator_json, 0 AS rank
     FROM search_fragments WHERE workspace_id = ?
     ORDER BY created_at DESC LIMIT ?

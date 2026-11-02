@@ -76,21 +76,21 @@ UI-34c25c41cf	public/assistant-sheet.js:2494:21	renderTableResult	📋 Скоп�
 UI-21601d6654	public/assistant-sheet.js:2500:23	renderTableResult	+ Строка	C01	запланировано
 UI-ebdda47cb2	public/assistant-sheet.js:2588:20	createTableRow	✕	C01	запланировано
 UI-042e85c17d	public/assistant-sheet.js:2618:21	renderFormulaResult	📋 Копировать	C01	запланировано
-UI-0c3e81b922	public/assistant-sheet.js:2710:25	renderArchiveMatches / callback@2675	📋 Скопировать реквизиты	C01	запланировано
-UI-9ce9a41d54	public/assistant-sheet.js:2727:34	renderArchiveMatches / callback@2675	👁️ Открыть заседание	C01	запланировано
-UI-609caf43b8	public/assistant-sheet.js:2786:21	renderProtocolAnalysisResult	📋 Скопировать решения и поручения	C01	запланировано
-UI-12b6428a1d	public/assistant-sheet.js:2897:21	renderReportSynthesisResult	📋 Скопировать раздел отчёта	C01	запланировано
-UI-f2f41a6535	public/assistant-sheet.js:3011:29	renderComplianceCheckResult	✓ Принять все предложения	C01	запланировано
-UI-7f0a54e1b4	public/assistant-sheet.js:3017:28	renderComplianceCheckResult	📋 Скопировать список советов	C01	запланировано
-UI-3a95bb77a6	public/assistant-sheet.js:3122:28	renderComplianceCheckResult / callback@3074	✓ Принять формулировку	C01	запланировано
-UI-95a2394183	public/assistant-sheet.js:3128:32	renderComplianceCheckResult / callback@3074	📋	C01	запланировано
-UI-acdc0a9fa8	public/assistant-sheet.js:3266:22	renderSearchRefineResult	🔍 Искать в архиве	C01	запланировано
-UI-8231c605ed	public/assistant-sheet.js:3297:20	renderHistoryView	динамическая подпись	C01	запланировано
-UI-17024f1fb9	public/assistant-sheet.js:3303:20	renderHistoryView	динамическая подпись	C01	запланировано
-UI-9e20c749ff	public/assistant-sheet.js:3309:24	renderHistoryView	динамическая подпись	C01	запланировано
-UI-6faab1c6e0	public/assistant-sheet.js:3318:22	renderHistoryView	Очистить историю	C01	запланировано
-UI-d0128e56b0	public/assistant-sheet.js:3353:23	renderHistoryView / callback@3348	динамическая подпись	C01	запланировано
-UI-d8715c2c35	public/assistant-sheet.js:3385:24	renderHistoryView / callback@3348	Открыть ↵	C01	запланировано
+UI-ac8e3f0d33	public/assistant-sheet.js:2718:25	renderArchiveMatches / callback@2675	📋 Скопировать реквизиты	C01	запланировано
+UI-aa58bb269c	public/assistant-sheet.js:2735:34	renderArchiveMatches / callback@2675	👁️ Открыть заседание	C01	запланировано
+UI-4502251a3d	public/assistant-sheet.js:2794:21	renderProtocolAnalysisResult	📋 Скопировать решения и поручения	C01	запланировано
+UI-9ecaf3d782	public/assistant-sheet.js:2905:21	renderReportSynthesisResult	📋 Скопировать раздел отчёта	C01	запланировано
+UI-1015bc0038	public/assistant-sheet.js:3019:29	renderComplianceCheckResult	✓ Принять все предложения	C01	запланировано
+UI-993f8750d8	public/assistant-sheet.js:3025:28	renderComplianceCheckResult	📋 Скопировать список советов	C01	запланировано
+UI-4d0c434138	public/assistant-sheet.js:3130:28	renderComplianceCheckResult / callback@3082	✓ Принять формулировку	C01	запланировано
+UI-dcc62a26cc	public/assistant-sheet.js:3136:32	renderComplianceCheckResult / callback@3082	📋	C01	запланировано
+UI-2a4680e9d3	public/assistant-sheet.js:3274:22	renderSearchRefineResult	🔍 Искать в архиве	C01	запланировано
+UI-65b5d5ffdd	public/assistant-sheet.js:3305:20	renderHistoryView	динамическая подпись	C01	запланировано
+UI-21d842172d	public/assistant-sheet.js:3311:20	renderHistoryView	динамическая подпись	C01	запланировано
+UI-6580ec428d	public/assistant-sheet.js:3317:24	renderHistoryView	динамическая подпись	C01	запланировано
+UI-d23012779e	public/assistant-sheet.js:3326:22	renderHistoryView	Очистить историю	C01	запланировано
+UI-970c351933	public/assistant-sheet.js:3361:23	renderHistoryView / callback@3356	динамическая подпись	C01	запланировано
+UI-c7a06a2547	public/assistant-sheet.js:3393:24	renderHistoryView / callback@3356	Открыть ↵	C01	запланировано
 UI-6ba70a3f7b	public/calendar-start-settings.js:66:7	ensureDialog	Закрыть	C01	запланировано
 UI-e132b40aed	public/calendar-start-settings.js:81:9	ensureDialog	Закрыть	C01	запланировано
 UI-dee1a42f69	public/calendar-start-settings.js:82:9	ensureDialog	Сохранить	C01	запланировано

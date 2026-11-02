@@ -13,8 +13,8 @@ import {
   DEFAULT_PROMPTS_PACK
 } from '../../../packages/ai/src/llm-config-store.mjs';
 import { buildDocumentSemanticGraph, searchAllDocumentEntities } from '../../../packages/storage/src/document-graph.mjs';
-import { searchFaceted } from '../../../packages/storage/src/faceted-search.mjs';
-import { ensureSearchIndexUpToDate, sanitizeSearchQuery, rebuildSearchIndex } from '../../../packages/storage/src/search.mjs';
+import { searchFaceted, sourceMeta } from '../../../packages/storage/src/faceted-search.mjs';
+import { ensureSearchIndexUpToDate, sanitizeSearchQuery, extractSubstantiveQuery, rebuildSearchIndex } from '../../../packages/storage/src/search.mjs';
 import { canReadSearchResult } from '../../../packages/access-control/src/service.mjs';
 import { resolveReviewItem } from '../../../packages/storage/src/reviews.mjs';
 import { STANDARD_AGENDA_TOPICS } from '../../../packages/protocols/src/meeting-agenda.mjs';
@@ -178,25 +178,40 @@ export function createAssistantRouter({ database, config, logger, engine: custom
     try {
       const workspace = workspaceOf(database, request);
       ensureSearchIndexUpToDate(database, workspace.id);
-      const searchQuery = query || text;
-      const ftsResults = searchFaceted(database, workspace.id, {
-        q: searchQuery
-      }, 20);
+      const rawQuery = String(query || text || '').trim();
 
-      let allowedItems = (ftsResults?.items || []).filter((item) =>
-        canReadResult(database, workspace.id, request.auth || {}, item)
-      );
+      let allowedItems = [];
 
-      // If strict search didn't find anything, try an OR query across non-stop words
-      if (allowedItems.length === 0 && searchQuery) {
-        const { terms } = sanitizeSearchQuery(searchQuery);
-        if (terms && terms.length > 1) {
-          const orQuery = terms.map((token) => `${token}*`).join(' OR ');
+      // 1. Try substantive domain terms (stripping conversational filler / preamble)
+      const { substantiveTerms, cleanedQuery } = extractSubstantiveQuery(rawQuery);
+      if (substantiveTerms.length > 0 && cleanedQuery !== rawQuery) {
+        const ftsSubstantive = searchFaceted(database, workspace.id, { q: cleanedQuery }, 20);
+        allowedItems = (ftsSubstantive?.items || []).filter((item) =>
+          canReadResult(database, workspace.id, request.auth || {}, item)
+        );
+      }
+
+      // 2. If substantive search produced nothing, try raw query search
+      if (allowedItems.length === 0 && rawQuery) {
+        const ftsRaw = searchFaceted(database, workspace.id, { q: rawQuery }, 20);
+        allowedItems = (ftsRaw?.items || []).filter((item) =>
+          canReadResult(database, workspace.id, request.auth || {}, item)
+        );
+      }
+
+      // 3. If strict search didn't find anything, try an OR query across substantive or non-stop words
+      if (allowedItems.length === 0 && rawQuery) {
+        const termsToUse = substantiveTerms.length > 0
+          ? substantiveTerms
+          : sanitizeSearchQuery(rawQuery).terms;
+
+        if (termsToUse && termsToUse.length > 0) {
+          const orQuery = termsToUse.map((token) => `${token}*`).join(' OR ');
           try {
             const orFragments = database.all(`
               SELECT
                 sf.id, sf.source_kind, sf.source_id, sf.document_version_id,
-                sf.title, snippet(search_fts, 2, '<mark>', '</mark>', '…', 24) AS snippet,
+                sf.title, sf.content, snippet(search_fts, 2, '<mark>', '</mark>', '…', 24) AS snippet,
                 sf.locator_json, bm25(search_fts) AS rank
               FROM search_fts
               JOIN search_fragments sf ON sf.id = search_fts.fragment_id
@@ -212,11 +227,11 @@ export function createAssistantRouter({ database, config, logger, engine: custom
         }
       }
 
-      // If still no items found from search, provide recent documents / meetings as fallback context
+      // 4. If still no items found from search, provide recent documents / meetings as fallback context
       if (allowedItems.length === 0) {
         const fallbackRows = database.all(`
           SELECT sf.id, sf.source_kind, sf.source_id, sf.document_version_id,
-            sf.title, substr(sf.content, 1, 300) AS snippet, sf.locator_json, 0 AS rank
+            sf.title, sf.content, substr(sf.content, 1, 300) AS snippet, sf.locator_json, 0 AS rank
           FROM search_fragments sf
           WHERE sf.workspace_id = ?
           ORDER BY sf.created_at DESC
@@ -227,14 +242,22 @@ export function createAssistantRouter({ database, config, logger, engine: custom
         );
       }
 
-      return allowedItems.map((item) => ({
-        id: item.source_id,
-        kind: item.source_kind,
-        title: item.title,
-        snippet: item.snippet,
-        date: item.event_date || item.meta?.date,
-        number: item.number || item.meta?.number
-      }));
+      return allowedItems.map((item) => {
+        const fullContent = item.content || database.get(
+          'SELECT content FROM search_fragments WHERE id = ?',
+          item.id
+        )?.content || '';
+        const meta = item.meta || (item.source_kind && item.source_id ? sourceMeta(database, workspace.id, item.source_kind, item.source_id) : null);
+        return {
+          id: item.source_id,
+          kind: item.source_kind,
+          title: item.title,
+          snippet: item.snippet,
+          text: fullContent ? fullContent.slice(0, 2500) : item.snippet,
+          date: item.event_date || meta?.date || null,
+          number: item.number || meta?.number || null
+        };
+      });
     } catch (err) {
       if (logger) logger.warn(`${task} candidates failed`, { error: err.message });
       return [];

@@ -1,4 +1,5 @@
 import { newId } from '../../core/src/ids.mjs';
+import { searchStem } from '../../search/src/intent.mjs';
 
 const STOP_WORDS = new Set([
   'и', 'в', 'во', 'не', 'что', 'он', 'на', 'с', 'со', 'как', 'а', 'то', 'все', 'так',
@@ -7,6 +8,46 @@ const STOP_WORDS = new Set([
   'ни', 'до', 'для', 'их', 'чем', 'при', 'какой', 'каком', 'какие', 'какая', 'какое',
   'каких', 'это', 'этот', 'эта', 'эти', 'этом', 'где', 'куда', 'вы'
 ]);
+
+const CONVERSATIONAL_PREAMBLE_WORDS = new Set([
+  'на', 'в', 'во', 'каком', 'какой', 'каких', 'какая', 'какое', 'какие',
+  'когда', 'где', 'куда', 'кто', 'кем', 'чем', 'почему', 'зачем',
+  'расскажи', 'расскажите', 'покажи', 'покажите', 'найди', 'найдите', 'найти', 'поиск',
+  'что', 'были', 'было', 'был', 'была', 'приняты', 'принято', 'приняли', 'принять',
+  'обсуждалась', 'обсуждался', 'обсуждались', 'обсуждали', 'обсудить', 'обсуждение',
+  'рассматривалась', 'рассматривался', 'рассматривалось', 'рассматривались', 'рассмотрели', 'рассмотреть', 'рассмотрение', 'рассмотрении',
+  'утверждались', 'утверждался', 'утверждалось', 'утверждали', 'утвердить', 'утверждение',
+  'постановили', 'постановило', 'слушали', 'заслушали', 'выступили', 'доложил', 'доложили',
+  'вопрос', 'вопросе', 'вопросах', 'вопросы', 'вопросу', 'вопросом',
+  'решение', 'решения', 'решении', 'решениях', 'решениям',
+  'протокол', 'протокола', 'протоколе', 'протоколах', 'протоколу', 'протоколы',
+  'заседание', 'заседании', 'заседаниях', 'заседания', 'заседанию',
+  'кафедра', 'кафедры', 'кафедре', 'кафедру'
+]);
+
+export function extractSubstantiveQuery(query) {
+  const raw = String(query || '').trim();
+  if (!raw) return { substantiveTerms: [], stemmedTerms: [], cleanedQuery: '', stemmedQuery: '' };
+
+  const allTokens = raw
+    .replace(/[^\p{L}\p{N}_]/gu, ' ')
+    .split(/\s+/)
+    .map((token) => token.trim().toLowerCase())
+    .filter(Boolean);
+
+  const substantiveTerms = allTokens.filter(
+    (token) => !STOP_WORDS.has(token) && !CONVERSATIONAL_PREAMBLE_WORDS.has(token) && token.length > 2
+  );
+
+  const stemmedTerms = substantiveTerms.map(searchStem);
+
+  return {
+    substantiveTerms,
+    stemmedTerms,
+    cleanedQuery: substantiveTerms.join(' '),
+    stemmedQuery: stemmedTerms.join(' ')
+  };
+}
 
 export function sanitizeSearchQuery(query) {
   const raw = String(query || '').trim();
@@ -51,12 +92,12 @@ export function search(database, workspaceId, query, limit = 50) {
   const { terms } = sanitizeSearchQuery(query);
   if (!terms || terms.length === 0) return [];
 
-  const andQuery = terms.map((token) => `${token}*`).join(' AND ');
+  const andQuery = terms.map((token) => `${searchStem(token)}*`).join(' AND ');
   try {
     return database.all(`
       SELECT
         sf.id, sf.source_kind, sf.source_id, sf.document_version_id,
-        sf.title, snippet(search_fts, 2, '<mark>', '</mark>', '…', 24) AS snippet,
+        sf.title, sf.content, snippet(search_fts, 2, '<mark>', '</mark>', '…', 24) AS snippet,
         sf.locator_json, bm25(search_fts) AS rank
       FROM search_fts
       JOIN search_fragments sf ON sf.id = search_fts.fragment_id
