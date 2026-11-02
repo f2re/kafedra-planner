@@ -244,22 +244,22 @@ console.log(agent.maxTokens || 1536);
 
   if [[ "\$JSON_RUNNER" == "python3" ]]; then
     python3 -c "
-import json
-prompt = json.loads('''\$system_prompt''')
-uinput = json.loads('''\$user_input''')
+import json, sys
+prompt = json.loads(sys.argv[1])
+uinput = json.loads(sys.argv[2])
 user_text = json.dumps(uinput, ensure_ascii=False) if isinstance(uinput, (dict, list)) else str(uinput)
 body = {
-    'model': '\$MODEL',
-    'temperature': float('\$temp'),
-    'max_tokens': int('\$max_tokens'),
+    'model': sys.argv[3],
+    'temperature': float(sys.argv[4]),
+    'max_tokens': int(sys.argv[5]),
     'messages': [
         {'role': 'system', 'content': prompt},
         {'role': 'user', 'content': user_text}
     ]
 }
-with open('\$payload_file', 'w', encoding='utf-8') as out:
+with open(sys.argv[6], 'w', encoding='utf-8') as out:
     json.dump(body, out, ensure_ascii=False)
-"
+" "\$system_prompt" "\$user_input" "\$MODEL" "\$temp" "\$max_tokens" "\$payload_file"
   else
     node -e "
 const fs = require('node:fs');
@@ -267,16 +267,21 @@ const prompt = JSON.parse(process.argv[1]);
 const uinput = JSON.parse(process.argv[2]);
 const userText = typeof uinput === 'object' ? JSON.stringify(uinput) : String(uinput);
 const body = {
-  model: '\$MODEL',
-  temperature: parseFloat('\$temp'),
-  max_tokens: parseInt('\$max_tokens', 10),
+  model: process.argv[3],
+  temperature: parseFloat(process.argv[4]),
+  max_tokens: parseInt(process.argv[5], 10),
   messages: [
     { role: 'system', content: prompt },
     { role: 'user', content: userText }
   ]
 };
-fs.writeFileSync('\$payload_file', JSON.stringify(body), 'utf8');
-" "\$system_prompt" "\$user_input"
+fs.writeFileSync(process.argv[6], JSON.stringify(body), 'utf8');
+" "\$system_prompt" "\$user_input" "\$MODEL" "\$temp" "\$max_tokens" "\$payload_file"
+  fi
+
+  if [[ ! -s "\$payload_file" ]]; then
+    echo "✗ Не удалось сформировать JSON-запрос для агента '\$agent_id' (пустой payload)." >&2
+    return 1
   fi
 
   echo "Отправка запроса в llama-server..."
@@ -306,10 +311,11 @@ fs.writeFileSync('\$payload_file', JSON.stringify(body), 'utf8');
 
   echo "✓ Ответ модели получен:"
   if [[ "\$JSON_RUNNER" == "python3" ]]; then
-    python3 -c "
+    printf '%s' "\$body" | python3 -c "
 import json, sys
+raw = sys.stdin.read()
 try:
-    resp = json.loads('''\$body''')
+    resp = json.loads(raw)
     msg = resp['choices'][0]['message']['content']
     usage = resp.get('usage', {})
     prompt_tokens = usage.get('prompt_tokens', '?')
@@ -317,22 +323,27 @@ try:
     print(f'Токены: вход={prompt_tokens}, выход={comp_tokens}')
     print('--- Содержимое ответа ---')
     print(msg)
-except Exception as e:
-    print('''\$body''')
+except Exception:
+    print(raw)
 "
   else
-    node -e "
-try {
-  const resp = JSON.parse(process.argv[1]);
-  const msg = resp.choices[0].message.content;
-  const u = resp.usage || {};
-  console.log('Токены: вход=' + (u.prompt_tokens||'?') + ', выход=' + (u.completion_tokens||'?'));
-  console.log('--- Содержимое ответа ---');
-  console.log(msg);
-} catch (e) {
-  console.log(process.argv[1]);
-}
-" "\$body"
+    printf '%s' "\$body" | node -e "
+let raw = '';
+process.stdin.setEncoding('utf8');
+process.stdin.on('data', (chunk) => { raw += chunk; });
+process.stdin.on('end', () => {
+  try {
+    const resp = JSON.parse(raw);
+    const msg = resp.choices[0].message.content;
+    const u = resp.usage || {};
+    console.log('Токены: вход=' + (u.prompt_tokens||'?') + ', выход=' + (u.completion_tokens||'?'));
+    console.log('--- Содержимое ответа ---');
+    console.log(msg);
+  } catch (e) {
+    console.log(raw);
+  }
+});
+"
   fi
   echo "=========================================================="
   return 0
