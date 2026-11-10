@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { cpSync, mkdtempSync, readdirSync, rmSync, writeFileSync } from 'node:fs';
+import { cpSync, mkdirSync, mkdtempSync, readdirSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 import { Database } from '../packages/storage/src/database.mjs';
@@ -10,6 +10,7 @@ import {
   assistantCandidateSources, saveAssistantRun, listAssistantRuns, getAssistantRun, deleteAssistantRuns
 } from '../packages/ai/src/assistant-history.mjs';
 import { createAssistantRouter } from '../apps/api/src/assistant-router.mjs';
+import { createBackup, verifyBackup, restoreDatabaseFile } from '../packages/backup/src/service.mjs';
 
 const migrationsDir = resolve('migrations');
 const now = '2026-11-10T12:00:00.000Z';
@@ -200,4 +201,48 @@ test('schema 31→32 upgrade, repeated run and transactional migration failure',
     assert.deepEqual(reopen.foreignKeyCheck(), []);
     reopen.close();
   } finally { rmSync(root, { recursive: true, force: true }); }
+});
+
+test('резервная копия и восстановление сохраняют ответы и исходные тексты LLM', async () => {
+  const root = mkdtempSync(join(tmpdir(), 'kafedra-assistant-restore-'));
+  const dataDir = join(root, 'data');
+  const databasePath = join(dataDir, 'main.sqlite3');
+  mkdirSync(join(dataDir, 'blobs'), { recursive: true });
+  try {
+    const database = new Database(databasePath, { migrationsDir });
+    const ws = ensureDefaultWorkspace(database);
+    const context = ctx(ws, 'backup-test');
+    const runId = saveAssistantRun(database, {
+      workspaceId: ws.id, context, task: 'archive-query',
+      promptText: 'Найти отчёт', status: 'completed',
+      result: { type: 'raw', text: 'Сохранённый ответ' },
+      rawResponse: 'Сохранённый оригинал ответа'
+    });
+    database.close();
+
+    const created = await createBackup({
+      databasePath, dataDir, backupDir: join(root, 'backups'),
+      includeApplication: false, keep: 1, reason: 'assistant-history-test'
+    });
+    const verified = await verifyBackup({ archivePath: created.archivePath });
+    assert.equal(verified.status, 'ok');
+    assert.equal(verified.manifest.schemaVersion, 32);
+
+    const changed = new Database(databasePath, { readonly: false });
+    assert.equal(deleteAssistantRuns(changed, { workspaceId: ws.id, context, id: runId }), 1);
+    changed.close();
+    const restored = await restoreDatabaseFile({
+      archivePath: created.archivePath, targetDatabasePath: databasePath, apply: true, force: true
+    });
+    assert.equal(restored.status, 'restored');
+    const recovered = new Database(databasePath, { readonly: true });
+    const run = getAssistantRun(recovered, { workspaceId: ws.id, context, id: runId });
+    assert.equal(run.result.text, 'Сохранённый ответ');
+    assert.equal(run.rawResponse, 'Сохранённый оригинал ответа');
+    assert.equal(recovered.quickCheck(), true);
+    assert.deepEqual(recovered.foreignKeyCheck(), []);
+    recovered.close();
+  } finally {
+    rmSync(root, { recursive: true, force: true });
+  }
 });
