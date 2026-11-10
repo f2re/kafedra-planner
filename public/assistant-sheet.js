@@ -2700,7 +2700,7 @@ export function createAssistantSheet() {
           verifiedBadge.className = 'status-pill success';
           verifiedBadge.style.fontSize = '11px';
           verifiedBadge.style.padding = '2px 6px';
-          verifiedBadge.textContent = '✓ Подтверждено';
+          verifiedBadge.textContent = '✓ Цитата найдена';
           head.append(verifiedBadge);
         }
         card.append(head);

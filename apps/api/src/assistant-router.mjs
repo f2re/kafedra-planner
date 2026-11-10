@@ -447,6 +447,9 @@ export function createAssistantRouter({ database, config, logger, engine: custom
 
       const candidates = await resolveCandidates(task, query, text, request);
 
+      const initialSources = database
+        ? assistantCandidateSources(database, workspaceOf(database, request).id, request.auth, candidates)
+        : [];
       const result = await engine.process({
         task,
         text,
@@ -460,11 +463,19 @@ export function createAssistantRouter({ database, config, logger, engine: custom
         logger.warn('assistant process task status', { task, status: result.status, error: result.error });
       }
 
-      const saved = persistAssistantResult(request, task, text || query, candidates, result);
       const sources = database
         ? assistantCandidateSources(database, workspaceOf(database, request).id, request.auth, candidates)
         : [];
-      sendJson(response, 200, { ...result, ...saved, sources });
+      const sourcesChanged = initialSources.some((item) => !sources.some(
+        (current) => current.kind === item.kind && current.id === item.id
+          && current.versionId === item.versionId
+      ));
+      const finalResult = sourcesChanged
+        ? { status: 'failed', error: 'source_access_changed', result: null,
+          message: 'Доступ к источникам изменился. Повторите поиск.' }
+        : result;
+      const saved = persistAssistantResult(request, task, text || query, candidates, finalResult);
+      sendJson(response, 200, { ...finalResult, ...saved, sources: sourcesChanged ? [] : sources });
       return true;
     }
 
@@ -482,6 +493,13 @@ export function createAssistantRouter({ database, config, logger, engine: custom
         ? assistantCandidateSources(database, workspaceOf(database, request).id, request.auth, candidates)
         : [];
       const promptText = text || query;
+      const sourceSnapshot = () => database
+        ? assistantCandidateSources(database, workspaceOf(database, request).id, request.auth, candidates)
+        : [];
+      const sourcesChanged = (actual) => sources.some((item) => !actual.some(
+        (fresh) => fresh.kind === item.kind && fresh.id === item.id
+          && fresh.versionId === item.versionId
+      ));
       const runId = newId('airun');
       const persist = (payload) => persistAssistantResult(
         request, task, promptText, candidates, payload, runId
@@ -527,7 +545,16 @@ export function createAssistantRouter({ database, config, logger, engine: custom
             sendEvent('telemetry', telemetry);
           },
           onDone: (payload) => {
-            sendEvent('done', { ...payload, ...persist(payload), sources });
+            const latest = sourceSnapshot();
+            if (sourcesChanged(latest)) {
+              const failure = {
+                status: 'failed', error: 'source_access_changed',
+                message: 'Доступ к источнику изменился. Повторите поиск.'
+              };
+              sendEvent('error', { ...failure, ...persist(failure) });
+            } else {
+              sendEvent('done', { ...payload, ...persist(payload), sources: latest });
+            }
             if (!response.writableEnded) response.end();
           },
           onError: (err) => {
@@ -550,7 +577,14 @@ export function createAssistantRouter({ database, config, logger, engine: custom
         const raw = res.rawResponse || JSON.stringify(res.result || {});
         sendEvent('token', { delta: raw, fullText: raw, meta: { tokenIndex: 1, tokensPerSec: '20.0' } });
         sendEvent('telemetry', { completionTokens: 20, tokensPerSec: '20.0', elapsedMs: res.durationMs || 100 });
-        sendEvent('done', { ...res, ...persist(res), sources });
+        const latest = sourceSnapshot();
+        if (sourcesChanged(latest)) {
+          const failure = { status: 'failed', error: 'source_access_changed',
+            message: 'Доступ к источнику изменился. Повторите поиск.' };
+          sendEvent('error', { ...failure, ...persist(failure) });
+        } else {
+          sendEvent('done', { ...res, ...persist(res), sources: latest });
+        }
         if (!response.writableEnded) response.end();
       }
 
