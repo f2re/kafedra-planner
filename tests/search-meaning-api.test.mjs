@@ -98,5 +98,5 @@ test('real authenticated API retrieves semantic documents, preserves filters and
   const revoked = await search(query, { assist: 'poll' });
   assert.equal(revoked.assistant.status, 'idle');
   assert.doesNotMatch(JSON.stringify(revoked), /ver-semantic|барических депрессий/u);
-  assert.equal(database.getSchemaVersion(), 31);
+  assert.equal(database.getSchemaVersion(), 32);
 });

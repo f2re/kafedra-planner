@@ -303,9 +303,10 @@ export function validateAssistantResult(taskType, payload, extra = {}) {
     const summary = String(payload.summary || '').trim().slice(0, 1000);
     const rawMatches = Array.isArray(payload.matches) ? payload.matches : [];
     const candidates = Array.isArray(extra.candidates) ? extra.candidates : [];
-    const allowedTexts = candidates.map((c) =>
-      String(c.text || c.snippet || '').toLocaleLowerCase('ru-RU').replace(/\s+/gu, ' ')
-    );
+    const candidateTexts = candidates.map((candidate) => ({
+      candidate,
+      normalized: String(candidate.text || candidate.snippet || '').toLocaleLowerCase('ru-RU').replace(/\s+/gu, ' ')
+    }));
 
     const matches = rawMatches
       .filter((m) => m && typeof m === 'object')
@@ -313,11 +314,16 @@ export function validateAssistantResult(taskType, payload, extra = {}) {
       .map((m) => {
         const quote = String(m.quote || '').trim().slice(0, 300);
         const normQuote = quote.toLocaleLowerCase('ru-RU').replace(/\s+/gu, ' ');
-        const isVerified = normQuote.length >= 8 && allowedTexts.some((txt) => txt.includes(normQuote));
+        const linked = normQuote.length >= 8
+          ? candidateTexts.find(({ candidate, normalized }) =>
+            normalized.includes(normQuote)
+            && (!m.meetingId || candidate.kind !== 'meeting' || String(m.meetingId) === String(candidate.id))
+          )?.candidate : null;
+        const isVerified = Boolean(linked);
         return {
-          meetingId: String(m.meetingId || '').slice(0, 80),
-          protocolNumber: String(m.protocolNumber || '').slice(0, 40),
-          meetingDate: String(m.meetingDate || '').slice(0, 32),
+          meetingId: linked?.kind === 'meeting' ? String(linked.id).slice(0, 80) : '',
+          protocolNumber: linked?.number ? String(linked.number).slice(0, 40) : '',
+          meetingDate: linked?.date ? String(linked.date).slice(0, 32) : '',
           itemNumber: String(m.itemNumber || '').slice(0, 32),
           itemTitle: String(m.itemTitle || '').slice(0, 200),
           quote,

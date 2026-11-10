@@ -233,7 +233,7 @@ export function createAccessRouter({ database, config, logger }) {
       if (!['original', 'preview'].includes(variant)) {
         throw new AppError('document_variant_invalid', 'Допустимы варианты original и preview.', 400);
       }
-      const file = getDocumentFile(database, workspace.id, documentId, variant);
+      const file = getDocumentFile(database, workspace.id, documentId, variant, url.searchParams.get('versionId') || null);
       if (!file) throw new AppError('document_not_found', 'Документ не найден.', 404);
       if (!file.available) {
         throw new AppError('document_preview_unavailable',
@@ -243,8 +243,8 @@ export function createAccessRouter({ database, config, logger }) {
       return sendFile(request, response, file.path, {
         mediaType: file.mediaType, fileName: file.fileName, sizeBytes: file.sizeBytes,
         etag: file.sha256,
-        disposition: variant === 'preview' || file.mediaType === 'application/pdf'
-          || String(file.mediaType || '').startsWith('image/') ? 'inline' : 'attachment'
+        disposition: url.searchParams.get('download') !== '1' && (variant === 'preview' || file.mediaType === 'application/pdf'
+          || String(file.mediaType || '').startsWith('image/')) ? 'inline' : 'attachment'
       });
     }
     const documentStructureMatch = path.match(/^\/api\/documents\/([^/]+)\/structure$/);

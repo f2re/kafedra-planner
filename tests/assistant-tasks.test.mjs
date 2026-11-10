@@ -282,3 +282,20 @@ test('validateAssistantResult handles compliance-check as friendly suggestions w
   // Backward compatibility check
   assert.equal(res.checks.length, 2);
 });
+
+test('archive-query suppresses forged meeting IDs even with real-looking citations', () => {
+  const candidates = [{
+    kind: 'meeting', id: 'real-meeting', number: '12', date: '2026-11-10',
+    text: 'Рассмотрели вопросы аттестации преподавателей.'
+  }];
+  const payload = { summary: 'Итоги', matches: [
+    { meetingId: 'foreign-meeting', protocolNumber: '999', quote: 'вопросы аттестации преподавателей' },
+    { meetingId: 'real-meeting', protocolNumber: '999', quote: 'вопросы аттестации преподавателей' }
+  ] };
+  const result = validateAssistantResult('archive-query', payload, { candidates });
+  assert.equal(result.matches[0].verified, false);
+  assert.equal(result.matches[0].meetingId, '');
+  assert.equal(result.matches[1].verified, true);
+  assert.equal(result.matches[1].meetingId, 'real-meeting');
+  assert.equal(result.matches[1].protocolNumber, '12');
+});
