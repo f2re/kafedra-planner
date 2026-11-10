@@ -2277,3 +2277,33 @@
     animation: none !important;
   }
 }
+
+/* Assistant answer + verified sources; no external resources or layout shifts. */
+.assistant-plain-answer { line-height: 1.55; overflow-wrap: anywhere; }
+.assistant-plain-answer h3, .assistant-source-section h3 { margin: 16px 0 8px; font-size: 15px; }
+.assistant-plain-answer p, .assistant-plain-answer li { white-space: pre-wrap; margin: 7px 0; }
+.assistant-plain-answer pre { white-space: pre-wrap; overflow-wrap: anywhere; padding: 12px; background: var(--surface-soft, #f4f5f7); border-radius: 8px; }
+.assistant-source-section { margin-top: 18px; border-top: 1px solid var(--border, #dde1e5); padding-top: 12px; }
+.assistant-source-item { border: 1px solid var(--border, #dde1e5); border-radius: 9px; padding: 12px; margin: 10px 0; }
+.assistant-source-heading { display: flex; justify-content: space-between; gap: 12px; align-items: flex-start; }
+.assistant-source-heading strong { font-weight: 600; overflow-wrap: anywhere; }
+.assistant-source-type { font-size: 12px; opacity: .72; flex-shrink: 0; }
+.assistant-source-snippet { margin: 8px 0; font-size: 13px; line-height: 1.5; overflow-wrap: anywhere; }
+.assistant-source-actions { display: flex; flex-wrap: wrap; gap: 7px; margin-top: 10px; }
+.assistant-source-actions a { text-decoration: none; }
+.assistant-history-top { display: flex; justify-content: space-between; align-items: center; gap: 8px; }
+.assistant-history-top h3 { font-size: 15px; margin: 0; }
+.assistant-history-search { width: 100%; box-sizing: border-box; margin: 12px 0 8px; min-height: 40px; }
+.assistant-history-record { flex: 1; min-width: 0; border: 0; background: transparent; color: inherit; display: flex; flex-direction: column; gap: 5px; align-items: flex-start; text-align: left; cursor: pointer; }
+.assistant-history-record strong { font-weight: 550; overflow-wrap: anywhere; }
+.assistant-history-record:focus-visible, .assistant-source-actions a:focus-visible { outline: 2px solid currentColor; outline-offset: 2px; }
+.assistant-history-record:disabled { opacity: .65; cursor: not-allowed; }
+.assistant-history-delete-all { margin-top: 14px; }
+.assistant-history-restored, .assistant-history-unsaved { font-size: 12px; opacity: .82; margin: 8px 0; }
+.assistant-history-unsaved { color: var(--warning-text, #8b5b00); }
+.assistant-history-legacy { margin-top: 14px; }
+@media (max-width: 640px) {
+  .assistant-source-actions .small-button { min-height: 44px; display: inline-flex; align-items: center; }
+  .assistant-history-item { gap: 4px; flex-wrap: wrap; }
+  .assistant-history-record { min-width: 55%; }
+}
