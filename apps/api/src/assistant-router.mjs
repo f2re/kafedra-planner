@@ -2,6 +2,9 @@ import { AppError } from '../../../packages/core/src/errors.mjs';
 import { newId } from '../../../packages/core/src/ids.mjs';
 import { createAssistantEngine } from '../../../packages/ai/src/assistant-tasks.mjs';
 import {
+  assistantCandidateSources, saveAssistantRun, listAssistantRuns, getAssistantRun, deleteAssistantRuns
+} from '../../../packages/ai/src/assistant-history.mjs';
+import {
   loadLlmSettings,
   saveLlmSettings,
   testLlmConnection,
@@ -255,7 +258,9 @@ export function createAssistantRouter({ database, config, logger, engine: custom
           snippet: item.snippet,
           text: fullContent ? fullContent.slice(0, 2500) : item.snippet,
           date: item.event_date || meta?.date || null,
-          number: item.number || meta?.number || null
+          number: item.number || meta?.number || null,
+          documentVersionId: item.document_version_id || null,
+          locator: item.locator_json || null
         };
       });
     } catch (err) {
@@ -264,7 +269,56 @@ export function createAssistantRouter({ database, config, logger, engine: custom
     }
   }
 
+  function historyContext(request) {
+    return { workspaceId: workspaceOf(database, request).id, context: request.auth };
+  }
+
+  function persistAssistantResult(request, task, promptText, candidates, payload, id = newId('airun')) {
+    if (!database) return { runId: null, historySaved: false };
+    try {
+      const workspace = workspaceOf(database, request);
+      saveAssistantRun(database, {
+        workspaceId: workspace.id, context: request.auth, id, task, promptText,
+        status: payload.status, result: payload.result, sources: candidates,
+        error: payload.error || payload.message || null, durationMs: payload.durationMs
+      });
+      return { runId: id, historySaved: true };
+    } catch (error) {
+      logger?.warn?.('assistant history persistence failed', { error: error.message });
+      return { runId: null, historySaved: false };
+    }
+  }
+
   return async function assistantRouter(request, response, url) {
+    if (database && url.pathname === '/api/assistant/history' && request.method === 'GET') {
+      sendJson(response, 200, { ok: true, ...listAssistantRuns(database, {
+        ...historyContext(request), limit: url.searchParams.get('limit') || 30,
+        cursor: url.searchParams.get('cursor') || ''
+      }) });
+      return true;
+    }
+    if (database && url.pathname === '/api/assistant/history' && request.method === 'DELETE') {
+      sendJson(response, 200, { ok: true, deleted: deleteAssistantRuns(database, historyContext(request)) });
+      return true;
+    }
+    const historyMatch = url.pathname.match(/^\/api\/assistant\/history\/([^/]+)$/);
+    if (database && historyMatch && request.method === 'GET') {
+      const entry = getAssistantRun(database, {
+        ...historyContext(request), id: decodeURIComponent(historyMatch[1])
+      });
+      if (!entry) throw new AppError('assistant_run_not_found', 'Запись истории не найдена.', 404);
+      sendJson(response, 200, { ok: true, entry });
+      return true;
+    }
+    if (database && historyMatch && request.method === 'DELETE') {
+      const deleted = deleteAssistantRuns(database, {
+        ...historyContext(request), id: decodeURIComponent(historyMatch[1])
+      });
+      if (!deleted) throw new AppError('assistant_run_not_found', 'Запись истории не найдена.', 404);
+      sendJson(response, 200, { ok: true, deleted });
+      return true;
+    }
+
     if (url.pathname === '/api/assistant/status' && request.method === 'GET') {
       const activeConf = engine.config || effectiveConfig;
       const now = Date.now();
@@ -405,7 +459,11 @@ export function createAssistantRouter({ database, config, logger, engine: custom
         logger.warn('assistant process task status', { task, status: result.status, error: result.error });
       }
 
-      sendJson(response, 200, result);
+      const saved = persistAssistantResult(request, task, text || query, candidates, result);
+      const sources = database
+        ? assistantCandidateSources(database, workspaceOf(database, request).id, request.auth, candidates)
+        : [];
+      sendJson(response, 200, { ...result, ...saved, sources });
       return true;
     }
 
@@ -419,6 +477,14 @@ export function createAssistantRouter({ database, config, logger, engine: custom
       const customUserPrompt = body.customUserPrompt ? String(body.customUserPrompt).slice(0, 12000) : undefined;
 
       const candidates = await resolveCandidates(task, query, text, request);
+      const sources = database
+        ? assistantCandidateSources(database, workspaceOf(database, request).id, request.auth, candidates)
+        : [];
+      const promptText = text || query;
+      const runId = newId('airun');
+      const persist = (payload) => persistAssistantResult(
+        request, task, promptText, candidates, payload, runId
+      );
 
       response.writeHead(200, {
         'Content-Type': 'text/event-stream; charset=utf-8',
@@ -459,11 +525,11 @@ export function createAssistantRouter({ database, config, logger, engine: custom
             sendEvent('telemetry', telemetry);
           },
           onDone: (payload) => {
-            sendEvent('done', payload);
+            sendEvent('done', { ...payload, ...persist(payload), sources });
             if (!response.writableEnded) response.end();
           },
           onError: (err) => {
-            sendEvent('error', err);
+            sendEvent('error', { ...err, ...persist(err) });
             if (!response.writableEnded) response.end();
           }
         });
@@ -482,7 +548,7 @@ export function createAssistantRouter({ database, config, logger, engine: custom
         const raw = res.rawResponse || JSON.stringify(res.result || {});
         sendEvent('token', { delta: raw, fullText: raw, meta: { tokenIndex: 1, tokensPerSec: '20.0' } });
         sendEvent('telemetry', { completionTokens: 20, tokensPerSec: '20.0', elapsedMs: res.durationMs || 100 });
-        sendEvent('done', res);
+        sendEvent('done', { ...res, ...persist(res), sources });
         if (!response.writableEnded) response.end();
       }
 
