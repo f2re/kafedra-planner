@@ -1,5 +1,7 @@
 import { bodyChildren, replaceBodyChild, replaceTableRows, replaceVisibleText, rowCells, setCellText, tableRows } from './ooxml-shared.mjs';
 import { validatePlanTemplateConfig } from './analyzer.mjs';
+import { monthlyPeriod, replaceMonthCase } from './monthly-period.mjs';
+import { PLAN_ACTIVITY_LABELS } from '../../plans/src/activity.mjs';
 
 const MONTHS = [
   'января', 'февраля', 'марта', 'апреля', 'мая', 'июня',
@@ -52,6 +54,7 @@ function parseAcademicKey(value) {
 export function normalizeTargetPeriod(input, expectedKind) {
   const kind = input?.periodKind || expectedKind;
   if (kind !== expectedKind) throw new Error('plan_generation_period_kind_mismatch');
+  if (kind === 'monthly') return monthlyPeriod(input?.periodKey);
   if (kind === 'academic') {
     const parsed = parseAcademicKey(input?.periodKey);
     const yearStart = Number(input?.yearStart || parsed?.yearStart);
@@ -80,13 +83,15 @@ function itemValues(item, index, columns) {
     title: String(item.title || '').trim(),
     description: item.description || '',
     responsible,
-    direction: DIRECTIONS[item.direction] || item.direction || '',
+    direction: PLAN_ACTIVITY_LABELS[item.activityKind] || DIRECTIONS[item.direction] || item.direction || '',
     result: expectedResult,
     status: ''
   };
-  values.date = item.dateText || (startsAt ? formatRange(startsAt, endsAt) : '');
-  if (!values.date && dueDate && !columns.deadline) values.date = `до ${formatRussianDate(dueDate)}`;
-  values.deadline = item.deadlineText || (dueDate ? formatRussianDate(dueDate) : '');
+  const explicitDate = Object.hasOwn(item, 'dateText') && item.dateText !== null && item.dateText !== undefined;
+  values.date = explicitDate ? String(item.dateText) : (startsAt ? formatRange(startsAt, endsAt) : '');
+  if (!explicitDate && !values.date && dueDate && !columns.deadline) values.date = `до ${formatRussianDate(dueDate)}`;
+  const explicitDeadline = Object.hasOwn(item, 'deadlineText') && item.deadlineText !== null && item.deadlineText !== undefined;
+  values.deadline = explicitDeadline ? String(item.deadlineText) : (dueDate ? formatRussianDate(dueDate) : '');
   return values;
 }
 
@@ -111,6 +116,13 @@ function buildRow(templateXml, config, item, index) {
 
 function replacePeriodParagraph(paragraphXml, anchor, target) {
   let result = paragraphXml;
+  if (anchor.kind === 'monthly') {
+    const month = new RegExp(`(?<![а-яё])${anchor.sourceMonthText}(?![а-яё])`, 'iu');
+    const changed = replaceVisibleText(result, month,
+      replaceMonthCase(anchor.sourceMonthText, target.month, Number(anchor.monthCase)));
+    if (!changed.changed) throw new Error('plan_generation_period_anchor_changed');
+    result = changed.xml;
+  }
   if (anchor.kind === 'academic') {
     const sourceEnd = String(anchor.sourceYearEnd).slice(-(anchor.endDigits || 4));
     const targetEnd = String(target.yearEnd).slice(-(anchor.endDigits || 4));

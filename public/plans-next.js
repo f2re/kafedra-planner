@@ -1,3 +1,5 @@
+import { newPlanOperationId, planUploadKey } from './plan-upload-identity.js';
+
 const plansState = {
   active: false,
   items: [],
@@ -6,6 +8,7 @@ const plansState = {
   selectedPlan: null,
   templates: [],
   uploadDocumentId: null,
+  uploads: [],
   lastCalendarItem: null,
   filters: { q: '', kind: '', periodKey: '', direction: '', responsible: '' },
   generation: { plan: null, template: null, sourceYear: null, rows: [] },
@@ -125,11 +128,12 @@ function ensurePlansUi() {
             <p>Загружайте готовые планы, исправляйте неоднозначные строки и формируйте новый DOCX по прошлому образцу.</p>
           </div>
           <div class="plans-heading-actions">
-            <input id="plans-upload-input" type="file" accept=".docx,.odt,.xlsx,.ods,.pdf,.txt" hidden>
-            <button id="plans-upload-button" class="secondary-button" type="button">Загрузить план</button>
+            <input id="plans-upload-input" type="file" accept=".docx,.odt,.xlsx,.ods,.pdf,.txt" multiple hidden>
+            <button id="plans-upload-button" class="secondary-button" type="button">Загрузить планы</button>
             <button id="plans-generate-button" class="primary-button" type="button">Сформировать по образцу</button>
           </div>
         </div>
+        <section id="plans-upload-status" class="plans-upload-status hidden" aria-label="Обработка загруженных планов"></section>
         <div class="plans-filterbar">
           <label class="plans-search"><span aria-hidden="true">⌕</span><input id="plans-q" type="search" placeholder="Мероприятие или текст"></label>
           <select id="plans-kind" aria-label="Вид плана">
@@ -174,7 +178,10 @@ function ensurePlansUi() {
 function activatePlansView(planId = null) {
   ensurePlansUi();
   plansState.active = true;
-  if (planId) plansState.selectedPlanId = planId;
+  if (planId) {
+    plansState.selectedPlanId = planId;
+    window.dispatchEvent(new CustomEvent('kafedra:plan-open', { detail: { planId } }));
+  }
   if (typeof window.kafedraSetView === 'function') window.kafedraSetView('plans');
   loadPlans().catch((error) => showPlanNotice(error.message));
 }
@@ -377,41 +384,89 @@ async function saveItemCorrection(form) {
   });
 }
 
-async function uploadPlan(file) {
-  if (!file) return;
-  showPlanNotice(`Загружается «${file.name}»…`);
-  const response = await planApi('/api/documents', {
-    method: 'POST',
-    headers: {
-      'content-type': file.type || 'application/octet-stream',
-      'x-file-name': encodeURIComponent(file.name),
-      'x-document-type': 'plan',
-      'idempotency-key': `plan-ui:${file.name}:${file.size}:${file.lastModified}`
-    },
-    body: file
-  });
-  plansState.uploadDocumentId = response.documentId;
-  const deadline = Date.now() + 25_000;
-  while (Date.now() < deadline) {
-    const document = await planApi(`/api/documents/${encodeURIComponent(response.documentId)}`);
-    if (['processed', 'needs_review', 'failed'].includes(document.processing_status)) {
-      if (document.processing_status === 'failed') throw new Error('Документ сохранён, но его обработка завершилась ошибкой.');
-      const plans = await planApi('/api/plans?limit=500');
-      const created = (plans.items || []).find((item) => item.source_document_id === response.documentId);
-      if (created) plansState.selectedPlanId = created.id;
-      await loadPlans();
-      showPlanNotice(created ? 'План загружен и добавлен в календарь.' : 'Документ обработан. Проверьте вопросы распознавания.');
-      return;
+function renderPlanUploads() {
+  const target = $p('#plans-upload-status');
+  if (!target) return;
+  target.classList.toggle('hidden', !plansState.uploads.length);
+  const labels = { queued: 'Ожидает загрузки', uploading: 'Загружается', processing: 'Исходник сохранён · обрабатывается', ready: 'Готово', review: 'Нужно проверить', failed: 'Ошибка обработки', error: 'Не удалось загрузить' };
+  const done = plansState.uploads.filter(item => item.status === 'ready').length;
+  const review = plansState.uploads.filter(item => item.status === 'review').length;
+  const errors = plansState.uploads.filter(item => ['failed', 'error'].includes(item.status)).length;
+  target.innerHTML = `<div class="plans-upload-summary" role="status" aria-live="polite">${done} готово · ${review} проверить · ${errors} ошибок</div>
+    <ul>${plansState.uploads.map(item => `<li data-plan-upload="${esc(item.id)}">
+      <div><strong>${esc(item.file.name)}</strong><span>${esc(labels[item.status] || item.status)}</span>${item.error ? `<small>${esc(item.error)}</small>` : ''}</div>
+      <div class="plans-upload-actions">${item.planId ? `<button type="button" class="text-button" data-plan-upload-open="${esc(item.planId)}">Открыть план</button>` : ''}
+      ${item.documentId ? `<a href="/api/documents/${encodeURIComponent(item.documentId)}/content?variant=original" target="_blank" rel="noopener">Исходник</a>` : ''}
+      ${!item.busy && ['error', 'failed', 'processing', 'review'].includes(item.status) ? `<button type="button" class="text-button" data-plan-upload-retry="${esc(item.id)}">${item.status === 'processing' || item.status === 'review' ? 'Проверить обработку' : 'Повторить'}</button>` : ''}</div>
+    </li>`).join('')}</ul>`;
+}
+
+async function processPlanUpload(item, { reprocess = false } = {}) {
+  if (item.busy) return;
+  item.busy = true;
+  item.error = '';
+  try {
+    if (!item.documentId) {
+      item.status = 'uploading';
+      renderPlanUploads();
+      if (!item.uploadKey) {
+        item.uploadKey = await planUploadKey(item.file, 'plan-ui');
+      }
+      const response = await planApi('/api/documents', {
+        method: 'POST', headers: {
+          'content-type': item.file.type || 'application/octet-stream',
+          'x-file-name': encodeURIComponent(item.file.name), 'x-document-type': 'plan',
+          'idempotency-key': item.uploadKey
+        }, body: item.file
+      });
+      item.documentId = response.documentId;
+      item.versionId = response.documentVersionId || response.versionId || null;
+      plansState.uploadDocumentId = item.documentId;
+    } else if (reprocess) {
+      await planApi(`/api/documents/${encodeURIComponent(item.documentId)}/reprocess`, { method: 'POST' });
     }
-    await new Promise((resolve) => setTimeout(resolve, 250));
+    item.status = 'processing';
+    renderPlanUploads();
+    const deadline = Date.now() + 25_000;
+    while (Date.now() < deadline) {
+      const document = await planApi(`/api/plan-documents/${encodeURIComponent(item.documentId)}/status`);
+      item.versionId = document.version_id || item.versionId;
+      item.planId = document.planId || null;
+      if (['processed', 'needs_review', 'failed'].includes(document.processing_status)) {
+        item.status = document.processing_status === 'failed' ? 'failed' : document.processing_status === 'needs_review' || !item.planId ? 'review' : 'ready';
+        if (item.status === 'failed') item.error = 'Исходник сохранён. Повторите обработку без новой загрузки.';
+        if (item.planId && plansState.uploads.length === 1) plansState.selectedPlanId = item.planId;
+        await loadPlans();
+        window.dispatchEvent(new CustomEvent('kafedra:plan-imported', { detail: { planId: item.planId, documentId: item.documentId } }));
+        showPlanNotice(item.status === 'failed' ? 'Исходник сохранён. Не удалось завершить обработку.' : item.planId ? 'План загружен. Мероприятия доступны в плане и календаре.' : 'Документ обработан. Проверьте вопросы распознавания.');
+        return;
+      }
+      await new Promise(resolve => setTimeout(resolve, 400));
+    }
+    showPlanNotice('Исходники сохранены. Обработка продолжается на сервере.');
+  } catch (error) {
+    item.status = item.documentId ? 'failed' : 'error';
+    item.error = error.message;
+  } finally {
+    item.busy = false;
+    renderPlanUploads();
   }
-  await loadPlans();
-  showPlanNotice('План принят. Обработка продолжается на сервере.');
+}
+
+async function uploadPlans(files) {
+  const additions = [...files].filter(file => !plansState.uploads.some(item => item.file.name === file.name && item.file.size === file.size && item.file.lastModified === file.lastModified));
+  const entries = additions.map(file => ({ id: newPlanOperationId(), file, status: 'queued', documentId: null, busy: false, uploadKey: null }));
+  plansState.uploads.push(...entries);
+  renderPlanUploads();
+  let next = 0;
+  await Promise.all(Array.from({ length: Math.min(3, entries.length) }, async () => {
+    while (next < entries.length) await processPlanUpload(entries[next++]);
+  }));
 }
 
 async function listTemplates() {
   const data = await planApi('/api/plan-templates?limit=300');
-  plansState.templates = data.items || [];
+  plansState.templates = (data.items || []).filter(template => ['calendar', 'academic'].includes(template.period_kind));
   return plansState.templates;
 }
 
@@ -693,6 +748,14 @@ document.addEventListener('click', (event) => {
   if (event.target.closest('[data-plans-close]') || event.target === $p('#plans-modal-backdrop')) return closePlanModals();
 
   if (event.target.closest('#plans-upload-button')) return $p('#plans-upload-input')?.click();
+  const uploadOpen = event.target.closest('[data-plan-upload-open]');
+  if (uploadOpen) return activatePlansView(uploadOpen.dataset.planUploadOpen);
+  const uploadRetry = event.target.closest('[data-plan-upload-retry]');
+  if (uploadRetry) {
+    const item = plansState.uploads.find(entry => entry.id === uploadRetry.dataset.planUploadRetry);
+    if (item) processPlanUpload(item, { reprocess: item.status === 'failed' });
+    return;
+  }
   if (event.target.closest('#plans-reset')) {
     plansState.filters = { q: '', kind: '', periodKey: '', direction: '', responsible: '' };
     for (const selector of ['#plans-q','#plans-kind','#plans-period','#plans-direction','#plans-responsible']) if ($p(selector)) $p(selector).value = '';
@@ -754,8 +817,7 @@ document.addEventListener('submit', (event) => {
 ensurePlansUi();
 bindFilterState();
 $p('#plans-upload-input')?.addEventListener('change', (event) => {
-  const [file] = event.target.files || [];
-  uploadPlan(file).catch((error) => showPlanNotice(error.message));
+  uploadPlans(event.target.files || []).catch((error) => showPlanNotice(error.message));
   event.target.value = '';
 });
 window.kafedraOpenPlan = (planId) => activatePlansView(planId);

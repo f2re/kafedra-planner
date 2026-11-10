@@ -21,6 +21,40 @@ jobs:
     timeout-minutes: 25
     steps:
       - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          fetch-depth: 0
+      - name: Select focused plan browser regression
+        id: plan_browser
+        shell: bash
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+          PR_BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          SOURCE_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+        run: |
+          set -Eeuo pipefail
+          [[ "$SOURCE_SHA" =~ ^[0-9a-f]{40}$ ]]
+          [[ "$(git rev-parse HEAD)" == "$SOURCE_SHA" ]]
+          required=false
+          if [[ "$EVENT_NAME" == workflow_dispatch ]]; then
+            required=true
+          elif [[ "$EVENT_NAME" == pull_request ]]; then
+            [[ "$PR_BASE_SHA" =~ ^[0-9a-f]{40}$ ]]
+            git cat-file -e "${PR_BASE_SHA}^{commit}"
+            changed_paths_file="$RUNNER_TEMP/plan-browser-changed-paths"
+            git diff --name-only -z "$PR_BASE_SHA" "$SOURCE_SHA" -- > "$changed_paths_file"
+            while IFS= read -r -d '' changed_path; do
+              case "$changed_path" in
+                packages/plans/*|packages/plan-docx/*|packages/document-intake/*|packages/storage/*|packages/auth/*|packages/access-control/*|packages/ai/src/plan-task.mjs|migrations/*.sql|\
+                apps/worker/src/*|apps/api/src/app.mjs|apps/api/src/http-utils.mjs|apps/api/src/access-router.mjs|apps/api/src/*plans-router.mjs|apps/api/src/plan-items-router.mjs|apps/api/src/plan-source-rows-router.mjs|\
+                public/plan*.js|public/plan*.css|public/index.html|\
+                tests/browser/plan-collection.spec.mjs|tests/browser/start-server.mjs|playwright.config.mjs|.github/workflows/ci.yml)
+                  required=true
+                  ;;
+              esac
+            done < "$changed_paths_file"
+          fi
+          printf 'required=%s\n' "$required" >> "$GITHUB_OUTPUT"
       - uses: actions/setup-node@v4
         with:
           node-version-file: .nvmrc
@@ -30,6 +64,21 @@ jobs:
       - run: npm run docs:check
       - run: npm test
       - run: npm run smoke
+      - name: Install pinned Chromium for affected plan flow
+        if: steps.plan_browser.outputs.required == 'true'
+        run: ./node_modules/.bin/playwright install --with-deps chromium
+      - name: Plans from sources to monthly DOCX on desktop and mobile
+        if: steps.plan_browser.outputs.required == 'true'
+        run: ./node_modules/.bin/playwright test tests/browser/plan-collection.spec.mjs --project=desktop --project=mobile
+      - uses: actions/upload-artifact@v4
+        if: always() && steps.plan_browser.outputs.required == 'true'
+        with:
+          name: plan-collection-browser-evidence
+          path: |
+            playwright-report/
+            test-results/
+          retention-days: 14
+          if-no-files-found: ignore
 
   post-merge-smoke:
     if: github.event_name == 'push'

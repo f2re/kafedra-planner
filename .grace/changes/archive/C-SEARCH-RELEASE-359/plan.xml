@@ -1,4 +1,4 @@
-<GraceChangePlan graceVersion="4.0" status="approved">
+<GraceChangePlan graceVersion="4.0" status="applied">
   <C-SEARCH-RELEASE-359>
     <IntentSummary>Integrate the pending search vertical, verify actual API/UI behavior and publish a bounded feature release without duplicating domain storage or release infrastructure. Before regression fixes, issue #359 clarifies that search metadata reads include optional sources of manual objects and canonical navigation must select visible targets; persistent storage and security semantics remain unchanged.</IntentSummary>
     <BaselineAssertions>

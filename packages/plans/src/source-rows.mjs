@@ -1,11 +1,13 @@
 import { newId } from '../../core/src/ids.mjs';
 import { updatePlanItem } from './corrections.mjs';
-import { extractLineItems, extractPlanSourceRows, sourceRowsForLineItems } from './items.mjs';
+import { completePlanSourceRows, extractLineItems, extractPlanSourceRows } from './items.mjs';
 import { setPlanItemExecution } from './manual.mjs';
 import { getPlan } from './queries.mjs';
 import { parseJson } from './shared.mjs';
+import { classifyPlanActivity } from './activity.mjs';
 
 const MODES = new Set(['track', 'assigned', 'open']);
+const ACTIVITY_KINDS = new Set(['methodological', 'teaching', 'science', 'organizational', 'everyday']);
 
 function fail(code, details = null) {
   const error = new Error(code);
@@ -35,13 +37,9 @@ function normalizedSourceRows(blocks, plan) {
     yearStart: plan.year_start,
     yearEnd: plan.year_end
   };
-  let rows = extractPlanSourceRows(blocks, period);
-  if (!rows.some((row) => row.role === 'item')) {
-    const items = extractLineItems(blocks, period);
-    const existingKeys = new Set(rows.map((row) => row.sourceRowKey));
-    rows = rows.concat(sourceRowsForLineItems(items).filter((row) => !existingKeys.has(row.sourceRowKey)));
-  }
-  return rows;
+  const rows = extractPlanSourceRows(blocks, period);
+  const items = rows.some((row) => row.role === 'item') ? [] : extractLineItems(blocks, period);
+  return completePlanSourceRows(blocks, rows, items);
 }
 
 export function persistPlanSourceRows(database, planId, sourceRows = [], now = new Date().toISOString()) {
@@ -102,13 +100,12 @@ export function ensurePlanSourceRows(database, workspaceId, planId, now = new Da
   if (!plan) fail('plan_source_plan_not_found');
   if (!plan.source_document_version_id) return plan;
 
-  const count = Number(database.get(
-    'SELECT COUNT(*) AS n FROM plan_source_rows WHERE plan_id = ?', planId
-  )?.n || 0);
-  if (!count) {
-    const blocks = blocksForVersion(database, plan.source_document_version_id);
-    if (blocks.length) persistPlanSourceRows(database, planId, normalizedSourceRows(blocks, plan), now);
-  }
+  const keys = new Set(database.all(
+    'SELECT source_row_key FROM plan_source_rows WHERE plan_id = ?', planId
+  ).map((row) => row.source_row_key));
+  const blocks = blocksForVersion(database, plan.source_document_version_id);
+  const missing = normalizedSourceRows(blocks, plan).filter((row) => !keys.has(row.sourceRowKey));
+  if (missing.length) persistPlanSourceRows(database, planId, missing, now);
   linkPlanItemsToSourceRows(database, planId, now);
   return plan;
 }
@@ -126,8 +123,42 @@ function linkedItems(database, sourceRowId) {
   `, sourceRowId);
 }
 
+function planLlmStatus(database, plan, rows) {
+  const jobs = database.all(`
+    SELECT status FROM jobs
+    WHERE kind = 'enrich_plan' AND json_extract(payload_json, '$.planId') = ?
+  `, plan.id);
+  const pending = jobs.filter((job) => ['queued', 'retry', 'running'].includes(job.status)).length;
+  const runs = plan.source_document_version_id ? database.all(`
+    SELECT status, input_sha256, response_json, error_message FROM llm_extraction_runs
+    WHERE document_version_id = ? AND purpose = 'plan_enrichment'
+    ORDER BY rowid DESC
+  `, plan.source_document_version_id) : [];
+  const latest = new Map();
+  const latestConfiguration = parseJson(runs[0]?.response_json, {}).configurationHash;
+  for (const run of runs) {
+    const output = parseJson(run.response_json, {});
+    if (latestConfiguration && output.configurationHash !== latestConfiguration) continue;
+    const key = output.chunkInputSha256 || output.jobId || output.diagnosticKey || run.input_sha256;
+    if (!latest.has(key)) latest.set(key, { ...run, output });
+  }
+  const records = [...latest.values()];
+  const completed = records.filter((run) => ['completed', 'partial'].includes(run.status)).length;
+  const failed = records.filter((run) => ['failed', 'partial'].includes(run.status)).length;
+  const skipped = records.reduce((sum, run) => sum + (run.output.skipped?.length || 0), 0);
+  const proposed = rows.filter((row) => !row.items.length && row.suggestion?.llm)
+    .reduce((sum, row) => sum + (row.suggestion.tasks?.length || 1), 0);
+  const disabled = records.some((run) => run.status === 'disabled');
+  const status = pending ? 'pending' : failed ? (completed || proposed ? 'partial' : 'failed')
+    : completed ? 'completed' : disabled ? 'disabled' : 'idle';
+  return {
+    status, pending, completed, failed, proposed, skipped,
+    errors: [...new Set(records.map((run) => run.error_message).filter(Boolean))]
+  };
+}
+
 export function listPlanSourceRows(database, workspaceId, planId) {
-  ensurePlanSourceRows(database, workspaceId, planId);
+  const plan = ensurePlanSourceRows(database, workspaceId, planId);
   const rows = database.all(`
     SELECT * FROM plan_source_rows
     WHERE plan_id = ?
@@ -139,9 +170,11 @@ export function listPlanSourceRows(database, workspaceId, planId) {
     const cells = parseJson(row.cells_json, []);
     const unmapped = parseJson(row.unmapped_json, []);
     const items = linkedItems(database, row.id);
-    const attention = row.row_role === 'item'
+    const attention = suggestion.llm
+      ? (!items.length || items.some((item) => !item.starts_at && !item.due_date))
+      : row.row_role === 'item'
       ? (!items.length || unmapped.length > 0 || (suggestion.warnings || []).length > 0 || row.confidence < 0.75)
-      : row.row_role === 'context' && cells.length >= 2;
+      : row.row_role === 'context' && (cells.length >= 2 || Boolean(suggestion.llm));
     return {
       id: row.id,
       sourceRowKey: row.source_row_key,
@@ -161,6 +194,7 @@ export function listPlanSourceRows(database, workspaceId, planId) {
   });
   return {
     items: rows,
+    llm: planLlmStatus(database, plan, rows),
     summary: {
       rows: rows.filter((row) => row.role !== 'header').length,
       recognized: rows.filter((row) => row.role === 'item').length,
@@ -226,9 +260,20 @@ function existingLink(database, sourceRowId, splitIndex) {
   `, sourceRowId, splitIndex) || null;
 }
 
-function insertDerivedItem(database, planId, row, splitIndex, actorPersonId, now) {
+function insertDerivedItem(database, planId, row, splitIndex, actorPersonId, now, task) {
   const itemId = newId('planitem');
   const sourceItemKey = `${row.source_row_key}:split:${splitIndex}`;
+  if (task?.activityKind && !ACTIVITY_KINDS.has(task.activityKind)) fail('plan_source_activity_kind_invalid');
+  const proposed = row.suggestion?.tasks?.[splitIndex] || row.suggestion;
+  const llmProposal = row.suggestion?.llm && proposed?.evidence ? {
+    ...proposed.evidence,
+    ...row.suggestion.llm,
+    proposed: {
+      title: proposed.title, startsAt: proposed.startsAt, endsAt: proposed.endsAt,
+      dueDate: proposed.dueDate, responsibleRaw: proposed.responsibleRaw,
+      expectedResult: proposed.expectedResult, activityKind: proposed.activityKind
+    }
+  } : null;
   database.run(`
     INSERT INTO plan_items(
       id, plan_id, source_item_key, origin_kind, execution_mode, item_no, title, description,
@@ -243,7 +288,9 @@ function insertDerivedItem(database, planId, row, splitIndex, actorPersonId, now
     splitIndex,
     locator: row.locator,
     sourceRowKey: row.source_row_key,
-    raw: row.raw_text
+    raw: row.raw_text,
+    activityKind: task?.activityKind || classifyPlanActivity(task || {}),
+    ...(llmProposal ? { llmProposal } : {})
   }), actorPersonId || null, now, now);
   database.run(`
     INSERT INTO plan_source_row_items(source_row_id, plan_item_id, split_index, created_at)
@@ -285,7 +332,7 @@ export function materializePlanSourceRow(
       const body = taskBody(task, row);
       const link = existingLink(database, row.id, splitIndex);
       const itemId = link?.plan_item_id || insertDerivedItem(
-        database, planId, row, splitIndex, actorPersonId, now
+        database, planId, row, splitIndex, actorPersonId, now, task
       );
       updatePlanItem(database, workspaceId, planId, itemId, body, actorPersonId, now);
       const mode = task?.executionMode || 'track';

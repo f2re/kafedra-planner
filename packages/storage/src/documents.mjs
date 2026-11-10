@@ -1,4 +1,5 @@
 import { newId } from '../../core/src/ids.mjs';
+import { AppError } from '../../core/src/errors.mjs';
 import { enqueueJob } from './jobs.mjs';
 
 function parseJson(value, fallback) {
@@ -27,12 +28,15 @@ export function registerDocument(database, {
   const now = new Date().toISOString();
   if (idempotencyKey) {
     const existing = database.get(`
-      SELECT d.id AS document_id, dv.id AS version_id, dv.blob_sha256, dv.processing_status
+      SELECT d.id AS document_id, d.workspace_id, dv.id AS version_id, dv.blob_sha256, dv.processing_status
       FROM document_versions dv
       JOIN documents d ON d.id = dv.document_id
       WHERE dv.upload_key = ?
     `, idempotencyKey);
     if (existing) {
+      if (existing.workspace_id !== workspaceId || existing.blob_sha256 !== blob.sha256) {
+        throw new AppError('idempotency_key_conflict', 'Ключ загрузки уже использован. Повторите загрузку с новым ключом.', 409);
+      }
       const job = database.get('SELECT id FROM jobs WHERE idempotency_key = ?', `upload:${idempotencyKey}`);
       return {
         documentId: existing.document_id,

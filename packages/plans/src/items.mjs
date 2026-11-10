@@ -196,6 +196,35 @@ export function sourceRowsForLineItems(items) {
   }));
 }
 
+// Keep unrecognized prose available for exception review and optional LLM parsing.
+// Adding coverage never replaces the original structured row or its extraction.
+export function completePlanSourceRows(blocks, sourceRows = [], items = []) {
+  const rows = [...sourceRows];
+  const keys = new Set(rows.map((row) => row.sourceRowKey));
+  for (const row of sourceRowsForLineItems(items)) {
+    if (!keys.has(row.sourceRowKey)) { rows.push(row); keys.add(row.sourceRowKey); }
+  }
+  for (let index = 0; index < (blocks || []).length; index += 1) {
+    const block = blocks[index];
+    const rawText = String(block?.text || '').trim();
+    if (!rawText) continue;
+    // Structured table cells already belong to their complete row.
+    if (block?.metadata?.row && (block.metadata.table !== undefined || block.metadata.sheet)) continue;
+    const locator = block.locator || { line: index + 1 };
+    const sourceRowKey = locator.page
+      ? `pdf:${locator.page}:line:${locator.line || index + 1}`
+      : `text:line:${locator.line || index + 1}`;
+    if (keys.has(sourceRowKey)) continue;
+    keys.add(sourceRowKey);
+    rows.push({
+      sourceRowKey, groupKind: 'line', groupName: 'text', rowNumber: Number(locator.line || index + 1),
+      role: 'context', rawText, cells: [{ text: rawText, column: 1, locator }],
+      locator, suggestion: null, unmapped: [], confidence: 0.25
+    });
+  }
+  return rows;
+}
+
 export function deduplicateItems(items) {
   const seen = new Set();
   return items.filter((item) => {

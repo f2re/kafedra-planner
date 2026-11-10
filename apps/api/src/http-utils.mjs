@@ -184,7 +184,11 @@ export async function serveStatic(response, publicDir, pathname) {
       if (!html.includes('/report-match-refresh.js')) scripts.push('  <script type="module" src="/report-match-refresh.js"></script>');
       if (!html.includes('/plan-fact-next.js')) scripts.push('  <script type="module" src="/plan-fact-next.js"></script>');
       if (!html.includes('/plan-fact-tools.js')) scripts.push('  <script type="module" src="/plan-fact-tools.js"></script>');
+      if (!html.includes('/plan-collection.js')) scripts.push('  <script type="module" src="/plan-collection.js"></script>');
       if (scripts.length) content = Buffer.from(html.replace('</body>', scripts.join('\n') + '\n</body>'));
+      if (!html.includes('/plan-collection.css')) {
+        content = Buffer.from(content.toString('utf8').replace('</head>', '  <link rel="stylesheet" href="/plan-collection.css">\n</head>'));
+      }
     }
     response.writeHead(200, {
       'content-type': staticTypes.get(extname(path).toLowerCase()) || 'application/octet-stream',

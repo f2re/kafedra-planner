@@ -12,6 +12,7 @@ import { createManualPlan, createManualPlanItem } from '../packages/plans/src/ma
 import { createAuthAccount } from '../packages/auth/src/service.mjs';
 import { loadConfig } from '../packages/config/src/index.mjs';
 import { createApp } from '../apps/api/src/app.mjs';
+import { CURRENT_SCHEMA_VERSION } from './helpers/current-schema.mjs';
 
 test('manual meetings and plan items remain searchable without invented source documents', { timeout: 20000 }, async (t) => {
   const root = await mkdtemp(join(tmpdir(), 'kafedra-manual-search-'));
@@ -57,7 +58,7 @@ test('manual meetings and plan items remain searchable without invented source d
     assert.ok(!visiblePlans.items.some((row) => row.source_id === privatePlan.id));
     assert.equal(other.source_document_version_id, null);
     assert.equal(database.get('SELECT COUNT(*) AS n FROM document_versions').n, 0);
-    assert.equal(database.getSchemaVersion(), 31);
+    assert.equal(database.getSchemaVersion(), CURRENT_SCHEMA_VERSION);
   } finally {
     app.closeAllConnections();
     await new Promise((done) => app.close(done));

@@ -16,6 +16,22 @@ import { looksLikeScientificMaterial, extractScientificMaterial } from '../../..
 import { persistScientificItem } from '../../../packages/science/src/service.mjs';
 import { extractPlan, looksLikePlan } from '../../../packages/plans/src/extractor.mjs';
 import { persistPlan } from '../../../packages/plans/src/service.mjs';
+import { enqueuePlanLlmJobs, processPlanLlmJob } from './plan-llm-job.mjs';
+
+function queueOptionalPlanParsing(database, plan, payload, logger, config) {
+  if (!plan?.id) return;
+  try {
+    enqueuePlanLlmJobs(database, {
+      workspaceId: plan.workspace_id, planId: plan.id, config, retryFailed: Boolean(payload.reprocess)
+    });
+  } catch (error) {
+    // A saved working plan must not become a failed document because optional AI
+    // scheduling is unavailable. A repeated processing job can repair this gap.
+    logger.warn?.('optional plan parsing was not scheduled', {
+      planId: plan.id, error: String(error?.code || error?.message || 'plan_llm_queue_failed')
+    });
+  }
+}
 
 function insertReview(database, workspaceId, versionId, code, title, explanation, proposedAction, context = {}) {
   const existing = database.get(`
@@ -93,7 +109,7 @@ function persistPreviewBlob(database, preview, now) {
 
 export async function processDocumentJob(database, payload, logger, config) {
   const version = database.get(`
-    SELECT dv.*, d.title, d.workspace_id, fb.storage_path, fb.size_bytes
+    SELECT dv.*, d.title, d.workspace_id, d.document_type, fb.storage_path, fb.size_bytes
     FROM document_versions dv
     JOIN documents d ON d.id = dv.document_id
     JOIN file_blobs fb ON fb.sha256 = dv.blob_sha256
@@ -111,6 +127,9 @@ export async function processDocumentJob(database, payload, logger, config) {
       versionId: version.id,
       status: reviewCount > 0 ? 'needs_review' : version.processing_status
     });
+    const plan = database.get('SELECT * FROM plans WHERE workspace_id = ? AND source_document_version_id = ?',
+      version.workspace_id, version.id);
+    queueOptionalPlanParsing(database, plan, payload, logger, config);
     return;
   }
 
@@ -202,8 +221,9 @@ export async function processDocumentJob(database, payload, logger, config) {
     ocrReview(database, version, ocr);
     const recognitionNeedsReview = ['unavailable', 'failed', 'empty', 'disabled', 'partial'].includes(ocr.status);
 
+    const requestedPlanTemplate = payload.requestedType === 'plan_template' || version.document_type === 'plan_template';
     const requestedProtocol = payload.requestedType === 'protocol';
-    const isProtocol = requestedProtocol || (Boolean(text) && looksLikeDepartmentProtocol(text));
+    const isProtocol = !requestedPlanTemplate && (requestedProtocol || (Boolean(text) && looksLikeDepartmentProtocol(text)));
     const protocolResult = isProtocol ? extractDepartmentProtocol(text || '') : null;
     const llmProtocolResult = isProtocol && config?.llmEnabled && config?.llmEndpoint
       ? await proposeProtocolWithLlama({ config, text, deterministic: protocolResult })
@@ -270,7 +290,7 @@ export async function processDocumentJob(database, payload, logger, config) {
       }
     }
     const requestedDirective = ['directive', 'order', 'decree'].includes(payload.requestedType);
-    const isDirective = Boolean(text) && !isProtocol && (requestedDirective || looksLikeDirective(text));
+    const isDirective = !requestedPlanTemplate && Boolean(text) && !isProtocol && (requestedDirective || looksLikeDirective(text));
     const directiveResult = isDirective
       ? extractDirective(text, { requestedType: requestedDirective ? payload.requestedType : null })
       : null;
@@ -280,13 +300,13 @@ export async function processDocumentJob(database, payload, logger, config) {
     const requestedPlan = [
       'plan', 'department_plan', 'faculty_plan', 'personal_plan', 'unit_plan', 'organization_plan'
     ].includes(payload.requestedType);
-    const isPlan = Boolean(text) && !isProtocol && !isDirective
+    const isPlan = !requestedPlanTemplate && Boolean(text) && !isProtocol && !isDirective
       && (requestedPlan || looksLikePlan(text, blocks, version.title));
     const planResult = isPlan ? extractPlan({
       text, blocks, title: version.title, requestedType: payload.requestedType
     }) : null;
     const requestedScience = ['article','conference','grant','patent','project','nir_report','science'].includes(payload.requestedType);
-    const isScientific = Boolean(text) && !isProtocol && !isDirective && !isPlan
+    const isScientific = !requestedPlanTemplate && Boolean(text) && !isProtocol && !isDirective && !isPlan
       && (requestedScience || looksLikeScientificMaterial(text, version.title));
     const scienceResult = isScientific ? extractScientificMaterial(text, version.title) : null;
     let templateApplications = [];
@@ -294,11 +314,11 @@ export async function processDocumentJob(database, payload, logger, config) {
     let persistedDirective = null;
     let persistedPlan = null;
     let persistedScience = null;
-    let finalType = isProtocol ? 'department_protocol'
+    let finalType = requestedPlanTemplate ? 'plan_template' : isProtocol ? 'department_protocol'
       : isDirective ? directiveResult.kind
         : isPlan ? planResult.documentType
           : isScientific ? scienceResult.kind : 'unknown';
-    let finalStatus = isPlan
+    let finalStatus = requestedPlanTemplate ? (text ? 'processed' : 'needs_review') : isPlan
       ? (planResult.requiresReview ? 'needs_review' : 'processed')
       : (isProtocol || isDirective || isScientific ? 'processed' : 'needs_review');
     let confidence = protocolResult?.confidence ?? directiveResult?.confidence ?? planResult?.confidence ?? scienceResult?.confidence ?? null;
@@ -388,7 +408,7 @@ export async function processDocumentJob(database, payload, logger, config) {
           result: scienceResult,
           now: completedAt
         });
-      } else if (text) {
+      } else if (text && !requestedPlanTemplate) {
         templateApplications = applyMatchingTemplates(database, {
           workspaceId: version.workspace_id,
           version,
@@ -476,7 +496,8 @@ export async function processDocumentJob(database, payload, logger, config) {
       }),
       completedAt, extractionRunId);
     });
-    const reportMatches = text && !isProtocol && !isDirective && !isPlan
+    queueOptionalPlanParsing(database, persistedPlan, payload, logger, config);
+    const reportMatches = text && !requestedPlanTemplate && !isProtocol && !isDirective && !isPlan
       ? generateReportMatchCandidates(database, version.workspace_id, version.id, completedAt)
       : [];
     logger.info('document processed', {
@@ -515,6 +536,8 @@ export async function dispatchJob(database, job, logger, config) {
   switch (job.kind) {
     case 'process_document':
       return processDocumentJob(database, payload, logger, config);
+    case 'enrich_plan':
+      return processPlanLlmJob(database, job, logger, config);
     default:
       throw new Error(`Unsupported job kind: ${job.kind}`);
   }

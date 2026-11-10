@@ -23,6 +23,8 @@ An uploaded file is never replaced by recognised text or an AI result. Every ext
 
 Main areas include calendar, immutable documents, imported and manual plans, direct task completion, plan/fact reporting, meetings and versioned DOCX templates, research records, academic grade sheets, PIN access, object ACL, backup/restore, and optional local `llama.cpp` assistance.
 
+Development after `0.4.12` adds SQLite schema **32** and a complete multilevel-plan workflow: independent batch uploads, optional source-verified LLM proposals for unresolved rows, a shared event list, and saved monthly compositions with reusable editable DOCX samples. Monthly rows reference canonical events; print-specific wording does not duplicate or reschedule calendar items. Export snapshots retain exact source/template versions and enforce current source access, including indirect document previews. See [MULTILEVEL_PLANS.md](docs/MULTILEVEL_PLANS.md) for the concept, API, validation and limits.
+
 ## Finding related materials
 
 Search accepts conversational Russian topic queries, uses the existing FTS index and retains explicit filters. When enabled, the LLM proposes bounded query variants, which are executed against actual authorized records, then selects verifiable excerpts. Additional results do not reorder the ordinary list. Their original work objects open through existing routes with return to the search context.

@@ -36,7 +36,6 @@ test('pull request keeps one complete project check and main push repeats only s
     'both isolated jobs use locked dependencies');
 
   for (const forbidden of [
-    /playwright/iu,
     /Full offline/iu,
     /Project Control/iu,
     /host Node/iu,
@@ -46,6 +45,33 @@ test('pull request keeps one complete project check and main push repeats only s
   ]) {
     assert.doesNotMatch(source, forbidden);
   }
+});
+
+test('plan browser regression is conditional, uses exact PR head and runs only the focused desktop/mobile spec', async () => {
+  const source = await read('.github/workflows/ci.yml');
+  const quality = source.split('  quality:\n')[1].split('\n  post-merge-smoke:')[0];
+  const postMerge = source.split('  post-merge-smoke:\n')[1];
+  assert.match(quality, /ref: \$\{\{ github\.event\.pull_request\.head\.sha \|\| github\.sha \}\}/u);
+  assert.match(quality, /fetch-depth: 0/u);
+  assert.match(quality, /PR_BASE_SHA: \$\{\{ github\.event\.pull_request\.base\.sha \}\}/u);
+  assert.match(quality, /git diff --name-only -z "\$PR_BASE_SHA" "\$SOURCE_SHA" --/u);
+  assert.match(quality, /if \[\[ "\$EVENT_NAME" == workflow_dispatch \]\]; then\n\s+required=true/u);
+  assert.match(quality, /packages\/plans\/\*/u);
+  assert.match(quality, /packages\/storage\/\*/u);
+  assert.match(quality, /packages\/auth\/\*/u);
+  assert.match(quality, /packages\/access-control\/\*/u);
+  assert.match(quality, /apps\/api\/src\/access-router\.mjs/u);
+  assert.match(quality, /migrations\/\*\.sql/u);
+  assert.match(quality, /apps\/worker\/src\/\*/u);
+  const condition = "if: steps.plan_browser.outputs.required == 'true'";
+  assert.equal(occurrences(quality, condition), 2, 'install and browser run share the path condition');
+  assert.match(quality, /if: steps\.plan_browser\.outputs\.required == 'true'\n\s+run: \.\/node_modules\/\.bin\/playwright install --with-deps chromium/u);
+  assert.match(quality, /if: steps\.plan_browser\.outputs\.required == 'true'\n\s+run: \.\/node_modules\/\.bin\/playwright test tests\/browser\/plan-collection\.spec\.mjs --project=desktop --project=mobile/u);
+  assert.equal(occurrences(quality, './node_modules/.bin/playwright test '), 1);
+  assert.match(quality, /if: always\(\) && steps\.plan_browser\.outputs\.required == 'true'/u);
+  assert.match(quality, /actions\/upload-artifact@v4/u);
+  assert.doesNotMatch(quality, /npm run test:browser|npx playwright|tests\/browser\/(?:search|meeting|protocol)[^\s]*\.spec/u);
+  assert.doesNotMatch(postMerge, /playwright|plan_browser|upload-artifact/u);
 });
 
 test('specialized browser workflows are manual diagnostics', async () => {

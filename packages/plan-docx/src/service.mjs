@@ -251,6 +251,9 @@ export async function generatePlanDocument(database, workspaceId, templateId, in
   const template = templateSource(database, workspaceId, templateId);
   if (!template) throw error('plan_template_not_found');
   if (template.status !== 'active') throw error('plan_template_inactive');
+  if (template.period_kind === 'monthly' || template.config?.periodKind === 'monthly') {
+    throw error('plan_generation_monthly_composition_required');
+  }
   assertDocx(template);
   const idempotencyKey = String(input?.idempotencyKey || '').trim();
   if (!idempotencyKey) throw error('plan_generation_idempotency_key_required');

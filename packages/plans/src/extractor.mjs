@@ -3,7 +3,7 @@ import { clean, clamp, extractPlanPeriod, lower } from './date.mjs';
 export { parsePlanDateWindow } from './date.mjs';
 import { allRows, bestHeader } from './rows.mjs';
 import {
-  deduplicateItems, extractLineItems, extractPlanSourceRows, sourceRowsForLineItems
+  completePlanSourceRows, deduplicateItems, extractLineItems, extractPlanSourceRows
 } from './items.mjs';
 
 const REQUESTED_KINDS = new Map([
@@ -57,9 +57,9 @@ export function extractPlan({ text = '', blocks = [], title = '', requestedType 
   let items = sourceRows.filter((row) => row.role === 'item' && row.suggestion).map((row) => row.suggestion);
   if (!items.length) {
     items = extractLineItems(blocks, period);
-    if (!sourceRows.length) sourceRows = sourceRowsForLineItems(items);
   }
   items = deduplicateItems(items);
+  sourceRows = completePlanSourceRows(blocks, sourceRows, items);
 
   const warnings = [];
   if (!items.length) warnings.push('items_missing');

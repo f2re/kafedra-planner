@@ -53,14 +53,14 @@ function simplifyPlansChrome() {
   if (!view) return;
   ensureStyles();
   const copy = $s('.plans-heading p', view);
-  const copyText = 'Загрузите план: система разберёт таблицы и предложит задачи, сроки и ответственных. Проверять нужно только неоднозначные строки.';
+  const copyText = 'Загрузите планы: система выделит мероприятия, сроки и ответственных. Из общего списка можно собрать план на месяц.';
   if (copy && copy.textContent !== copyText) copy.textContent = copyText;
   const upload = $s('#plans-upload-button', view);
   const generate = $s('#plans-generate-button', view);
   if (upload) {
     upload.classList.remove('secondary-button');
     upload.classList.add('primary-button');
-    if (upload.textContent !== 'Загрузить план') upload.textContent = 'Загрузить план';
+    if (upload.textContent !== 'Загрузить планы') upload.textContent = 'Загрузить планы';
   }
   if (generate) {
     generate.classList.remove('primary-button');
@@ -96,7 +96,7 @@ function sourceLabel(row) {
 }
 
 function dateLabel(row) {
-  const item = row.suggestion || row.items?.[0] || {};
+  const item = row.items?.[0] || row.suggestion || {};
   if (item.dueDate || item.due_date) return `до ${String(item.dueDate || item.due_date).slice(0, 10)}`;
   const start = item.startsAt || item.starts_at;
   const end = item.endsAt || item.ends_at;
@@ -110,13 +110,13 @@ function renderSourceRowCard(row) {
   const taskCount = row.items?.length || 0;
   const state = taskCount
     ? `${taskCount} ${taskCount === 1 ? 'задача' : taskCount < 5 ? 'задачи' : 'задач'}`
-    : row.attention ? 'Нужно проверить' : 'Распознано';
+    : row.suggestion?.llm ? 'ИИ предложил разбор · проверить' : row.attention ? 'Нужно проверить' : 'Распознано';
   const cells = (row.cells || []).slice(0, 4).map((cell) => `<span>${esc(cell.text)}</span>`).join('');
   return `
     <button type="button" class="plan-source-row ${selected ? 'active' : ''} ${row.attention ? 'attention' : ''}"
       data-plan-source-row="${esc(row.id)}" aria-pressed="${selected}">
       <span class="plan-source-row-meta">${esc(sourceLabel(row))}</span>
-      <strong>${esc(row.suggestion?.title || row.items?.[0]?.title || row.rawText)}</strong>
+      <strong>${esc(row.items?.[0]?.title || row.suggestion?.title || row.rawText)}</strong>
       <span class="plan-source-cell-preview">${cells}</span>
       <span class="plan-source-row-foot"><span>${esc(dateLabel(row))}</span><b>${sourceRowState.drafts.has(draftKey(sourceRowState.planId, row.id)) ? 'Есть правки' : esc(state)}</b></span>
     </button>`;
@@ -145,11 +145,16 @@ function renderWorkbench(focusEditor = false) {
   const rows = visibleRows();
   if (!rows.some(row => row.id === sourceRowState.selectedRowId)) sourceRowState.selectedRowId = null;
   const filterAttention = sourceRowState.filter === 'attention';
+  const llm = sourceRowState.payload?.llm;
+  const llmText = llm?.status === 'pending' ? 'ИИ уточняет неоднозначные строки в фоне.'
+    : llm?.proposed ? `ИИ предложил разбор строк: ${llm.proposed}. Предложения можно проверить по источнику.`
+    : ['failed', 'partial'].includes(llm?.status) ? 'ИИ не смог разобрать часть строк. Доступен обычный редактор.' : '';
   root.innerHTML = `
     <header class="plan-source-head">
       <div><span>Исходный документ</span><h4>Разобрать строки плана</h4><p>Система уже подставила то, что смогла определить. Выберите строку, чтобы проверить её или разделить на несколько задач.</p></div>
       <div class="plan-source-summary"><b>${summary.rows}</b> строк · <b>${summary.attention}</b> проверить · <b>${summary.materialized}</b> связаны с задачами</div>
     </header>
+    ${llmText ? `<p class="plans-helper" role="status">${esc(llmText)} <button type="button" class="text-button" data-source-refresh-recognition>Обновить разбор</button></p>` : ''}
     <div class="plan-source-toolbar" role="group" aria-label="Строки плана">
       <button type="button" class="${filterAttention ? 'active' : ''}" data-plan-source-filter="attention" aria-pressed="${filterAttention}">Требуют проверки${summary.attention ? ` · ${summary.attention}` : ''}</button>
       <button type="button" class="${!filterAttention ? 'active' : ''}" data-plan-source-filter="all" aria-pressed="${!filterAttention}">Все строки · ${summary.rows}</button>
@@ -202,20 +207,23 @@ function seedTasks(row) {
       controllerPersonId: assignment?.executors?.find((executor) => executor.role === 'controller')?.person_id || ''
     };
   });
-  const suggestion = row.suggestion || {};
-  let title = suggestion.title || '';
-  if (!title) {
-    const candidates = (row.cells || []).map((cell) => String(cell.text || '').trim()).filter((text) => text.length > 3);
-    title = candidates.sort((a, b) => b.length - a.length)[0] || row.rawText || '';
-  }
-  const responsibleRaw = suggestion.responsibleRaw || '';
-  const responsiblePersonId = exactPersonId(responsibleRaw);
-  return [{
-    title, description: '', startsAt: suggestion.startsAt || '', endsAt: suggestion.endsAt || '',
-    dueDate: suggestion.dueDate || '', direction: suggestion.direction || 'organizational',
-    expectedResult: suggestion.expectedResult || '', responsibleRaw, responsiblePersonId,
-    executionMode: 'track', executorPersonIds: responsiblePersonId ? [responsiblePersonId] : [], controllerPersonId: ''
-  }];
+  const suggestions = row.suggestion?.tasks?.length ? row.suggestion.tasks : [row.suggestion || {}];
+  return suggestions.map(suggestion => {
+    let title = suggestion.title || '';
+    if (!title) {
+      const candidates = (row.cells || []).map((cell) => String(cell.text || '').trim()).filter((text) => text.length > 3);
+      title = candidates.sort((a, b) => b.length - a.length)[0] || row.rawText || '';
+    }
+    const responsibleRaw = suggestion.responsibleRaw || '';
+    const responsiblePersonId = exactPersonId(responsibleRaw);
+    return {
+      title, description: suggestion.description || '', startsAt: suggestion.startsAt || '', endsAt: suggestion.endsAt || '',
+      dueDate: suggestion.dueDate || '', direction: suggestion.direction || 'organizational',
+      expectedResult: suggestion.expectedResult || '', responsibleRaw, responsiblePersonId,
+      activityKind: suggestion.activityKind || '',
+      executionMode: 'track', executorPersonIds: responsiblePersonId ? [responsiblePersonId] : [], controllerPersonId: ''
+    };
+  });
 }
 
 function personOptions(selected = '', empty = 'Не выбран') {
@@ -235,6 +243,7 @@ function taskCard(task, index) {
   const mode = task.executionMode || 'track';
   return `
     <section class="plan-source-task" data-source-task="${index}" data-source-existing="${Boolean(task.existing)}">
+      <input type="hidden" name="activityKind" value="${esc(task.activityKind || '')}">
       <header><strong>Задача ${index + 1}</strong>${index && !task.existing ? `<button type="button" class="text-button" data-source-task-remove="${index}">Убрать</button>` : ''}</header>
       <label class="field full"><span>Что сделать</span><input name="title" value="${esc(task.title)}" required></label>
       <div class="plan-source-three">
@@ -293,6 +302,7 @@ async function renderEditor(focusEditor = false) {
         <div><span>${esc(sourceLabel(row))}</span><h5>Проверить и сохранить</h5></div>
         <button type="button" class="icon-button" data-source-editor-close aria-label="Закрыть">×</button>
       </div>
+      ${!row.items?.length && row.suggestion?.llm ? '<p class="plans-evidence-note">ИИ предложил разбор. Проверьте формулировки и сроки по исходной строке перед сохранением.</p>' : ''}
       <details class="plan-source-original"><summary>Что написано в документе</summary><div>${rawCells(row)}</div></details>
       <datalist id="plan-source-people">${(sourceRowState.people || []).map((person) => `<option value="${esc(person.display_name)}"></option>`).join('')}</datalist>
       <div id="plan-source-task-list">${tasks.map(taskCard).join('')}</div>
@@ -319,6 +329,7 @@ function collectTask(card, keepUnmappedInComment, preserveInput = false) {
     endsAt: $s('[name="endsAt"]', card)?.value || null,
     dueDate: $s('[name="dueDate"]', card)?.value || null,
     direction: $s('[name="direction"]', card)?.value || 'organizational',
+    activityKind: text('activityKind') || null,
     responsibleRaw: responsibleRaw || null,
     responsiblePersonId: responsiblePersonId || null,
     expectedResult: text('expectedResult') || null,
@@ -460,6 +471,17 @@ async function loadForCurrentPlan() {
 }
 
 document.addEventListener('click', (event) => {
+  const refresh = event.target.closest('[data-source-refresh-recognition]');
+  if (refresh) {
+    const planId = sourceRowState.planId;
+    refresh.disabled = true;
+    api(`/api/plans/${encodeURIComponent(planId)}/source-rows`).then(payload => {
+      if (sourceRowState.planId !== planId) return;
+      sourceRowState.payload = payload;
+      renderWorkbench();
+    }).catch(error => showNotice(error.message)).finally(() => { refresh.disabled = false; });
+    return;
+  }
   const rowButton = event.target.closest('[data-plan-source-row]');
   if (rowButton) {
     sourceRowState.selectedRowId = rowButton.dataset.planSourceRow;

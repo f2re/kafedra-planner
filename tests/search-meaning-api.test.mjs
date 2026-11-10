@@ -14,6 +14,7 @@ import { createAuthAccount } from '../packages/auth/src/service.mjs';
 import { ensureObjectPolicy } from '../packages/access-control/src/service.mjs';
 import { loadConfig } from '../packages/config/src/index.mjs';
 import { createApp } from '../apps/api/src/app.mjs';
+import { CURRENT_SCHEMA_VERSION } from './helpers/current-schema.mjs';
 
 async function listen(server) {
   server.listen(0, '127.0.0.1'); await once(server, 'listening');
@@ -98,5 +99,5 @@ test('real authenticated API retrieves semantic documents, preserves filters and
   const revoked = await search(query, { assist: 'poll' });
   assert.equal(revoked.assistant.status, 'idle');
   assert.doesNotMatch(JSON.stringify(revoked), /ver-semantic|барических депрессий/u);
-  assert.equal(database.getSchemaVersion(), 31);
+  assert.equal(database.getSchemaVersion(), CURRENT_SCHEMA_VERSION);
 });

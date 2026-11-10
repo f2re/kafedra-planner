@@ -1,0 +1,36 @@
+<GraceChangeSpec graceVersion="4.0" status="approved">
+  <C-PLAN-COMPOSITION-371>
+    <Summary>Import multilevel plans, assist unresolved source rows with optional local LLM, and compose an editable monthly document from canonical events.</Summary>
+    <Problem>Existing plans are isolated and DOCX generation reimports a new plan. Operators cannot collect selected events from several sources into a persistent monthly document without duplicating calendar obligations.</Problem>
+    <Goals>
+      <Goal>Process multiple files independently through existing immutable intake and expose exact created plans with targeted retry.</Goal>
+      <Goal>Provide bounded queued LLM proposals verified against source rows, without blocking deterministic import or overwriting manual facts.</Goal>
+      <Goal>Expose one ACL-filtered event projection and a saved monthly composition of references, ordering and document-only overrides.</Goal>
+      <Goal>Generate an editable DOCX snapshot using a reusable monthly sample or built-in format without creating new plan items or calendar entries.</Goal>
+    </Goals>
+    <Constraints>
+      <Constraint>Authority: user request and issue 371. Exact main is 8d6ec438563fefc52077bcc9058234c72a841bf3; runtime version remains 0.4.12.</Constraint>
+      <Constraint>Only additive migration 032 for normalized monthly composition and export history; existing migrations, immutable sources, evidence and manual corrections remain intact.</Constraint>
+      <Constraint>Monthly records do not become a second task registry. Every source is checked under existing ACL before listing, adding and exporting; revoked access cannot reveal cached text.</Constraint>
+      <Constraint>LLM output is untrusted: bounded inputs, exact source quotes, validated structured response, deterministic date parsing, proposals only for unresolved rows, no arbitrary tools.</Constraint>
+      <Constraint>Core behavior works offline without LLM. One failed file, row or optional model request does not invalidate successful work.</Constraint>
+      <Constraint>Archive completed C-SEARCH-RELEASE-359 with terminal status only. Do not modify installer, auth model, dependencies or release infrastructure.</Constraint>
+    </Constraints>
+    <NonGoals><NonGoal>Release publication, arbitrary Word layout reconstruction, cloud parsing, automatic source-date shifting and execution of document instructions.</NonGoal></NonGoals>
+    <AcceptanceCriteria>
+      <Criterion>Multiple input files have truthful independent saved/processing/ready/failed states and exact navigation; retry does not duplicate persisted sources.</Criterion>
+      <Criterion>LLM validates identifiers, quotes and field provenance; malformed or unavailable responses degrade safely; source manual edits survive retries.</Criterion>
+      <Criterion>Methodological, teaching, science, organizational and everyday activity filters are derived labels over existing directions, not invented facts or automatic department exclusions.</Criterion>
+      <Criterion>Monthly composition survives reload, preserves order and overrides, and adds/removes references idempotently without changing source plan items or calendar counts.</Criterion>
+      <Criterion>DOCX includes selected effective fields and exact month, preserves uploaded OOXML sample formatting, records source/template versions and snapshot hash, and does not enter plan extraction.</Criterion>
+      <Criterion>Clean install, exact-base upgrade, repeated migrations, quick_check, foreign_key_check, backup verification, restore and forced-failure recovery pass.</Criterion>
+      <Criterion>Project CI plus focused integration and desktop/mobile browser scenarios pass, with actual limitations documented.</Criterion>
+    </AcceptanceCriteria>
+    <AffectedAreas><M-API /><M-DATABASE /><M-CI-GATE /></AffectedAreas>
+    <VerificationIntent>
+      <ExpectedCommand>npm run check</ExpectedCommand><ExpectedCommand>npm test</ExpectedCommand><ExpectedCommand>npm run smoke</ExpectedCommand>
+      <ExpectedCommand>bash scripts/ci/grace-db-gate.sh 8d6ec438563fefc52077bcc9058234c72a841bf3</ExpectedCommand>
+      <ExpectedEvidence>Exact-head project CI, risk-scoped database/recovery gate, focused browser scenarios and final GRACE scope lint. No real model or target Astra claim from fixture responses.</ExpectedEvidence>
+    </VerificationIntent>
+  </C-PLAN-COMPOSITION-371>
+</GraceChangeSpec>

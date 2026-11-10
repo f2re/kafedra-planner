@@ -28,6 +28,7 @@ function mappedError(cause) {
     plan_source_tasks_too_many: ['Одну строку можно разделить не более чем на 20 задач за один раз.', 400],
     plan_source_task_title_required: ['У каждой задачи должно быть название.', 400],
     plan_source_execution_mode_invalid: ['Выберите допустимый режим исполнения.', 400],
+    plan_source_activity_kind_invalid: ['Выберите допустимый вид мероприятия.', 400],
     plan_source_assignment_preserved: ['У пункта уже есть поручение. Оно сохранено; сначала измените режим исполнения без удаления существующей работы.', 409],
     plan_item_date_invalid: ['Проверьте дату мероприятия или контрольного срока.', 400],
     plan_item_date_range_invalid: ['Дата окончания не может быть раньше даты начала.', 400],
