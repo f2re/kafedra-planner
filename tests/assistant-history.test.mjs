@@ -33,7 +33,8 @@ test('постоянная история: SQLite, пагинация, изол�
       saveAssistantRun(f.db, {
         workspaceId: f.ws.id, context: one, task: 'formula-calc',
         promptText: 'Вычислить сумму ' + i, status: 'completed',
-        result: { type: 'formula', formula: '=СУММ(A1:A3)', description: String(i) }
+        result: { type: 'formula', formula: '=СУММ(A1:A3)', description: String(i) },
+        rawResponse: '{"formula":"=СУММ(A1:A3)"}'
       });
     }
     const first = listAssistantRuns(f.db, { workspaceId: f.ws.id, context: one, limit: 17 });
@@ -45,6 +46,7 @@ test('постоянная история: SQLite, пагинация, изол�
     assert.equal(listAssistantRuns(f.db, { workspaceId: f.ws.id, context: two }).items.length, 0);
     assert.equal(getAssistantRun(f.db, { workspaceId: f.ws.id, context: two, id: first.items[0].id }), null);
     assert.equal(getAssistantRun(f.db, { workspaceId: f.ws.id, context: one, id: first.items[0].id }).result.type, 'formula');
+    assert.match(getAssistantRun(f.db, { workspaceId: f.ws.id, context: one, id: first.items[0].id }).rawResponse, /СУММ/u);
     assert.equal(deleteAssistantRuns(f.db, { workspaceId: f.ws.id, context: two }), 0);
     assert.equal(deleteAssistantRuns(f.db, { workspaceId: f.ws.id, context: one, id: first.items[0].id }), 1);
     assert.equal(deleteAssistantRuns(f.db, { workspaceId: f.ws.id, context: one }), 37);

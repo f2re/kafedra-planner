@@ -79,6 +79,7 @@ function present(database, workspaceId, context, row) {
     promptText: redacted ? '' : row.prompt_text,
     status: row.status,
     result: !redacted && row.result_json ? JSON.parse(row.result_json) : null,
+    rawResponse: redacted ? null : row.raw_response,
     sources: redacted ? [] : refs,
     error: redacted ? null : row.error_message,
     durationMs: row.duration_ms,
@@ -87,17 +88,18 @@ function present(database, workspaceId, context, row) {
   };
 }
 
-export function saveAssistantRun(database, { workspaceId, context, id = newId('airun'), task, promptText, status, result, sources = [], error, durationMs }) {
+export function saveAssistantRun(database, { workspaceId, context, id = newId('airun'), task, promptText, status, result, rawResponse, sources = [], error, durationMs }) {
   const owner = assistantOwnerKey(context);
   const resultJson = result == null ? null : JSON.stringify(result);
   if (resultJson && resultJson.length > MAX_RESULT) throw new Error('assistant_result_too_large');
   const refs = assistantCandidateSources(database, workspaceId, context, sources);
   const now = new Date().toISOString();
   database.run(
-    'INSERT INTO assistant_runs(id, workspace_id, owner_key, task, prompt_text, status, result_json, source_refs_json, error_message, duration_ms, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?) ON CONFLICT(id) DO NOTHING',
+    'INSERT INTO assistant_runs(id, workspace_id, owner_key, task, prompt_text, status, result_json, raw_response, source_refs_json, error_message, duration_ms, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?) ON CONFLICT(id) DO NOTHING',
     id, workspaceId, owner, String(task).slice(0, 80), String(promptText || '').slice(0, MAX_INPUT),
     ['completed', 'failed', 'aborted', 'disabled'].includes(status) ? status : 'failed',
-    resultJson, JSON.stringify(refs), error ? String(error).slice(0, 1000) : null,
+    resultJson, rawResponse ? String(rawResponse).slice(0, MAX_RESULT) : null,
+    JSON.stringify(refs), error ? String(error).slice(0, 1000) : null,
     Number.isFinite(Number(durationMs)) ? Math.max(0, Math.round(Number(durationMs))) : null, now
   );
   return id;

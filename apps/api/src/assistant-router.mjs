@@ -279,7 +279,8 @@ export function createAssistantRouter({ database, config, logger, engine: custom
       const workspace = workspaceOf(database, request);
       saveAssistantRun(database, {
         workspaceId: workspace.id, context: request.auth, id, task, promptText,
-        status: payload.status, result: payload.result, sources: candidates,
+        status: payload.status, result: payload.result, rawResponse: payload.rawResponse,
+        sources: candidates,
         error: payload.error || payload.message || null, durationMs: payload.durationMs
       });
       return { runId: id, historySaved: true };
@@ -499,8 +500,9 @@ export function createAssistantRouter({ database, config, logger, engine: custom
       };
 
       const abortController = new AbortController();
-      request.on('close', () => {
-        abortController.abort();
+      request.on('aborted', () => abortController.abort());
+      response.on?.('close', () => {
+        if (!response.writableEnded) abortController.abort();
       });
 
       if (typeof engine.streamProcess === 'function') {

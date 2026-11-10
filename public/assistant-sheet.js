@@ -3335,7 +3335,9 @@ export function createAssistantSheet() {
       saveDraft();
       resultsContainerEl.classList.remove('hidden');
       if (run.result) {
-        renderResult(run.result, { sources: run.sources || [], durationMs: run.durationMs });
+        renderResult(run.result, {
+          sources: run.sources || [], durationMs: run.durationMs, rawResponse: run.rawResponse
+        });
       } else {
         resultsContainerEl.textContent = run.status === 'aborted'
           ? 'Генерация была остановлена.' : 'Ответ не получен: ' + (run.error || run.status);

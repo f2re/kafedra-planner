@@ -6,6 +6,7 @@ CREATE TABLE IF NOT EXISTS assistant_runs (
   prompt_text TEXT NOT NULL,
   status TEXT NOT NULL CHECK(status IN ('completed', 'failed', 'aborted', 'disabled')),
   result_json TEXT,
+  raw_response TEXT,
   source_refs_json TEXT NOT NULL DEFAULT '[]',
   error_message TEXT,
   duration_ms INTEGER,
