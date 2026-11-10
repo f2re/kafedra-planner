@@ -1,4 +1,5 @@
 // Assistant Sheet UI Controller · Kafedra Planner
+import { appendAssistantPlainAnswer, appendAssistantSources } from './assistant-answer.js';
 
 const DRAFT_KEY = 'kafedra.assistant.draft';
 const HISTORY_KEY = 'kafedra.assistant.history';
@@ -162,6 +163,11 @@ export function createAssistantSheet() {
   let currentMode = 'table-extract';
   let timerInterval = null;
   let activeHistoryFilter = 'all';
+  let historySearch = '';
+  let historyRecords = [];
+  let historyNextCursor = null;
+  let historyLoading = false;
+  let historyError = '';
 
   function ensureElements() {
     if (sheetEl) return;
@@ -562,6 +568,7 @@ export function createAssistantSheet() {
 
     if (isHistory) {
       renderHistoryView();
+      void loadAssistantHistory();
     } else if (isCustomPrompts) {
       renderCustomPromptsView();
     } else if (isSearchHelp) {
@@ -809,6 +816,7 @@ export function createAssistantSheet() {
       let finalData = null;
       let streamedRawText = '';
       let streamedThinkingText = '';
+      let streamError = null;
 
       for (;;) {
         const { value, done } = await reader.read();
@@ -865,7 +873,9 @@ export function createAssistantSheet() {
             } else if (eventName === 'done') {
               finalData = data;
             } else if (eventName === 'error') {
-              throw new Error(data.message || data.error || 'Ошибка стриминга');
+              streamError = new Error(data.message || data.error || (
+                data.status === 'disabled' ? 'ИИ-ассистент отключён в настройках.' : 'Ошибка генерации'
+              ));
             }
           } catch {
             // ignore partial json
@@ -881,6 +891,9 @@ export function createAssistantSheet() {
       if (stageDotEl) stageDotEl.className = 'telemetry-dot';
       if (progressBar) progressBar.style.animation = 'none';
       if (streamCursorEl) streamCursorEl.remove();
+
+      if (!finalData && streamError) throw streamError;
+      if (!finalData) throw new Error('Поток завершился без ответа. Повторите запрос.');
 
       if (finalData && finalData.status === 'disabled') {
         resultsContainerEl.innerHTML = `
@@ -956,21 +969,20 @@ export function createAssistantSheet() {
             renderResult(finalData.result, {
               prompt: finalData.prompt,
               rawResponse: finalData.rawResponse,
-              durationMs: finalData.durationMs
+              durationMs: finalData.durationMs,
+              sources: finalData.sources || []
             });
           } finally {
             resultsContainerEl = origResultsEl;
           }
         }
 
-        saveHistoryItem({
-          mode: currentMode,
-          query: text,
-          result: finalData.result,
-          success: true,
-          reasoning: streamedThinkingText || null,
-          telemetry: finalData.telemetry || null
-        });
+        if (!finalData.historySaved) {
+          const warning = document.createElement('p');
+          warning.className = 'assistant-history-unsaved';
+          warning.textContent = 'Ответ получен, но не сохранён в истории. Скопируйте его перед закрытием.';
+          resultsContainerEl.append(warning);
+        }
       }
     } catch (err) {
       clearInterval(timerInterval);
@@ -1028,7 +1040,21 @@ export function createAssistantSheet() {
       renderSearchRefineResult(result);
     } else if (result.type === 'template-analyze') {
       renderTemplateAnalyzeResult(result);
+    } else {
+      appendAssistantPlainAnswer(resultsContainerEl, result.type === 'raw'
+        ? result.text : JSON.stringify(result, null, 2));
     }
+    appendAssistantSources(resultsContainerEl, meta?.sources || [], {
+      navigate: async (kind, id) => {
+        close();
+        if (typeof window.kafedraOpenExactRoute === 'function') {
+          await window.kafedraOpenExactRoute({ kind, id });
+        } else {
+          window.location.hash = kind === 'meeting' ? '#meetings' : '#documents';
+        }
+      },
+      error: showToast
+    });
     if (meta && (meta.prompt || meta.rawResponse)) {
       renderInspectorCard(meta);
     }
@@ -2477,7 +2503,7 @@ export function createAssistantSheet() {
     if (result.actionableAdvice) {
       const adviceCard = document.createElement('div');
       adviceCard.className = 'assistant-advice-card';
-      adviceCard.innerHTML = `<strong>Рекомендация:</strong> ${result.actionableAdvice}`;
+      adviceCard.innerHTML = `<strong>Рекомендация:</strong> ${escapeHtml(result.actionableAdvice)}`;
       wrap.append(adviceCard);
     }
 
@@ -2830,7 +2856,7 @@ export function createAssistantSheet() {
 
         const agHead = document.createElement('div');
         agHead.className = 'assistant-agenda-head';
-        agHead.innerHTML = `<strong>Вопрос ${ag.itemNumber}:</strong> ${ag.topic || 'Без названия'}`;
+        agHead.innerHTML = `<strong>Вопрос ${escapeHtml(ag.itemNumber)}:</strong> ${escapeHtml(ag.topic || 'Без названия')}`;
         itemCard.append(agHead);
 
         if (ag.speaker) {
@@ -2932,7 +2958,7 @@ export function createAssistantSheet() {
     if (data.executiveSummary) {
       const sumCard = document.createElement('div');
       sumCard.className = 'assistant-summary-card';
-      sumCard.innerHTML = `<strong>Сводка:</strong> ${data.executiveSummary}`;
+      sumCard.innerHTML = `<strong>Сводка:</strong> ${escapeHtml(data.executiveSummary)}`;
       wrap.append(sumCard);
     }
 
@@ -2961,9 +2987,9 @@ export function createAssistantSheet() {
         const chip = document.createElement('div');
         chip.className = 'assistant-fact-chip';
         chip.innerHTML = `
-          <div class="assistant-fact-label">${f.label}</div>
-          <div class="assistant-fact-value">${f.value}</div>
-          <div class="assistant-fact-source">${f.source || ''}</div>
+          <div class="assistant-fact-label">${escapeHtml(f.label)}</div>
+          <div class="assistant-fact-value">${escapeHtml(f.value)}</div>
+          <div class="assistant-fact-source">${escapeHtml(f.source || '')}</div>
         `;
         fGrid.append(chip);
       });
@@ -2997,7 +3023,7 @@ export function createAssistantSheet() {
     banner.innerHTML = `
       <div class="assistant-compliance-icon">💡</div>
       <div class="assistant-compliance-info">
-        <div class="assistant-compliance-headline">${data.summary || 'Советы и подсказки к оформлению'}</div>
+        <div class="assistant-compliance-headline">${escapeHtml(data.summary || 'Советы и подсказки к оформлению')}</div>
         <div class="assistant-compliance-subline">Все подсказки носят рекомендательный характер. Вы можете применить предложенную формулировку кликом на «Принять» или оставить свой вариант без изменений.</div>
       </div>
     `;
@@ -3420,7 +3446,7 @@ export function createAssistantSheet() {
 
     if (options.contextTitle) {
       contextBannerEl.classList.remove('hidden');
-      contextBannerEl.innerHTML = `<strong>Контекст:</strong> ${options.contextTitle}`;
+      contextBannerEl.innerHTML = `<strong>Контекст:</strong> ${escapeHtml(options.contextTitle)}`;
     } else {
       contextBannerEl.classList.add('hidden');
       contextBannerEl.innerHTML = '';
