@@ -4,7 +4,6 @@ import { appendAssistantPlainAnswer, appendAssistantSources } from './assistant-
 const DRAFT_KEY = 'kafedra.assistant.draft';
 const HISTORY_KEY = 'kafedra.assistant.history';
 const FAVORITES_KEY = 'kafedra.assistant.favorites';
-const MAX_HISTORY = 30;
 
 const PRESETS = {
   'table-extract': [
@@ -65,22 +64,6 @@ function getHistory() {
   } catch {
     return [];
   }
-}
-
-function saveHistoryItem(item) {
-  try {
-    const list = getHistory();
-    list.unshift({ ...item, id: `h_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`, timestamp: Date.now() });
-    localStorage.setItem(HISTORY_KEY, JSON.stringify(list.slice(0, MAX_HISTORY)));
-  } catch {
-    // quota exceeded or private mode
-  }
-}
-
-function clearHistory() {
-  try {
-    localStorage.removeItem(HISTORY_KEY);
-  } catch {}
 }
 
 function getFavorites() {
@@ -3315,127 +3298,206 @@ export function createAssistantSheet() {
     resultsContainerEl.append(wrap);
   }
 
+  async function loadAssistantHistory({ append = false } = {}) {
+    if (historyLoading) return;
+    historyLoading = true;
+    historyError = '';
+    if (currentMode === 'history') renderHistoryView();
+    try {
+      const path = '/api/assistant/history?limit=30'
+        + (append && historyNextCursor ? '&cursor=' + encodeURIComponent(historyNextCursor) : '');
+      const response = await fetch(path);
+      const payload = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(payload?.error?.message || 'Не удалось получить историю.');
+      historyRecords = append ? historyRecords.concat(payload.items || []) : (payload.items || []);
+      historyNextCursor = payload.nextCursor || null;
+    } catch (error) {
+      historyError = error.message || 'История сейчас недоступна.';
+    } finally {
+      historyLoading = false;
+      if (currentMode === 'history') renderHistoryView();
+    }
+  }
+
+  async function openAssistantHistoryRecord(item) {
+    try {
+      const response = await fetch('/api/assistant/history/' + encodeURIComponent(item.id));
+      const payload = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(payload?.error?.message || 'Запись недоступна.');
+      const run = payload.entry;
+      if (run.redacted) {
+        showToast('Доступ к источнику отозван. Содержимое этого ответа скрыто.');
+        return;
+      }
+      setMode(run.task);
+      textareaEl.value = run.promptText || '';
+      updateCharCount();
+      saveDraft();
+      resultsContainerEl.classList.remove('hidden');
+      if (run.result) {
+        renderResult(run.result, { sources: run.sources || [], durationMs: run.durationMs });
+      } else {
+        resultsContainerEl.textContent = run.status === 'aborted'
+          ? 'Генерация была остановлена.' : 'Ответ не получен: ' + (run.error || run.status);
+      }
+      const label = document.createElement('p');
+      label.className = 'assistant-history-restored';
+      label.textContent = 'Сохранённый ответ · ' + new Date(run.createdAt).toLocaleString('ru-RU');
+      resultsContainerEl.prepend(label);
+    } catch (error) {
+      showToast(error.message || 'Не удалось открыть ответ.');
+    }
+  }
+
   function renderHistoryView() {
     resultsContainerEl.classList.remove('hidden');
     resultsContainerEl.innerHTML = '';
+    const wrap = document.createElement('section');
+    wrap.className = 'assistant-history-view';
 
-    const list = getHistory();
-    const favs = getFavorites();
+    const top = document.createElement('div');
+    top.className = 'assistant-history-top';
+    const title = document.createElement('h3');
+    title.textContent = 'История запросов и ответов';
+    const refresh = document.createElement('button');
+    refresh.type = 'button';
+    refresh.className = 'quiet-button small-button';
+    refresh.textContent = 'Обновить';
+    refresh.disabled = historyLoading;
+    refresh.addEventListener('click', () => { void loadAssistantHistory(); });
+    top.append(title, refresh);
+    wrap.append(top);
 
-    const header = document.createElement('div');
-    header.className = 'assistant-result-header';
-
-    const filterGroup = document.createElement('div');
-    filterGroup.className = 'assistant-history-filters';
-
-    const allBtn = document.createElement('button');
-    allBtn.type = 'button';
-    allBtn.className = `assistant-history-filter-btn ${activeHistoryFilter === 'all' ? 'active' : ''}`;
-    allBtn.textContent = `Все (${list.length})`;
-    allBtn.addEventListener('click', () => { activeHistoryFilter = 'all'; renderHistoryView(); });
-
-    const favBtn = document.createElement('button');
-    favBtn.type = 'button';
-    favBtn.className = `assistant-history-filter-btn ${activeHistoryFilter === 'favorites' ? 'active' : ''}`;
-    favBtn.textContent = `★ Избранные (${favs.length})`;
-    favBtn.addEventListener('click', () => { activeHistoryFilter = 'favorites'; renderHistoryView(); });
-
-    const successBtn = document.createElement('button');
-    successBtn.type = 'button';
-    const successCount = list.filter((it) => it.success).length;
-    successBtn.className = `assistant-history-filter-btn ${activeHistoryFilter === 'success' ? 'active' : ''}`;
-    successBtn.textContent = `✓ Успешные (${successCount})`;
-    successBtn.addEventListener('click', () => { activeHistoryFilter = 'success'; renderHistoryView(); });
-
-    filterGroup.append(allBtn, favBtn, successBtn);
-
-    const clearBtn = document.createElement('button');
-    clearBtn.type = 'button';
-    clearBtn.className = 'quiet-button small-button';
-    clearBtn.textContent = 'Очистить историю';
-    clearBtn.addEventListener('click', () => {
-      clearHistory();
+    const search = document.createElement('input');
+    search.type = 'search';
+    search.className = 'assistant-history-search';
+    search.placeholder = 'Найти в загруженной истории';
+    search.setAttribute('aria-label', 'Поиск по истории запросов');
+    search.value = historySearch;
+    search.addEventListener('input', () => {
+      historySearch = search.value;
       renderHistoryView();
+      const next = resultsContainerEl.querySelector('.assistant-history-search');
+      next?.focus();
+      next?.setSelectionRange(historySearch.length, historySearch.length);
     });
+    wrap.append(search);
 
-    header.append(filterGroup, clearBtn);
-    resultsContainerEl.append(header);
-
-    let displayList = list;
-    if (activeHistoryFilter === 'favorites') {
-      displayList = favs;
-    } else if (activeHistoryFilter === 'success') {
-      displayList = list.filter((it) => it.success);
+    const filters = document.createElement('div');
+    filters.className = 'assistant-history-filters';
+    for (const [value, label] of [['all', 'Все'], ['success', 'Готовые'], ['favorites', 'Избранные']]) {
+      const button = document.createElement('button');
+      button.type = 'button';
+      button.className = 'assistant-history-filter-btn' + (activeHistoryFilter === value ? ' active' : '');
+      button.textContent = label;
+      button.addEventListener('click', () => { activeHistoryFilter = value; renderHistoryView(); });
+      filters.append(button);
     }
+    wrap.append(filters);
 
-    if (!displayList.length) {
+    if (historyLoading || historyError) {
+      const state = document.createElement('p');
+      state.className = historyError ? 'error-text' : 'helper';
+      state.textContent = historyError || 'Загрузка истории…';
+      wrap.append(state);
+    }
+    const items = historyRecords.filter((item) => {
+      if (activeHistoryFilter === 'success' && item.status !== 'completed') return false;
+      if (activeHistoryFilter === 'favorites' && !isFavorite(item.promptText)) return false;
+      return !historySearch || (item.promptText || '').toLocaleLowerCase('ru-RU')
+        .includes(historySearch.toLocaleLowerCase('ru-RU'));
+    });
+    if (items.length === 0 && !historyLoading) {
       const empty = document.createElement('p');
       empty.className = 'helper';
-      empty.textContent = activeHistoryFilter === 'favorites' ? 'В избранном пока нет запросов. Нажмите ★ на карточке запроса.' : 'История запросов пуста.';
-      resultsContainerEl.append(empty);
-      return;
+      empty.textContent = historySearch ? 'В загруженной части истории совпадений нет.'
+        : 'Сохранённых запросов пока нет.';
+      wrap.append(empty);
     }
-
-    const histList = document.createElement('div');
-    histList.className = 'assistant-history-list';
-
-    displayList.forEach((item) => {
-      const row = document.createElement('div');
+    const list = document.createElement('div');
+    list.className = 'assistant-history-list';
+    for (const item of items) {
+      const row = document.createElement('article');
       row.className = 'assistant-history-item';
-
-      const favStarred = isFavorite(item.query);
-      const starBtn = document.createElement('button');
-      starBtn.type = 'button';
-      starBtn.className = `assistant-history-star-btn ${favStarred ? 'starred' : ''}`;
-      starBtn.textContent = favStarred ? '★' : '☆';
-      starBtn.title = favStarred ? 'Удалить из избранного' : 'Добавить в избранное';
-      starBtn.addEventListener('click', (e) => {
-        e.stopPropagation();
-        toggleFavorite(item);
+      const star = document.createElement('button');
+      star.type = 'button';
+      star.className = 'assistant-history-star-btn';
+      star.textContent = isFavorite(item.promptText) ? '★' : '☆';
+      star.setAttribute('aria-label', 'Добавить или убрать из избранного');
+      star.addEventListener('click', () => {
+        toggleFavorite({ query: item.promptText, mode: item.task });
         renderHistoryView();
       });
+      row.append(star);
 
-      const contentBox = document.createElement('div');
-      contentBox.className = 'assistant-history-item-content';
+      const open = document.createElement('button');
+      open.type = 'button';
+      open.className = 'assistant-history-record';
+      open.disabled = Boolean(item.redacted);
+      const query = document.createElement('strong');
+      query.textContent = item.redacted ? 'Ответ скрыт: недоступный источник'
+        : (item.promptText || '(пустой запрос)').slice(0, 180);
+      const meta = document.createElement('span');
+      meta.className = 'assistant-history-meta';
+      meta.textContent = [item.task, new Date(item.createdAt).toLocaleString('ru-RU'),
+        item.status === 'completed' ? 'Готово' : item.status === 'aborted' ? 'Остановлено' : 'Ошибка'
+      ].join(' · ');
+      open.append(query, meta);
+      open.addEventListener('click', () => { void openAssistantHistoryRecord(item); });
+      row.append(open);
 
-      const titleSpan = document.createElement('span');
-      titleSpan.className = 'assistant-history-query';
-      titleSpan.textContent = item.query ? item.query.slice(0, 100) : '(пустой запрос)';
-
-      const metaRow = document.createElement('div');
-      metaRow.className = 'assistant-history-meta';
-
-      const modeBadge = document.createElement('span');
-      modeBadge.className = 'assistant-history-mode-tag';
-      modeBadge.textContent = item.mode || 'запрос';
-
-      const dateSpan = document.createElement('span');
-      dateSpan.className = 'helper';
-      dateSpan.textContent = new Date(item.timestamp || item.starredAt || Date.now()).toLocaleDateString();
-
-      metaRow.append(modeBadge, dateSpan);
-      contentBox.append(titleSpan, metaRow);
-
-      const rerunBtn = document.createElement('button');
-      rerunBtn.type = 'button';
-      rerunBtn.className = 'quiet-button small-button assistant-history-rerun-btn';
-      rerunBtn.textContent = 'Открыть ↵';
-      rerunBtn.title = 'Загрузить этот запрос в поле ввода';
-
-      row.append(starBtn, contentBox, rerunBtn);
-      row.addEventListener('click', () => {
-        setMode(item.mode);
-        textareaEl.value = item.query;
-        updateCharCount();
-        if (item.result) {
-          renderResult(item.result);
-        }
+      const remove = document.createElement('button');
+      remove.type = 'button';
+      remove.className = 'quiet-button small-button';
+      remove.textContent = 'Удалить';
+      remove.setAttribute('aria-label', 'Удалить запись');
+      remove.addEventListener('click', async () => {
+        if (!window.confirm('Удалить этот сохранённый ответ?')) return;
+        try {
+          const response = await fetch('/api/assistant/history/' + encodeURIComponent(item.id), { method: 'DELETE' });
+          if (!response.ok) throw new Error('Удалить запись не удалось.');
+          historyRecords = historyRecords.filter((run) => run.id !== item.id);
+          renderHistoryView();
+        } catch (error) { showToast(error.message); }
       });
+      row.append(remove);
+      list.append(row);
+    }
+    wrap.append(list);
 
-      histList.append(row);
-    });
-
-    resultsContainerEl.append(histList);
+    if (historyNextCursor) {
+      const more = document.createElement('button');
+      more.type = 'button';
+      more.className = 'secondary-button';
+      more.textContent = 'Показать ещё';
+      more.disabled = historyLoading;
+      more.addEventListener('click', () => { void loadAssistantHistory({ append: true }); });
+      wrap.append(more);
+    }
+    if (historyRecords.length) {
+      const clear = document.createElement('button');
+      clear.type = 'button';
+      clear.className = 'quiet-button small-button assistant-history-delete-all';
+      clear.textContent = 'Удалить всю историю';
+      clear.addEventListener('click', async () => {
+        if (!window.confirm('Удалить все сохранённые ответы этого пользователя?')) return;
+        try {
+          const response = await fetch('/api/assistant/history', { method: 'DELETE' });
+          if (!response.ok) throw new Error('Не удалось очистить историю.');
+          historyRecords = [];
+          historyNextCursor = null;
+          renderHistoryView();
+        } catch (error) { showToast(error.message); }
+      });
+      wrap.append(clear);
+    }
+    if (getHistory().length) {
+      const note = document.createElement('p');
+      note.className = 'helper assistant-history-legacy';
+      note.textContent = 'Ранние записи сохранены в памяти этого браузера. Они не перенесены автоматически, поскольку не были привязаны к пользователю.';
+      wrap.append(note);
+    }
+    resultsContainerEl.append(wrap);
   }
 
   function open(options = {}) {
