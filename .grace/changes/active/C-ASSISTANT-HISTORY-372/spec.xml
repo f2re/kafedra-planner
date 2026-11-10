@@ -1,0 +1,44 @@
+<GraceChangeSpec graceVersion="4.0" status="approved">
+  <C-ASSISTANT-HISTORY-372>
+    <Summary>Extend the existing offline AI assistant with durable operator-owned answer history, verified document-version references and source actions, without replacing existing models, FTS, ACL or document storage.</Summary>
+    <Problem>On main@8d6ec438563fefc52077bcc9058234c72a841bf3, results can be raw and invisible, history is browser-only, and archive citations are not bound to the exact source candidate. Document evidence cannot be opened or downloaded directly from the assistant answer.</Problem>
+    <Goals>
+      <Goal>Persist structured answer, verbatim model response, status, prompt, duration, source references and owner in SQLite schema 32; allow paginated re-open without LLM inference.</Goal>
+      <Goal>Link only to authorized FTS candidates and immutable document versions; re-evaluate ACL on each saved-history read and document GET.</Goal>
+      <Goal>Render raw, invalid-JSON and normal task responses safely with human-readable source cards and canonical open/preview/download actions.</Goal>
+      <Goal>Preserve disabled, failed and interrupted statuses and report any failure to save the answer.</Goal>
+      <Goal>Verify clean install, schema 31 to 32 upgrade, retry, integrity, backup/restore, forced migration failure and desktop/mobile operator UX.</Goal>
+    </Goals>
+    <Constraints>
+      <Constraint>Exact baseline main 8d6ec438563fefc52077bcc9058234c72a841bf3, release 0.4.12, schema 31; linked issue 372. Existing applied migrations must remain unchanged. Migration 032 is additive and subject to coordination with independent issue 371 before merge.</Constraint>
+      <Constraint>No second document store, regenerated evidence, external CDN, mandatory cloud/model, or untrusted HTML execution. Found references must originate in authorized retrieval and have a valid source kind and object ID.</Constraint>
+      <Constraint>Do not store model chain-of-thought, LLM API keys or secrets. Store raw response only, with bounded size and same ACL redaction as the structured answer.</Constraint>
+      <Constraint>History lists are scoped to current workspace and account. History redaction after source access revocation must not leak response, prompt, raw text, or source snippets. Real-time output must also be authorization-checked.</Constraint>
+      <Constraint>Original document blobs, SHA-256 and document_version records remain immutable; links can target an earlier version but never cause mutation.</Constraint>
+      <Constraint>Browser-only history from earlier versions is not silently migrated across accounts because its entries have no owner identity. The local data is retained.</Constraint>
+      <Constraint>Keep the existing responsive sheet, task modes, document preview and main navigation. Do not duplicate search or introduce new production mocks.</Constraint>
+    </Constraints>
+    <NonGoals>
+      <NonGoal>Full multi-turn conversational agent, autonomous writes to plans, official reports or calendar, external sharing or automatic trust in LLM citations.</NonGoal>
+      <NonGoal>Separate deployment, version increment, installer change or a release workflow run for this feature PR.</NonGoal>
+    </NonGoals>
+    <AcceptanceCriteria>
+      <Criterion>The stream returns a source-linked structured result; failed JSON renders as safe readable text rather than an empty panel, and rejected streams are visible.</Criterion>
+      <Criterion>History survives page reload and supports 31 or more saved requests, pagination, re-open without model call, user-specific deletion and stable ownership isolation.</Criterion>
+      <Criterion>Clicking any valid source in an answer opens the app document card, previews when available, opens an original in a new tab and downloads the selected immutable version.</Criterion>
+      <Criterion>Forged source IDs or protocol references in model output cannot create verified source actions; revocation blocks both history replay and all content routes.</Criterion>
+      <Criterion>Schema 31 to 32 migration, repeat migration, PRAGMA quick_check, foreign_key_check, backup verification, restore and forced failure rollback preserve existing data.</Criterion>
+      <Criterion>Desktop/mobile browser checks cover result, history, document actions, fallback, unavailable LLM, XSS and page width; project check, tests, smoke and relevant CI pass.</Criterion>
+      <Criterion>Implementation remains fully functional without remote dependencies, without changing document-source semantics, and without independent agent claims unsupported by tooling.</Criterion>
+    </AcceptanceCriteria>
+    <AffectedAreas><M-DATABASE /><M-API /></AffectedAreas>
+    <VerificationIntent>
+      <ExpectedCommand>npm run check</ExpectedCommand>
+      <ExpectedCommand>npm run docs:check</ExpectedCommand>
+      <ExpectedCommand>node --test tests/assistant-history.test.mjs tests/assistant-router.test.mjs tests/assistant-tasks.test.mjs tests/document-file.test.mjs</ExpectedCommand>
+      <ExpectedCommand>npm run smoke</ExpectedCommand>
+      <ExpectedCommand>npx playwright test tests/browser/assistant-history.spec.mjs</ExpectedCommand>
+      <ExpectedEvidence>GRACE final lint/scope and targeted project CI prove the change on the exact PR head; schema-risk regression checks prove recovery without rebuilding offline bundles during a feature PR.</ExpectedEvidence>
+    </VerificationIntent>
+  </C-ASSISTANT-HISTORY-372>
+</GraceChangeSpec>

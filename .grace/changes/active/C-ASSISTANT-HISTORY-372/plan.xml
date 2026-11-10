@@ -1,0 +1,59 @@
+<GraceChangePlan graceVersion="4.0" status="approved">
+  <C-ASSISTANT-HISTORY-372>
+    <IntentSummary>Close the operator path from one model request to a readable answer, verified archive evidence, document action and durable history; keep schema and ACL safe.</IntentSummary>
+    <BaselineAssertions>
+      <MustExist><Value>migrations/031_academic_performance.sql</Value></MustExist>
+      <MustExist><Value>public/assistant-sheet.js</Value></MustExist>
+      <MustExist><Value>apps/api/src/assistant-router.mjs</Value></MustExist>
+      <MustExist><Value>packages/storage/src/document-files.mjs</Value></MustExist>
+      <MustVerify><Module>M-API</Module></MustVerify>
+      <MustVerify><Module>M-DATABASE</Module></MustVerify>
+    </BaselineAssertions>
+    <TargetAssertions>
+      <MustExist><Value>migrations/032_assistant_history.sql</Value></MustExist>
+      <MustExist><Value>packages/ai/src/assistant-history.mjs</Value></MustExist>
+      <MustExist><Value>public/assistant-answer.js</Value></MustExist>
+      <MustExist><Value>tests/assistant-history.test.mjs</Value></MustExist>
+      <MustExist><Value>tests/browser/assistant-history.spec.mjs</Value></MustExist>
+      <MustExist><Value>docs/ASSISTANT_WORKSPACE.md</Value></MustExist>
+      <MustContain><File>apps/api/src/assistant-router.mjs</File><Text>persistAssistantResult</Text></MustContain>
+      <MustContain><File>packages/storage/src/document-files.mjs</File><Text>COALESCE(?, d.current_version_id)</Text></MustContain>
+      <MustContain><File>public/assistant-sheet.js</File><Text>loadAssistantHistory</Text></MustContain>
+      <MustContain><File>public/assistant-answer.js</File><Text>appendAssistantSources</Text></MustContain>
+      <MustVerify><Module>M-API</Module></MustVerify>
+      <MustVerify><Module>M-DATABASE</Module></MustVerify>
+    </TargetAssertions>
+    <DurableScope>
+      <GraphAnchors><M-API /><M-DATABASE /></GraphAnchors>
+      <VerificationAnchors><V-M-API /><V-M-DATABASE /></VerificationAnchors>
+      <ContextArtifacts><ContextArtifact>principles.xml</ContextArtifact><ContextArtifact>technology.xml</ContextArtifact></ContextArtifacts>
+    </DurableScope>
+    <ObservedWriteScope>
+      <Glob>.grace/changes/active/C-ASSISTANT-HISTORY-372/**</Glob>
+      <File>migrations/032_assistant_history.sql</File>
+      <File>packages/ai/src/assistant-history.mjs</File>
+      <File>packages/ai/src/assistant-tasks.mjs</File>
+      <File>apps/api/src/assistant-router.mjs</File>
+      <File>apps/api/src/router.mjs</File>
+      <File>apps/api/src/access-router.mjs</File>
+      <File>packages/storage/src/document-files.mjs</File>
+      <File>packages/system/src/acceptance.mjs</File>
+      <File>public/assistant-sheet.js</File>
+      <File>public/assistant-sheet.css</File>
+      <File>public/assistant-answer.js</File>
+      <File>docs/ASSISTANT_WORKSPACE.md</File>
+      <File>docs/LLM_ASSISTANT_TOOLS.md</File>
+      <File>tests/assistant-history.test.mjs</File>
+      <File>tests/assistant-tasks.test.mjs</File>
+      <File>tests/document-file.test.mjs</File>
+      <File>tests/browser/assistant-history.spec.mjs</File>
+    </ObservedWriteScope>
+    <ImplementationPlan>
+      <T-001><Title>kafedra-flow-intake and kafedra-design: define a single-screen response/source/history flow</Title><DependsOn></DependsOn><AcceptanceCriteria><Criterion>Existing sheet, modes, keyboard use and responsive layout remain intact. Links have clear open, preview and download verbs.</Criterion></AcceptanceCriteria><Verification><Command>Focused Playwright desktop/mobile</Command></Verification></T-001>
+      <T-002><Title>kafedra-data: SQLite history and immutable source provenance</Title><DependsOn><T-001 /></DependsOn><AcceptanceCriteria><Criterion>Add migration 032, owner isolation, cursor history, ACL revalidation, backend source version lookup and data recovery.</Criterion></AcceptanceCriteria><Verification><Command>Targeted migration/backup tests</Command></Verification></T-002>
+      <T-003><Title>kafedra-feature: sync/SSE, structured/raw renderer, canonical source actions</Title><DependsOn><T-002 /></DependsOn><AcceptanceCriteria><Criterion>Completion/error saved and faithfully rendered; unsupported results remain inspectable; forged citations cannot open arbitrary documents.</Criterion></AcceptanceCriteria><Verification><Command>Targeted API and browser checks</Command></Verification></T-003>
+      <T-004><Title>kafedra-tests: regression and negative permissions</Title><DependsOn><T-003 /></DependsOn><AcceptanceCriteria><Criterion>Verify owner separation, revoked document, original version, canceled/unavailable model, script injection, mobile layout and actual history replay.</Criterion></AcceptanceCriteria><Verification><Command>Existing project CI plus targeted Playwright</Command></Verification></T-004>
+      <T-005><Title>Integration review and controlled GitHub merge</Title><DependsOn><T-004 /></DependsOn><AcceptanceCriteria><Criterion>Check exact head, source diff, reviews, GRACE final lint and applicable CI, then squash merge only if all are green.</Criterion></AcceptanceCriteria><Verification><Command>GitHub checks API</Command></Verification></T-005>
+    </ImplementationPlan>
+  </C-ASSISTANT-HISTORY-372>
+</GraceChangePlan>
