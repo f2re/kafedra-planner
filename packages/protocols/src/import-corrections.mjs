@@ -13,7 +13,8 @@ function finishMetadataCorrection(database,workspaceId,documentId,versionId,meet
   const remaining=Number(database.get(`SELECT COUNT(*) AS n FROM review_items
     WHERE workspace_id=? AND source_kind='document_version' AND source_id=? AND status='open'`,workspaceId,versionId).n);
   const status=remaining ? 'needs_review' : 'processed';
-  database.run('UPDATE document_versions SET processing_status=?,extraction_error=NULL WHERE id=?',status,versionId);
+  database.run(`UPDATE document_versions SET processing_status=?,
+    extraction_error=CASE WHEN ?='processed' THEN NULL ELSE extraction_error END WHERE id=?`,status,status,versionId);
   database.run("UPDATE documents SET status=?,document_type='department_protocol',updated_at=? WHERE id=?",status,now,documentId);
 }
 export function protocolImportSource(database,workspaceId,documentId) {

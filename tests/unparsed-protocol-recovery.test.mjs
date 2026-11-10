@@ -41,7 +41,7 @@ async function createFailedDocument(database, workspaceId, dir, suffix) {
   return { documentId, versionId, reviewId };
 }
 
-test('оператор может исправить нераспознанный протокол и создать заседание через correctProtocolMetadata', () => fixture(
+test('ручные реквизиты создают заседание, сохраняя нерешённую ошибку распознавания протокола', () => fixture(
   'kafedra-unparsed-recovery-', async (database, workspace, dir) => {
     const { documentId, versionId, reviewId } = await createFailedDocument(database, workspace.id, dir, 'scan-1');
 
@@ -71,16 +71,18 @@ test('оператор может исправить нераспознанны�
     assert.equal(meeting.chairperson_raw, 'Петров П.П.');
     assert.equal(meeting.secretary_raw, 'Сидорова С.С.');
 
-    // Проверяем, что документ и версия перешли в processed
+    // Реквизиты восстановлены, но текст повестки и решений ещё не проверен.
     const doc = database.get('SELECT status FROM documents WHERE id = ?', documentId);
-    assert.equal(doc.status, 'processed');
+    assert.equal(doc.status, 'needs_review');
     const docv = database.get('SELECT processing_status, extraction_error FROM document_versions WHERE id = ?', versionId);
-    assert.equal(docv.processing_status, 'processed');
-    assert.equal(docv.extraction_error, null);
+    assert.equal(docv.processing_status, 'needs_review');
+    assert.equal(docv.extraction_error, 'Ошибка распознавания скана');
+    assert.equal(result.processingStatus, 'needs_review');
+    assert.equal(database.get('SELECT COUNT(*) AS n FROM agenda_items WHERE meeting_id = ?', meeting.id).n, 0);
 
-    // Проверяем, что связанный review_item был закрыт
+    // Ввод даты и номера не означает подтверждение нераспознанного содержания.
     const review = database.get('SELECT status FROM review_items WHERE id = ?', reviewId);
-    assert.equal(review.status, 'resolved');
+    assert.equal(review.status, 'open');
   }
 ));
 
