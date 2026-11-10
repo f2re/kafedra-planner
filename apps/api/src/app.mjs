@@ -7,6 +7,7 @@ import { createPlansRouter } from './plans-router.mjs';
 import { createPlanItemsRouter } from './plan-items-router.mjs';
 import { createPlanSourceRowsRouter } from './plan-source-rows-router.mjs';
 import { createManualPlansRouter } from './manual-plans-router.mjs';
+import { createMonthlyPlansRouter } from './monthly-plans-router.mjs';
 import { createMeetingsRouter } from './protocol-import-router.mjs';
 import { createUiPreferencesRouter } from './ui-preferences-router.mjs';
 import { createNotificationDeliveryRouter } from './notification-delivery-router.mjs';
@@ -29,6 +30,7 @@ import { createFolderSyncRouter } from './folder-sync-router.mjs';
 import { resolveAuthContext } from '../../../packages/auth/src/service.mjs';
 import { authorizeApiRequest } from '../../../packages/auth/src/policy.mjs';
 import { authorizeCsrfRequest } from '../../../packages/auth/src/csrf.mjs';
+import { assertMonthlyExportDocumentRequest } from '../../../packages/plan-docx/src/monthly-export.mjs';
 import { sendError, serveStatic } from './http-utils.mjs';
 
 export function createApp({ database, config, logger }) {
@@ -44,6 +46,7 @@ export function createApp({ database, config, logger }) {
   const searchRouter = createSearchRouter({ database, config, logger });
   const documentReprocessRouter = createDocumentReprocessRouter({ database, config, logger });
   const manualPlansRouter = createManualPlansRouter({ database, config, logger });
+  const monthlyPlansRouter = createMonthlyPlansRouter({ database, config, logger });
   const planItemsRouter = createPlanItemsRouter({ database, config, logger });
   const planSourceRowsRouter = createPlanSourceRowsRouter({ database, config, logger });
   const plansRouter = createPlansRouter({ database, config, logger });
@@ -79,6 +82,7 @@ export function createApp({ database, config, logger }) {
         const authHandled = await authRouter(request, response, url, requestId);
         if (!authHandled && !response.headersSent) {
           authorizeApiRequest(request.auth, url.pathname);
+          assertMonthlyExportDocumentRequest(database, request.auth, url.pathname, request.method);
           const lifecycleHandled = await lifecycleRouter(request, response, url, requestId);
           if (lifecycleHandled || response.headersSent) return;
           const preferencesHandled = await uiPreferencesRouter(request, response, url, requestId);
@@ -120,7 +124,8 @@ export function createApp({ database, config, logger }) {
             : false;
           let extensionHandled = false;
           if (!preferencesHandled && !notificationHandled && !responsibilityHandled && !periodicCompletionHandled && !periodicHandled && !searchHandled && !manualPlansHandled && !planItemHandled && !planSourceRowsHandled && !plansHandled && !meetingsHandled && !documentReprocessHandled && !accessHandled && !response.headersSent) {
-            extensionHandled = await docomatorIntegrationRouter(request, response, url, requestId);
+            extensionHandled = await monthlyPlansRouter(request, response, url, requestId);
+            if (!extensionHandled && !response.headersSent) extensionHandled = await docomatorIntegrationRouter(request, response, url, requestId);
             if (!extensionHandled && !response.headersSent) extensionHandled = await organizationRouter(request, response, url, requestId);
             if (!extensionHandled && !response.headersSent) extensionHandled = await scienceLifecycleRouter(request, response, url, requestId);
             if (!extensionHandled && !response.headersSent) extensionHandled = await scienceImportRouter020(request, response, url, requestId);

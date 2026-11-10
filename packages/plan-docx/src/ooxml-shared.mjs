@@ -150,9 +150,12 @@ export function replaceVisibleText(xml, search, replacement) {
     node.textEnd = offset;
   }
   const visible = nodes.map((node) => node.text).join('');
-  const start = visible.indexOf(String(search || ''));
-  if (start < 0 || !String(search || '').length) return { xml: source, changed: false };
-  const end = start + String(search).length;
+  const match = search instanceof RegExp
+    ? new RegExp(search.source, search.flags.replace(/[gy]/gu, '')).exec(visible)
+    : { index: visible.indexOf(String(search || '')), 0: String(search || '') };
+  const start = match?.index ?? -1;
+  if (start < 0 || !match[0].length) return { xml: source, changed: false };
+  const end = start + match[0].length;
   let inserted = false;
   const replacements = [];
   for (const node of nodes) {

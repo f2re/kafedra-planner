@@ -22,6 +22,29 @@ ensureDefaultWorkspace(database);
 const workerId = `${hostname()}:${process.pid}`;
 let stopping = false;
 let nextNotificationSweep = 0;
+let pendingPlanLlm = null;
+
+function finishOptionalPlanJob(job, error = null) {
+  return database.transaction(() => {
+    const current = database.get('SELECT status, locked_by FROM jobs WHERE id = ?', job.id);
+    if (current?.status !== 'running' || current.locked_by !== workerId) return false;
+    if (error) failJob(database, job, error);
+    else completeJob(database, job.id);
+    return true;
+  });
+}
+
+function startOptionalPlanJob(job, jobLogger) {
+  pendingPlanLlm = dispatchJob(database, job, jobLogger, config)
+    .then(() => {
+      if (finishOptionalPlanJob(job)) jobLogger.info('optional plan job completed');
+    })
+    .catch((error) => {
+      finishOptionalPlanJob(job, error);
+      jobLogger.error('optional plan job failed', { error: String(error?.stack || error) });
+    })
+    .finally(() => { pendingPlanLlm = null; });
+}
 
 for (const signal of ['SIGTERM', 'SIGINT']) {
   process.on(signal, () => {
@@ -45,13 +68,22 @@ while (!stopping) {
   }
 
   const job = acquireJob(database, workerId, config.workerLeaseSeconds, new Date(), {
-    excludeKinds: config.notificationDeliveryEnabled ? [] : ['deliver_notification']
+    excludeKinds: [
+      ...(config.notificationDeliveryEnabled ? [] : ['deliver_notification']),
+      ...(pendingPlanLlm ? ['enrich_plan'] : [])
+    ]
   });
   if (!job) {
     await new Promise((resolve) => setTimeout(resolve, config.workerPollMs));
     continue;
   }
   const jobLogger = logger.child({ jobId: job.id, jobKind: job.kind });
+  if (job.kind === 'enrich_plan') {
+    // One bounded optional request can run while new files keep importing.
+    // Completion and failures are recorded only after the request settles.
+    startOptionalPlanJob(job, jobLogger);
+    continue;
+  }
   try {
     if (job.kind === 'deliver_notification') {
       await processNotificationDeliveryJob(database, job, jobLogger, config);
@@ -69,5 +101,6 @@ while (!stopping) {
   }
 }
 
+if (pendingPlanLlm) await pendingPlanLlm;
 database.close();
 logger.info('worker stopped');

@@ -6,7 +6,10 @@ const MONTHS = new Map([
   ['май', 5], ['мая', 5], ['июнь', 6], ['июня', 6],
   ['июль', 7], ['июля', 7], ['август', 8], ['августа', 8],
   ['сентябрь', 9], ['сентября', 9], ['октябрь', 10], ['октября', 10],
-  ['ноябрь', 11], ['ноября', 11], ['декабрь', 12], ['декабря', 12]
+  ['ноябрь', 11], ['ноября', 11], ['декабрь', 12], ['декабря', 12],
+  ['январе', 1], ['феврале', 2], ['марте', 3], ['апреле', 4],
+  ['мае', 5], ['июне', 6], ['июле', 7], ['августе', 8],
+  ['сентябре', 9], ['октябре', 10], ['ноябре', 11], ['декабре', 12]
 ]);
 const MONTH_PATTERN = [...MONTHS.keys()].join('|');
 
@@ -90,33 +93,72 @@ export function extractPlanPeriod(text, title = '') {
   return { kind: 'unknown', key: null, yearStart: null, yearEnd: null, confidence: 0, evidence: null };
 }
 
-function parseMonthWindow(source, period) {
-  const range = source.match(new RegExp(`(0?[1-9]|[12]\\d|3[01])\\s*[–—-]\\s*(0?[1-9]|[12]\\d|3[01])\\s+(${MONTH_PATTERN})(?:\\s+(20\\d{2}))?`, 'iu'));
-  if (range) {
-    const month = MONTHS.get(lower(range[3]));
-    const year = Number(range[4] || inferYear(month, period));
-    const start = year ? isoDate(year, month, Number(range[1])) : null;
-    const end = year ? isoDate(year, month, Number(range[2])) : null;
-    if (start && end) return { start, end, precision: 'range', raw: range[0] };
-  }
+function unresolved(raw, precision = 'none') {
+  return { start: null, end: null, precision, raw };
+}
 
-  const monthMatch = source.match(new RegExp(`(${MONTH_PATTERN})(?:\\s+(20\\d{2}))?`, 'iu'));
-  if (monthMatch) {
-    const month = MONTHS.get(lower(monthMatch[1]));
-    const year = Number(monthMatch[2] || inferYear(month, period));
-    if (year) {
-      return {
-        start: isoDate(year, month, 1),
-        end: isoDate(year, month, monthEnd(year, month)),
-        precision: 'month', raw: monthMatch[0]
-      };
+function validDateParts(parts, year) {
+  // A missing year may still describe February 29; do not invent the actual year.
+  return isoDate(year || 2024, parts.month, parts.day);
+}
+
+function dateTokens(source) {
+  const matches = [];
+  const collect = (pattern, parts) => {
+    for (const match of source.matchAll(pattern)) {
+      const end = match.index + match[0].length;
+      if (matches.some((item) => item.index < end && item.end > match.index)) continue;
+      matches.push({ ...parts(match), index: match.index, end, raw: match[0] });
     }
+  };
+  collect(/(?<![\p{L}\d])((?:19|20)\d{2})-(\d{1,2})-(\d{1,2})(?!\d)/giu,
+    (m) => ({ year: Number(m[1]), month: Number(m[2]), day: Number(m[3]) }));
+  collect(/(?<![\d./])(\d{1,2})[./-](\d{1,2})(?:[./-]((?:19|20)\d{2}))?(?![\d./])/gu,
+    (m) => ({ year: m[3] ? Number(m[3]) : null, month: Number(m[2]), day: Number(m[1]) }));
+  collect(new RegExp(`(?<![\\p{L}\\d])[«"“]?(\\d{1,2})[»"”]?\\s*(${MONTH_PATTERN})(?![\\p{L}])(?:\\s+((?:19|20)\\d{2})(?!\\d))?`, 'giu'),
+    (m) => ({ year: m[3] ? Number(m[3]) : null, month: MONTHS.get(lower(m[2])), day: Number(m[1]) }));
+  return matches.sort((a, b) => a.index - b.index);
+}
+
+function rangeSeparator(value) {
+  return /^(?:\s*г(?:ода|од|\.)?)?\s*(?:[–—-]|по|до)\s*$/iu.test(value);
+}
+
+function dateRange(left, right, raw, period) {
+  const leftYear = left.year || (right.year && left.month <= right.month ? right.year : inferYear(left.month, period)) || right.year;
+  const rightYear = right.year || (left.year && right.month >= left.month ? left.year : inferYear(right.month, period)) || left.year;
+  if (!validDateParts(left, leftYear) || !validDateParts(right, rightYear)) return unresolved(raw, 'invalid');
+  if (!leftYear || !rightYear) return unresolved(raw);
+  const start = isoDate(leftYear, left.month, left.day);
+  const end = isoDate(rightYear, right.month, right.day);
+  if (end < start) return unresolved(raw, 'invalid');
+  return { start, end, precision: 'range', raw, ...(!left.year || !right.year ? { inferredYear: true } : {}) };
+}
+
+function parseMonthWindow(source, period) {
+  const matches = [...source.matchAll(new RegExp(`(?<![\\p{L}])(${MONTH_PATTERN})(?![\\p{L}])(?:\\s+((?:19|20)\\d{2})(?!\\d))?`, 'giu'))];
+  if (matches.length === 2 && rangeSeparator(source.slice(matches[0].index + matches[0][0].length, matches[1].index))) {
+    const left = { day: 1, month: MONTHS.get(lower(matches[0][1])), year: Number(matches[0][2]) || null };
+    const right = { day: 1, month: MONTHS.get(lower(matches[1][1])), year: Number(matches[1][2]) || null };
+    const range = dateRange(left, right, source.slice(matches[0].index, matches[1].index + matches[1][0].length), period);
+    if (range.end) {
+      const year = Number(range.end.slice(0, 4));
+      range.end = isoDate(year, right.month, monthEnd(year, right.month));
+    }
+    return range;
   }
-  return null;
+  if (matches.length !== 1) return matches.length ? unresolved(source) : null;
+  const match = matches[0];
+  const month = MONTHS.get(lower(match[1]));
+  const year = Number(match[2] || inferYear(month, period));
+  return year ? {
+    start: isoDate(year, month, 1), end: isoDate(year, month, monthEnd(year, month)),
+    precision: 'month', raw: match[0]
+  } : unresolved(source);
 }
 
 function parseQuarterWindow(source, period) {
-  const match = source.match(/([1-4]|I{1,3}|IV)\s*(?:квартал|кв\.)\s*(20\d{2})?/iu);
+  const match = source.match(/(?<![\p{L}\d])([1-4]|IV|I{1,3})\s*(?:квартал|кв\.)\s*(20\d{2})?/iu);
   if (!match) return null;
   const roman = { I: 1, II: 2, III: 3, IV: 4 };
   const quarter = Number(match[1]) || roman[String(match[1]).toUpperCase()] || null;
@@ -133,34 +175,35 @@ function parseQuarterWindow(source, period) {
 
 export function parsePlanDateWindow(value, period = null) {
   const source = clean(value);
-  if (!source) return { start: null, end: null, precision: 'none', raw: '' };
-  const explicit = findRussianDates(source);
-  if (explicit.length) {
+  if (!source) return unresolved('');
+  const tokens = dateTokens(source);
+  // Resolve a shared month before looking at the final day in the range.
+  const shared = source.match(new RegExp(`(?<![\\p{L}\\d])[«"“]?(\\d{1,2})[»"”]?\\s*(?:[–—-]|по)\\s*[«"“]?(\\d{1,2})[»"”]?\\s*(${MONTH_PATTERN})(?![\\p{L}])(?:\\s+((?:19|20)\\d{2})(?!\\d))?`, 'iu'));
+  if (shared) {
+    if (tokens.some((token) => token.index < shared.index || token.end > shared.index + shared[0].length)) return unresolved(source);
+    const month = MONTHS.get(lower(shared[3]));
+    const year = Number(shared[4]) || inferYear(month, period);
+    const range = dateRange({ day: Number(shared[1]), month, year }, { day: Number(shared[2]), month, year }, shared[0], period);
+    return range.start && !shared[4] ? { ...range, inferredYear: true } : range;
+  }
+  const separateDays = new RegExp(`(?<![\\p{L}\\d])\\d{1,2}(?:\\s*(?:,|;|и|или)\\s*\\d{1,2})+\\s+(${MONTH_PATTERN})(?![\\p{L}])`, 'iu');
+  if (separateDays.test(source)) return unresolved(source);
+  if (tokens.length === 2 && rangeSeparator(source.slice(tokens[0].end, tokens[1].index))) {
+    return dateRange(tokens[0], tokens[1], source.slice(tokens[0].index, tokens[1].end), period);
+  }
+  if (tokens.some((token) => !validDateParts(token, token.year || inferYear(token.month, period)))) return unresolved(source, 'invalid');
+  if (tokens.length > 1) return unresolved(source);
+  if (tokens.length === 1) {
+    const token = tokens[0];
+    const year = token.year || inferYear(token.month, period);
+    if (!year) return unresolved(source);
     return {
-      start: explicit[0].value,
-      end: explicit.length > 1 ? explicit.at(-1).value : null,
-      precision: explicit.length > 1 ? 'range' : 'day',
-      raw: explicit.map((item) => item.raw).join(' – ')
+      start: isoDate(year, token.month, token.day), end: null, precision: 'day', raw: token.raw,
+      ...(!token.year ? { inferredYear: true } : {})
     };
-  }
-
-  const numeric = source.match(/\b(0?[1-9]|[12]\d|3[01])[./-](0?[1-9]|1[0-2])\b/);
-  if (numeric) {
-    const month = Number(numeric[2]);
-    const year = inferYear(month, period);
-    const date = year ? isoDate(year, month, Number(numeric[1])) : null;
-    if (date) return { start: date, end: null, precision: 'day', raw: numeric[0], inferredYear: true };
-  }
-
-  const wordDay = source.match(new RegExp(`(0?[1-9]|[12]\\d|3[01])\\s+(${MONTH_PATTERN})`, 'iu'));
-  if (wordDay) {
-    const month = MONTHS.get(lower(wordDay[2]));
-    const year = inferYear(month, period);
-    const date = year ? isoDate(year, month, Number(wordDay[1])) : null;
-    if (date) return { start: date, end: null, precision: 'day', raw: wordDay[0], inferredYear: true };
   }
 
   return parseMonthWindow(source, period)
     || parseQuarterWindow(source, period)
-    || { start: null, end: null, precision: 'none', raw: source };
+    || unresolved(source);
 }

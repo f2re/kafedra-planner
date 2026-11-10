@@ -1,6 +1,6 @@
 {
   "schema": "kafedra-ui-source-index-v1",
-  "sourceFingerprint": "63e238cdbd5b31cc935ff566d90ce886357012e8e7be5173fae64ef0fc93c980",
+  "sourceFingerprint": "4a4023bad999f1af8f37153a7c9c84ee1551cf51e9a7aefad02ba9ebe1e961c3",
   "kindCodes": {
     "control": "c",
     "choice": "o",
@@ -21,23 +21,23 @@
   "recordFormat": "Each token is kind:line:column. Coordinates are 1-based UTF-16. File owner and planned status apply to every token. Reconstruct full labels, contexts, tags and acceptance with inventory.mjs; unknown runtime variants require R0.",
   "status": "planned; runtime evidence pending",
   "summary": {
-    "files": 124,
-    "js": 79,
-    "css": 43,
-    "controls": 1010,
-    "choices": 332,
+    "files": 127,
+    "js": 81,
+    "css": 44,
+    "controls": 1059,
+    "choices": 348,
     "screens": 18,
-    "windows": 30,
-    "forms": 65,
-    "surfaces": 428,
-    "calls": 2163,
+    "windows": 32,
+    "forms": 68,
+    "surfaces": 446,
+    "calls": 2233,
     "actions": 15,
     "unreachable": [
       "public/lifecycle-next.js",
       "public/plan-fact-origin.js"
     ],
-    "elements": 2006,
-    "records": 4184
+    "elements": 2093,
+    "records": 4341
   },
   "actions": [
     {

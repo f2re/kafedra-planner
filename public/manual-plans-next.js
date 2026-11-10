@@ -296,7 +296,7 @@ async function saveSupportingDocument(form) {
 
 async function openGenerateManualPlan(plan) {
   const data = await manualApi('/api/plan-templates?limit=300');
-  manualState.templates = data.items || [];
+  manualState.templates = (data.items || []).filter(template => ['calendar', 'academic'].includes(template.period_kind));
   if (!manualState.templates.length) throw new Error('Сначала сохраните хотя бы один DOCX-образец плана из загруженного документа.');
   showManualModal(`
     <header class="manual-modal-head"><div><span>Готовый документ</span><h3 id="manual-plan-modal-title">Сформировать DOCX</h3></div><button class="icon-button" type="button" data-manual-close>×</button></header>

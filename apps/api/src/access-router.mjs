@@ -214,10 +214,14 @@ export function createAccessRouter({ database, config, logger }) {
       const requestedScope = String(request.headers['x-access-scope'] || 'restricted');
       const accessScope = context.role === 'admin' && requestedScope === 'workspace'
         ? 'workspace' : 'restricted';
-      ensureObjectPolicy(database, {
-        workspaceId: workspace.id, objectKind: 'document', objectId: result.documentId,
-        ownerPersonId: context.personId || null, accessScope
-      });
+      if (result.duplicateRequest) {
+        documentAccess(database, workspace.id, context, result.documentId, 'read');
+      } else {
+        ensureObjectPolicy(database, {
+          workspaceId: workspace.id, objectKind: 'document', objectId: result.documentId,
+          ownerPersonId: context.personId || null, accessScope
+        });
+      }
       logger.info('document accepted with ACL', {
         requestId, workspaceId: workspace.id, personId: context.personId || null,
         accessScope, ...result

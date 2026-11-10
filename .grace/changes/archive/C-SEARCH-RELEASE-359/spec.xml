@@ -1,4 +1,4 @@
-<GraceChangeSpec graceVersion="4.0" status="approved">
+<GraceChangeSpec graceVersion="4.0" status="applied">
   <C-SEARCH-RELEASE-359>
     <Summary>Complete optional meaning-assisted retrieval and publish release 0.4.7 using the existing exact-main release workflow.</Summary>
     <Problem>PR 357 contains read-only background selection, while the subsequent topical retrieval patch has not reached the repository or full application CI. A release must include actual retrieval beyond the initial result and preserve offline search, permissions, immutable sources and the tested upgrade path.</Problem>

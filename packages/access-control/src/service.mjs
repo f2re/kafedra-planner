@@ -1,6 +1,7 @@
 import { AppError } from '../../core/src/errors.mjs';
 import { newId } from '../../core/src/ids.mjs';
 import { managesPerson } from '../../auth/src/policy.mjs';
+import { resolveMonthlyExportSources } from '../../plans/src/monthly-access.mjs';
 
 const KINDS = new Set(['document', 'directive', 'scientific_item']);
 const ROLES = new Set(['reader', 'editor', 'controller', 'owner']);
@@ -235,6 +236,11 @@ export function resolveObjectAccess(
   if (!object) return { allowed: false, role: 'none', reason: 'not_found', notFound: true };
   const policy = getObjectPolicy(database, workspaceId, objectKind, objectId);
   const effective = bestDynamicRole(database, workspaceId, context, objectKind, objectId, policy);
+  if (objectKind === 'document' && roleAtLeast(effective.role, action)) {
+    const sources = resolveMonthlyExportSources(database, workspaceId, context, objectId,
+      (sourceDocumentId) => resolveObjectAccess(database, workspaceId, context, 'document', sourceDocumentId, 'read'));
+    if (sources && !sources.allowed) return { ...sources, action, policy, object };
+  }
   return {
     allowed: roleAtLeast(effective.role, action),
     role: effective.role,

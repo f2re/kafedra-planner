@@ -14,6 +14,6 @@ UI-5aed96c47a	public/index.html:130:7	D1	document	[data-view-panel="review"]	rev
 UI-da9f69a35e	public/index.html:145:7	D1	document	[data-view-panel="search"]	search	запланировано
 UI-e81b29c64e	public/meetings-state.js:117:7	D3	ensureMeetingsUi	[data-view-panel="meetings"]	meetings	запланировано
 UI-4583f44ccf	public/plan-fact-next.js:55:59	D2	ensurePlanFactUi	[data-view-panel="plan-fact"]	plan-fact	запланировано
-UI-1a59fd323d	public/plans-next.js:121:7	D2	ensurePlansUi	[data-view-panel="plans"]	plans	запланировано
+UI-fbad101186	public/plans-next.js:124:7	D2	ensurePlansUi	[data-view-panel="plans"]	plans	запланировано
 UI-3d44c31ba1	public/reports-science-next.js:19:57	D5	ensureReportsScienceUi	[data-view-panel="science"]	science	запланировано
 UI-b1b088e48a	public/work-next.js:33:55	D4	ensureWorkUi	[data-view-panel="work"]	work	запланировано

@@ -94,9 +94,11 @@ export function createPlanItemsRouter({ database }) {
       const row = database.get(`
         SELECT d.id, d.document_type, d.status, d.updated_at,
           dv.id AS version_id, dv.processing_status, dv.extraction_error,
-          dv.structure_status, dv.ocr_status, dv.preview_status
+          dv.structure_status, dv.ocr_status, dv.preview_status,
+          p.id AS planId
         FROM documents d
         JOIN document_versions dv ON dv.id = d.current_version_id
+        LEFT JOIN plans p ON p.source_document_version_id = dv.id AND p.workspace_id = d.workspace_id
         WHERE d.workspace_id = ? AND d.id = ?
       `, workspace.id, documentId);
       if (!row) throw new AppError('document_not_found', 'Документ не найден.', 404);

@@ -1,8 +1,9 @@
 import { classifyHeader } from '../../plans/src/rows.mjs';
 import { bodyChildren, tableRows, wordVisibleText } from './ooxml-shared.mjs';
+import { monthWord } from './monthly-period.mjs';
 
 const PLAN_KINDS = new Set(['department', 'faculty', 'personal', 'unit', 'organization']);
-const PERIOD_KINDS = new Set(['academic', 'calendar']);
+const PERIOD_KINDS = new Set(['academic', 'calendar', 'monthly']);
 
 function normalize(value) {
   return String(value || '').toLocaleLowerCase('ru-RU').replaceAll('ё', 'е').replace(/\s+/g, ' ').trim();
@@ -30,6 +31,22 @@ function periodCandidates(children) {
     const text = wordVisibleText(child.xml);
     if (!text) continue;
     const score = anchorScore(text);
+    const months = monthWord(text);
+    const years = [...text.matchAll(/\b(20\d{2})\b/gu)];
+    // Only a planning heading may be a month anchor, never an arbitrary date in a signature.
+    const monthHeading = /план/iu.test(text) || /^\s*на\s/iu.test(text)
+      || (months.length === 1 && /^\s*[а-яё]+\s+20\d{2}(?:\s+(?:года?|г\.?))?\s*$/iu.test(text));
+    if (months.length && years.length && monthHeading) {
+      for (const month of months) {
+        for (const year of years) result.push({
+          kind: 'monthly', paragraphIndex: child.paragraphIndex, text,
+          yearStart: Number(year[1]), yearEnd: Number(year[1]), endDigits: 4,
+          month: month.month, sourceMonthText: month.text, monthCase: month.grammaticalCase,
+          score: score + 6, raw: `${month.text} ${year[1]}`
+        });
+      }
+      continue;
+    }
     for (const match of text.matchAll(/\b(20\d{2})\s*([/–—-])\s*(20\d{2}|\d{2})\b/gu)) {
       const yearStart = Number(match[1]);
       const yearEnd = parseAcademicEnd(yearStart, match[3]);
@@ -57,21 +74,23 @@ function choosePeriod(candidates) {
   if (!candidates.length) return { selected: null, anchors: [], ambiguous: false };
   const best = candidates[0];
   const top = candidates.filter((item) => item.score === best.score);
-  const values = new Set(top.map((item) => `${item.kind}:${item.yearStart}:${item.yearEnd}`));
+  const values = new Set(top.map((item) => `${item.kind}:${item.yearStart}:${item.yearEnd}:${item.month || ''}`));
   const ambiguous = values.size > 1;
   if (ambiguous) return { selected: null, anchors: [], ambiguous: true };
   const anchors = candidates.filter((item) =>
-    item.kind === best.kind && item.yearStart === best.yearStart && item.yearEnd === best.yearEnd && item.score >= Math.max(2, best.score - 2)
+    item.kind === best.kind && item.yearStart === best.yearStart && item.yearEnd === best.yearEnd
+      && item.month === best.month && item.score >= Math.max(2, best.score - 2)
   ).map((item) => ({
     paragraphIndex: item.paragraphIndex,
     kind: item.kind,
     sourceYearStart: item.yearStart,
     sourceYearEnd: item.yearEnd,
     endDigits: item.endDigits,
+    ...(item.kind === 'monthly' ? { sourceMonth: item.month, sourceMonthText: item.sourceMonthText, monthCase: item.monthCase } : {}),
     raw: item.raw,
     text: item.text
   }));
-  return { selected: best, anchors, ambiguous: false };
+  return { selected: best, anchors: [...new Map(anchors.map(anchor => [JSON.stringify(anchor), anchor])).values()], ambiguous: false };
 }
 
 function extendedHeader(text) {
@@ -199,7 +218,11 @@ export function analyzePlanDocumentXml(xml, { planKind = 'organization' } = {}) 
     detectedPeriod: period.selected ? {
       kind: period.selected.kind,
       yearStart: period.selected.yearStart,
-      yearEnd: period.selected.yearEnd
+      yearEnd: period.selected.yearEnd,
+      ...(period.selected.kind === 'monthly' ? {
+        month: period.selected.month,
+        periodKey: `${period.selected.yearStart}-${String(period.selected.month).padStart(2, '0')}`
+      } : {})
     } : null,
     periodCandidates: periods,
     tableCandidates: table.sorted || [],
@@ -246,6 +269,10 @@ export function validatePlanTemplateConfig(xml, input) {
     if (!paragraph) throw new Error('plan_template_period_anchor_invalid');
     const text = wordVisibleText(paragraph.xml);
     if (!text.includes(String(anchor.sourceYearStart))) throw new Error('plan_template_period_anchor_invalid');
+    if (config.periodKind === 'monthly' && (anchor.kind !== 'monthly' || !monthWord(text).some((word) =>
+      word.text === anchor.sourceMonthText && word.month === Number(anchor.sourceMonth)
+        && word.grammaticalCase === Number(anchor.monthCase)
+    ))) throw new Error('plan_template_period_anchor_invalid');
     if (anchor.kind === 'academic' && !text.includes(String(anchor.sourceYearEnd).slice(-(anchor.endDigits || 4)))) {
       throw new Error('plan_template_period_anchor_invalid');
     }
