@@ -57,7 +57,7 @@ test('manual meetings and plan items remain searchable without invented source d
     assert.ok(!visiblePlans.items.some((row) => row.source_id === privatePlan.id));
     assert.equal(other.source_document_version_id, null);
     assert.equal(database.get('SELECT COUNT(*) AS n FROM document_versions').n, 0);
-    assert.equal(database.getSchemaVersion(), 31);
+    assert.equal(database.getSchemaVersion(), 32);
   } finally {
     app.closeAllConnections();
     await new Promise((done) => app.close(done));
