@@ -1,4 +1,4 @@
-export function getDocumentFile(database, workspaceId, documentId, variant = 'original') {
+export function getDocumentFile(database, workspaceId, documentId, variant = 'original', versionId = null) {
   const row = database.get(`
     SELECT
       d.id AS document_id,
@@ -17,11 +17,11 @@ export function getDocumentFile(database, workspaceId, documentId, variant = 'or
       preview.size_bytes AS preview_size,
       preview.storage_path AS preview_path
     FROM documents d
-    JOIN document_versions dv ON dv.id = d.current_version_id
+    JOIN document_versions dv ON dv.document_id = d.id AND dv.id = COALESCE(?, d.current_version_id)
     JOIN file_blobs original ON original.sha256 = dv.blob_sha256
     LEFT JOIN file_blobs preview ON preview.sha256 = dv.preview_blob_sha256
     WHERE d.workspace_id = ? AND d.id = ?
-  `, workspaceId, documentId);
+  `, versionId, workspaceId, documentId);
   if (!row) return null;
 
   if (variant === 'preview') {

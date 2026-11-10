@@ -23,16 +23,36 @@ export function assistantCandidateSources(database, workspaceId, context, candid
     const kind = String(candidate.kind || '');
     const id = String(candidate.id || '');
     if (!id || !kind || unique.has(kind + ':' + id)) continue;
-    const versionId = String(candidate.documentVersionId || '') || null;
+    let versionId = String(candidate.documentVersionId || candidate.versionId || '') || null;
+    if (!versionId && kind === 'meeting') {
+      versionId = database.get(
+        'SELECT source_document_version_id AS id FROM meetings WHERE workspace_id = ? AND id = ?',
+        workspaceId, id
+      )?.id || null;
+    }
+    if (!versionId && kind === 'decision') {
+      versionId = database.get(
+        'SELECT m.source_document_version_id AS id FROM decisions d JOIN agenda_items a ON a.id = d.agenda_item_id JOIN meetings m ON m.id = a.meeting_id WHERE m.workspace_id = ? AND d.id = ?',
+        workspaceId, id
+      )?.id || null;
+    }
+    if (!versionId && kind === 'document') {
+      versionId = database.get('SELECT current_version_id AS id FROM documents WHERE workspace_id = ? AND id = ?', workspaceId, id)?.id || null;
+    }
+    if (!versionId && kind === 'document_version') versionId = id;
     const documentId = versionId
       ? documentIdForVersion(database, workspaceId, versionId)
-      : kind === 'document' ? id : kind === 'document_version' ? documentIdForVersion(database, workspaceId, id) : null;
+      : kind === 'document' ? id : null;
+    const preview = versionId
+      ? database.get('SELECT preview_status FROM document_versions WHERE id = ?', versionId)
+      : null;
     const source = {
       kind, id, documentId: documentId || null,
       versionId: versionId || (kind === 'document_version' ? id : null),
       title: String(candidate.title || 'Материал').slice(0, 200),
       snippet: String(candidate.snippet || '').replace(/<[^>]*>/gu, '').slice(0, 500),
-      locator: String(candidate.locator || '').slice(0, 200)
+      locator: String(candidate.locator || '').slice(0, 200),
+      previewAvailable: preview?.preview_status === 'ready'
     };
     if (!isReadable(database, workspaceId, context, source)) continue;
     unique.add(kind + ':' + id);
