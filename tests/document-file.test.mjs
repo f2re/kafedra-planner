@@ -38,3 +38,29 @@ test('оригинал и предпросмотр документа разре
     rmSync(directory, { recursive: true, force: true });
   }
 });
+
+test('скачивание старой версии использует immutable document_version и не подменяет текущую', () => {
+  const directory = mkdtempSync(join(tmpdir(), 'kafedra-file-version-'));
+  const database = new Database(join(directory, 'file.sqlite3'), { migrationsDir: resolve('migrations') });
+  try {
+    const ws = ensureDefaultWorkspace(database);
+    const stamp = new Date().toISOString();
+    for (const [hash, path] of [['c'.repeat(64), '/tmp/v1.pdf'], ['d'.repeat(64), '/tmp/v2.pdf']]) {
+      database.run('INSERT INTO file_blobs(sha256,size_bytes,media_type,storage_path,created_at) VALUES (?,?,?,?,?)',
+        hash, 100, 'application/pdf', path, stamp);
+    }
+    database.run('INSERT INTO documents(id,workspace_id,title,document_type,status,current_version_id,created_at,updated_at) VALUES (?,?,?,?,?,?,?,?)',
+      'doc-history', ws.id, 'Версии', 'protocol', 'processed', 'dv2', stamp, stamp);
+    for (const [id, number, hash] of [['dv1', 1, 'c'.repeat(64)], ['dv2', 2, 'd'.repeat(64)]]) {
+      database.run('INSERT INTO document_versions(id,document_id,version_no,blob_sha256,original_name,media_type,detected_format,processing_status,uploaded_at) VALUES (?,?,?,?,?,?,?,?,?)',
+        id, 'doc-history', number, hash, 'protocol.pdf', 'application/pdf', 'pdf', 'completed', stamp);
+    }
+    assert.equal(getDocumentFile(database, ws.id, 'doc-history', 'original').sha256, 'd'.repeat(64));
+    assert.equal(getDocumentFile(database, ws.id, 'doc-history', 'original', 'dv1').sha256, 'c'.repeat(64));
+    assert.equal(getDocumentFile(database, ws.id, 'doc-history', 'original', 'unknown'), null);
+    assert.equal(getDocumentFile(database, 'other', 'doc-history', 'original', 'dv1'), null);
+  } finally {
+    database.close();
+    rmSync(directory, { recursive: true, force: true });
+  }
+});

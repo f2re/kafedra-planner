@@ -27,7 +27,7 @@ const STABLE_TABLES = [
   'plans', 'plan_items', 'plan_item_assignments', 'plan_source_rows', 'plan_source_row_items',
   'plan_document_templates', 'plan_generation_runs',
   'supporting_documents', 'supporting_document_links',
-  'notification_delivery_profiles'
+  'notification_delivery_profiles', 'assistant_runs'
 ];
 
 const HISTORY_TABLES = [
