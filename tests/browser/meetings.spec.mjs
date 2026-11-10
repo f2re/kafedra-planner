@@ -93,7 +93,7 @@ test('Заседания: настройки → 8 вопросов → выпи
     await page.locator('[name="secretaryPersonId"]').selectOption(secretary.id);
     await page.locator('#meeting-settings-form button[type="submit"]').click();
     await expect(page.locator('#meeting-modal')).toBeHidden();
-    await expect(page.locator('#meeting-settings-summary')).toContainText('Кворум 5');
+    await expect(page.locator('#meeting-settings-summary')).toContainText('Кворум: 5');
     await expect(page.locator('#meeting-settings-summary')).toContainText('Петрова Анна Сергеевна');
 
     await page.locator('#meeting-create-button').click();

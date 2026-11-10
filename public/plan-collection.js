@@ -152,8 +152,18 @@ function renderEvents() {
   $('#collection-load-more').classList.toggle('hidden', !state.hasMore);
   syncControls();
 }
+function sourceMemberEdit(source) {
+  return { titleOverride: source.title || '', dateTextOverride: source.starts_at || source.due_date ? dates(source) : '', responsibleOverride: source.responsible_raw || '', expectedResultOverride: source.expected_result || '' };
+}
 function memberEdit(item) {
-  return state.edits.get(item.id) || { titleOverride: item.title_override ?? '', dateTextOverride: item.date_text_override ?? '', responsibleOverride: item.responsible_override ?? '', expectedResultOverride: item.expected_result_override ?? '', note: item.note || '' };
+  const inherited = sourceMemberEdit(item.source || {}), effective = item.effective || {};
+  return state.edits.get(item.id) || {
+    titleOverride: effective.title ?? item.title_override ?? inherited.titleOverride,
+    dateTextOverride: effective.dateText ?? item.date_text_override ?? inherited.dateTextOverride,
+    responsibleOverride: effective.responsibleRaw ?? item.responsible_override ?? inherited.responsibleOverride,
+    expectedResultOverride: effective.expectedResult ?? item.expected_result_override ?? inherited.expectedResultOverride,
+    note: item.note || ''
+  };
 }
 function renderMembers() {
   const items = state.draft?.items || [];
@@ -161,7 +171,7 @@ function renderMembers() {
     if (item.unavailable) return `<article class="collection-member"><strong>Источник недоступен</strong><p>Пункт сохранён в составе. Его данные и выгрузка недоступны без доступа к источнику.</p><button type="button" class="text-button" data-collection-action="remove" data-membership="${esc(item.id)}" data-collection-mutation>Исключить из месячного плана</button></article>`;
     const edit = memberEdit(item), source = item.source || {}, effective = item.effective || {};
     return `<article class="collection-member" data-collection-member="${esc(item.id)}"><header><div><strong>${index + 1}. ${esc(effective.title || source.title)}</strong>${sourceLinks(source)}</div><div class="collection-order"><button type="button" class="text-button" data-collection-action="up" data-membership="${esc(item.id)}" data-collection-mutation ${index ? '' : 'disabled'} aria-label="Поднять: ${esc(effective.title || source.title)}">Выше</button><button type="button" class="text-button" data-collection-action="down" data-membership="${esc(item.id)}" data-collection-mutation ${index === items.length - 1 ? 'disabled' : ''} aria-label="Опустить: ${esc(effective.title || source.title)}">Ниже</button><button type="button" class="text-button" data-collection-action="remove" data-membership="${esc(item.id)}" data-collection-mutation>Исключить</button></div></header>
-      <form class="collection-item-form" data-membership="${esc(item.id)}"><label class="field collection-title-field"><span>Формулировка для выгрузки</span><input name="titleOverride" value="${esc(edit.titleOverride)}" placeholder="${esc(source.title)}"></label><label class="field"><span>Срок в документе</span><input name="dateTextOverride" value="${esc(edit.dateTextOverride)}" placeholder="${esc(effective.dateText || dates(source))}"></label><label class="field"><span>Ответственный в документе</span><input name="responsibleOverride" value="${esc(edit.responsibleOverride)}" placeholder="${esc(source.responsible_raw || 'Как в исходном плане')}"></label><label class="field"><span>Ожидаемый результат</span><input name="expectedResultOverride" value="${esc(edit.expectedResultOverride)}" placeholder="${esc(source.expected_result || 'Как в исходном плане')}"></label><label class="field"><span>Примечание</span><input name="note" value="${esc(edit.note)}"></label><div class="collection-item-actions"><button type="submit" class="secondary-button" data-collection-mutation>Сохранить формулировки</button><button type="button" class="text-button" data-collection-action="reset-item" data-membership="${esc(item.id)}" data-collection-mutation>Как в источнике</button>${state.edits.has(item.id) ? '<span>Есть несохранённые правки</span>' : ''}</div></form></article>`;
+      <form class="collection-item-form" data-membership="${esc(item.id)}"><label class="field collection-title-field"><span>Формулировка для выгрузки</span><input name="titleOverride" value="${esc(edit.titleOverride)}" required></label><label class="field"><span>Срок в документе</span><input name="dateTextOverride" value="${esc(edit.dateTextOverride)}"></label><label class="field"><span>Ответственный в документе</span><input name="responsibleOverride" value="${esc(edit.responsibleOverride)}"></label><label class="field"><span>Ожидаемый результат</span><input name="expectedResultOverride" value="${esc(edit.expectedResultOverride)}"></label><label class="field"><span>Примечание</span><input name="note" value="${esc(edit.note)}"></label><div class="collection-item-actions"><button type="submit" class="secondary-button" data-collection-mutation>Сохранить формулировки</button><button type="button" class="text-button" data-collection-action="reset-item" data-membership="${esc(item.id)}" data-collection-mutation>Как в источнике</button>${state.edits.has(item.id) ? '<span>Есть несохранённые правки</span>' : ''}</div></form></article>`;
   }).join('') : '<div class="empty-state">Выберите мероприятия из общего списка и добавьте их в этот план.</div>';
   syncControls();
 }
@@ -278,7 +288,18 @@ function editFromForm(form) {
 }
 async function saveItem(form, reset = false) {
   const id = form.dataset.membership;
-  const values = reset ? { titleOverride: null, dateTextOverride: null, responsibleOverride: null, expectedResultOverride: null, note: null } : Object.fromEntries(Object.entries(editFromForm(form)).map(([key, value]) => [key, value.trim() || null]));
+  const values = { titleOverride: null, dateTextOverride: null, responsibleOverride: null, expectedResultOverride: null, note: null };
+  if (!reset) {
+    const item = state.draft.items.find(member => member.id === id);
+    const inherited = sourceMemberEdit(item.source || {});
+    const entered = Object.fromEntries(Object.entries(editFromForm(form)).map(([key, value]) => [key, value.trim()]));
+    if (!entered.titleOverride) throw new Error('Укажите формулировку мероприятия.');
+    for (const [field, column] of Object.entries({ titleOverride: 'title_override', dateTextOverride: 'date_text_override', responsibleOverride: 'responsible_override', expectedResultOverride: 'expected_result_override' })) {
+      const keepEmptyOverride = entered[field] === '' && item[column] !== null && item[column] !== undefined;
+      values[field] = entered[field] === inherited[field].trim() && !keepEmptyOverride ? null : entered[field];
+    }
+    values.note = entered.note;
+  }
   const draft = await api(`/api/monthly-plans/${encodeURIComponent(state.draft.id)}/items/${encodeURIComponent(id)}`, json('PATCH', { ...values, expectedRevision: state.draft.revision }));
   state.edits.delete(id); acceptDraft(draft); message('Формулировки сохранены.');
 }

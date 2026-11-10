@@ -60,14 +60,34 @@ UI-b07969bb86	public/manual-plans-next.js:228:7	openCalendarItemForm	Продо�
 UI-d1dd09e4b1	public/manual-plans-next.js:236:151	openSupportingDocuments	×	C01	запланировано
 UI-faa173ac1d	public/manual-plans-next.js:254:43	openSupportingDocuments	Закрыть	C01	запланировано
 UI-df5c864dc5	public/manual-plans-next.js:254:124	openSupportingDocuments	Добавить документ	C01	запланировано
-UI-b8dbeb23e2	public/manual-plans-next.js:302:134	openGenerateManualPlan	×	C01	запланировано
-UI-abf433b1d4	public/manual-plans-next.js:308:41	openGenerateManualPlan	Отмена	C01	запланировано
-UI-ac9d47d248	public/manual-plans-next.js:308:121	openGenerateManualPlan	Сформировать	C01	запланировано
-UI-b1fe4cb5b3	public/manual-plans-next.js:402:20	patchManualDetail	Создать план	C01	запланировано
-UI-656cb3d888	public/manual-plans-next.js:434:19	patchManualDetail	Добавить пункт	C01	запланировано
-UI-7b82aa302c	public/manual-plans-next.js:462:51	patchManualDetail	Документы{dynamic}	C01	запланировано
-UI-cd59715c4b	public/manual-plans-next.js:465:51	patchManualDetail	Открыть задачу	C01	запланировано
-UI-88ca2d53d5	public/manual-plans-next.js:468:51	patchManualDetail	Взять задачу	C01	запланировано
+UI-f55e0067c9	public/manual-plans-next.js:302:134	openGenerateManualPlan	×	C01	запланировано
+UI-40167629b4	public/manual-plans-next.js:308:41	openGenerateManualPlan	Отмена	C01	запланировано
+UI-018e302a6a	public/manual-plans-next.js:308:121	openGenerateManualPlan	Сформировать	C01	запланировано
+UI-de8bd9d334	public/manual-plans-next.js:402:20	patchManualDetail	Создать план	C01	запланировано
+UI-04021a14b7	public/manual-plans-next.js:434:19	patchManualDetail	Добавить пункт	C01	запланировано
+UI-3656b19dac	public/manual-plans-next.js:462:51	patchManualDetail	Документы{dynamic}	C01	запланировано
+UI-bfb19a924b	public/manual-plans-next.js:465:51	patchManualDetail	Открыть задачу	C01	запланировано
+UI-3836f39304	public/manual-plans-next.js:468:51	patchManualDetail	Взять задачу	C01	запланировано
+UI-91ea247fc8	public/plan-collection.js:57:42	sourceLinks	{dynamic}	C01	запланировано
+UI-8e4a6f24f6	public/plan-collection.js:65:20	ensureUi	Мероприятия и план на месяц	C01	запланировано
+UI-40e49a9087	public/plan-collection.js:79:47	ensureUi	К исходным планам	C01	запланировано
+UI-dfe124de84	public/plan-collection.js:79:188	ensureUi	Обновить	C01	запланировано
+UI-eb97a1ce1d	public/plan-collection.js:86:46	ensureUi	Сохранить план	C01	запланировано
+UI-682a69c175	public/plan-collection.js:86:141	ensureUi	Загрузить образец	C01	запланировано
+UI-40b755753c	public/plan-collection.js:86:351	ensureUi	Скачать DOCX	C01	запланировано
+UI-fd12809075	public/plan-collection.js:90:87	ensureUi	Все мероприятия	C01	запланировано
+UI-11eae46db0	public/plan-collection.js:90:264	ensureUi	В плане · 0	C01	запланировано
+UI-2e10223c04	public/plan-collection.js:98:247	ensureUi	Добавить выбранные	C01	запланировано
+UI-125538ac7c	public/plan-collection.js:99:61	ensureUi	Показать ещё	C01	запланировано
+UI-44d429c690	public/plan-collection.js:171:196	renderMembers / callback@170	Исключить из месячного плана	C02	запланировано
+UI-858d8493b4	public/plan-collection.js:173:230	renderMembers / callback@170	Поднять: _______________________________________	C01	запланировано
+UI-59f4fa708a	public/plan-collection.js:173:461	renderMembers / callback@170	Опустить: _______________________________________	C01	запланировано
+UI-70d1b9177e	public/plan-collection.js:173:716	renderMembers / callback@170	Исключить	C02	запланировано
+UI-a4e5328386	public/plan-collection.js:174:783	renderMembers / callback@170	Сохранить формулировки	C01	запланировано
+UI-bacc422ad8	public/plan-collection.js:174:886	renderMembers / callback@170	Как в источнике	C01	запланировано
+UI-468ed8de0c	public/plan-collection.js:335:1033	renderTemplateReview	Сохранить образец	C01	запланировано
+UI-9fe51a333f	public/plan-collection.js:335:1129	renderTemplateReview	Закрыть	C01	запланировано
+UI-aeed3241e4	public/plan-collection.js:378:96	uploadTemplate	Повторить настройку	C01	запланировано
 UI-deca753b27	public/plan-fact-next.js:51:60	ensurePlanFactUi	◫ План / факт	C01	запланировано
 UI-183df22e6f	public/plan-fact-next.js:52:61	ensurePlanFactUi	◫ План / факт	C01	запланировано
 UI-413efa3f7c	public/plan-fact-next.js:56:150	ensurePlanFactUi	Пересчитать	C01	запланировано
@@ -88,37 +108,40 @@ UI-cb2d4e37f7	public/plan-fact-tools.js:130:41	ensureToolUi	Отмена	C01	з�
 UI-c683e02637	public/plan-fact-tools.js:130:118	ensureToolUi	Сохранить	C01	запланировано
 UI-f85cb1879a	public/plan-fact-tools.js:196:18	correctionValueHtml	Изменить	C01	запланировано
 UI-d9cb70582e	public/plan-fact-tools.js:218:25	correctionHistoryHtml / callback@214	Отменить исправление	C01	запланировано
-UI-de34fe68ed	public/plan-source-rows-next.js:116:5	renderSourceRowCard	{dynamic} {dynamic} {dynamic} {dynamic} {dynamic}	C01	запланировано
-UI-632d70cc5d	public/plan-source-rows-next.js:154:7	renderWorkbench	Требуют проверки{dynamic}	C01	запланировано
-UI-d28063ac2d	public/plan-source-rows-next.js:155:7	renderWorkbench	Все строки · {dynamic}	C01	запланировано
-UI-a9a85dec64	public/plan-source-rows-next.js:238:80	taskCard	Убрать	C02	запланировано
-UI-758cd91fa9	public/plan-source-rows-next.js:294:9	renderEditor	Закрыть	C01	запланировано
-UI-458fd70ddb	public/plan-source-rows-next.js:299:7	renderEditor	Разделить на ещё одну задачу	C01	запланировано
-UI-546f98bc99	public/plan-source-rows-next.js:302:40	renderEditor	Отменить правки	C01	запланировано
-UI-b12fa22c4d	public/plan-source-rows-next.js:302:131	renderEditor	Сохранить задачи	C01	запланировано
-UI-71c86f6f20	public/plan-source-rows-next.js:455:164	loadForCurrentPlan	Повторить	C01	запланировано
+UI-2958dbc700	public/plan-source-rows-next.js:116:5	renderSourceRowCard	{dynamic} {dynamic} {dynamic} {dynamic} {dynamic}	C01	запланировано
+UI-b6b4b623d4	public/plan-source-rows-next.js:157:72	renderWorkbench	Обновить разбор	C01	запланировано
+UI-d575fad54c	public/plan-source-rows-next.js:159:7	renderWorkbench	Требуют проверки{dynamic}	C01	запланировано
+UI-efbce13e03	public/plan-source-rows-next.js:160:7	renderWorkbench	Все строки · {dynamic}	C01	запланировано
+UI-b00adae43e	public/plan-source-rows-next.js:247:80	taskCard	Убрать	C02	запланировано
+UI-85286fe89a	public/plan-source-rows-next.js:303:9	renderEditor	Закрыть	C01	запланировано
+UI-7ae678ea10	public/plan-source-rows-next.js:309:7	renderEditor	Разделить на ещё одну задачу	C01	запланировано
+UI-d0a1c4c917	public/plan-source-rows-next.js:312:40	renderEditor	Отменить правки	C01	запланировано
+UI-658a93778c	public/plan-source-rows-next.js:312:131	renderEditor	Сохранить задачи	C01	запланировано
+UI-99ce6e360b	public/plan-source-rows-next.js:466:164	loadForCurrentPlan	Повторить	C01	запланировано
 UI-e4e284f4e4	public/plans-lifecycle-desktop.js:97:5	segmentMarkup	Текущие	C01	запланировано
 UI-f55ec72eff	public/plans-lifecycle-desktop.js:98:5	segmentMarkup	Архив	C02	запланировано
-UI-4d564a9149	public/plans-next.js:104:20	ensurePlansUi	динамическая подпись	C01	запланировано
-UI-f5744d0d4a	public/plans-next.js:112:20	ensurePlansUi	динамическая подпись	C01	запланировано
-UI-933979d0a8	public/plans-next.js:129:13	ensurePlansUi	Загрузить план	C01	запланировано
-UI-f766570b48	public/plans-next.js:130:13	ensurePlansUi	Сформировать по образцу	C01	запланировано
-UI-f5fdc6bd8d	public/plans-next.js:152:11	ensurePlansUi	Сбросить	C01	запланировано
-UI-763a662566	public/plans-next.js:169:104	ensurePlansUi	Отменить	C01	запланировано
-UI-b86f0b589b	public/plans-next.js:221:5	renderPlanList / callback@220	{dynamic} {dynamic} {dynamic} {dynamic} из {dynamic} со сроком	C01	запланировано
-UI-7af9f55599	public/plans-next.js:271:21	renderPlanDetail	Сделать образцом	C01	запланировано
-UI-15c406573a	public/plans-next.js:272:9	renderPlanDetail	Сформировать новый	C01	запланировано
-UI-bb6915c0ba	public/plans-next.js:291:19	renderPlanDetail / callback@284	Исправить	C01	запланировано
-UI-1ebdc9bd6a	public/plans-next.js:291:141	renderPlanDetail / callback@284	Открыть задачу	C01	запланировано
-UI-58b02f1aa1	public/plans-next.js:334:127	openItemEditor	×	C01	запланировано
-UI-bc5a0d4d2f	public/plans-next.js:350:40	openItemEditor	Отмена	C01	запланировано
-UI-4ad59af9b7	public/plans-next.js:350:119	openItemEditor	Сохранить	C01	запланировано
-UI-3e84672d7f	public/plans-next.js:448:132	openTemplateReview	×	C01	запланировано
-UI-18b5005f4f	public/plans-next.js:458:40	openTemplateReview	Отмена	C01	запланировано
-UI-dfcd39ae46	public/plans-next.js:458:119	openTemplateReview	Сохранить образец	C01	запланировано
-UI-bbdbc9726a	public/plans-next.js:529:7	renderGenerationRows / callback@522	Удалить строку	C02	запланировано
-UI-7ffe6ab9ce	public/plans-next.js:542:135	openGeneration	×	C01	запланировано
-UI-e87ffd65dd	public/plans-next.js:551:68	openGeneration	Добавить строку	C01	запланировано
-UI-488f6fd6bd	public/plans-next.js:555:40	openGeneration	Отмена	C01	запланировано
-UI-41df5dbf95	public/plans-next.js:555:119	openGeneration	Сформировать DOCX	C01	запланировано
-UI-d84062be93	public/plans-next.js:648:5	patchPlanCalendarInspector	Открыть план	C01	запланировано
+UI-09da5b0b3c	public/plans-next.js:107:20	ensurePlansUi	динамическая подпись	C01	запланировано
+UI-ad822e695a	public/plans-next.js:115:20	ensurePlansUi	динамическая подпись	C01	запланировано
+UI-b31934e419	public/plans-next.js:132:13	ensurePlansUi	Загрузить планы	C01	запланировано
+UI-57fa70a00d	public/plans-next.js:133:13	ensurePlansUi	Сформировать по образцу	C01	запланировано
+UI-3ada75f92f	public/plans-next.js:156:11	ensurePlansUi	Сбросить	C01	запланировано
+UI-a9176abcb9	public/plans-next.js:173:104	ensurePlansUi	Отменить	C01	запланировано
+UI-2bc2005309	public/plans-next.js:228:5	renderPlanList / callback@227	{dynamic} {dynamic} {dynamic} {dynamic} из {dynamic} со сроком	C01	запланировано
+UI-12da06f430	public/plans-next.js:278:21	renderPlanDetail	Сделать образцом	C01	запланировано
+UI-7125b0c7a1	public/plans-next.js:279:9	renderPlanDetail	Сформировать новый	C01	запланировано
+UI-8d0489ceae	public/plans-next.js:298:19	renderPlanDetail / callback@291	Исправить	C01	запланировано
+UI-04d93c362b	public/plans-next.js:298:141	renderPlanDetail / callback@291	Открыть задачу	C01	запланировано
+UI-4e6d572743	public/plans-next.js:341:127	openItemEditor	×	C01	запланировано
+UI-262031bc18	public/plans-next.js:357:40	openItemEditor	Отмена	C01	запланировано
+UI-a60d538414	public/plans-next.js:357:119	openItemEditor	Сохранить	C01	запланировано
+UI-8444c1c0b7	public/plans-next.js:398:58	renderPlanUploads / callback@396	Открыть план	C01	запланировано
+UI-28cc9d5bb9	public/plans-next.js:400:92	renderPlanUploads / callback@396	{dynamic}	C01	запланировано
+UI-bab9b61876	public/plans-next.js:503:132	openTemplateReview	×	C01	запланировано
+UI-f660855e0b	public/plans-next.js:513:40	openTemplateReview	Отмена	C01	запланировано
+UI-f2644f8a6c	public/plans-next.js:513:119	openTemplateReview	Сохранить образец	C01	запланировано
+UI-87f84c4884	public/plans-next.js:584:7	renderGenerationRows / callback@577	Удалить строку	C02	запланировано
+UI-343587efb8	public/plans-next.js:597:135	openGeneration	×	C01	запланировано
+UI-f55a2b99c6	public/plans-next.js:606:68	openGeneration	Добавить строку	C01	запланировано
+UI-dd4b1b8ac2	public/plans-next.js:610:40	openGeneration	Отмена	C01	запланировано
+UI-02091380fa	public/plans-next.js:610:119	openGeneration	Сформировать DOCX	C01	запланировано
+UI-10a1c9daf8	public/plans-next.js:703:5	patchPlanCalendarInspector	Открыть план	C01	запланировано

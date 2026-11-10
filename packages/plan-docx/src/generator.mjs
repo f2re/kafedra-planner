@@ -1,4 +1,4 @@
-import { bodyChildren, replaceBodyChild, replaceTableRows, replaceVisibleText, rowCells, setCellText, tableRows } from './ooxml-shared.mjs';
+import { bodyChildren, replaceBodyChild, replaceTableRows, replaceVisibleText, rowCells, setCellText, tableRows, wordVisibleText } from './ooxml-shared.mjs';
 import { validatePlanTemplateConfig } from './analyzer.mjs';
 import { monthlyPeriod, replaceMonthCase } from './monthly-period.mjs';
 import { PLAN_ACTIVITY_LABELS } from '../../plans/src/activity.mjs';
@@ -117,11 +117,21 @@ function buildRow(templateXml, config, item, index) {
 function replacePeriodParagraph(paragraphXml, anchor, target) {
   let result = paragraphXml;
   if (anchor.kind === 'monthly') {
+    // Prefer the year attached to the month, preserving unrelated cohort or reference years.
+    const adjacentYear = new RegExp(`(?<=(?<![а-яё])${anchor.sourceMonthText}\\s+)${anchor.sourceYearStart}(?!\\d)`, 'iu');
+    let yearChange = replaceVisibleText(result, adjacentYear, String(target.yearStart));
+    if (!yearChange.changed) {
+      const year = new RegExp(`(?<!\\d)${anchor.sourceYearStart}(?!\\d)`, 'gu');
+      if ([...wordVisibleText(result).matchAll(year)].length !== 1) throw new Error('plan_generation_period_anchor_changed');
+      yearChange = replaceVisibleText(result, year, String(target.yearStart));
+    }
+    if (!yearChange.changed) throw new Error('plan_generation_period_anchor_changed');
+    result = yearChange.xml;
     const month = new RegExp(`(?<![а-яё])${anchor.sourceMonthText}(?![а-яё])`, 'iu');
     const changed = replaceVisibleText(result, month,
       replaceMonthCase(anchor.sourceMonthText, target.month, Number(anchor.monthCase)));
     if (!changed.changed) throw new Error('plan_generation_period_anchor_changed');
-    result = changed.xml;
+    return changed.xml;
   }
   if (anchor.kind === 'academic') {
     const sourceEnd = String(anchor.sourceYearEnd).slice(-(anchor.endDigits || 4));

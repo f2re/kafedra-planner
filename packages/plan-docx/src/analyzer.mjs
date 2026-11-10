@@ -90,7 +90,7 @@ function choosePeriod(candidates) {
     raw: item.raw,
     text: item.text
   }));
-  return { selected: best, anchors, ambiguous: false };
+  return { selected: best, anchors: [...new Map(anchors.map(anchor => [JSON.stringify(anchor), anchor])).values()], ambiguous: false };
 }
 
 function extendedHeader(text) {

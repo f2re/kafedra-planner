@@ -47,7 +47,7 @@ test('year inheritance uses the plan period without guessing a missing year or r
 });
 
 test('separate dates are not silently converted into a continuous calendar interval', () => {
-  for (const value of ['10 ноября 2026 и 15 ноября 2026', '10.11.2026, 15.11.2026', '10–12 ноября 2026 и 15 декабря 2026']) {
+  for (const value of ['10 ноября 2026 и 15 ноября 2026', '10.11.2026, 15.11.2026', '10–12 ноября 2026 и 15 декабря 2026', '10 и 12 ноября 2026', '10, 12 ноября 2026']) {
     assert.deepEqual(windowOf(value), [null, null, 'none'], value);
   }
 });

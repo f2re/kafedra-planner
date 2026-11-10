@@ -51,7 +51,7 @@ async function fixture(run) {
   async function reprocess(record,finish=true) {const requested=requestDocumentReprocess(db,{workspaceId:workspace.id,documentId:record.documentId});return process({...requested,reprocess:true},finish);}
   const tools=async(record)=>(await api(`/api/protocol-imports/tools?documentId=${record.documentId}&text=1`)).body;
   const correct=async(record,fields)=>{const current=await tools(record);return api(`/api/protocol-imports/${record.documentId}/correction`,{documentVersionId:current.documentVersionId,expectedUpdatedAt:current.updatedAt,fields},'PATCH');};
-  try {await run({db,workspace,api,ingest,reprocess,tools,correct,dir});}
+  try {await run({db,workspace,api,ingest,reprocess,tools,correct,dir,config});}
   finally {server.closeAllConnections();await new Promise((resolve)=>server.close(resolve));db.close();await rm(dir,{recursive:true,force:true});}
 }
 
@@ -95,6 +95,62 @@ test('профиль: readonly preview, идемпотентные версии,
   const next=(await api('/api/protocol-imports/recognition',{...input,profileId:created.id,aliases:{decision:['Итоговое заключение','Заключили']}},'PUT')).body;
   assert.equal(next.version,2);assert.equal(db.get('SELECT status FROM document_templates WHERE id=?',created.id).status,'archived');
   assert.equal((await api('/api/protocol-imports/recognition',{...input,profileId:created.id,name:'Устаревшая правка'},'PUT')).status,409);
+}));
+
+test('правка реквизитов закрывает только их проверку; непрочитанные решения ждут применения формата',()=>fixture(async({db,workspace,api,ingest,reprocess,tools,correct})=>{
+  const standard=await ingest(sample,'standard.txt');
+  const custom=await ingest(sample.replace('№ 25','№ 26').replaceAll('Решение:','Итоговое заключение:'),'custom-review.txt');
+  assert.equal((await correct(standard,{meetingDate:'2026-07-05'})).status,200);
+  const fields={meetingDate:'2026-07-06',protocolNumber:'26',secretary:'Проверенный секретарь'};
+  assert.equal((await correct(custom,fields)).status,200);
+  const view=await tools(custom);
+  const open=()=>db.all("SELECT * FROM review_items WHERE source_id=? AND status='open' ORDER BY issue_code",custom.versionId);
+  assert.equal(open().length,3);
+  assert.ok(open().every((row)=>row.issue_code.startsWith('protocol_recognition_question_decision_missing_')));
+  assert.ok(getMeeting(db,workspace.id,view.meetingId).agenda.every((item)=>item.decision_text===null));
+  assert.equal(db.get('SELECT processing_status FROM document_versions WHERE id=?',custom.versionId).processing_status,'needs_review');
+  assert.equal(db.get('SELECT status FROM documents WHERE id=?',custom.documentId).status,'needs_review');
+  const preserved=open();
+  assert.equal((await correct(custom,fields)).body.duplicateRequest,true);
+  assert.deepEqual(open(),preserved);
+  assert.deepEqual((await api('/api/protocol-imports?year=2026')).body.summary,
+    {total:2,ready:1,needs_review:1,failed:0,processing:0});
+  assert.equal((await api('/api/protocol-imports/recognition',{
+    documentId:custom.documentId,name:'Решения особого протокола',filenameContains:'custom-review',
+    aliases:{decision:['Итоговое заключение']}
+  },'PUT')).status,200);
+  await reprocess(custom);
+  assert.equal(open().length,0);
+  const meeting=getMeeting(db,workspace.id,view.meetingId);
+  assert.equal(meeting.agenda.length,3);
+  assert.ok(meeting.agenda.every((item)=>item.decision_text));
+  assert.equal(meeting.secretary_raw,'Проверенный секретарь');
+  assert.equal(db.get('SELECT processing_status FROM document_versions WHERE id=?',custom.versionId).processing_status,'processed');
+  assert.equal(db.get('SELECT status FROM documents WHERE id=?',custom.documentId).status,'processed');
+  assert.deepEqual((await api('/api/protocol-imports?year=2026')).body.summary,
+    {total:2,ready:2,needs_review:0,failed:0,processing:0});
+}));
+
+test('ручное создание заседания из непрочитанного документа сохраняет проверку отсутствующего текста',()=>fixture(async({db,workspace,api,tools,correct,dir,config})=>{
+  const file=join(dir,'unparsed.txt');await writeFile(file,'');
+  const record=registerDocument(db,{workspaceId:workspace.id,title:'Непрочитанный протокол',originalName:'unparsed.txt',
+    mediaType:'text/plain',detectedFormat:'text',requestedType:'auto',idempotencyKey:`protocol-year:2026:${sha('')}`,
+    blob:{sha256:sha(''),sizeBytes:0,storagePath:file}});
+  await processDocumentJob(db,{documentId:record.documentId,versionId:record.versionId,requestedType:'auto'},logger,config);
+  db.run("UPDATE jobs SET status='completed' WHERE id=?",record.jobId);
+  assert.equal((await tools(record)).meetingId,null);
+  const emptyReview=db.get("SELECT * FROM review_items WHERE source_id=? AND issue_code='empty_text'",record.versionId);
+  assert.equal(emptyReview.status,'open');
+  assert.equal((await correct(record,{meetingDate:'2026-07-07',protocolNumber:'27'})).status,200);
+  const view=await tools(record);
+  assert.ok(view.meetingId);
+  assert.equal(view.fields.meetingDate,'2026-07-07');
+  assert.equal(view.fields.protocolNumber,'27');
+  assert.deepEqual(db.get('SELECT * FROM review_items WHERE id=?',emptyReview.id),emptyReview);
+  assert.equal(db.get('SELECT processing_status FROM document_versions WHERE id=?',record.versionId).processing_status,'needs_review');
+  assert.equal(db.get('SELECT status FROM documents WHERE id=?',record.documentId).status,'needs_review');
+  assert.deepEqual((await api('/api/protocol-imports?year=2026')).body.summary,
+    {total:1,ready:0,needs_review:1,failed:0,processing:0});
 }));
 
 test('повтор после переноса и удаления не возвращает вопросы и не закрывает чужую проверку',()=>fixture(async({db,workspace,api,ingest,reprocess,tools})=>{

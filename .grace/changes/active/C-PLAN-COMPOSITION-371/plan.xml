@@ -10,6 +10,7 @@
       <File>apps/worker/src/processor.mjs</File><File>apps/worker/src/plan-llm-job.mjs</File>
       <File>apps/worker/src/main.mjs</File><File>packages/access-control/src/service.mjs</File>
       <File>packages/storage/src/documents.mjs</File><File>apps/api/src/access-router.mjs</File><File>.github/workflows/ci.yml</File>
+      <File>packages/protocols/src/import-corrections.mjs</File>
       <File>apps/api/src/app.mjs</File><File>apps/api/src/http-utils.mjs</File><File>apps/api/src/monthly-plans-router.mjs</File><File>apps/api/src/plan-items-router.mjs</File><File>apps/api/src/plans-router.mjs</File><File>apps/api/src/plan-source-rows-router.mjs</File>
       <Glob>migrations/032_*.sql</Glob><File>public/plans-next.js</File><File>public/plans-next.css</File><File>public/plan-source-rows-next.js</File><File>public/plan-source-rows-next.css</File><File>public/plan-collection.js</File><File>public/plan-collection.css</File>
       <File>public/plan-upload-identity.js</File><File>public/manual-plans-next.js</File>

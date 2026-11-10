@@ -90,6 +90,13 @@ test('разбор месячного заголовка не подменяет
     config: similarAnalysis.suggestedConfig, targetPeriod: { periodKind: 'monthly', periodKey: '2026-06' }, items: [{ title: 'X' }]
   });
   assert.match(wordVisibleText(changed.xml), /План работы майора Иванова на июнь 2026 года/u);
+  const repeatedYear = source.replace('на ноябрь 2026 года', 'План группы набора 2026 года на ноябрь 2026 года');
+  const repeatedAnalysis = analyzePlanDocumentXml(repeatedYear, { planKind: 'department' });
+  assert.equal(repeatedAnalysis.suggestedConfig.periodAnchors.length, 1);
+  const nextYear = generatePlanDocumentXml(repeatedYear, {
+    config: repeatedAnalysis.suggestedConfig, targetPeriod: { periodKind: 'monthly', periodKey: '2027-02' }, items: [{ title: 'X' }]
+  });
+  assert.match(wordVisibleText(nextYear.xml), /План группы набора 2026 года на февраль 2027 года/u);
 });
 
 test('выгрузка — неизменяемый DOCX-снимок: повторы и overrides не дублируют календарь и задачи', async () => fixture(async (f) => {

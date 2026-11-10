@@ -186,6 +186,8 @@ export function parsePlanDateWindow(value, period = null) {
     const range = dateRange({ day: Number(shared[1]), month, year }, { day: Number(shared[2]), month, year }, shared[0], period);
     return range.start && !shared[4] ? { ...range, inferredYear: true } : range;
   }
+  const separateDays = new RegExp(`(?<![\\p{L}\\d])\\d{1,2}(?:\\s*(?:,|;|и|или)\\s*\\d{1,2})+\\s+(${MONTH_PATTERN})(?![\\p{L}])`, 'iu');
+  if (separateDays.test(source)) return unresolved(source);
   if (tokens.length === 2 && rangeSeparator(source.slice(tokens[0].end, tokens[1].index))) {
     return dateRange(tokens[0], tokens[1], source.slice(tokens[0].index, tokens[1].end), period);
   }
