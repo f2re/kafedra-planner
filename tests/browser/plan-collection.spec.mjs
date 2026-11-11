@@ -359,6 +359,8 @@ test('Планы: визуальный шаблон, данные меропри
   await page.route('**/api/plan-events/suggest', route => route.fulfill({ status: 503, contentType: 'application/json', body: JSON.stringify({ error: { message: 'Подбор временно недоступен.' } }) }), { times: 1 });
   await page.locator('[data-collection-action="suggest"]').click();
   await expect(page.locator('#collection-suggest-status')).toContainText('Подбор не завершён');
+  await expect(page.locator('#collection-message')).toContainText('Подбор временно недоступен.');
+  await expect(page.locator('#collection-message')).toHaveAttribute('role', 'alert');
   await expect(suggested).toBeHidden();
   await expect(page.locator('#collection-events')).toBeVisible();
   await expect(page.locator(`[data-collection-select="${source.id}"]`)).toBeChecked();
@@ -366,6 +368,8 @@ test('Планы: визуальный шаблон, данные меропри
   await expect(page.locator('[data-collection-action="suggest"]')).toBeFocused();
   await page.locator('[data-collection-action="suggest"]').click();
   await expect(suggested).toBeVisible();
+  await expect(page.locator('#collection-message')).not.toContainText('Подбор временно недоступен.');
+  await expect(page.locator('#collection-message')).toHaveAttribute('role', 'status');
   await expect(suggested.locator('[data-suggestion-select]:checked')).toHaveCount(1);
   await expect(page.locator('#collection-events-panel .primary-button:visible')).toHaveCount(1);
   await page.screenshot({ path: testInfo.outputPath('department-selection.png'), fullPage: true });

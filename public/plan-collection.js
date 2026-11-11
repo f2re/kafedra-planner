@@ -268,6 +268,7 @@ async function suggestEvents(append = false) {
   const sequence = ++state.suggestionSequence; state.suggestionBusy = true;
   const controller = new AbortController(); state.suggestionController = controller;
   let failed = false;
+  message();
   $('#collection-suggest-status').textContent = 'Подбираем мероприятия и заполняем доступные поля…'; syncControls();
   try {
     const result = await api('/api/plan-events/suggest', { ...json('POST', { ...params, idempotencyKey: state.suggestionRequest.key }), signal: controller.signal });

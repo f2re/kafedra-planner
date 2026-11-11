@@ -86,15 +86,15 @@ UI-b95906da0e	public/plan-collection.js:188:858	renderEventDetails	Сохран�
 UI-bed294f86f	public/plan-collection.js:251:415	renderSuggestions	К списку мероприятий	C01	запланировано
 UI-c49b4ab16e	public/plan-collection.js:257:95	renderSuggestions	Принять выбранные	C01	запланировано
 UI-2e90f7af83	public/plan-collection.js:257:253	renderSuggestions	Подобрать следующую часть	C01	запланировано
-UI-7b854eb3ac	public/plan-collection.js:342:196	renderMembers / callback@341	Исключить из месячного плана	C02	запланировано
-UI-411918bd51	public/plan-collection.js:344:230	renderMembers / callback@341	Поднять: _______________________________________	C01	запланировано
-UI-5fd8159dc8	public/plan-collection.js:344:461	renderMembers / callback@341	Опустить: _______________________________________	C01	запланировано
-UI-3a20a86de2	public/plan-collection.js:344:716	renderMembers / callback@341	Исключить	C02	запланировано
-UI-5676b8c176	public/plan-collection.js:345:146	renderMembers / callback@341	Сохранить формулировки	C01	запланировано
-UI-76cf132d5e	public/plan-collection.js:345:249	renderMembers / callback@341	Как в источнике	C01	запланировано
-UI-575cea0d64	public/plan-collection.js:525:1033	renderTemplateReview	Сохранить образец	C01	запланировано
-UI-59b66fad49	public/plan-collection.js:525:1129	renderTemplateReview	Закрыть	C01	запланировано
-UI-a2194dc3d1	public/plan-collection.js:568:96	uploadTemplate	Повторить настройку	C01	запланировано
+UI-986d5b7390	public/plan-collection.js:343:196	renderMembers / callback@342	Исключить из месячного плана	C02	запланировано
+UI-95b29b63e8	public/plan-collection.js:345:230	renderMembers / callback@342	Поднять: _______________________________________	C01	запланировано
+UI-82eb103ae3	public/plan-collection.js:345:461	renderMembers / callback@342	Опустить: _______________________________________	C01	запланировано
+UI-6533febd7a	public/plan-collection.js:345:716	renderMembers / callback@342	Исключить	C02	запланировано
+UI-dfdfcfebe5	public/plan-collection.js:346:146	renderMembers / callback@342	Сохранить формулировки	C01	запланировано
+UI-c802f14261	public/plan-collection.js:346:249	renderMembers / callback@342	Как в источнике	C01	запланировано
+UI-a210ef7452	public/plan-collection.js:526:1033	renderTemplateReview	Сохранить образец	C01	запланировано
+UI-4300e2bd16	public/plan-collection.js:526:1129	renderTemplateReview	Закрыть	C01	запланировано
+UI-b47d24dc79	public/plan-collection.js:569:96	uploadTemplate	Повторить настройку	C01	запланировано
 UI-deca753b27	public/plan-fact-next.js:51:60	ensurePlanFactUi	◫ План / факт	C01	запланировано
 UI-183df22e6f	public/plan-fact-next.js:52:61	ensurePlanFactUi	◫ План / факт	C01	запланировано
 UI-413efa3f7c	public/plan-fact-next.js:56:150	ensurePlanFactUi	Пересчитать	C01	запланировано

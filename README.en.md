@@ -11,7 +11,7 @@ Kafedra Planner is an offline-first daily work system for an academic department
 
 > Current milestone: **`0.4.12`** is the source package version; current `main` after that tag uses SQLite schema **33**. As of November 11, 2026, the latest published GitHub Release with installation assets is [`v0.4.7`](https://github.com/f2re/kafedra-planner/releases/tag/v0.4.7). A newer Git tag does not imply that its installer has been published. Core workflows do not require Internet access, Docker, an LLM, Docomator, or cloud services. The project remains a release candidate until the real Astra Linux/Debian installation, upgrade, restoration, and rollback acceptance in [TARGET_ACCEPTANCE.md](docs/TARGET_ACCEPTANCE.md) and issue #27 is complete.
 
-Patch release `0.4.12` adds conversational natural-language protocol search via the departmental LLM assistant (morphological root stemming, substantive term extraction, full-content hydration, quote verification with verified badges), along with end-to-end indexing consistency for quorum, attendees, and decisions in SQLite FTS5.
+Source milestone `0.4.12` adds conversational natural-language protocol search via the departmental LLM assistant (morphological root stemming, substantive term extraction, full-content hydration, quote verification with verified badges), along with end-to-end indexing consistency for quorum, attendees, and decisions in SQLite FTS5.
 
 **[Download an offline bundle](https://github.com/f2re/kafedra-planner/releases)** · **[Install guide](docs/GITHUB_RELEASES.md)** · **[Security policy](SECURITY.md)** · **[Russian documentation](README.md#эксплуатация-и-документация)**
 
