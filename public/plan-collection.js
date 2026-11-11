@@ -1,24 +1,29 @@
 import { newPlanOperationId, planUploadKey } from './plan-upload-identity.js';
+import { applyPreviewColumnWidths, createEventTemplateEditor, eventTerm, fieldInput, fieldValue, previewTable, templateFields } from './event-template-editor.js';
 
 const today = new Date();
 const state = {
-  open: false, month: `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}`, draft: null, drafts: [], templates: [], plans: [],
+  open: false, month: `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}`, draft: null, drafts: [], templates: [], eventTemplates: [], eventVersions: new Map(), plans: [],
   events: [], selected: new Set(), edits: new Map(), hasMore: false, nextOffset: 0,
   filters: { q: '', department: '', activityKind: '', planId: '', includeUndated: true },
-  metadata: { title: '', templateId: '' }, tab: 'events', busy: false, requestSequence: 0, draftSequence: 0, listSequence: 0,
-  createKey: newPlanOperationId(), pendingCreate: null, exportRequest: null, templateSource: null, templateAnalysis: null
+  metadata: { title: '', templateId: '', eventTemplateVersionId: '', departmentText: '' }, tab: 'events', busy: false, requestSequence: 0, draftSequence: 0, listSequence: 0,
+  createKey: newPlanOperationId(), pendingCreate: null, exportRequest: null, templateSource: null, templateAnalysis: null,
+  detailsEdits: new Map(), designerDirty: false, suggestions: null, suggestedSelected: new Set(), suggestionBusy: false, suggestionSequence: 0, suggestionController: null, suggestionRequest: null
 };
 const $ = (selector, root = document) => root.querySelector(selector);
 const $$ = (selector, root = document) => [...root.querySelectorAll(selector)];
 const esc = value => String(value ?? '').replaceAll('&', '&amp;').replaceAll('<', '&lt;').replaceAll('>', '&gt;').replaceAll('"', '&quot;').replaceAll("'", '&#039;');
 const kinds = { methodological: 'Методическая работа', teaching: 'Занятия', science: 'Научная работа', organizational: 'Организационная работа', everyday: 'Повседневная работа' };
+let templateEditor;
 const directions = { education: 'Образование', science: 'Наука', organizational: 'Организация', everyday: 'Повседневная работа' };
 
 async function api(path, options = {}) {
   const response = await fetch(path, options);
   const data = await response.json().catch(() => ({}));
   if (!response.ok) {
-    const error = new Error(data?.error?.message || `Не удалось выполнить действие (${response.status}).`);
+    const details = data?.error?.details;
+    const detailText = Array.isArray(details?.missing) ? details.missing.slice(0, 8).map(item => `Строка ${item.position || item.row || '—'}: ${item.label || (item.fields || []).join(', ')}`).join('; ') : '';
+    const error = new Error((data?.error?.message || `Не удалось выполнить действие (${response.status}).`) + (detailText ? ` ${detailText}` : ''));
     error.code = data?.error?.code;
     error.status = response.status;
     throw error;
@@ -38,12 +43,7 @@ function message(text = '', error = false) {
   target.setAttribute('role', error ? 'alert' : 'status');
   target.classList.toggle('collection-error', error);
 }
-function dates(item) {
-  const format = value => value ? String(value).slice(0, 10).split('-').reverse().join('.') : '';
-  if (item.starts_at && item.ends_at && item.starts_at !== item.ends_at) return `${format(item.starts_at)} — ${format(item.ends_at)}`;
-  if (item.due_date) return `до ${format(item.due_date)}`;
-  return item.starts_at ? format(item.starts_at) : 'Без точного срока';
-}
+function dates(item) { return eventTerm(item) || 'Без точного срока'; }
 function locator(item) {
   const value = item?.evidence?.locator || {};
   if (value.sheet) return `Лист ${value.sheet}${value.row ? `, строка ${value.row}` : ''}`;
@@ -82,10 +82,13 @@ function ensureUi() {
         <label class="field"><span>Месяц</span><input id="collection-month" type="month" value="${state.month}" required></label>
         <label class="field"><span>Сохранённый план</span><select id="collection-saved"><option value="">Новый план на месяц</option></select></label>
         <label class="field collection-title-field"><span>Название плана</span><input id="collection-title" required maxlength="500"></label>
+        <label class="field"><span>Поля и колонки</span><select id="collection-event-template"><option value="">Стандартные поля</option></select></label>
         <label class="field"><span>Образец DOCX</span><select id="collection-template"><option value="">Стандартная таблица</option></select></label>
-        <div class="collection-plan-actions"><button type="submit" class="secondary-button" data-collection-mutation>Сохранить план</button><button type="button" class="secondary-button" data-collection-action="upload-template" data-collection-mutation>Загрузить образец</button><input id="collection-template-file" type="file" accept=".docx" hidden><button type="button" class="primary-button" data-collection-action="export" data-collection-mutation>Скачать DOCX</button></div>
+        <p class="collection-help collection-title-field">Поля задают таблицу, DOCX-образец — шапку и подписи.</p>
+        <div class="collection-plan-actions"><button type="button" class="secondary-button" data-collection-action="edit-event-template">Поля и вид документа</button><button type="submit" class="secondary-button" data-collection-mutation>Сохранить план</button><button type="button" class="secondary-button" data-collection-action="upload-template" data-collection-mutation>Загрузить образец</button><input id="collection-template-file" type="file" accept=".docx" hidden><button type="button" class="primary-button" data-collection-action="export" data-collection-mutation>Скачать DOCX</button></div>
         <p id="collection-export-warning" class="collection-help collection-title-field hidden"></p>
       </form>
+      <section id="collection-event-template-designer" class="collection-designer hidden" aria-label="Визуальный редактор шаблона"></section>
       <section id="collection-template-review" class="collection-template-review hidden" aria-label="Настройка образца"></section>
       <div class="collection-tabs" role="tablist" aria-label="Состав месячного плана"><button id="collection-events-tab" type="button" role="tab" aria-selected="true" aria-controls="collection-events-panel" data-collection-action="events">Все мероприятия</button><button id="collection-members-tab" type="button" role="tab" aria-selected="false" aria-controls="collection-members-panel" data-collection-action="members">В плане · 0</button></div>
       <section id="collection-events-panel" role="tabpanel" aria-labelledby="collection-events-tab">
@@ -95,12 +98,17 @@ function ensureUi() {
           <label class="field"><span>Кафедра / подразделение</span><input id="collection-department" type="search" placeholder="По тексту плана и ответственным"></label>
           <label class="field"><span>Исходный план</span><select id="collection-source-plan"><option value="">Все планы</option></select></label>
         </div>
+        <div class="collection-prefill-actions"><button type="button" class="primary-button" data-collection-action="suggest">Подобрать и заполнить</button><button type="button" class="text-button hidden" data-collection-action="cancel-suggest">Отменить подбор</button><span id="collection-suggest-status" role="status" aria-live="polite">Укажите кафедру — система предложит мероприятия для неё.</span></div>
+        <section id="collection-suggestion-preview" class="collection-suggestion-preview hidden" aria-label="Предварительный подбор"></section>
         <div class="collection-selection"><label class="check-field"><input id="collection-undated" type="checkbox" checked><span>Показывать также мероприятия без точного срока</span></label><span id="collection-selection-count">Выбрано: 0</span><button type="button" class="primary-button" data-collection-action="add" data-collection-mutation disabled>Добавить выбранные</button></div>
         <div id="collection-events" aria-busy="false"></div><button type="button" class="secondary-button hidden" id="collection-load-more" data-collection-action="more">Показать ещё</button>
       </section>
       <section id="collection-members-panel" class="hidden" role="tabpanel" aria-labelledby="collection-members-tab"><p class="collection-help">Формулировки для выгрузки можно изменить здесь. Сроки и исполнение самого мероприятия редактируются в исходном плане.</p><div id="collection-members"></div></section>`;
     view.append(section);
   }
+  if (!templateEditor) templateEditor = createEventTemplateEditor({ root: $('#collection-event-template-designer'), api, json, getItems: () => { const items = state.draft?.items?.filter(item => !item.unavailable) || []; return items.length ? items : state.events.filter(item => state.selected.has(item.id)); }, onDirty: value => { state.designerDirty = value; syncControls(); }, onSaved: async (saved, version) => {
+    state.eventTemplates = [...state.eventTemplates.filter(item => item.id !== saved.id), saved]; state.eventVersions.set(version.id, version); state.metadata.eventTemplateVersionId = version.id; clearSuggestions(); renderSelectors(); renderMembers(); renderEvents(); message('Шаблон выбран. Сохраните месячный план, чтобы закрепить эту версию.');
+  } });
   return true;
 }
 function setTab(tab) {
@@ -114,18 +122,30 @@ function setTab(tab) {
 function syncControls() {
   const root = $('#plan-collection');
   if (!root) return;
-  $$('[data-collection-mutation], #collection-plan-form input, #collection-plan-form select, .collection-item-form input, #collection-template-review input, #collection-template-review select', root).forEach(node => { node.disabled = state.busy; });
+  $$('[data-collection-mutation], #collection-plan-form input, #collection-plan-form select, .collection-filters input, .collection-filters select, #collection-undated, .collection-item-form input, .collection-item-form select, .collection-event-details input, .collection-event-details select, #collection-template-review input, #collection-template-review select', root).forEach(node => { node.disabled = state.busy; });
+  templateEditor?.setExternalBusy(state.busy);
+  $('[data-collection-action="edit-event-template"]', root).disabled = state.busy;
+  const includedEvents = new Set((state.draft?.items || []).map(item => item.plan_item_id));
+  $$('[data-collection-select]', root).forEach(node => { node.disabled = state.busy || includedEvents.has(node.dataset.collectionSelect); });
   $('[data-collection-action="add"]', root).disabled = state.busy || !state.selected.size;
   const unavailable = state.draft?.items?.some(item => item.unavailable);
-  $('[data-collection-action="export"]', root).disabled = state.busy || !state.draft?.items?.length || Boolean(unavailable || state.draft?.templateUnavailable);
+  $('[data-collection-action="export"]', root).disabled = state.busy || !state.draft?.items?.length || Boolean(unavailable || state.draft?.templateUnavailable || state.draft?.eventTemplateUnavailable);
   const warning = $('#collection-export-warning');
-  warning.textContent = unavailable ? 'Для выгрузки восстановите доступ к источникам или исключите недоступные пункты из состава.' : state.draft?.templateUnavailable ? 'Сохранённый образец недоступен. Выберите другой образец или стандартную таблицу и сохраните план.' : '';
+  warning.textContent = state.draft?.eventTemplateUnavailable ? 'Закреплённая версия полей недоступна. Выберите другой шаблон и сохраните план.' : unavailable ? 'Для выгрузки восстановите доступ к источникам или исключите недоступные пункты из состава.' : state.draft?.templateUnavailable ? 'Сохранённый образец недоступен. Выберите другой образец или стандартную таблицу и сохраните план.' : '';
   warning.classList.toggle('hidden', !warning.textContent);
   const memberships = state.draft?.items || [];
   const firstId = memberships[0]?.id, lastId = memberships.at(-1)?.id;
   $$('[data-collection-action="up"], [data-collection-action="down"]', root).forEach(button => {
     button.disabled = state.busy || button.dataset.membership === (button.dataset.collectionAction === 'up' ? firstId : lastId);
   });
+  $('[data-collection-action="suggest"]').disabled = state.suggestionBusy || !state.filters.department.trim() || state.busy || state.designerDirty;
+  $('[data-collection-action="cancel-suggest"]').classList.toggle('hidden', !state.suggestionBusy);
+  const includedSuggestions = new Set((state.draft?.items || []).map(item => item.plan_item_id));
+  $$('[data-suggestion-select]').forEach(node => { node.disabled = state.busy || includedSuggestions.has(node.dataset.suggestionSelect); });
+  $$('[data-details-readonly]').forEach(node => { node.disabled = true; });
+  const approve = $('[data-collection-action="apply-suggestion"]'); if (approve) approve.disabled = state.busy || !state.suggestedSelected.size;
+  const more = $('[data-collection-action="suggest-more"]'); if (more) more.disabled = state.busy || state.suggestionBusy;
+  if (state.designerDirty) { $('[data-collection-action="export"]').disabled = true; warning.textContent = 'Сохраните изменения шаблона перед подбором или выгрузкой.'; warning.classList.remove('hidden'); }
   $('#collection-selection-count').textContent = `Выбрано: ${state.selected.size}`;
   $('#collection-members-tab').textContent = `В плане · ${state.draft?.items?.length || 0}`;
 }
@@ -139,21 +159,162 @@ function renderSelectors() {
   const missingTemplate = state.metadata.templateId && !templates.some(template => template.id === state.metadata.templateId);
   $('#collection-template').innerHTML = '<option value="">Стандартная таблица</option>' + templates.map(template => `<option value="${esc(template.id)}">${esc(template.name)}</option>`).join('') + (missingTemplate ? `<option value="${esc(state.metadata.templateId)}">Сохранённый образец недоступен</option>` : '');
   $('#collection-template').value = state.metadata.templateId || '';
+  for (const item of state.eventTemplates) { const version = item.currentVersion || { id: item.currentVersionId, templateId: item.id, version: item.version, title: item.title, definition: item.definition }; state.eventVersions.set(version.id, version); }
+  const versions = state.eventTemplates.map(item => state.eventVersions.get(item.currentVersionId || item.currentVersion?.id)).filter(Boolean);
+  const pinned = state.eventVersions.get(state.metadata.eventTemplateVersionId); if (pinned && !versions.some(item => item.id === pinned.id)) versions.push(pinned);
+  $('#collection-event-template').innerHTML = '<option value="">Стандартные поля</option>' + versions.map(item => `<option value="${esc(item.id)}">${esc(item.title)} · версия ${item.version}</option>`).join('');
+  $('#collection-event-template').value = state.metadata.eventTemplateVersionId || '';
+  $('#collection-department').value = state.filters.department;
   $('#collection-source-plan').innerHTML = '<option value="">Все планы</option>' + state.plans.map(plan => `<option value="${esc(plan.id)}">${esc(plan.title)}</option>`).join('');
   $('#collection-source-plan').value = state.filters.planId;
   syncControls();
 }
+function selectedEventTemplate() { return state.eventVersions.get(state.metadata.eventTemplateVersionId) || null; }
+function metadataChanged(payload, draft) {
+  return payload.title !== draft.title || (payload.templateId || null) !== (draft.template_id || null)
+    || (payload.eventTemplateVersionId || null) !== (draft.event_template_version_id || null)
+    || (payload.departmentText || '') !== (draft.department_text || '');
+}
+function renderEventDetails(source) {
+  const custom = templateFields(selectedEventTemplate()).filter(field => field.source === 'custom');
+  const edit = state.detailsEdits.get(source.id) || { location: source.location || '', customValues: source.customValues || {} };
+  const disabled = source.canEditDetails ? '' : 'disabled data-details-readonly="true"';
+  return `<details class="collection-event-details" data-event-details="${esc(source.id)}" ${state.detailsEdits.has(source.id) ? 'open' : ''}><summary>${source.location ? `Место: ${esc(source.location)}` : 'Место и дополнительные поля'}${state.detailsEdits.has(source.id) ? ' · есть правки' : ''}</summary><form data-event-details-form="${esc(source.id)}"><p class="collection-help">Данные мероприятия сохраняются в исходном плане и доступны в следующих месячных планах.</p><label class="field"><span>Место</span><input name="location" value="${esc(edit.location)}" maxlength="1000" ${disabled}></label>${custom.map(field => `<label class="field"><span>${esc(field.label)}</span>${fieldInput(field, edit.customValues[field.key] ?? '', { attributes: `data-event-custom-field="${esc(field.key)}" ${disabled}` })}</label>`).join('')}${source.canEditDetails ? '<button type="submit" class="secondary-button" data-collection-mutation>Сохранить данные мероприятия</button>' : '<p class="collection-help">Доступно только чтение данных этого мероприятия.</p>'}</form></details>`;
+}
+function readEventDetails(form) {
+  const source = state.events.find(item => item.id === form.dataset.eventDetailsForm);
+  const values = { location: $('[name="location"]', form).value, customValues: { ...(state.detailsEdits.get(source.id)?.customValues || source.customValues || {}) } };
+  for (const node of $$('[data-event-custom-field]', form)) values.customValues[node.dataset.eventCustomField] = node.value;
+  return values;
+}
+async function saveEventDetails(form) {
+  const id = form.dataset.eventDetailsForm, source = state.events.find(item => item.id === id), values = readEventDetails(form);
+  state.detailsEdits.set(id, values);
+  const customValues = {}; for (const field of templateFields(selectedEventTemplate()).filter(field => field.source === 'custom')) if (Object.hasOwn(values.customValues, field.key) && String(values.customValues[field.key] ?? '') !== String(source.customValues?.[field.key] ?? '')) customValues[field.key] = values.customValues[field.key];
+  await api(`/api/plan-events/${encodeURIComponent(id)}/details`, json('PATCH', { expectedRevision: source.detailsRevision || 0, templateVersionId: state.metadata.eventTemplateVersionId || null, location: values.location, customValues }));
+  state.detailsEdits.delete(id); clearSuggestions();
+  if (state.draft) acceptDraft(await api(`/api/monthly-plans/${encodeURIComponent(state.draft.id)}`), { preserveMetadata: true });
+  await loadEvents(); message('Данные мероприятия сохранены.');
+}
+function renderMemberFields(item, edit) {
+  const template = selectedEventTemplate(), fields = template ? templateFields(template, true) : [
+    { source: 'title', label: 'Формулировка для выгрузки', required: true }, { source: 'date', label: 'Срок в документе' },
+    { source: 'responsible', label: 'Ответственный в документе' }, { source: 'location', label: 'Место в документе' },
+    { source: 'result', label: 'Ожидаемый результат' }, { source: 'note', label: 'Примечание' }
+  ];
+  const names = { title: 'titleOverride', date: 'dateTextOverride', responsible: 'responsibleOverride', location: 'locationOverride', result: 'expectedResultOverride', note: 'note' };
+  return fields.map(field => {
+    if (field.source === 'activity') return `<div class="field"><span>${esc(field.label)}</span><p>${esc(kinds[item.effective?.activityKind] || kinds[item.source?.activity_kind] || '')}</p></div>`;
+    const name = names[field.source], value = field.source === 'custom' ? (edit.customValues?.[field.key] ?? '') : (edit[name] ?? '');
+    const missing = field.required && String(value).trim() === '';
+    return `<label class="field ${field.source === 'title' ? 'collection-title-field' : ''}"><span>${esc(field.label)}${field.required ? ' *' : ''}</span>${fieldInput({ ...field, type: field.type || 'text' }, value, { name: name || '', attributes: field.source === 'custom' ? `data-monthly-custom-field="${esc(field.key)}"` : '', required: field.source === 'title' })}${missing ? '<small class="collection-required-hint">Заполните перед выгрузкой</small>' : ''}</label>`;
+  }).join('');
+}
+function cancelSuggestion(showMessage = false) {
+  state.suggestionSequence += 1; state.suggestionController?.abort(); state.suggestionController = null; state.suggestionBusy = false;
+  if (showMessage) $('#collection-suggest-status').textContent = 'Подбор остановлен. Сохранённые мероприятия не изменены.';
+  if ($('#plan-collection')) syncControls();
+}
+function clearSuggestions() {
+  cancelSuggestion(); state.suggestions = null; state.suggestedSelected.clear(); state.suggestionRequest = null;
+  $('#collection-suggestion-preview')?.classList.add('hidden');
+  if ($('#collection-suggest-status')) $('#collection-suggest-status').textContent = 'Укажите кафедру — система предложит мероприятия для неё.';
+}
+function suggestionParameters(offset = 0) {
+  return { month: state.month, department: state.filters.department.trim(), eventTemplateVersionId: state.metadata.eventTemplateVersionId || null,
+    includeUndated: state.filters.includeUndated, ...(state.filters.planId ? { planId: state.filters.planId } : {}), ...(state.filters.q ? { q: state.filters.q } : {}),
+    ...(state.filters.activityKind ? { activityKind: state.filters.activityKind } : {}), offset };
+}
+function suggestionPreviewItem(item) {
+  const source = item.source || {}, values = { ...(source.customValues || {}) };
+  for (const [key, proposal] of Object.entries(item.suggestedFields?.customValues || {})) values[key] = proposal.value;
+  return { source, effective: { title: source.title, dateText: source.starts_at || source.due_date ? dates(source) : '', responsibleRaw: source.responsible_raw || source.responsible_name || '', location: item.suggestedFields?.location?.value ?? source.location ?? '', customValues: values, expectedResult: source.expected_result || '', activityKind: source.activity_kind } };
+}
+function renderSuggestions() {
+  const root = $('#collection-suggestion-preview'), result = state.suggestions;
+  if (!result) { root.classList.add('hidden'); return; }
+  root.classList.remove('hidden');
+  const included = new Set((state.draft?.items || []).map(item => item.plan_item_id));
+  const selected = result.items.filter(item => state.suggestedSelected.has(item.planItemId));
+  const fields = templateFields(selectedEventTemplate(), true);
+  const selectedPreview = selected.map(suggestionPreviewItem);
+  root.innerHTML = `<header class="collection-designer-heading"><div><h4 tabindex="-1">Предварительный подбор</h4><p class="collection-help">${result.method === 'rules' ? 'Подбор по тексту и данным источников. Локальная модель не использовалась.' : 'Мероприятия предварительно отсортированы с помощью локальной модели. Проверьте основания выбора.'} Отмечены рекомендуемые строки; остальные доступны ниже.</p></div><button type="button" class="text-button" data-collection-action="hide-suggestions">Свернуть</button></header>${result.warnings?.length ? `<ul class="collection-help">${result.warnings.map(warning => `<li>${esc(warning)}</li>`).join('')}</ul>` : ''}${selectedEventTemplate() ? previewTable(selectedEventTemplate().definition, selectedPreview, { caption: state.metadata.title || defaultTitle() }) : ''}
+    <div class="collection-suggestion-list">${result.items.length ? result.items.map(item => {
+      const source = item.source || {}, isIncluded = included.has(item.planItemId), preview = suggestionPreviewItem(item);
+      const prepared = fields.filter(field => field.source === 'custom' || field.source === 'location').map(field => { const value = fieldValue(field, preview); const proposal = field.source === 'location' ? item.suggestedFields?.location : item.suggestedFields?.customValues?.[field.key]; return `<div><dt>${esc(field.label)}</dt><dd>${String(value ?? '').trim() ? esc(value) : '<span class="collection-empty-cell">Не указано в источнике</span>'}${proposal ? `<small>Из источника: «${esc(proposal.quote)}»</small>` : ''}</dd></div>`; }).join('');
+      return `<article class="collection-suggestion-row" data-suggestion-event="${esc(item.planItemId)}"><label class="collection-suggestion-choice"><input type="checkbox" data-suggestion-select="${esc(item.planItemId)}" ${isIncluded || state.suggestedSelected.has(item.planItemId) ? 'checked' : ''} ${isIncluded ? 'disabled' : ''}><span><strong>${esc(source.title)}</strong><small>${isIncluded ? 'Уже в плане' : ({ recommended: 'Рекомендуется', review: 'Требует решения', other: 'Другие мероприятия' })[item.relevance] || 'Требует решения'} · ${esc(dates(source))}</small></span></label><p>${esc(item.reason)}</p>${item.quote ? `<details><summary>Основание в источнике</summary><blockquote>${esc(item.quote)}</blockquote>${sourceLinks(source)}</details>` : sourceLinks(source)}${prepared ? `<dl class="collection-proposed-fields">${prepared}</dl>` : ''}</article>`;
+    }).join('') : '<p>Для выбранного периода мероприятий нет.</p>'}</div>
+    <div class="collection-plan-actions"><span>Выбрано: ${state.suggestedSelected.size}</span><button type="button" class="primary-button" data-collection-action="apply-suggestion" data-collection-mutation>Принять выбранные</button>${result.hasMore ? '<button type="button" class="secondary-button" data-collection-action="suggest-more">Подобрать следующую часть</button>' : ''}</div><p class="collection-help">После принятия откроется заполненный план. Формулировки и дополнительные поля можно уточнить перед выгрузкой. Исходные мероприятия не изменяются.</p>`;
+  applyPreviewColumnWidths(root);
+  syncControls();
+  for (const node of $$('[data-suggestion-select]')) if (included.has(node.dataset.suggestionSelect)) node.disabled = true;
+}
+async function suggestEvents(append = false) {
+  if (state.suggestionBusy || state.busy) return;
+  if (!state.filters.department.trim()) { message('Укажите кафедру или подразделение для подбора.', true); $('#collection-department').focus(); return; }
+  if (state.designerDirty) { message('Сохраните шаблон перед подбором.', true); return; }
+  const params = suggestionParameters(append ? state.suggestions?.nextOffset || 0 : 0), signature = JSON.stringify(params);
+  if (state.suggestionRequest?.signature !== signature) state.suggestionRequest = { signature, key: `plan-suggestion-ui:${newPlanOperationId()}` };
+  const sequence = ++state.suggestionSequence; state.suggestionBusy = true;
+  const controller = new AbortController(); state.suggestionController = controller;
+  $('#collection-suggest-status').textContent = 'Подбираем мероприятия и заполняем доступные поля…'; syncControls();
+  try {
+    const result = await api('/api/plan-events/suggest', { ...json('POST', { ...params, idempotencyKey: state.suggestionRequest.key }), signal: controller.signal });
+    if (sequence !== state.suggestionSequence) return;
+    const included = new Set((state.draft?.items || []).map(item => item.plan_item_id));
+    if (!append) { state.suggestedSelected.clear(); state.suggestions = { ...result, items: [], runs: [] }; }
+    const priorIds = new Set(state.suggestions.items.map(item => item.planItemId));
+    state.suggestions.items.push(...(result.items || []).filter(item => !priorIds.has(item.planItemId)));
+    state.suggestions.runs.push({ runId: result.runId, ids: (result.items || []).map(item => item.planItemId) });
+    state.suggestions.hasMore = result.hasMore; state.suggestions.nextOffset = result.nextOffset;
+    state.suggestions.warnings = [...new Set([...(state.suggestions.warnings || []), ...(result.warnings || [])])];
+    if (state.suggestions.method !== result.method) state.suggestions.method = 'mixed';
+    for (const item of result.items || []) if (item.relevance === 'recommended' && !included.has(item.planItemId)) state.suggestedSelected.add(item.planItemId);
+    renderSuggestions();
+    $('#collection-suggest-status').textContent = `Подбор готов: ${state.suggestions.items.length} мероприятий, рекомендовано ${state.suggestedSelected.size}.${result.hasMore ? ' Доступна следующая часть.' : ''}`;
+    $('#collection-suggestion-preview h4')?.focus();
+  } catch (error) { if (sequence === state.suggestionSequence && error.name !== 'AbortError') { $('#collection-suggest-status').textContent = 'Подбор не завершён. Повторите запрос; сохранённые данные не изменены.'; message(error.message, true); } }
+  finally { if (sequence === state.suggestionSequence) { state.suggestionBusy = false; state.suggestionController = null; syncControls(); } }
+}
+async function applySuggestions() {
+  if (!state.suggestions || !state.suggestedSelected.size) return;
+  const proposal = state.suggestions, selected = new Set(state.suggestedSelected);
+  const runs = proposal.runs.map(run => ({ runId: run.runId, ids: run.ids.filter(id => selected.has(id)) })).filter(run => run.ids.length);
+  const context = { sequence: state.suggestionSequence, parameters: JSON.stringify(suggestionParameters()), createKey: state.createKey };
+  let draftId = state.draft?.id || null;
+  const isCurrent = () => state.suggestions === proposal && state.suggestionSequence === context.sequence
+    && JSON.stringify(suggestionParameters()) === context.parameters && state.createKey === context.createKey
+    && (!draftId || state.draft?.id === draftId);
+  const requireCurrent = () => { if (!isCurrent()) throw new Error('Контекст подбора изменился. Откройте сохранённый план, чтобы проверить результат принятия.'); };
+  await saveMetadata([], { isCurrent });
+  requireCurrent(); draftId = state.draft.id;
+  let applied = 0; const failures = [];
+  for (const run of runs) {
+    requireCurrent();
+    const result = await api(`/api/monthly-plans/${encodeURIComponent(draftId)}/apply-suggestion`, json('POST', { runId: run.runId, planItemIds: run.ids, expectedRevision: state.draft.revision }));
+    requireCurrent();
+    acceptDraft(result.draft || result);
+    for (const row of result.results || []) {
+      if (['added', 'existing', 'applied'].includes(row.status)) { state.suggestedSelected.delete(row.planItemId); applied += 1; }
+      else if (row.status === 'error') failures.push(row.message || 'Одно мероприятие не добавлено.');
+    }
+    for (const item of state.draft.items || []) if (!item.unavailable) state.suggestedSelected.delete(item.plan_item_id);
+  }
+  requireCurrent(); renderSuggestions(); setTab('members');
+  message(failures.length ? `Сохранено ${applied}. ${failures.join(' ')}` : 'Выбранные мероприятия приняты. Проверьте заполненные поля и скачайте документ.', Boolean(failures.length));
+}
+
 function renderEvents() {
   const included = new Set((state.draft?.items || []).filter(item => !item.unavailable).map(item => item.plan_item_id));
   $('#collection-events').innerHTML = state.events.length ? `<table class="collection-table"><thead><tr><th><span class="sr-only">Выбор</span></th><th>Мероприятие</th><th>Срок</th><th>Ответственный</th><th>Источник</th></tr></thead><tbody>${state.events.map(item => `<tr data-collection-event="${esc(item.id)}">
     <td class="collection-choice"><input type="checkbox" data-collection-select="${esc(item.id)}" aria-label="Выбрать: ${esc(item.title)}" ${included.has(item.id) ? 'checked disabled' : state.selected.has(item.id) ? 'checked' : ''}></td>
-    <td><strong>${esc(item.title)}</strong><small>${esc(kinds[item.activity_kind] || directions[item.direction] || 'Мероприятие')}${included.has(item.id) ? ' · Уже в плане' : ''}</small></td>
+    <td><strong>${esc(item.title)}</strong><small>${esc(kinds[item.activity_kind] || directions[item.direction] || 'Мероприятие')}${included.has(item.id) ? ' · Уже в плане' : ''}</small>${renderEventDetails(item)}</td>
     <td data-label="Срок">${esc(dates(item))}</td><td data-label="Ответственный">${esc(item.responsible_raw || item.responsible_name || 'Не указан')}</td><td>${sourceLinks(item)}</td></tr>`).join('')}</tbody></table>` : '<div class="empty-state">Мероприятий по этим условиям нет. Измените фильтры или загрузите исходные планы.</div>';
   $('#collection-load-more').classList.toggle('hidden', !state.hasMore);
   syncControls();
 }
 function sourceMemberEdit(source) {
-  return { titleOverride: source.title || '', dateTextOverride: source.starts_at || source.due_date ? dates(source) : '', responsibleOverride: source.responsible_raw || '', expectedResultOverride: source.expected_result || '' };
+  return { titleOverride: source.title || '', dateTextOverride: source.starts_at || source.due_date ? dates(source) : '', responsibleOverride: source.responsible_raw || '', expectedResultOverride: source.expected_result || '', locationOverride: source.location || '', customValues: source.customValues || {} };
 }
 function memberEdit(item) {
   const inherited = sourceMemberEdit(item.source || {}), effective = item.effective || {};
@@ -162,7 +323,7 @@ function memberEdit(item) {
     dateTextOverride: effective.dateText ?? item.date_text_override ?? inherited.dateTextOverride,
     responsibleOverride: effective.responsibleRaw ?? item.responsible_override ?? inherited.responsibleOverride,
     expectedResultOverride: effective.expectedResult ?? item.expected_result_override ?? inherited.expectedResultOverride,
-    note: item.note || ''
+    note: item.note || '', locationOverride: effective.location ?? item.location_override ?? inherited.locationOverride, customValues: { ...(effective.customValues || inherited.customValues) }
   };
 }
 function renderMembers() {
@@ -171,8 +332,9 @@ function renderMembers() {
     if (item.unavailable) return `<article class="collection-member"><strong>Источник недоступен</strong><p>Пункт сохранён в составе. Его данные и выгрузка недоступны без доступа к источнику.</p><button type="button" class="text-button" data-collection-action="remove" data-membership="${esc(item.id)}" data-collection-mutation>Исключить из месячного плана</button></article>`;
     const edit = memberEdit(item), source = item.source || {}, effective = item.effective || {};
     return `<article class="collection-member" data-collection-member="${esc(item.id)}"><header><div><strong>${index + 1}. ${esc(effective.title || source.title)}</strong>${sourceLinks(source)}</div><div class="collection-order"><button type="button" class="text-button" data-collection-action="up" data-membership="${esc(item.id)}" data-collection-mutation ${index ? '' : 'disabled'} aria-label="Поднять: ${esc(effective.title || source.title)}">Выше</button><button type="button" class="text-button" data-collection-action="down" data-membership="${esc(item.id)}" data-collection-mutation ${index === items.length - 1 ? 'disabled' : ''} aria-label="Опустить: ${esc(effective.title || source.title)}">Ниже</button><button type="button" class="text-button" data-collection-action="remove" data-membership="${esc(item.id)}" data-collection-mutation>Исключить</button></div></header>
-      <form class="collection-item-form" data-membership="${esc(item.id)}"><label class="field collection-title-field"><span>Формулировка для выгрузки</span><input name="titleOverride" value="${esc(edit.titleOverride)}" required></label><label class="field"><span>Срок в документе</span><input name="dateTextOverride" value="${esc(edit.dateTextOverride)}"></label><label class="field"><span>Ответственный в документе</span><input name="responsibleOverride" value="${esc(edit.responsibleOverride)}"></label><label class="field"><span>Ожидаемый результат</span><input name="expectedResultOverride" value="${esc(edit.expectedResultOverride)}"></label><label class="field"><span>Примечание</span><input name="note" value="${esc(edit.note)}"></label><div class="collection-item-actions"><button type="submit" class="secondary-button" data-collection-mutation>Сохранить формулировки</button><button type="button" class="text-button" data-collection-action="reset-item" data-membership="${esc(item.id)}" data-collection-mutation>Как в источнике</button>${state.edits.has(item.id) ? '<span>Есть несохранённые правки</span>' : ''}</div></form></article>`;
+      <form class="collection-item-form" data-membership="${esc(item.id)}">${renderMemberFields(item, edit)}<div class="collection-item-actions"><button type="submit" class="secondary-button" data-collection-mutation>Сохранить формулировки</button><button type="button" class="text-button" data-collection-action="reset-item" data-membership="${esc(item.id)}" data-collection-mutation>Как в источнике</button>${state.edits.has(item.id) ? '<span>Есть несохранённые правки</span>' : ''}</div></form></article>`;
   }).join('') : '<div class="empty-state">Выберите мероприятия из общего списка и добавьте их в этот план.</div>';
+  templateEditor?.refreshPreview();
   syncControls();
 }
 async function loadEvents(append = false) {
@@ -193,9 +355,9 @@ async function loadEvents(append = false) {
 }
 async function reloadLists() {
   const sequence = ++state.listSequence;
-  const [drafts, templates, plans] = await Promise.all([api(`/api/monthly-plans?month=${encodeURIComponent(state.month)}&limit=500`), api('/api/plan-templates?limit=300'), api('/api/plans?status=active&limit=1000')]);
+  const [drafts, templates, plans, eventTemplates] = await Promise.all([api(`/api/monthly-plans?month=${encodeURIComponent(state.month)}&limit=500`), api('/api/plan-templates?limit=300'), api('/api/plans?status=active&limit=1000'), api('/api/event-templates')]);
   if (sequence !== state.listSequence) return;
-  state.drafts = drafts.items || []; state.templates = templates.items || []; state.plans = plans.items || [];
+  state.drafts = drafts.items || []; state.templates = templates.items || []; state.plans = plans.items || []; state.eventTemplates = eventTemplates.items || [];
   renderSelectors();
 }
 async function open() {
@@ -210,15 +372,20 @@ async function open() {
   await Promise.all([reloadLists(), loadEvents()]);
 }
 function close() {
+  cancelSuggestion();
   state.open = false;
   $('[data-view-panel="plans"]')?.classList.remove('collection-open');
   $('#plan-collection')?.classList.add('hidden');
   $('#plan-collection-open')?.focus();
 }
-function acceptDraft(draft) {
+function acceptDraft(draft, { preserveMetadata = false } = {}) {
+  const pending = preserveMetadata ? { metadata: { ...state.metadata }, filters: { ...state.filters } } : null;
   state.draft = draft;
   state.month = draft.month_key;
-  state.metadata = { title: draft.title, templateId: draft.template_id || '' };
+  state.metadata = { title: draft.title, templateId: draft.template_id || '', eventTemplateVersionId: draft.event_template_version_id || '', departmentText: draft.department_text || '' };
+  if (draft.eventTemplate) state.eventVersions.set(draft.eventTemplate.id, draft.eventTemplate);
+  state.filters.department = state.metadata.departmentText;
+  if (pending) { state.metadata = pending.metadata; state.filters = pending.filters; }
   state.exportRequest = null;
   const index = state.drafts.findIndex(item => item.id === draft.id);
   if (index < 0) state.drafts.unshift(draft); else state.drafts[index] = draft;
@@ -235,22 +402,26 @@ async function mutate(action) {
 function metadataPayload() {
   const title = $('#collection-title').value.trim();
   if (!title) throw new Error('Укажите название месячного плана.');
-  state.metadata = { title, templateId: $('#collection-template').value };
-  return { title, templateId: state.metadata.templateId || null };
+  state.metadata = { title, templateId: $('#collection-template').value, eventTemplateVersionId: $('#collection-event-template').value, departmentText: state.filters.department };
+  return { title, templateId: state.metadata.templateId || null, eventTemplateVersionId: state.metadata.eventTemplateVersionId || null, departmentText: state.metadata.departmentText };
 }
-async function saveMetadata(planItemIds = []) {
+async function saveMetadata(planItemIds = [], { isCurrent = () => true } = {}) {
+  const requireCurrent = () => { if (!isCurrent()) throw new Error('Контекст плана изменился. Сохранённый результат доступен в списке месячных планов.'); };
+  requireCurrent();
   const payload = metadataPayload();
   if (!state.draft) {
     state.pendingCreate ||= { month: state.month, ...payload, planItemIds, idempotencyKey: `monthly-ui:${state.createKey}` };
     let draft;
     try { draft = await api('/api/monthly-plans', json('POST', state.pendingCreate)); }
     catch (error) { if (error.status && error.status < 500) state.pendingCreate = null; throw error; }
+    requireCurrent();
     state.pendingCreate = null;
     acceptDraft(draft);
-    if (payload.title !== draft.title || (payload.templateId || null) !== (draft.template_id || null)) {
-      state.metadata = { title: payload.title, templateId: payload.templateId || '' };
+    if (metadataChanged(payload, draft)) {
+      state.metadata = { title: payload.title, templateId: payload.templateId || '', eventTemplateVersionId: payload.eventTemplateVersionId || '', departmentText: payload.departmentText || '' };
       renderSelectors();
-      acceptDraft(await api(`/api/monthly-plans/${encodeURIComponent(draft.id)}`, json('PATCH', { ...payload, expectedRevision: draft.revision })));
+      const updated = await api(`/api/monthly-plans/${encodeURIComponent(draft.id)}`, json('PATCH', { ...payload, expectedRevision: draft.revision }));
+      requireCurrent(); acceptDraft(updated);
     }
     if (draft.duplicateRequest) {
       const included = new Set(state.draft.items.filter(item => !item.unavailable).map(item => item.plan_item_id));
@@ -258,18 +429,18 @@ async function saveMetadata(planItemIds = []) {
       const recovered = planItemIds.filter(id => included.has(id)).map(planItemId => ({ planItemId, status: 'existing' }));
       if (missing.length) {
         const result = await api(`/api/monthly-plans/${encodeURIComponent(draft.id)}/items`, json('POST', { planItemIds: missing, expectedRevision: state.draft.revision }));
-        acceptDraft(result.draft);
+        requireCurrent(); acceptDraft(result.draft);
         return [...recovered, ...result.results];
       }
       return recovered;
     }
     return draft.results || [];
   }
-  const metadataChanged = payload.title !== state.draft.title || (payload.templateId || null) !== (state.draft.template_id || null);
-  if (metadataChanged) acceptDraft(await api(`/api/monthly-plans/${encodeURIComponent(state.draft.id)}`, json('PATCH', { ...payload, expectedRevision: state.draft.revision })));
+  const changed = metadataChanged(payload, state.draft);
+  if (changed) { const updated = await api(`/api/monthly-plans/${encodeURIComponent(state.draft.id)}`, json('PATCH', { ...payload, expectedRevision: state.draft.revision })); requireCurrent(); acceptDraft(updated); }
   if (!planItemIds.length) return [];
   const result = await api(`/api/monthly-plans/${encodeURIComponent(state.draft.id)}/items`, json('POST', { planItemIds, expectedRevision: state.draft.revision }));
-  acceptDraft(result.draft);
+  requireCurrent(); acceptDraft(result.draft);
   return result.results || [];
 }
 async function addSelected() {
@@ -284,37 +455,45 @@ async function addSelected() {
   else { setTab('members'); message(`Мероприятия добавлены в «${state.draft.title}».`); }
 }
 function editFromForm(form) {
-  return Object.fromEntries(['titleOverride', 'dateTextOverride', 'responsibleOverride', 'expectedResultOverride', 'note'].map(key => [key, $(`[name="${key}"]`, form)?.value || '']));
+  const item = state.draft.items.find(member => member.id === form.dataset.membership), values = { ...memberEdit(item), customValues: { ...memberEdit(item).customValues } };
+  for (const key of ['titleOverride', 'dateTextOverride', 'responsibleOverride', 'expectedResultOverride', 'note', 'locationOverride']) { const node = $(`[name="${key}"]`, form); if (node) values[key] = node.value; }
+  for (const node of $$('[data-monthly-custom-field]', form)) values.customValues[node.dataset.monthlyCustomField] = node.value;
+  return values;
 }
 async function saveItem(form, reset = false) {
   const id = form.dataset.membership;
-  const values = { titleOverride: null, dateTextOverride: null, responsibleOverride: null, expectedResultOverride: null, note: null };
+  const values = { titleOverride: null, dateTextOverride: null, responsibleOverride: null, expectedResultOverride: null, note: null, locationOverride: null, customValues: null };
+  const enteredValues = reset ? null : editFromForm(form);
+  await saveMetadata();
   if (!reset) {
     const item = state.draft.items.find(member => member.id === id);
     const inherited = sourceMemberEdit(item.source || {});
-    const entered = Object.fromEntries(Object.entries(editFromForm(form)).map(([key, value]) => [key, value.trim()]));
+    const entered = Object.fromEntries(Object.entries(enteredValues).map(([key, value]) => [key, typeof value === 'string' ? value.trim() : value]));
     if (!entered.titleOverride) throw new Error('Укажите формулировку мероприятия.');
-    for (const [field, column] of Object.entries({ titleOverride: 'title_override', dateTextOverride: 'date_text_override', responsibleOverride: 'responsible_override', expectedResultOverride: 'expected_result_override' })) {
+    for (const [field, column] of Object.entries({ titleOverride: 'title_override', dateTextOverride: 'date_text_override', responsibleOverride: 'responsible_override', expectedResultOverride: 'expected_result_override', locationOverride: 'location_override' })) {
       const keepEmptyOverride = entered[field] === '' && item[column] !== null && item[column] !== undefined;
       values[field] = entered[field] === inherited[field].trim() && !keepEmptyOverride ? null : entered[field];
     }
     values.note = entered.note;
+    values.customValues = {};
+    for (const field of templateFields(selectedEventTemplate()).filter(field => field.source === 'custom')) { if (Object.hasOwn(entered.customValues || {}, field.key)) { const value = String(entered.customValues[field.key] ?? '').trim(); if (value === String(item.effective?.customValues?.[field.key] ?? '')) continue; values.customValues[field.key] = value !== '' && value === String(inherited.customValues[field.key] ?? '') ? null : value; } }
   }
   const draft = await api(`/api/monthly-plans/${encodeURIComponent(state.draft.id)}/items/${encodeURIComponent(id)}`, json('PATCH', { ...values, expectedRevision: state.draft.revision }));
   state.edits.delete(id); acceptDraft(draft); message('Формулировки сохранены.');
 }
 async function removeItem(id) {
   const draft = await api(`/api/monthly-plans/${encodeURIComponent(state.draft.id)}/items/${encodeURIComponent(id)}?expectedRevision=${state.draft.revision}`, { method: 'DELETE' });
-  state.edits.delete(id); acceptDraft(draft); message('Мероприятие исключено из месячного плана. Оно остаётся в исходном плане и календаре.');
+  state.edits.delete(id); acceptDraft(draft, { preserveMetadata: true }); message('Мероприятие исключено из месячного плана. Оно остаётся в исходном плане и календаре.');
 }
 async function moveItem(id, delta) {
   const ids = state.draft.items.map(item => item.id), index = ids.indexOf(id), target = index + delta;
   if (index < 0 || target < 0 || target >= ids.length) return;
   [ids[index], ids[target]] = [ids[target], ids[index]];
-  acceptDraft(await api(`/api/monthly-plans/${encodeURIComponent(state.draft.id)}`, json('PATCH', { expectedRevision: state.draft.revision, orderedItemIds: ids })));
+  acceptDraft(await api(`/api/monthly-plans/${encodeURIComponent(state.draft.id)}`, json('PATCH', { expectedRevision: state.draft.revision, orderedItemIds: ids })), { preserveMetadata: true });
   message('Порядок мероприятий сохранён.');
 }
 async function exportDraft() {
+  if (state.designerDirty) throw new Error('Сохраните шаблон перед выгрузкой.');
   if (state.edits.size && state.draft.items.some(item => state.edits.has(item.id))) throw new Error('Сохраните формулировки изменённых строк перед выгрузкой.');
   await saveMetadata();
   const signature = `${state.draft.id}:${state.draft.revision}`;
@@ -402,12 +581,17 @@ document.addEventListener('click', event => {
   else if (action === 'events' || action === 'members') setTab(action);
   else if (action === 'more') loadEvents(true);
   else if (action === 'source') { close(); window.kafedraOpenPlan?.(button.dataset.sourceId); }
+  else if (action === 'edit-event-template') templateEditor.open(selectedEventTemplate());
+  else if (action === 'suggest') suggestEvents();
+  else if (action === 'suggest-more') suggestEvents(true);
+  else if (action === 'cancel-suggest') cancelSuggestion(true);
+  else if (action === 'apply-suggestion') mutate(applySuggestions);
+  else if (action === 'hide-suggestions') { $('#collection-suggestion-preview').classList.add('hidden'); $('[data-collection-action="suggest"]').focus(); }
   else if (action === 'upload-template') $('#collection-template-file').click();
   else if (action === 'retry-template') mutate(() => uploadTemplate(state.templateSource.file));
   else if (action === 'refresh') mutate(async () => {
-    const metadata = { ...state.metadata };
-    if (state.draft) acceptDraft(await api(`/api/monthly-plans/${encodeURIComponent(state.draft.id)}`));
-    state.metadata = metadata;
+    clearSuggestions();
+    if (state.draft) acceptDraft(await api(`/api/monthly-plans/${encodeURIComponent(state.draft.id)}`), { preserveMetadata: true });
     await reloadLists(); await loadEvents(); message('Данные обновлены. Несохранённые формулировки оставлены в редакторе.');
   });
   else if (action === 'cancel-template') $('#collection-template-review').classList.add('hidden');
@@ -420,6 +604,7 @@ document.addEventListener('click', event => {
 document.addEventListener('submit', event => {
   const form = event.target;
   if (form.id === 'collection-plan-form') { event.preventDefault(); mutate(async () => { await saveMetadata(); message('Месячный план сохранён.'); }); }
+  else if (form.matches('[data-event-details-form]')) { event.preventDefault(); mutate(() => saveEventDetails(form)); }
   else if (form.matches('.collection-item-form')) { event.preventDefault(); mutate(() => saveItem(form)); }
   else if (form.id === 'collection-template-form') { event.preventDefault(); mutate(() => saveTemplateMapping(form)); }
 });
@@ -433,24 +618,31 @@ let filterTimer;
 document.addEventListener('input', event => {
   const node = event.target, form = node.closest('.collection-item-form');
   if (form) state.edits.set(form.dataset.membership, editFromForm(form));
+  const detailsForm = node.closest('[data-event-details-form]'); if (detailsForm) state.detailsEdits.set(detailsForm.dataset.eventDetailsForm, readEventDetails(detailsForm));
   if (node.id === 'collection-title') state.metadata.title = node.value;
   if (['collection-q', 'collection-department'].includes(node.id)) {
     state.filters[node.id === 'collection-q' ? 'q' : 'department'] = node.value.trim();
+    if (node.id === 'collection-department') state.metadata.departmentText = node.value.trim();
+    clearSuggestions();
     clearTimeout(filterTimer); filterTimer = setTimeout(() => loadEvents(), 250);
   }
 });
 document.addEventListener('change', event => {
   const node = event.target;
-  if (node.matches('[data-collection-select]')) { if (node.checked) state.selected.add(node.dataset.collectionSelect); else state.selected.delete(node.dataset.collectionSelect); syncControls(); }
+  if (node.matches('[data-collection-select]')) { if (node.checked) state.selected.add(node.dataset.collectionSelect); else state.selected.delete(node.dataset.collectionSelect); syncControls(); templateEditor?.refreshPreview(); }
+  else if (node.matches('[data-suggestion-select]')) { const id = node.dataset.suggestionSelect; if (node.checked) state.suggestedSelected.add(id); else state.suggestedSelected.delete(id); renderSuggestions(); $(`[data-suggestion-select="${CSS.escape(id)}"]`)?.focus(); }
+  else if (node.id === 'collection-event-template') { state.metadata.eventTemplateVersionId = node.value; clearSuggestions(); renderMembers(); renderEvents(); templateEditor?.refreshPreview(); }
   else if (node.id === 'collection-template') state.metadata.templateId = node.value;
   else if (node.id === 'collection-template-table') renderTemplateColumns();
   else if (node.id === 'collection-template-file') { const file = node.files?.[0]; mutate(() => uploadTemplate(file)); node.value = ''; }
   else if (node.id === 'collection-month') {
     if (!/^\d{4}-(0[1-9]|1[0-2])$/.test(node.value)) return;
+    clearSuggestions();
     state.month = node.value; state.draft = null; state.pendingCreate = null; state.metadata.title = defaultTitle(); state.createKey = newPlanOperationId(); state.selected.clear();
     state.draftSequence += 1;
     renderSelectors(); renderMembers(); reloadLists().catch(error => message(error.message, true)); loadEvents(); message('Выберите мероприятия для нового месяца.');
   } else if (node.id === 'collection-saved') {
+    clearSuggestions();
     const id = node.value;
     if (!id) { state.draftSequence += 1; state.draft = null; state.pendingCreate = null; state.metadata.title = defaultTitle(); state.createKey = newPlanOperationId(); renderSelectors(); renderMembers(); renderEvents(); }
     else {
@@ -461,6 +653,7 @@ document.addEventListener('change', event => {
       }).catch(error => message(error.message, true));
     }
   } else if (['collection-activity', 'collection-source-plan', 'collection-undated'].includes(node.id)) {
+    clearSuggestions();
     if (node.id === 'collection-activity') state.filters.activityKind = node.value;
     if (node.id === 'collection-source-plan') state.filters.planId = node.value;
     if (node.id === 'collection-undated') state.filters.includeUndated = node.checked;
@@ -469,7 +662,8 @@ document.addEventListener('change', event => {
 });
 window.addEventListener('kafedra:plan-imported', () => { if (state.open) { reloadLists().catch(error => message(error.message, true)); loadEvents(); } });
 window.addEventListener('kafedra:plan-open', () => { if (state.open) close(); });
-window.addEventListener('beforeunload', event => { if (state.edits.size) { event.preventDefault(); event.returnValue = ''; } });
+document.addEventListener('template-editor-closed', () => $('[data-collection-action="edit-event-template"]')?.focus());
+window.addEventListener('beforeunload', event => { if (state.edits.size || state.detailsEdits.size || state.designerDirty) { event.preventDefault(); event.returnValue = ''; } });
 if (!$('#plan-collection-styles')) { const style = document.createElement('link'); style.id = 'plan-collection-styles'; style.rel = 'stylesheet'; style.href = '/plan-collection.css'; document.head.append(style); }
 if (!ensureUi()) {
   const observer = new MutationObserver(() => { if (ensureUi()) observer.disconnect(); });

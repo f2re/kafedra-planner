@@ -17,8 +17,8 @@ UI-df11c367c0	public/meetings-state.js:139:7	D3	ensureMeetingsUi	#meeting-modal	
 UI-d106ba8615	public/notification-delivery.js:28:5	D7	ensureDeliveryUi	#notification-delivery-panel	Уведомления Как связаться со мной Закрыть Каналы Внутренние уведомления работают всегда. Внешние каналы нужны только есл	запланировано
 UI-362c5ef0c4	public/organization-next.js:63:5	D7	ensureOrganizationUi	#organization-modal		запланировано
 UI-d9df9c8cb9	public/organization-shell.js:15:5	D7	ensureOrganizationShell	#organization-shell-panel	Кафедра Структура и назначения ×	запланировано
-UI-952c5ac3d5	public/plan-collection.js:91:7	D2	ensureUi	#collection-events-panel	Найти мероприятие Вид деятельности Все виды {dynamic} Кафедра / подразделение Исходный план Все планы Показывать также м	запланировано
-UI-200c2e00ac	public/plan-collection.js:101:7	D2	ensureUi	#collection-members-panel	Формулировки для выгрузки можно изменить здесь. Сроки и исполнение самого мероприятия редактируются в исходном плане.	запланировано
+UI-599009d5c8	public/plan-collection.js:94:7	D2	ensureUi	#collection-events-panel	Найти мероприятие Вид деятельности Все виды {dynamic} Кафедра / подразделение Исходный план Все планы Подобрать и заполн	запланировано
+UI-4702a43f75	public/plan-collection.js:106:7	D2	ensureUi	#collection-members-panel	Формулировки для выгрузки можно изменить здесь. Сроки и исполнение самого мероприятия редактируются в исходном плане.	запланировано
 UI-0b896cde94	public/plan-fact-tools.js:99:52	D2	ensureToolUi	#metric-correction-sheet	План / факт Исправить значение × Показатель Машинное значение Исправленное значение Причина исправления Кто исправляет Н	запланировано
 UI-fff13e2004	public/plan-fact-tools.js:121:52	D2	ensureToolUi	#plan-fact-view-sheet	План / факт Сохранить набор фильтров × Название Показывать всей кафедре Сохраняются текущие сотрудник, режим, период, на	запланировано
 UI-311feac600	public/plans-next.js:170:7	D2	ensurePlansUi	#plan-item-modal		запланировано

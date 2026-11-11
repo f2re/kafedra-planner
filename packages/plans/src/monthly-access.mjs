@@ -56,6 +56,15 @@ export function resolveMonthlyExportSources(database, workspaceId, context, docu
         || !version || version.document_id !== snapshot.template?.documentId
         || !resolveDocumentAccess(version.document_id).allowed) return denied();
     } else if (snapshot.template !== null) return denied('monthly_export_snapshot_invalid');
+    if (snapshot.eventTemplate) {
+      const template = database.get(`SELECT t.created_by_person_id, v.template_id
+        FROM plan_event_template_versions v JOIN plan_event_templates t ON t.id = v.template_id
+        WHERE v.id = ? AND v.workspace_id = ? AND t.workspace_id = ?`, snapshot.eventTemplate.id, workspaceId, workspaceId);
+      if (!template || template.template_id !== snapshot.eventTemplate.templateId
+        || (context.enabled && context.role !== 'admin' && context.personId !== template.created_by_person_id)) {
+        return denied('monthly_export_event_template_unavailable');
+      }
+    }
     return { allowed: true, reason: 'monthly_export_sources_accessible' };
   } finally {
     active.delete(key);

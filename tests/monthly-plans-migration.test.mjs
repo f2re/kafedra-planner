@@ -21,11 +21,11 @@ function digestRows(database, tables) {
   })))).digest('hex');
 }
 
-async function migrationDirectory(root, name, { fail = false } = {}) {
+async function migrationDirectory(root, name, { fail = false, through = 31 } = {}) {
   const path = join(root, name);
   await mkdir(path, { recursive: true });
   for (const file of await readdir(migrationsDir)) {
-    if (!/^\d+_.*\.sql$/u.test(file) || Number.parseInt(file, 10) > 31) continue;
+    if (!/^\d+_.*\.sql$/u.test(file) || Number.parseInt(file, 10) > through) continue;
     await copyFile(join(migrationsDir, file), join(path, file));
   }
   if (fail) await writeFile(join(path, newMigration), `${await readFile(join(migrationsDir, newMigration), 'utf8')}\nSELECT * FROM forced_monthly_migration_failure;\n`);
@@ -42,6 +42,7 @@ test('schema 31 → 32: сохранение исходников, forced rollba
     const applicationDir = join(root, 'application');
     const configPath = join(root, 'kafedra.env');
     const oldMigrations = await migrationDirectory(root, 'schema31');
+    const schema32Migrations = await migrationDirectory(root, 'schema32', { through: 32 });
     const failingMigrations = await migrationDirectory(root, 'schema32-failed', { fail: true });
     await mkdir(blobDir, { recursive: true });
     await mkdir(applicationDir, { recursive: true });
@@ -81,11 +82,14 @@ test('schema 31 → 32: сохранение исходников, forced rollba
     assert.deepEqual(database.foreignKeyCheck(), []);
     database.close(); database = null;
 
-    database = new Database(databasePath, { migrationsDir });
+    database = new Database(databasePath, { migrationsDir: schema32Migrations });
     assert.equal(database.getSchemaVersion(), 32);
     assert.equal(digestRows(database, sourceTables), before);
-    database.migrate(migrationsDir);
+    database.migrate(schema32Migrations);
     assert.equal(database.getSchemaVersion(), 32);
+    assert.equal(digestRows(database, sourceTables), before);
+    // The historical 31→32 migration is proved above; current domain code runs against current schema.
+    database.migrate(migrationsDir);
     assert.equal(digestRows(database, sourceTables), before);
     let draft = createMonthlyPlan(database, workspaceId, { month: '2026-11', idempotencyKey: 'backup-month', planItemIds: [sourcePlan.items[0].id] }, context, now);
     draft = updateMonthlyPlanItem(database, workspaceId, draft.id, draft.items[0].id, {

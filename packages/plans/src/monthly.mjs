@@ -6,6 +6,8 @@ import { resolveObjectAccess } from '../../access-control/src/service.mjs';
 import { resolvePlanItemAccess } from './access.mjs';
 import { parseJson, normalizeName } from './shared.mjs';
 import { classifyPlanActivity, PLAN_ACTIVITY_KINDS } from './activity.mjs';
+import { addEventDetailsToSource } from './event-details.mjs';
+import { getEventTemplateVersion, normalizeEventCustomValues } from './event-templates.mjs';
 
 const MAX_ITEMS = 5000;
 const SOURCE_SELECT = `
@@ -58,8 +60,9 @@ function sourceRow(row) {
   return { ...rest, evidence: parseJson(evidence_json, {}), activity_kind: classifyPlanActivity(row) };
 }
 
-function sourceItem(database, workspaceId, id) {
-  return sourceRow(database.get(`${SOURCE_SELECT} WHERE p.workspace_id = ? AND pi.id = ?`, workspaceId, id));
+function sourceItem(database, workspaceId, id, context) {
+  const row = sourceRow(database.get(`${SOURCE_SELECT} WHERE p.workspace_id = ? AND pi.id = ?`, workspaceId, id));
+  return row ? addEventDetailsToSource(database, workspaceId, row, context) : null;
 }
 
 function readableSource(database, workspaceId, context, id) {
@@ -116,6 +119,13 @@ function assertTemplate(database, workspaceId, templateId, context) {
   return id;
 }
 
+function assertEventTemplate(database, workspaceId, versionId, context) {
+  if (versionId === null || versionId === undefined || versionId === '') return null;
+  const id = boundedText(versionId, 200, 'eventTemplateVersionId');
+  getEventTemplateVersion(database, workspaceId, id, context);
+  return id;
+}
+
 function audit(database, workspaceId, context, action, id, details, now) {
   database.run(`
     INSERT INTO audit_log(id, workspace_id, actor, action, subject_kind, subject_id, details_json, created_at)
@@ -139,7 +149,9 @@ function effectiveItem(row, source) {
     direction: source.direction,
     activityKind: source.activity_kind,
     expectedResult: row.expected_result_override ?? source.expected_result ?? '',
-    note: row.note || ''
+    note: row.note || '',
+    location: row.location_override ?? source.location ?? '',
+    customValues: { ...(source.customValues || {}), ...parseJson(row.custom_values_json, {}) }
   };
 }
 
@@ -150,18 +162,24 @@ export function getMonthlyPlan(database, workspaceId, id, context) {
     try { assertTemplate(database, workspaceId, row.template_id, context); }
     catch (error) { if (!(error instanceof AppError)) throw error; templateUnavailable = true; }
   }
+  let eventTemplate = null;
+  let eventTemplateUnavailable = false;
+  if (row.event_template_version_id) {
+    try { eventTemplate = getEventTemplateVersion(database, workspaceId, row.event_template_version_id, context); }
+    catch (error) { if (!(error instanceof AppError)) throw error; eventTemplateUnavailable = true; }
+  }
   const items = database.all(
     'SELECT * FROM monthly_plan_items WHERE monthly_plan_id = ? ORDER BY position, id', id
   ).map((item) => {
     if (!readableSource(database, workspaceId, context, item.plan_item_id)) {
       return { id: item.id, position: item.position, unavailable: true };
     }
-    const source = sourceItem(database, workspaceId, item.plan_item_id);
+    const source = sourceItem(database, workspaceId, item.plan_item_id, context);
     if (!source) return { id: item.id, position: item.position, unavailable: true };
-    return { ...item, source, effective: effectiveItem(item, source) };
+    return { ...item, customValues: parseJson(item.custom_values_json, {}), selectionEvidence: parseJson(item.selection_evidence_json, null), source, effective: effectiveItem(item, source) };
   });
   const { idempotency_key, request_hash, ...header } = row;
-  return { ...header, canEdit: true, items, templateUnavailable, unavailableCount: items.filter((item) => item.unavailable).length };
+  return { ...header, canEdit: true, items, templateUnavailable, eventTemplate, eventTemplateUnavailable, unavailableCount: items.filter((item) => item.unavailable).length };
 }
 
 export function listMonthlyPlans(database, workspaceId, context, { month = '', limit = 100 } = {}) {
@@ -174,7 +192,7 @@ export function listMonthlyPlans(database, workspaceId, context, { month = '', l
   }
   params.push(Math.min(500, Math.max(1, Number.parseInt(limit, 10) || 100)));
   return database.all(`
-    SELECT id, workspace_id, month_key, title, template_id, revision, created_by_person_id,
+    SELECT id, workspace_id, month_key, title, template_id, event_template_version_id, department_text, revision, created_by_person_id,
       created_at, updated_at,
       (SELECT COUNT(*) FROM monthly_plan_items mi WHERE mi.monthly_plan_id = monthly_plans.id) AS item_count
     FROM monthly_plans WHERE ${where.join(' AND ')} ORDER BY month_key DESC, updated_at DESC, id LIMIT ?
@@ -226,7 +244,7 @@ export function listPlanEvents(database, workspaceId, context, filters = {}) {
       if (department && !normalizeName([item.plan_title, item.owner_raw, item.responsible_raw, item.title, item.description].join(' ')).includes(department)) continue;
       if (responsible && !normalizeName([item.responsible_raw, item.responsible_name].join(' ')).includes(responsible)) continue;
       if (matching++ < offset) continue;
-      rows.push(item);
+      rows.push(addEventDetailsToSource(database, workspaceId, item, context));
       if (rows.length > limit) break;
     }
   }
@@ -254,7 +272,7 @@ function addItems(database, workspaceId, draft, ids, context, now) {
         }
         const existing = database.get('SELECT id FROM monthly_plan_items WHERE monthly_plan_id = ? AND plan_item_id = ?', draft.id, planItemId);
         if (existing) return { planItemId, id: existing.id, status: 'existing' };
-        const source = sourceItem(database, workspaceId, planItemId);
+        const source = sourceItem(database, workspaceId, planItemId, context);
         if (source.plan_status !== 'active' || source.status === 'cancelled') {
           fail('monthly_plan_source_inactive', 'Мероприятие отменено или его план находится в архиве.', 409);
         }
@@ -282,9 +300,14 @@ export function createMonthlyPlan(database, workspaceId, input, context, now = n
   const month = normalizeMonthlyPlanMonth(input.month);
   const title = input.title === undefined ? `План кафедры · ${month}` : boundedText(input.title, 500, 'title');
   const templateId = assertTemplate(database, workspaceId, input.templateId, context);
+  const eventTemplateVersionId = assertEventTemplate(database, workspaceId, input.eventTemplateVersionId, context);
+  const departmentText = input.departmentText === undefined ? '' : boundedText(input.departmentText, 500, 'departmentText', { empty: true });
   const ids = itemIds(input.planItemIds, { optional: true });
   const key = boundedText(input.idempotencyKey, 200, 'idempotencyKey');
-  const hash = createHash('sha256').update(JSON.stringify({ month, title, templateId, planItemIds: [...ids].sort() })).digest('hex');
+  // Preserve old idempotency keys across schema upgrades when no new fields are supplied.
+  const requestSnapshot = { month, title, templateId, planItemIds: [...ids].sort() };
+  if (eventTemplateVersionId || departmentText) Object.assign(requestSnapshot, { eventTemplateVersionId, departmentText });
+  const hash = createHash('sha256').update(JSON.stringify(requestSnapshot)).digest('hex');
   return database.transaction(() => {
     const existing = database.get('SELECT * FROM monthly_plans WHERE workspace_id = ? AND idempotency_key = ?', workspaceId, key);
     if (existing) {
@@ -294,10 +317,10 @@ export function createMonthlyPlan(database, workspaceId, input, context, now = n
     }
     const id = newId('monthly');
     database.run(`
-      INSERT INTO monthly_plans(id, workspace_id, month_key, title, template_id, revision,
+      INSERT INTO monthly_plans(id, workspace_id, month_key, title, template_id, event_template_version_id, department_text, revision,
         idempotency_key, request_hash, created_by_person_id, created_at, updated_at)
-      VALUES (?, ?, ?, ?, ?, 1, ?, ?, ?, ?, ?)
-    `, id, workspaceId, month, title, templateId, key, hash, actorId, now, now);
+      VALUES (?, ?, ?, ?, ?, ?, ?, 1, ?, ?, ?, ?, ?)
+    `, id, workspaceId, month, title, templateId, eventTemplateVersionId, departmentText, key, hash, actorId, now, now);
     const results = addItems(database, workspaceId, { id }, ids, context, now);
     audit(database, workspaceId, context, 'monthly_plan.created', id, { month, itemIds: results.filter((row) => row.status === 'added').map((row) => row.id) }, now);
     return { ...getMonthlyPlan(database, workspaceId, id, context), duplicateRequest: false, results };
@@ -328,6 +351,8 @@ export function updateMonthlyPlan(database, workspaceId, id, input, context, now
     const title = input.title === undefined ? current.title : boundedText(input.title, 500, 'title');
     const month = input.month === undefined ? current.month_key : normalizeMonthlyPlanMonth(input.month);
     const templateId = input.templateId === undefined ? current.template_id : assertTemplate(database, workspaceId, input.templateId, context);
+    const eventTemplateVersionId = input.eventTemplateVersionId === undefined ? current.event_template_version_id : assertEventTemplate(database, workspaceId, input.eventTemplateVersionId, context);
+    const departmentText = input.departmentText === undefined ? current.department_text : boundedText(input.departmentText, 500, 'departmentText', { empty: true });
     let reordered = false;
     if (input.orderedItemIds !== undefined) {
       const ids = itemIds(input.orderedItemIds);
@@ -340,12 +365,14 @@ export function updateMonthlyPlan(database, workspaceId, id, input, context, now
         'UPDATE monthly_plan_items SET position = ?, updated_at = ? WHERE monthly_plan_id = ? AND id = ?', position, now, id, value
       ));
     }
-    const changed = title !== current.title || month !== current.month_key || templateId !== current.template_id || reordered;
+    const changed = title !== current.title || month !== current.month_key || templateId !== current.template_id
+      || eventTemplateVersionId !== current.event_template_version_id || departmentText !== current.department_text || reordered;
     if (changed) {
-      database.run('UPDATE monthly_plans SET title = ?, month_key = ?, template_id = ?, revision = revision + 1, updated_at = ? WHERE id = ?', title, month, templateId, now, id);
+      database.run('UPDATE monthly_plans SET title = ?, month_key = ?, template_id = ?, event_template_version_id = ?, department_text = ?, revision = revision + 1, updated_at = ? WHERE id = ?',
+        title, month, templateId, eventTemplateVersionId, departmentText, now, id);
       audit(database, workspaceId, context, 'monthly_plan.updated', id, {
-        previous: { title: current.title, month: current.month_key, templateId: current.template_id },
-        next: { title, month, templateId }, reordered
+        previous: { title: current.title, month: current.month_key, templateId: current.template_id, eventTemplateVersionId: current.event_template_version_id, departmentText: current.department_text },
+        next: { title, month, templateId, eventTemplateVersionId, departmentText }, reordered
       }, now);
     }
     return getMonthlyPlan(database, workspaceId, id, context);
@@ -365,11 +392,33 @@ export function updateMonthlyPlanItem(database, workspaceId, id, itemId, input, 
     const fields = [
       ['titleOverride', 'title_override', 1000, false], ['dateTextOverride', 'date_text_override', 500, true],
       ['responsibleOverride', 'responsible_override', 1000, true],
+      ['locationOverride', 'location_override', 1000, true],
       ['expectedResultOverride', 'expected_result_override', 4000, true], ['note', 'note', 4000, true]
     ];
     const changes = fields.filter(([field]) => input[field] !== undefined).map(([field, column, max, empty]) => ({
       column, value: boundedText(input[field], max, field, { nullable: true, empty })
     })).filter(({ column, value }) => item[column] !== value);
+    if (input.customValues !== undefined) {
+      let values = {};
+      if (input.customValues !== null) {
+        values = parseJson(item.custom_values_json, {});
+        if (!input.customValues || typeof input.customValues !== 'object' || Array.isArray(input.customValues)) fail('event_custom_values_invalid', 'Передайте значения дополнительных полей.');
+        if (Object.keys(input.customValues).length) {
+          if (!draft.event_template_version_id) fail('event_template_version_required', 'Выберите настраиваемый шаблон для дополнительных полей.');
+          const template = getEventTemplateVersion(database, workspaceId, draft.event_template_version_id, context);
+          const source = sourceItem(database, workspaceId, item.plan_item_id, context);
+          const patch = normalizeEventCustomValues(input.customValues, template.definition, {
+            existingValues: { ...(source?.customValues || {}), ...values }
+          });
+          for (const [key, value] of Object.entries(patch)) {
+            if (value === null) delete values[key];
+            else values[key] = value;
+          }
+        }
+      }
+      const serialized = JSON.stringify(values);
+      if (serialized !== item.custom_values_json) changes.push({ column: 'custom_values_json', value: serialized });
+    }
     if (changes.length) {
       database.run(`UPDATE monthly_plan_items SET ${changes.map(({ column }) => `${column} = ?`).join(', ')}, updated_at = ? WHERE id = ?`,
         ...changes.map(({ value }) => value), now, itemId);

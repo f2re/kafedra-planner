@@ -1,4 +1,4 @@
-<GraceChangeSpec graceVersion="4.0" status="approved">
+<GraceChangeSpec graceVersion="4.0" status="applied">
   <C-PLAN-COMPOSITION-371>
     <Summary>Import multilevel plans, assist unresolved source rows with optional local LLM, and compose an editable monthly document from canonical events.</Summary>
     <Problem>Existing plans are isolated and DOCX generation reimports a new plan. Operators cannot collect selected events from several sources into a persistent monthly document without duplicating calendar obligations.</Problem>

@@ -4,6 +4,8 @@ import {
   removeMonthlyPlanItem, updateMonthlyPlan, updateMonthlyPlanItem
 } from '../../../packages/plans/src/monthly.mjs';
 import { generateMonthlyPlanDocument } from '../../../packages/plan-docx/src/monthly-export.mjs';
+import { createEventTemplate, createEventTemplateVersion, getEventTemplate, listEventTemplates } from '../../../packages/plans/src/event-templates.mjs';
+import { getPlanEventDetails, updatePlanEventDetails } from '../../../packages/plans/src/event-details.mjs';
 import { readJson, sendJson } from './http-utils.mjs';
 
 async function readFields(request) {
@@ -32,10 +34,37 @@ function workspaceOf(database, request) {
 export function createMonthlyPlansRouter({ database, config }) {
   return async function routeMonthlyPlans(request, response, url) {
     const path = url.pathname;
-    if (path !== '/api/plan-events' && !path.startsWith('/api/monthly-plans')) return false;
+    if (!path.startsWith('/api/plan-events') && !path.startsWith('/api/monthly-plans') && !path.startsWith('/api/event-templates')) return false;
     const method = request.method || 'GET';
     const workspace = workspaceOf(database, request);
     const context = request.auth;
+    if (path === '/api/event-templates' && method === 'GET') {
+      return sendJson(response, 200, { items: listEventTemplates(database, workspace.id, context) });
+    }
+    if (path === '/api/event-templates' && method === 'POST') {
+      const body = await readFields(request);
+      if (!body.idempotencyKey && typeof request.headers['idempotency-key'] === 'string') body.idempotencyKey = request.headers['idempotency-key'];
+      const template = createEventTemplate(database, workspace.id, body, context);
+      return sendJson(response, template.duplicateRequest ? 200 : 201, template);
+    }
+    const templateMatch = path.match(/^\/api\/event-templates\/([^/]+)$/u);
+    if (templateMatch && method === 'GET') {
+      return sendJson(response, 200, getEventTemplate(database, workspace.id, decodeURIComponent(templateMatch[1]), context));
+    }
+    const versionMatch = path.match(/^\/api\/event-templates\/([^/]+)\/versions$/u);
+    if (versionMatch && method === 'POST') {
+      const body = await readFields(request);
+      if (!body.idempotencyKey && typeof request.headers['idempotency-key'] === 'string') body.idempotencyKey = request.headers['idempotency-key'];
+      const template = createEventTemplateVersion(database, workspace.id, decodeURIComponent(versionMatch[1]), body, context);
+      return sendJson(response, template.duplicateRequest ? 200 : 201, template);
+    }
+    const detailsMatch = path.match(/^\/api\/plan-events\/([^/]+)\/details$/u);
+    if (detailsMatch && method === 'GET') {
+      return sendJson(response, 200, getPlanEventDetails(database, workspace.id, decodeURIComponent(detailsMatch[1]), context));
+    }
+    if (detailsMatch && method === 'PATCH') {
+      return sendJson(response, 200, updatePlanEventDetails(database, workspace.id, decodeURIComponent(detailsMatch[1]), await readFields(request), context));
+    }
     if (method === 'GET' && path === '/api/plan-events') {
       return sendJson(response, 200, listPlanEvents(database, workspace.id, context, Object.fromEntries(url.searchParams)));
     }

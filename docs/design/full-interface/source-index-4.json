@@ -1,5 +1,13 @@
 [
   {
+    "file": "public/science-lifecycle-next.css",
+    "sha256": "87c7c4608e462401949d616e3d96c3cfca3eddfaa2ad2bf2e69666c0f775bc52",
+    "owner": "D5",
+    "reachable": null,
+    "elements": "",
+    "calls": ""
+  },
+  {
     "file": "public/science-lifecycle-next.js",
     "sha256": "130254265d9f229ec51c8e127bf9fa698bba6292c46f141941c9be9026f81c86",
     "owner": "D5",

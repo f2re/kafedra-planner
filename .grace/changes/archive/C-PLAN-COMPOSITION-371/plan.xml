@@ -1,4 +1,4 @@
-<GraceChangePlan graceVersion="4.0" status="approved">
+<GraceChangePlan graceVersion="4.0" status="applied">
   <C-PLAN-COMPOSITION-371>
     <IntentSummary>Extend the current plan/source-row/calendar/template contracts, with one owner per scope and an independent integration audit. Prospective scope clarifications before implementation: body-based template preview reads require central source ACL inheritance; ordinary intake must proceed during one optional model request; content-based upload retries must reject another workspace, inaccessible sources and different content under the same key; the existing quality job must run the new focused browser scenario conditionally because the local Chromium sandbox is unavailable. The accepted purpose, schema and security model are unchanged; no release workflow, dependencies or new CI workflow are introduced.</IntentSummary>
     <BaselineAssertions><MustExist><Value>packages/plans/src/source-rows.mjs</Value></MustExist><MustExist><Value>packages/plan-docx/src/service.mjs</Value></MustExist><MustExist><Value>migrations/031_academic_performance.sql</Value></MustExist></BaselineAssertions>
