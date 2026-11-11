@@ -1,165 +1,134 @@
 #!/usr/bin/env bash
-# ==============================================================================
-# Сборщик патч-бандла для удалённого LLM-сервера (local-llm-offline)
-# Упаковывает актуальные агенты, системные оптимизации и скрипты применения
-# ==============================================================================
+# Portable prompts and diagnostics only. The historical npm command remains valid.
 set -Eeuo pipefail
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
-INTEGRATION_DIR="/home/YaremenkoIA/Загрузки/local-llm-offline/integration"
-LLM_DIST_DIR="/home/YaremenkoIA/Загрузки/local-llm-offline/dist"
-KAFEDRA_RELEASE_DIR="$ROOT/release"
-USB_DIR="/run/user/1010/media/by-id-usb-SanDisk_Cruzer_Glide_200445301002E8918770-0:0-part1"
+OUT_DIR="${OUT_DIR:-$ROOT/release}"
 
-VERSION="$(node -p "require('$ROOT/package.json').version")"
-DATE_TAG="$(date +%Y%m%d)"
-ARCHIVE_NAME="local-llm-patch-kafedra-agents-v${VERSION}-${DATE_TAG}.tar.gz"
-VERSION_ONLY_NAME="local-llm-patch-kafedra-agents-v${VERSION}.tar.gz"
-LEGACY_ARCHIVE_NAME="local-llm-patch-kafedra-agents-${DATE_TAG}.tar.gz"
+usage() {
+  echo "Использование: $0 [--output-dir DIR]"
+  echo "Каталог промптов и диагностика LLM; по умолчанию OUT_DIR или $ROOT/release."
+}
+while [[ $# -gt 0 ]]; do
+  case "$1" in
+    --output-dir)
+      [[ $# -ge 2 && -n "$2" && "$2" != --* ]] || { usage >&2; exit 2; }
+      OUT_DIR="$2"; shift 2 ;;
+    --help|-h) usage; exit 0 ;;
+    *) usage >&2; exit 2 ;;
+  esac
+done
 
 WORK_DIR="$(mktemp -d)"
-PACKAGE_DIR="$WORK_DIR/local-llm-patch-kafedra-agents"
-
+OUTPUT_STAGE=""
 cleanup() {
-  rm -rf "$WORK_DIR"
+  rm -rf -- "$WORK_DIR"
+  [[ -z "$OUTPUT_STAGE" ]] || rm -rf -- "$OUTPUT_STAGE"
 }
 trap cleanup EXIT
 
-echo "▶ 1. Актуализация манифеста агентов из кода Кафедры..."
-node "$ROOT/scripts/export-agent-prompts.mjs"
+VERSION="$(node -e 'const fs = require("node:fs"); const version = JSON.parse(fs.readFileSync(process.argv[1])).version; if (!/^\d+\.\d+\.\d+(?:-[0-9A-Za-z.-]+)?$/.test(version)) throw new Error("Invalid application version"); process.stdout.write(version);' "$ROOT/package.json")"
+PACKAGE_NAME="kafedra-llm-catalogue-$VERSION"
+ARCHIVE_NAME="$PACKAGE_NAME.tar.gz"
+PACKAGE_DIR="$WORK_DIR/$PACKAGE_NAME"
 
-echo "▶ 2. Подготовка каталога патч-бандла..."
-mkdir -p "$PACKAGE_DIR/profiles"
+node "$ROOT/scripts/export-agent-prompts.mjs" --output-dir "$PACKAGE_DIR"
+node --input-type=module - "$ROOT" "$PACKAGE_DIR" <<'NODE'
+import { execFileSync } from 'node:child_process';
+import { readFileSync, readdirSync, writeFileSync } from 'node:fs';
+import { join } from 'node:path';
 
-# Копирование обязательных файлов интеграции
-cp -a "$INTEGRATION_DIR/apply-patch.sh" "$PACKAGE_DIR/"
-cp -a "$INTEGRATION_DIR/optimize-system.sh" "$PACKAGE_DIR/"
-cp -a "$INTEGRATION_DIR/test-remote-agents.sh" "$PACKAGE_DIR/"
-cp -a "$INTEGRATION_DIR/department-agents.json" "$PACKAGE_DIR/"
-cp -a "$INTEGRATION_DIR/project-contracts.json" "$PACKAGE_DIR/"
-cp -a "$INTEGRATION_DIR/kafedra-planner.env" "$PACKAGE_DIR/"
-cp -a "$INTEGRATION_DIR/AGENTS_GUIDE.md" "$PACKAGE_DIR/"
-cp -a "$INTEGRATION_DIR/profiles/." "$PACKAGE_DIR/profiles/"
-[[ -f "$INTEGRATION_DIR/install-models.sh" ]] && cp -a "$INTEGRATION_DIR/install-models.sh" "$PACKAGE_DIR/"
-[[ -f "$INTEGRATION_DIR/run-embeddings.sh" ]] && cp -a "$INTEGRATION_DIR/run-embeddings.sh" "$PACKAGE_DIR/"
-[[ -f "$INTEGRATION_DIR/local-llm-embeddings.service.example" ]] && cp -a "$INTEGRATION_DIR/local-llm-embeddings.service.example" "$PACKAGE_DIR/"
+const [root, destination] = process.argv.slice(2);
+const version = JSON.parse(readFileSync(join(root, 'package.json'), 'utf8')).version;
+const migrations = readdirSync(join(root, 'migrations'))
+  .map((name) => /^(\d+)_.*\.sql$/u.exec(name)).filter(Boolean).map((match) => Number(match[1]));
+if (!migrations.length) throw new Error('Cannot determine the database schema version');
+const catalogue = JSON.parse(readFileSync(join(destination, 'department-agents.json'), 'utf8'));
+let sourceCommit = null, sourceDirty = null, commitTime = 0;
+try {
+  const git = (...args) => execFileSync('git', ['-C', root, ...args], { encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'] }).trim();
+  if (git('rev-parse', '--show-toplevel') !== root) throw new Error('Source export is not the Git root');
+  sourceCommit = git('rev-parse', 'HEAD');
+  sourceDirty = Boolean(git('status', '--porcelain', '--untracked-files=normal'));
+  commitTime = Number(git('log', '-1', '--format=%ct'));
+} catch {
+  sourceCommit = null; sourceDirty = null;
+}
+const epoch = process.env.SOURCE_DATE_EPOCH ?? String(commitTime);
+if (!/^\d+$/u.test(epoch) || !Number.isSafeInteger(Number(epoch))) throw new Error('Invalid SOURCE_DATE_EPOCH');
+const metadata = {
+  format: 'kafedra-agent-catalogue-v1', applicationVersion: version,
+  schemaVersion: Math.max(...migrations), sourceCommit, sourceDirty,
+  sourceDateEpoch: Number(epoch), taskCount: catalogue.agents.length,
+  catalogueSha256: catalogue.catalogueSha256
+};
+writeFileSync(join(destination, 'bundle.json'), `${JSON.stringify(metadata, null, 2)}\n`);
+NODE
 
-# Включение моделей в состав бандла
-MODELS_DIR="/home/YaremenkoIA/Загрузки/local-llm-offline/models"
-if [[ -d "$MODELS_DIR" ]]; then
-  echo "▶ 2.1. Включение моделей в состав бандла ($MODELS_DIR)..."
-  mkdir -p "$PACKAGE_DIR/models"
-  cp -a "$MODELS_DIR"/* "$PACKAGE_DIR/models/"
-  echo "Включенные модели:"
-  find "$PACKAGE_DIR/models" -name "*.gguf" -exec ls -lh {} +
-fi
+cat > "$PACKAGE_DIR/README.md" <<EOF
+# Каталог промптов Kafedra Planner $VERSION
 
-# Создание файла версии и краткой памятки README.txt
-cat > "$PACKAGE_DIR/VERSION" << EOF
-KAFEDRA_VERSION=$VERSION
-BUILD_DATE=$DATE_TAG
-ARCHIVE_NAME=$ARCHIVE_NAME
+Этот архив содержит каталог задач LLM, примеры запросов, схемы ответов и автономную диагностику.
+Он нужен для проверки подключения модели и передачи актуального контракта администратору.
+Приложение передаёт промпты в каждом запросе; установка каталога на сервер не требуется.
+
+## Проверка и использование
+
+Перед распаковкой проверьте архив по соседнему файлу $ARCHIVE_NAME.sha256.
+После распаковки, находясь в каталоге комплекта:
+
+~~~bash
+sha256sum -c manifest.sha256
+./test-remote-agents.sh --list
+LLM_ENDPOINT=http://127.0.0.1:8081 LLM_MODEL=department-assistant ./test-remote-agents.sh plan-extract-v1
+./test-remote-agents.sh plan-department-selection-v1
+~~~
+
+Для диагностики нужны bash и Python 3 со стандартной библиотекой. Пакеты npm/pip не нужны.
+Команда --list работает без сети. Остальные проверки обращаются к указанному LLM_ENDPOINT
+и используют искусственные примеры; успешная диагностика не подтверждает качество разбора реальных документов.
+Параметры подключения, список задач и ограничения описаны в AGENTS_GUIDE.md.
+
+## Состав и происхождение
+
+- department-agents.json — системные промпты, запросы и схемы из исполняемых модулей приложения;
+- test-remote-agents.sh — диагностический клиент;
+- AGENTS_GUIDE.md — справочник задач и параметров;
+- bundle.json — версия приложения и схемы БД, исходный Git commit, признак локальных изменений;
+- manifest.sha256 — контрольные суммы всех файлов комплекта.
+
+Модели, llama.cpp, установщики и настройки служб в архив не входят. Архив не обновляет
+установленное приложение, базу данных или конфигурацию ОС и не требует sudo.
+Для установки приложения используется отдельный полный автономный комплект Kafedra Planner.
+
+sourceCommit в bundle.json обозначает базовый Git commit. При sourceDirty=true содержимое
+собрано с локальными изменениями; при отсутствии Git сведения о commit равны null.
+Контрольные суммы проверяют целостность, а подлинность источника подтверждается отдельно.
 EOF
 
-cat > "$PACKAGE_DIR/README.txt" << EOF
-==============================================================================
-КОМПЛЕКСНЫЙ ПАТЧ-БАНДЛ ИИ-АГЕНТОВ И МОДЕЛЕЙ ДЛЯ LOCAL-LLM СЕРВЕРА
-Версия Кафедра-планера: v$VERSION (сборка: $DATE_TAG)
-==============================================================================
-Комплект для обновления сервера llama.cpp, установки моделей BGE-M3 и Qwen
-и полной интеграции с Кафедра-планером v$VERSION.
+chmod 755 "$PACKAGE_DIR" "$PACKAGE_DIR/test-remote-agents.sh"
+chmod 644 "$PACKAGE_DIR/department-agents.json" "$PACKAGE_DIR/AGENTS_GUIDE.md" "$PACKAGE_DIR/README.md" "$PACKAGE_DIR/bundle.json"
+(
+  cd "$PACKAGE_DIR"
+  sha256sum AGENTS_GUIDE.md README.md bundle.json department-agents.json test-remote-agents.sh > manifest.sha256
+)
+chmod 644 "$PACKAGE_DIR/manifest.sha256"
+EPOCH="$(node -e 'const fs = require("node:fs"); process.stdout.write(String(JSON.parse(fs.readFileSync(process.argv[1])).sourceDateEpoch));' "$PACKAGE_DIR/bundle.json")"
 
-В состав бандла включены:
- • Модель BGE-M3 (418 МБ) для нечеткого/векторного RAG-поиска
- • Модель Qwen 2.5 0.5B (469 МБ) для высокоскоростной генерации
- • Манифест всех 11 специализированных агентов кафедры (v$VERSION)
- • Служба векторизации local-llm-embeddings.service (порт 8082)
- • Оптимизации CPU, памяти и сетевого доступа для llama-server (порт 8081)
-
-Установка в 1 команду:
-  sudo ./apply-patch.sh
-
-Скрипт автоматически:
- 1. Установит скачанные модели в /opt/local-llm/current/models/;
- 2. Доставит манифест 11 агентов кафедры в /etc/local-llm/agents/;
- 3. Разместит профили мини-моделей в /etc/local-llm/profiles/;
- 4. Настроит и запустит службу векторных эмбеддингов на порту 8082;
- 5. Оптимизирует потоки CPU (/etc/local-llm/server.json) под число ядер;
- 6. Разрешит доступ по локальной сети для узлов кафедры (host 0.0.0.0);
- 7. Применит настройки ядра Linux (CPU governor 'performance', THP, limits);
- 8. Перезапустит службы и выполнит комплексный самотест.
-
-Опционально:
-  sudo ./apply-patch.sh --profile cpu-0.5b-fast      # принудительно переключить LLM на 0.5B
-  sudo ./apply-patch.sh --profile cpu-1.5b-fast      # переключить LLM на 1.5B
-
-Тестирование служб:
-  test-kafedra-agents --list
-  test-kafedra-agents protocol-analysis
-  test-kafedra-agents --embeddings
-  test-kafedra-agents --all
-
-Подробности: AGENTS_GUIDE.md
-==============================================================================
-EOF
-
-chmod +x "$PACKAGE_DIR/apply-patch.sh" "$PACKAGE_DIR/optimize-system.sh" "$PACKAGE_DIR/test-remote-agents.sh"
-[[ -f "$PACKAGE_DIR/install-models.sh" ]] && chmod +x "$PACKAGE_DIR/install-models.sh"
-[[ -f "$PACKAGE_DIR/run-embeddings.sh" ]] && chmod +x "$PACKAGE_DIR/run-embeddings.sh"
-
-echo "▶ 3. Создание tar.gz архива патча (v$VERSION)..."
-mkdir -p "$KAFEDRA_RELEASE_DIR"
-
-TAR_OPTS=(--owner=0 --group=0 --numeric-owner --sort=name)
-tar "${TAR_OPTS[@]}" -C "$WORK_DIR" -czf "$KAFEDRA_RELEASE_DIR/$ARCHIVE_NAME" "local-llm-patch-kafedra-agents"
-
-# Создание алиасов по имени (с версией и датой) и подсчёт SHA-256
-(cd "$KAFEDRA_RELEASE_DIR" && {
-  ln -f "$ARCHIVE_NAME" "$VERSION_ONLY_NAME" 2>/dev/null || cp -a "$ARCHIVE_NAME" "$VERSION_ONLY_NAME"
-  ln -f "$ARCHIVE_NAME" "$LEGACY_ARCHIVE_NAME" 2>/dev/null || cp -a "$ARCHIVE_NAME" "$LEGACY_ARCHIVE_NAME"
+mkdir -p -- "$OUT_DIR"
+OUT_DIR="$(cd "$OUT_DIR" && pwd)"
+OUTPUT_STAGE="$(mktemp -d "$OUT_DIR/.kafedra-agent-catalogue.XXXXXX")"
+tar --owner=0 --group=0 --numeric-owner --sort=name --mtime="@$EPOCH" --format=gnu \
+  -C "$WORK_DIR" -cf - "$PACKAGE_NAME" | gzip -n > "$OUTPUT_STAGE/$ARCHIVE_NAME"
+(
+  cd "$OUTPUT_STAGE"
   sha256sum "$ARCHIVE_NAME" > "$ARCHIVE_NAME.sha256"
-  sha256sum "$VERSION_ONLY_NAME" > "$VERSION_ONLY_NAME.sha256"
-  sha256sum "$LEGACY_ARCHIVE_NAME" > "$LEGACY_ARCHIVE_NAME.sha256"
-})
+)
+node "$ROOT/scripts/offline/verify-agent-catalogue.mjs" "$OUTPUT_STAGE/$ARCHIVE_NAME"
 
-# Размещение в integration каталоге local-llm-offline
-cp -a "$KAFEDRA_RELEASE_DIR/$ARCHIVE_NAME"* "$INTEGRATION_DIR/"
-cp -a "$KAFEDRA_RELEASE_DIR/$VERSION_ONLY_NAME"* "$INTEGRATION_DIR/"
-cp -a "$KAFEDRA_RELEASE_DIR/$LEGACY_ARCHIVE_NAME"* "$INTEGRATION_DIR/"
-
-# Размещение в dist каталоге local-llm-offline (если доступен на запись)
-if [[ -w "$LLM_DIST_DIR" ]]; then
-  cp -a "$KAFEDRA_RELEASE_DIR/$ARCHIVE_NAME"* "$LLM_DIST_DIR/"
-  cp -a "$KAFEDRA_RELEASE_DIR/$VERSION_ONLY_NAME"* "$LLM_DIST_DIR/"
-  cp -a "$KAFEDRA_RELEASE_DIR/$LEGACY_ARCHIVE_NAME"* "$LLM_DIST_DIR/"
-fi
-
-# Доставка на подключённый USB-накопитель (если доступен)
-if [[ -d "$USB_DIR" && -w "$USB_DIR" ]]; then
-  echo "▶ 4. Автоматическая синхронизация с USB-накопителем..."
-  if cp -a "$KAFEDRA_RELEASE_DIR/$ARCHIVE_NAME"* "$USB_DIR/" 2>/dev/null && sync; then
-    echo "✓ Бандл доставлен на USB: $USB_DIR/$ARCHIVE_NAME"
-  else
-    echo "⚠ Предупреждение: запись на USB-накопитель ($USB_DIR) не удалась; бандл сохранён локально."
-  fi
-fi
-
-ARCHIVE_SIZE=$(du -h "$KAFEDRA_RELEASE_DIR/$ARCHIVE_NAME" | awk '{print $1}')
-SHA256_HASH=$(awk '{print $1}' "$KAFEDRA_RELEASE_DIR/$ARCHIVE_NAME.sha256")
-
-echo "=============================================================================="
-echo "✓ Патч-бандл версии v$VERSION успешно собран!"
-echo "Файл версии:  $ARCHIVE_NAME"
-echo "Алиасы:       $VERSION_ONLY_NAME"
-echo "              $LEGACY_ARCHIVE_NAME"
-echo "Размер:       $ARCHIVE_SIZE"
-echo "SHA-256:      $SHA256_HASH"
-echo "Размещение 1: $KAFEDRA_RELEASE_DIR/$ARCHIVE_NAME"
-echo "Размещение 2: $INTEGRATION_DIR/$ARCHIVE_NAME"
-if [[ -w "$LLM_DIST_DIR" ]]; then
-  echo "Размещение 3: $LLM_DIST_DIR/$ARCHIVE_NAME"
-fi
-if [[ -d "$USB_DIR" && -w "$USB_DIR" ]]; then
-  echo "Размещение 4: $USB_DIR/$ARCHIVE_NAME"
-fi
-echo "=============================================================================="
+# Verify the complete staged result before replacing any previous output. A crash
+# between the two renames fails closed at the external checksum on the next read.
+mv -f -- "$OUTPUT_STAGE/$ARCHIVE_NAME" "$OUT_DIR/$ARCHIVE_NAME"
+mv -f -- "$OUTPUT_STAGE/$ARCHIVE_NAME.sha256" "$OUT_DIR/$ARCHIVE_NAME.sha256"
+echo "Каталог и диагностика: $OUT_DIR/$ARCHIVE_NAME"
+cat "$OUT_DIR/$ARCHIVE_NAME.sha256"

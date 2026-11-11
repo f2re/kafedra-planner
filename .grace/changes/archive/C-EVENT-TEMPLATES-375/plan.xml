@@ -1,4 +1,4 @@
-<GraceChangePlan graceVersion="4.0" status="approved">
+<GraceChangePlan graceVersion="4.0" status="applied">
   <C-EVENT-TEMPLATES-375>
     <IntentSummary>Extend existing monthly composition through versioned structured event templates and a bounded selection preview. One owner per data, selection and UI scope; root owns DOCX, wiring and integration. Designer and template-flow skills apply; no-motion. Existing project CI owns the complete unit suite and focused browser scenario, with GRACE limited to scope and database recovery.</IntentSummary>
     <BaselineAssertions><MustExist><Value>packages/plans/src/monthly.mjs</Value></MustExist><MustExist><Value>packages/plan-docx/src/monthly-export.mjs</Value></MustExist><MustExist><Value>migrations/032_monthly_plan_composition.sql</Value></MustExist></BaselineAssertions>

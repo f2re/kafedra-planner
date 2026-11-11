@@ -57,6 +57,10 @@ test('GRACE runs the heavy target bundle gate only for offline deployment risk',
   assert.match(grace, /Build and verify every supported target bundle/u);
   assert.match(grace, /build-release-targets\.sh "\$OUT"/u);
   assert.match(grace, /verify-release-targets\.sh "\$OUT"/u);
+  assert.match(grace, /offline-risk-scope\.mjs --base "\$PR_BASE_SHA" --head "\$SOURCE_SHA" --event "\$GITHUB_EVENT_NAME"/u);
+  assert.match(grace, /Build and verify standalone agent catalogue\n\s+if: steps\.risk\.outputs\.scope == 'catalogue'/u);
+  assert.match(grace, /Build and verify every supported target bundle\n\s+if: steps\.risk\.outputs\.scope == 'full'/u);
+  assert.match(grace, /verify-agent-catalogue\.mjs "\$OUT\/kafedra-llm-catalogue-\$VERSION\.tar\.gz"/u);
   assert.match(grace, /needs: \[contract, database, deployment\]/u);
 });
 
