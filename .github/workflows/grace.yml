@@ -157,21 +157,40 @@ jobs:
         with:
           fetch-depth: 0
           ref: ${{ github.event.pull_request.head.sha || github.sha }}
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
       - name: Detect offline deployment risk
         id: risk
         shell: bash
+        env:
+          PR_BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          SOURCE_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
         run: |
           set -Eeuo pipefail
           shopt -s nullglob
           specs=(.grace/changes/active/C-*/spec.xml)
           deployment=false
+          scope=none
           if [[ ${#specs[@]} -eq 1 ]] && grep -Eq '<M-OFFLINE-BUNDLE[[:space:]/>]' "${specs[0]}"; then
             deployment=true
+            scope="$(node scripts/github/offline-risk-scope.mjs --base "$PR_BASE_SHA" --head "$SOURCE_SHA" --event "$GITHUB_EVENT_NAME")"
+            case "$scope" in full|catalogue) ;; *) echo "Unknown offline risk scope: $scope" >&2; exit 1 ;; esac
           fi
           echo "deployment=$deployment" >> "$GITHUB_OUTPUT"
-          echo "offline deployment risk: $deployment"
+          echo "scope=$scope" >> "$GITHUB_OUTPUT"
+          echo "offline deployment risk: $deployment ($scope)"
+      - name: Build and verify standalone agent catalogue
+        if: steps.risk.outputs.scope == 'catalogue'
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          OUT="$RUNNER_TEMP/kafedra-grace-agent-catalogue"
+          bash scripts/offline/build-llm-patch-bundle.sh --output-dir "$OUT"
+          VERSION="$(node -p 'require("./package.json").version')"
+          node scripts/offline/verify-agent-catalogue.mjs "$OUT/kafedra-llm-catalogue-$VERSION.tar.gz"
       - name: Build and verify every supported target bundle
-        if: steps.risk.outputs.deployment == 'true'
+        if: steps.risk.outputs.scope == 'full'
         env:
           SOURCE_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
         shell: bash

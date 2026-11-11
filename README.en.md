@@ -9,13 +9,15 @@
 
 Kafedra Planner is an offline-first daily work system for an academic department: calendar, annual plans, assignments, documents, meetings, reporting, research activity, grade sheets, and auditable evidence.
 
-> Current milestone: **`0.4.12`**, SQLite schema **31**. Core workflows do not require Internet access, Docker, an LLM, Docomator, or cloud services. The project remains a release candidate until the real Astra Linux/Debian installation, upgrade, restoration, and rollback acceptance in [TARGET_ACCEPTANCE.md](docs/TARGET_ACCEPTANCE.md) and issue #27 is complete.
+> Current milestone: **`0.4.12`** is the source package version; current `main` after that tag uses SQLite schema **33**. As of November 11, 2026, the latest published GitHub Release with installation assets is [`v0.4.7`](https://github.com/f2re/kafedra-planner/releases/tag/v0.4.7). A newer Git tag does not imply that its installer has been published. Core workflows do not require Internet access, Docker, an LLM, Docomator, or cloud services. The project remains a release candidate until the real Astra Linux/Debian installation, upgrade, restoration, and rollback acceptance in [TARGET_ACCEPTANCE.md](docs/TARGET_ACCEPTANCE.md) and issue #27 is complete.
 
-Patch release `0.4.12` adds conversational natural-language protocol search via the departmental LLM assistant (morphological root stemming, substantive term extraction, full-content hydration, quote verification with verified badges), along with end-to-end indexing consistency for quorum, attendees, and decisions in SQLite FTS5.
+Source milestone `0.4.12` adds conversational natural-language protocol search via the departmental LLM assistant (morphological root stemming, substantive term extraction, full-content hydration, quote verification with verified badges), along with end-to-end indexing consistency for quorum, attendees, and decisions in SQLite FTS5.
 
 **[Download an offline bundle](https://github.com/f2re/kafedra-planner/releases)** · **[Install guide](docs/GITHUB_RELEASES.md)** · **[Security policy](SECURITY.md)** · **[Russian documentation](README.md#эксплуатация-и-документация)**
 
 Published releases are not overwritten. The R1–R9 automation cycle is delivered in `v0.4.4`, protocol import improvements in `v0.4.5`, separate Astra bundles in `v0.4.6`, and topical search and background material selection in `v0.4.7`.
+
+Monthly plans and visual event templates were added to `main` after tag `v0.4.12` and are included when building the application archive from current source. Older published installers do not contain these features. See the [event template contract](docs/EVENT_TEMPLATES.md) and [independent UI acceptance](docs/design/event-template-acceptance.md).
 
 ## Operating model
 

@@ -59,6 +59,7 @@ export function createEventTemplateEditor({ root, api, json, onSaved, getItems, 
   const sync = () => {
     root.querySelectorAll('button, input, select, textarea').forEach(node => { node.disabled = busy || externalBusy || node.dataset.templateLocked === 'true'; });
   };
+  const focus = selector => { if (!busy && !externalBusy && !root.closest('.hidden')) root.querySelector(selector)?.focus(); };
   function renderPreview() {
     const target = root.querySelector('[data-template-live-preview]');
     if (target) { target.innerHTML = previewTable(definition, getItems(), { caption: title }); applyPreviewColumnWidths(target); }
@@ -90,12 +91,13 @@ export function createEventTemplateEditor({ root, api, json, onSaved, getItems, 
   }
   async function save(copy = false) {
     readInspector();
-    if (!title.trim()) return message('Укажите название шаблона.', true);
+    if (!title.trim()) { message('Укажите название шаблона.', true); focus('[data-template-name]'); return; }
     const empty = definition.fields.find(field => !field.label.trim() || (field.type === 'select' && !field.options?.length));
-    if (empty) { selected = empty.key; render(); message('Укажите подпись поля и варианты выбора, если они нужны.', true); return; }
+    if (empty) { selected = empty.key; render(); message('Укажите подпись поля и варианты выбора, если они нужны.', true); focus(empty.label.trim() ? '[name="options"]' : '[name="label"]'); return; }
     if (busy || externalBusy) return;
     busy = true; sync(); message('Сохраняем шаблон…');
     const intended = { title: title.trim(), definition: clone(definition) };
+    let nextFocus = `[data-template-editor-action="${copy ? 'copy' : 'save'}"]`;
     try {
       const request = pending || { path: identity && !copy ? `/api/event-templates/${encodeURIComponent(identity.templateId)}/versions` : '/api/event-templates', body: { ...intended, ...(identity && !copy ? { expectedVersion: identity.version } : {}), idempotencyKey: `event-template-ui:${newPlanOperationId()}` } };
       pending = request;
@@ -108,9 +110,9 @@ export function createEventTemplateEditor({ root, api, json, onSaved, getItems, 
         version = saved.savedVersion || saved.currentVersion || { id: saved.currentVersionId, templateId: saved.id, version: saved.version, title: saved.title, definition: saved.definition };
       }
       identity = version; definition = clone(version.definition); title = version.title; dirty = false; onDirty?.(false);
-      await onSaved(saved, version); render(); message(`Шаблон сохранён · версия ${version.version}.`);
+      await onSaved(saved, version); render(); message(`Шаблон сохранён · версия ${version.version}.`); nextFocus = '[data-template-editor-action="save"]';
     } catch (error) { if (error.status && error.status < 500) pending = null; message(error.message, true); }
-    finally { busy = false; sync(); }
+    finally { busy = false; sync(); focus(nextFocus); }
   }
   root.addEventListener('submit', event => event.preventDefault());
   root.addEventListener('click', event => {
@@ -121,9 +123,9 @@ export function createEventTemplateEditor({ root, api, json, onSaved, getItems, 
     else if (action === 'select') { selected = key; render(); root.querySelector('[name="label"]')?.focus(); }
     else if (action === 'add') { selected = `custom_${newPlanOperationId().replaceAll('-', '_')}`; definition.fields.push({ key: selected, source: 'custom', label: 'Новое поле', type: 'text', required: false, visible: true, width: 20 }); markDirty(); render(); root.querySelector('[name="label"]')?.select(); }
     else if (action === 'up' || action === 'down') { const index = definition.fields.findIndex(item => item.key === key), next = index + (action === 'up' ? -1 : 1); if (next < 0 || next >= definition.fields.length) return; [definition.fields[index], definition.fields[next]] = [definition.fields[next], definition.fields[index]]; selected = key; markDirty(); render(); root.querySelector(`[data-template-editor-action="select"][data-field-key="${CSS.escape(key)}"]`)?.focus(); }
-    else if (action === 'remove') { if (['title', 'date'].includes(definition.fields.find(item => item.key === selected)?.source)) return; definition.fields = definition.fields.filter(item => item.key !== selected); selected = definition.fields[0].key; markDirty(); render(); }
-    else if (action === 'discard') { definition = clone(identity?.definition || defaultEventDefinition()); title = identity?.title || 'Шаблон мероприятий кафедры'; selected = definition.fields[0].key; dirty = false; pending = null; onDirty?.(false); render(); message('Несохранённые настройки отменены.'); }
-    else if (action === 'reload' && identity) { busy = true; sync(); api(`/api/event-templates/${encodeURIComponent(identity.templateId)}`).then(saved => { identity = saved.currentVersion; pending = null; render(); message('Текущая версия обновлена. Ваши настройки оставлены в редакторе; проверьте их перед сохранением.'); }).catch(error => message(error.message, true)).finally(() => { busy = false; sync(); }); }
+    else if (action === 'remove') { if (['title', 'date'].includes(definition.fields.find(item => item.key === selected)?.source)) return; definition.fields = definition.fields.filter(item => item.key !== selected); selected = definition.fields[0].key; markDirty(); render(); focus('[data-template-editor-action="select"][aria-pressed="true"]'); }
+    else if (action === 'discard') { definition = clone(identity?.definition || defaultEventDefinition()); title = identity?.title || 'Шаблон мероприятий кафедры'; selected = definition.fields[0].key; dirty = false; pending = null; onDirty?.(false); render(); message('Несохранённые настройки отменены.'); focus('[data-template-editor-action="select"][aria-pressed="true"]'); }
+    else if (action === 'reload' && identity) { busy = true; sync(); api(`/api/event-templates/${encodeURIComponent(identity.templateId)}`).then(saved => { identity = saved.currentVersion; pending = null; render(); message('Текущая версия обновлена. Ваши настройки оставлены в редакторе; проверьте их перед сохранением.'); }).catch(error => message(error.message, true)).finally(() => { busy = false; sync(); focus('[name="label"]'); }); }
     else if (action === 'save' || action === 'copy') save(action === 'copy');
   });
   root.addEventListener('input', event => {

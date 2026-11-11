@@ -99,8 +99,8 @@ function ensureUi() {
           <label class="field"><span>Исходный план</span><select id="collection-source-plan"><option value="">Все планы</option></select></label>
         </div>
         <div class="collection-prefill-actions"><button type="button" class="primary-button" data-collection-action="suggest">Подобрать и заполнить</button><button type="button" class="text-button hidden" data-collection-action="cancel-suggest">Отменить подбор</button><span id="collection-suggest-status" role="status" aria-live="polite">Укажите кафедру — система предложит мероприятия для неё.</span></div>
-        <section id="collection-suggestion-preview" class="collection-suggestion-preview hidden" aria-label="Предварительный подбор"></section>
         <div class="collection-selection"><label class="check-field"><input id="collection-undated" type="checkbox" checked><span>Показывать также мероприятия без точного срока</span></label><span id="collection-selection-count">Выбрано: 0</span><button type="button" class="primary-button" data-collection-action="add" data-collection-mutation disabled>Добавить выбранные</button></div>
+        <section id="collection-suggestion-preview" class="collection-suggestion-preview hidden" aria-label="Предварительный подбор"></section>
         <div id="collection-events" aria-busy="false"></div><button type="button" class="secondary-button hidden" id="collection-load-more" data-collection-action="more">Показать ещё</button>
       </section>
       <section id="collection-members-panel" class="hidden" role="tabpanel" aria-labelledby="collection-members-tab"><p class="collection-help">Формулировки для выгрузки можно изменить здесь. Сроки и исполнение самого мероприятия редактируются в исходном плане.</p><div id="collection-members"></div></section>`;
@@ -122,6 +122,12 @@ function setTab(tab) {
 function syncControls() {
   const root = $('#plan-collection');
   if (!root) return;
+  const previewOpen = !$('#collection-suggestion-preview').classList.contains('hidden');
+  for (const selector of ['#collection-events', '#collection-selection-count', '[data-collection-action="add"]']) $(selector, root).classList.toggle('hidden', previewOpen);
+  $('#collection-load-more').classList.toggle('hidden', previewOpen || !state.hasMore);
+  const suggest = $('[data-collection-action="suggest"]', root);
+  suggest.classList.toggle('primary-button', !previewOpen);
+  suggest.classList.toggle('secondary-button', previewOpen);
   $$('[data-collection-mutation], #collection-plan-form input, #collection-plan-form select, .collection-filters input, .collection-filters select, #collection-undated, .collection-item-form input, .collection-item-form select, .collection-event-details input, .collection-event-details select, #collection-template-review input, #collection-template-review select', root).forEach(node => { node.disabled = state.busy; });
   templateEditor?.setExternalBusy(state.busy);
   $('[data-collection-action="edit-event-template"]', root).disabled = state.busy;
@@ -212,12 +218,16 @@ function renderMemberFields(item, edit) {
 }
 function cancelSuggestion(showMessage = false) {
   state.suggestionSequence += 1; state.suggestionController?.abort(); state.suggestionController = null; state.suggestionBusy = false;
-  if (showMessage) $('#collection-suggest-status').textContent = 'Подбор остановлен. Сохранённые мероприятия не изменены.';
+  if (showMessage) { $('#collection-suggest-status').textContent = 'Подбор остановлен. Сохранённые мероприятия не изменены.'; $('#collection-suggestion-preview')?.classList.add('hidden'); }
   if ($('#plan-collection')) syncControls();
+}
+function hideSuggestions() {
+  $('#collection-suggestion-preview')?.classList.add('hidden');
+  syncControls();
 }
 function clearSuggestions() {
   cancelSuggestion(); state.suggestions = null; state.suggestedSelected.clear(); state.suggestionRequest = null;
-  $('#collection-suggestion-preview')?.classList.add('hidden');
+  hideSuggestions();
   if ($('#collection-suggest-status')) $('#collection-suggest-status').textContent = 'Укажите кафедру — система предложит мероприятия для неё.';
 }
 function suggestionParameters(offset = 0) {
@@ -232,13 +242,13 @@ function suggestionPreviewItem(item) {
 }
 function renderSuggestions() {
   const root = $('#collection-suggestion-preview'), result = state.suggestions;
-  if (!result) { root.classList.add('hidden'); return; }
+  if (!result) { hideSuggestions(); return; }
   root.classList.remove('hidden');
   const included = new Set((state.draft?.items || []).map(item => item.plan_item_id));
   const selected = result.items.filter(item => state.suggestedSelected.has(item.planItemId));
   const fields = templateFields(selectedEventTemplate(), true);
   const selectedPreview = selected.map(suggestionPreviewItem);
-  root.innerHTML = `<header class="collection-designer-heading"><div><h4 tabindex="-1">Предварительный подбор</h4><p class="collection-help">${result.method === 'rules' ? 'Подбор по тексту и данным источников. Локальная модель не использовалась.' : 'Мероприятия предварительно отсортированы с помощью локальной модели. Проверьте основания выбора.'} Отмечены рекомендуемые строки; остальные доступны ниже.</p></div><button type="button" class="text-button" data-collection-action="hide-suggestions">Свернуть</button></header>${result.warnings?.length ? `<ul class="collection-help">${result.warnings.map(warning => `<li>${esc(warning)}</li>`).join('')}</ul>` : ''}${selectedEventTemplate() ? previewTable(selectedEventTemplate().definition, selectedPreview, { caption: state.metadata.title || defaultTitle() }) : ''}
+  root.innerHTML = `<header class="collection-designer-heading"><div><h4 tabindex="-1">Предварительный подбор</h4><p class="collection-help">${result.method === 'rules' ? 'Подбор по тексту и данным источников. Локальная модель не использовалась.' : 'Мероприятия предварительно отсортированы с помощью локальной модели. Проверьте основания выбора.'} Отмечены рекомендуемые строки; остальные доступны ниже.</p></div><button type="button" class="text-button" data-collection-action="hide-suggestions" data-collection-mutation>К списку мероприятий</button></header>${result.warnings?.length ? `<ul class="collection-help">${result.warnings.map(warning => `<li>${esc(warning)}</li>`).join('')}</ul>` : ''}${selectedEventTemplate() ? previewTable(selectedEventTemplate().definition, selectedPreview, { caption: state.metadata.title || defaultTitle() }) : ''}
     <div class="collection-suggestion-list">${result.items.length ? result.items.map(item => {
       const source = item.source || {}, isIncluded = included.has(item.planItemId), preview = suggestionPreviewItem(item);
       const prepared = fields.filter(field => field.source === 'custom' || field.source === 'location').map(field => { const value = fieldValue(field, preview); const proposal = field.source === 'location' ? item.suggestedFields?.location : item.suggestedFields?.customValues?.[field.key]; return `<div><dt>${esc(field.label)}</dt><dd>${String(value ?? '').trim() ? esc(value) : '<span class="collection-empty-cell">Не указано в источнике</span>'}${proposal ? `<small>Из источника: «${esc(proposal.quote)}»</small>` : ''}</dd></div>`; }).join('');
@@ -257,6 +267,8 @@ async function suggestEvents(append = false) {
   if (state.suggestionRequest?.signature !== signature) state.suggestionRequest = { signature, key: `plan-suggestion-ui:${newPlanOperationId()}` };
   const sequence = ++state.suggestionSequence; state.suggestionBusy = true;
   const controller = new AbortController(); state.suggestionController = controller;
+  let failed = false;
+  message();
   $('#collection-suggest-status').textContent = 'Подбираем мероприятия и заполняем доступные поля…'; syncControls();
   try {
     const result = await api('/api/plan-events/suggest', { ...json('POST', { ...params, idempotencyKey: state.suggestionRequest.key }), signal: controller.signal });
@@ -273,8 +285,8 @@ async function suggestEvents(append = false) {
     renderSuggestions();
     $('#collection-suggest-status').textContent = `Подбор готов: ${state.suggestions.items.length} мероприятий, рекомендовано ${state.suggestedSelected.size}.${result.hasMore ? ' Доступна следующая часть.' : ''}`;
     $('#collection-suggestion-preview h4')?.focus();
-  } catch (error) { if (sequence === state.suggestionSequence && error.name !== 'AbortError') { $('#collection-suggest-status').textContent = 'Подбор не завершён. Повторите запрос; сохранённые данные не изменены.'; message(error.message, true); } }
-  finally { if (sequence === state.suggestionSequence) { state.suggestionBusy = false; state.suggestionController = null; syncControls(); } }
+  } catch (error) { if (sequence === state.suggestionSequence && error.name !== 'AbortError') { failed = true; hideSuggestions(); $('#collection-suggest-status').textContent = 'Подбор не завершён. Повторите запрос или выберите мероприятия из списка; сохранённые данные не изменены.'; message(error.message, true); } }
+  finally { if (sequence === state.suggestionSequence) { state.suggestionBusy = false; state.suggestionController = null; syncControls(); if (failed && state.open && state.tab === 'events') $('[data-collection-action="suggest"]')?.focus(); } }
 }
 async function applySuggestions() {
   if (!state.suggestions || !state.suggestedSelected.size) return;
@@ -298,7 +310,7 @@ async function applySuggestions() {
       if (['added', 'existing', 'applied'].includes(row.status)) { state.suggestedSelected.delete(row.planItemId); applied += 1; }
       else if (row.status === 'error') failures.push(row.message || 'Одно мероприятие не добавлено.');
     }
-    for (const item of state.draft.items || []) if (!item.unavailable) state.suggestedSelected.delete(item.plan_item_id);
+    for (const item of state.draft.items || []) if (!item.unavailable) { state.suggestedSelected.delete(item.plan_item_id); state.selected.delete(item.plan_item_id); }
   }
   requireCurrent(); renderSuggestions(); setTab('members');
   message(failures.length ? `Сохранено ${applied}. ${failures.join(' ')}` : 'Выбранные мероприятия приняты. Проверьте заполненные поля и скачайте документ.', Boolean(failures.length));
@@ -310,7 +322,6 @@ function renderEvents() {
     <td class="collection-choice"><input type="checkbox" data-collection-select="${esc(item.id)}" aria-label="Выбрать: ${esc(item.title)}" ${included.has(item.id) ? 'checked disabled' : state.selected.has(item.id) ? 'checked' : ''}></td>
     <td><strong>${esc(item.title)}</strong><small>${esc(kinds[item.activity_kind] || directions[item.direction] || 'Мероприятие')}${included.has(item.id) ? ' · Уже в плане' : ''}</small>${renderEventDetails(item)}</td>
     <td data-label="Срок">${esc(dates(item))}</td><td data-label="Ответственный">${esc(item.responsible_raw || item.responsible_name || 'Не указан')}</td><td>${sourceLinks(item)}</td></tr>`).join('')}</tbody></table>` : '<div class="empty-state">Мероприятий по этим условиям нет. Измените фильтры или загрузите исходные планы.</div>';
-  $('#collection-load-more').classList.toggle('hidden', !state.hasMore);
   syncControls();
 }
 function sourceMemberEdit(source) {
@@ -391,13 +402,14 @@ function acceptDraft(draft, { preserveMetadata = false } = {}) {
   if (index < 0) state.drafts.unshift(draft); else state.drafts[index] = draft;
   renderSelectors(); renderMembers(); renderEvents();
 }
-async function mutate(action) {
+async function mutate(action, { focusOnSuccess = '' } = {}) {
   if (state.busy) return;
   state.busy = true; syncControls(); message('Сохраняем…');
-  try { await action(); }
+  let completed = false;
+  try { await action(); completed = true; }
   catch (error) {
     message(`${error.message}${/revision|stale|conflict/.test(error.code || '') ? ' Обновите сохранённый план перед повторной попыткой. Ваши формулировки оставлены в редакторе.' : ''}`, true);
-  } finally { state.busy = false; syncControls(); }
+  } finally { state.busy = false; syncControls(); if (completed && state.open && focusOnSuccess) $(focusOnSuccess)?.focus(); }
 }
 function metadataPayload() {
   const title = $('#collection-title').value.trim();
@@ -584,9 +596,9 @@ document.addEventListener('click', event => {
   else if (action === 'edit-event-template') templateEditor.open(selectedEventTemplate());
   else if (action === 'suggest') suggestEvents();
   else if (action === 'suggest-more') suggestEvents(true);
-  else if (action === 'cancel-suggest') cancelSuggestion(true);
-  else if (action === 'apply-suggestion') mutate(applySuggestions);
-  else if (action === 'hide-suggestions') { $('#collection-suggestion-preview').classList.add('hidden'); $('[data-collection-action="suggest"]').focus(); }
+  else if (action === 'cancel-suggest') { cancelSuggestion(true); $('[data-collection-action="suggest"]')?.focus(); }
+  else if (action === 'apply-suggestion') mutate(applySuggestions, { focusOnSuccess: '#collection-members-tab' });
+  else if (action === 'hide-suggestions') { cancelSuggestion(); hideSuggestions(); ($('[data-collection-select]:checked:not(:disabled)') || $('[data-collection-select]:not(:disabled)') || $('#collection-q'))?.focus(); }
   else if (action === 'upload-template') $('#collection-template-file').click();
   else if (action === 'retry-template') mutate(() => uploadTemplate(state.templateSource.file));
   else if (action === 'refresh') mutate(async () => {

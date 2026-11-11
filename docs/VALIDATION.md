@@ -1,6 +1,6 @@
 # Проверка изменений
 
-Актуальный рубеж: `0.4.12`, SQLite schema **31**; изменения месячных планов после рубежа используют schema **32**. Проверки выбираются по риску изменения; полный release/deployment regression не запускается на каждый feature PR.
+Актуальный рубеж: `0.4.12` — номер пакета; текущий `main` использует SQLite schema **33**. Исторический тег `v0.4.12` содержит schema **31**, последующие месячные планы добавили **32**, визуальные шаблоны и историю подбора — **33**. Проверки выбираются по риску изменения; полный release/deployment regression не запускается на каждый feature PR.
 
 ## Обычный pull request
 
@@ -33,10 +33,13 @@ GRACE после merge автоматически не запускается. �
 | SQLite schema/storage/recovery | migration + clean install + base→HEAD upgrade + repeated migration + integrity + backup/restore |
 | PIN/auth/ACL/security | targeted auth/ACL regression |
 | installer/update/offline | full bundle + systemd install/update/rollback + document runtime self-test |
+| отдельный архив каталога LLM и диагностики без изменения установки | сборка реального архива, состав, checksums, схемы задач, отказ на подмене и атомарная публикация |
 | release/CI infrastructure | GRACE contract/scope и релевантный release/CI regression |
 | обычный UI/API/docs/test | без полного GRACE/deployment gate |
 
 GRACE автоматически запускается для pull request, который содержит governed `.grace/**` change. Его `database` job выполняет тяжёлую DB/recovery проверку только при соответствующем `M-DATABASE`, `M-BACKUP` или `M-MIGRATION-RUNNER` в active spec. `workflow_dispatch` остаётся ручной диагностикой. GRACE не опрашивает остальные GitHub Actions, не ждёт их завершения и не повторяет project tests.
+
+Для `M-OFFLINE-BUNDLE` diff exact base/head определяет объём доказательства. Только ограниченный набор файлов каталога, диагностического архива и сопутствующей приёмки допускает проверку отдельного архива вместо установки ОС. Изменение installer, runtime, зависимостей, migrations, основных builders, неизвестный путь или недоступный diff сохраняют полный gate. Ручной запуск также выполняет полный gate. Классификатор: `scripts/github/offline-risk-scope.mjs`.
 
 ## Ручные диагностические workflows
 
