@@ -78,6 +78,12 @@ function ensurePlanFactUi() {
   }
 }
 
+function showPlanFactError(error) {
+  const message = error?.message || 'Не удалось обновить План / факт.';
+  const results = pfOne('#plan-fact-results');
+  if (results) results.innerHTML = `<div class="empty-state" role="alert">${pfSafe(message)}</div>`;
+}
+
 function personOptions(includeDepartment = true) {
   return [
     ...(includeDepartment ? ['<option value="">Вся кафедра</option>'] : []),
@@ -159,6 +165,13 @@ async function loadPlanFact({ rebuild = false } = {}) {
   renderPlanFact(data);
 }
 
+function runPlanFactLoad(options = {}) {
+  return loadPlanFact(options).catch((error) => {
+    showPlanFactError(error);
+    return null;
+  });
+}
+
 async function openPlanFactView() {
   pfMany('.nav-item,.mobile-tab').forEach((button) => button.classList.toggle('active', button.dataset.view === 'plan-fact'));
   pfMany('[data-view-panel]').forEach((panel) => panel.classList.toggle('active', panel.dataset.viewPanel === 'plan-fact'));
@@ -170,7 +183,7 @@ async function openPlanFactView() {
     await refreshPeople();
     await loadPlanFact();
   } catch (error) {
-    pfOne('#plan-fact-results').innerHTML = `<div class="empty-state">${pfSafe(error.message)}</div>`;
+    showPlanFactError(error);
   }
 }
 
@@ -229,15 +242,15 @@ async function initializePlanFact() {
   if (window.kafedraAuthReady) await window.kafedraAuthReady;
   ensurePlanFactUi();
   await refreshPeople();
-  await refreshPersonalNotifications().catch(() => {});
+  await refreshPersonalNotifications().catch((error) => console.warn('Не удалось обновить персональные уведомления.', error));
 }
 
 document.addEventListener('click', (event) => {
   const view = event.target.closest('[data-view="plan-fact"]');
-  if (view) { event.preventDefault(); event.stopPropagation(); openPlanFactView().catch(() => {}); }
+  if (view) { event.preventDefault(); event.stopPropagation(); openPlanFactView().catch(showPlanFactError); }
   const card = event.target.closest('[data-plan-fact-id]');
-  if (card && card.dataset.planFactKind === 'assignment') showPlanFact(card.dataset.planFactId).catch(() => {});
-  if (event.target.closest('#plan-fact-rebuild')) loadPlanFact({ rebuild: true }).catch(() => {});
+  if (card && card.dataset.planFactKind === 'assignment') showPlanFact(card.dataset.planFactId).catch(showPlanFactError);
+  if (event.target.closest('#plan-fact-rebuild')) runPlanFactLoad({ rebuild: true });
 }, true);
 
 document.addEventListener('change', (event) => {
@@ -248,16 +261,16 @@ document.addEventListener('change', (event) => {
     const scope = pfOne('#plan-fact-filters select[name="scope"]');
     if (planPerson) planPerson.value = pfState.currentPersonId;
     if (scope) scope.value = pfState.currentPersonId ? 'owner' : 'department';
-    refreshPersonalNotifications().catch(() => {});
-    if (pfOne('[data-view-panel="plan-fact"]')?.classList.contains('active')) loadPlanFact().catch(() => {});
+    refreshPersonalNotifications().catch((error) => console.warn('Не удалось обновить персональные уведомления.', error));
+    if (pfOne('[data-view-panel="plan-fact"]')?.classList.contains('active')) runPlanFactLoad();
   }
-  if (event.target.closest('#plan-fact-filters')) loadPlanFact().catch(() => {});
+  if (event.target.closest('#plan-fact-filters')) runPlanFactLoad();
 });
 
 document.addEventListener('input', (event) => {
   if (!event.target.closest('#plan-fact-filters')) return;
   clearTimeout(pfState.timer);
-  pfState.timer = setTimeout(() => loadPlanFact().catch(() => {}), 250);
+  pfState.timer = setTimeout(() => runPlanFactLoad(), 250);
 });
 
-initializePlanFact().catch(() => {});
+initializePlanFact().catch(showPlanFactError);
