@@ -8,6 +8,7 @@ import { createPlanItemsRouter } from './plan-items-router.mjs';
 import { createPlanSourceRowsRouter } from './plan-source-rows-router.mjs';
 import { createManualPlansRouter } from './manual-plans-router.mjs';
 import { createMonthlyPlansRouter } from './monthly-plans-router.mjs';
+import { createPlanSelectionRouter } from './plan-selection-router.mjs';
 import { createMeetingsRouter } from './protocol-import-router.mjs';
 import { createUiPreferencesRouter } from './ui-preferences-router.mjs';
 import { createNotificationDeliveryRouter } from './notification-delivery-router.mjs';
@@ -47,6 +48,7 @@ export function createApp({ database, config, logger }) {
   const documentReprocessRouter = createDocumentReprocessRouter({ database, config, logger });
   const manualPlansRouter = createManualPlansRouter({ database, config, logger });
   const monthlyPlansRouter = createMonthlyPlansRouter({ database, config, logger });
+  const planSelectionRouter = createPlanSelectionRouter({ database, config, logger });
   const planItemsRouter = createPlanItemsRouter({ database, config, logger });
   const planSourceRowsRouter = createPlanSourceRowsRouter({ database, config, logger });
   const plansRouter = createPlansRouter({ database, config, logger });
@@ -125,6 +127,7 @@ export function createApp({ database, config, logger }) {
           let extensionHandled = false;
           if (!preferencesHandled && !notificationHandled && !responsibilityHandled && !periodicCompletionHandled && !periodicHandled && !searchHandled && !manualPlansHandled && !planItemHandled && !planSourceRowsHandled && !plansHandled && !meetingsHandled && !documentReprocessHandled && !accessHandled && !response.headersSent) {
             extensionHandled = await monthlyPlansRouter(request, response, url, requestId);
+            if (!extensionHandled && !response.headersSent) extensionHandled = await planSelectionRouter(request, response, url, requestId);
             if (!extensionHandled && !response.headersSent) extensionHandled = await docomatorIntegrationRouter(request, response, url, requestId);
             if (!extensionHandled && !response.headersSent) extensionHandled = await organizationRouter(request, response, url, requestId);
             if (!extensionHandled && !response.headersSent) extensionHandled = await scienceLifecycleRouter(request, response, url, requestId);

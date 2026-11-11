@@ -6,15 +6,17 @@ import { newId } from '../../core/src/ids.mjs';
 import { assertObjectAccess, ensureObjectPolicy } from '../../access-control/src/service.mjs';
 import { assertPlanItemAccess } from '../../plans/src/access.mjs';
 import { getMonthlyPlan, assertMonthlyPlanRevision } from '../../plans/src/monthly.mjs';
+import { getEventTemplateVersion } from '../../plans/src/event-templates.mjs';
 import { PLAN_ACTIVITY_LABELS } from '../../plans/src/activity.mjs';
 import { storeGeneratedFile } from '../../document-intake/src/blob-store.mjs';
-import { generatePlanDocumentXml, formatRussianDate } from './generator.mjs';
+import { generatePlanDocumentXml } from './generator.mjs';
+import { eventTerm, assertEventTemplateComplete, renderEventTemplateXml, applyEventTemplateToSample } from './event-template-export.mjs';
 import { DOCUMENT_XML, escapeXmlText, readDocumentXml } from './ooxml-shared.mjs';
 import { monthlyPeriod, monthLabel } from './monthly-period.mjs';
 import { rewriteZipArchive, writeZipArchive } from './archive.mjs';
 
 const MEDIA_TYPE = 'application/vnd.openxmlformats-officedocument.wordprocessingml.document';
-const GENERATOR_VERSION = 'monthly-docx-v1';
+const GENERATOR_VERSION = 'monthly-docx-v2';
 const STALE_MS = 5 * 60 * 1000;
 
 function fail(code, message, status = 409) { throw new AppError(code, message, status); }
@@ -49,25 +51,32 @@ function prepareSnapshot(database, workspaceId, id, input, context) {
   const draft = getMonthlyPlan(database, workspaceId, id, context);
   assertMonthlyPlanRevision(draft, input.expectedRevision);
   if (draft.unavailableCount) fail('monthly_plan_source_unavailable', 'Часть мероприятий недоступна. Уберите их из состава или восстановите доступ.');
+  if (draft.eventTemplateUnavailable) fail('event_template_unavailable', 'Шаблон полей недоступен. Выберите доступный шаблон.');
   if (!draft.items.length) fail('monthly_plan_empty', 'Добавьте мероприятия в месячный план.', 400);
   const template = templateFor(database, workspaceId, draft, context);
   const snapshot = {
     generatorVersion: GENERATOR_VERSION,
     monthlyPlanId: id, month: draft.month_key, title: draft.title, revision: draft.revision,
+    eventTemplate: draft.eventTemplate || null,
+    department: draft.department_text || '',
     template: template ? {
       id: template.id, documentId: template.document_id,
       documentVersionId: template.source_document_version_id, sha256: template.blob_sha256, config: template.config
     } : null,
     items: draft.items.map((item) => ({
       membershipId: item.id, position: item.position,
-      source: item.source,
+      source: Object.fromEntries(Object.entries(item.source).filter(([key]) => key !== 'canEditDetails')),
       overrides: {
         title: item.title_override, dateText: item.date_text_override,
-        responsible: item.responsible_override, expectedResult: item.expected_result_override, note: item.note
+        responsible: item.responsible_override, expectedResult: item.expected_result_override, note: item.note,
+        location: item.location_override ?? null, customValues: item.custom_values_json ? JSON.parse(item.custom_values_json) : {}
       },
+      selectionRunId: item.selection_run_id || null,
+      selectionEvidence: item.selection_evidence_json ? JSON.parse(item.selection_evidence_json) : null,
       effective: item.effective
     }))
   };
+  assertEventTemplateComplete(snapshot);
   return { draft, template, snapshot, hash: hashSnapshot(snapshot) };
 }
 
@@ -81,6 +90,7 @@ function assertSnapshotAccess(database, workspaceId, context, snapshot) {
     }
   }
   if (snapshot.template?.documentId) assertObjectAccess(database, workspaceId, context, 'document', snapshot.template.documentId, 'read');
+  if (snapshot.eventTemplate?.id) getEventTemplateVersion(database, workspaceId, snapshot.eventTemplate.id, context);
 }
 
 /** Run before generic document handlers, including content, preview and reprocess. */
@@ -137,12 +147,7 @@ function result(database, workspaceId, id, duplicateRequest) {
 }
 
 export function monthlyItemDate(item) {
-  if (item.dateText !== null && item.dateText !== undefined) return String(item.dateText);
-  const dates = [];
-  if (item.startsAt) dates.push(item.endsAt && item.endsAt !== item.startsAt
-    ? `${formatRussianDate(item.startsAt)} — ${formatRussianDate(item.endsAt)}` : formatRussianDate(item.startsAt));
-  if (item.dueDate) dates.push(`до ${formatRussianDate(item.dueDate)}`);
-  return dates.join('; ');
+  return eventTerm(item);
 }
 
 function paragraph(text, { centered = false, bold = false, size = 22 } = {}) {
@@ -151,14 +156,17 @@ function paragraph(text, { centered = false, bold = false, size = 22 } = {}) {
 }
 
 export function renderMonthlyPlanXml(snapshot) {
+  if (snapshot.eventTemplate) return renderEventTemplateXml(snapshot);
   const period = monthlyPeriod(snapshot.month);
-  const widths = [500, 1800, 4400, 1800, 2500, 2500];
+  const hasLocation = snapshot.items.some(item => item.effective.location);
+  const widths = hasLocation ? [450, 1600, 3800, 1600, 1900, 1800, 2350] : [500, 1800, 4400, 1800, 2500, 2500];
   const row = (values, heading = false) => `<w:tr><w:trPr><w:cantSplit/>${heading ? '<w:tblHeader/>' : ''}</w:trPr>${values.map((text, index) =>
     `<w:tc><w:tcPr><w:tcW w:w="${widths[index]}" w:type="dxa"/>${heading ? '<w:shd w:fill="F1F3F5"/>' : ''}<w:vAlign w:val="top"/></w:tcPr>${paragraph(text, { bold: heading })}</w:tc>`
   ).join('')}</w:tr>`;
   const rows = snapshot.items.map((item, index) => row([
     String(index + 1), PLAN_ACTIVITY_LABELS[item.effective.activityKind] || '', item.effective.title,
     monthlyItemDate(item.effective), item.effective.responsibleRaw,
+    ...(hasLocation ? [item.effective.location || ''] : []),
     [item.effective.expectedResult, item.effective.note].filter(Boolean).join('\n')
   ])).join('');
   return `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
@@ -166,7 +174,7 @@ export function renderMonthlyPlanXml(snapshot) {
 ${paragraph(snapshot.title, { centered: true, bold: true, size: 28 })}
 ${paragraph(`на ${monthLabel(period.month)} ${period.yearStart} года`, { centered: true, size: 24 })}
 <w:tbl><w:tblPr><w:tblW w:w="13500" w:type="dxa"/><w:tblLayout w:type="fixed"/><w:tblBorders>${['top', 'left', 'bottom', 'right', 'insideH', 'insideV'].map((side) => `<w:${side} w:val="single" w:sz="4" w:color="808080"/>`).join('')}</w:tblBorders></w:tblPr><w:tblGrid>${widths.map((width) => `<w:gridCol w:w="${width}"/>`).join('')}</w:tblGrid>
-${row(['№', 'Вид деятельности', 'Мероприятие', 'Срок', 'Ответственный', 'Результат / примечание'], true)}${rows}</w:tbl>
+${row(['№', 'Вид деятельности', 'Мероприятие', 'Срок', 'Ответственный', ...(hasLocation ? ['Место'] : []), 'Результат / примечание'], true)}${rows}</w:tbl>
 <w:sectPr><w:pgSz w:w="16838" w:h="11906" w:orient="landscape"/><w:pgMar w:top="1134" w:right="1134" w:bottom="1134" w:left="1134" w:header="567" w:footer="567" w:gutter="0"/></w:sectPr>
 </w:body></w:document>`;
 }
@@ -187,10 +195,17 @@ async function renderDocument(path, prepared) {
       }
       if (template.config.columns.description) item.description = [item.description, item.note].filter(Boolean).join('\n');
       else item.expectedResult = [item.expectedResult, item.note].filter(Boolean).join('\n');
+      if (!snapshot.eventTemplate && item.location) {
+        // Older samples have no location mapping. Keep the entered value in a printed column.
+        const target = template.config.columns.description ? 'description' : template.config.columns.result ? 'expectedResult' : 'title';
+        item[target] = [item[target], `Место: ${item.location}`].filter(Boolean).join('\n');
+      }
       return item;
     });
     const generated = generatePlanDocumentXml(xml, { config: template.config, targetPeriod: monthlyPeriod(snapshot.month), items });
-    await rewriteZipArchive(template.storage_path, path, new Map([[DOCUMENT_XML, Buffer.from(generated.xml)]]));
+    const output = snapshot.eventTemplate
+      ? applyEventTemplateToSample(generated.xml, generated.config.tableIndex, snapshot) : generated.xml;
+    await rewriteZipArchive(template.storage_path, path, new Map([[DOCUMENT_XML, Buffer.from(output)]]));
     return;
   }
   await writeZipArchive(path, {

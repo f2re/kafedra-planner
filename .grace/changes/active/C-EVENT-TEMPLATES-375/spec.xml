@@ -1,0 +1,31 @@
+<GraceChangeSpec graceVersion="4.0" status="approved">
+  <C-EVENT-TEMPLATES-375>
+    <Summary>Visual versioned event templates, canonical extensible fields and source-grounded department selection for editable monthly DOCX.</Summary>
+    <Problem>Monthly plans have fixed print fields and only textual department filtering. Operators cannot configure event fields visually or review an already selected and prefilled departmental document.</Problem>
+    <Goals>
+      <Goal>Configure reusable fields, labels, order, visibility, requiredness and document layout with a live visual preview.</Goal>
+      <Goal>Persist location and typed custom values on canonical events, keeping monthly print overrides separate.</Goal>
+      <Goal>Offer bounded local LLM selection and grounded prefill with deterministic fallback, reviewable reasons and explicit operator acceptance.</Goal>
+      <Goal>Export selected effective fields using an exact template version without duplicating canonical events or calendar entries.</Goal>
+    </Goals>
+    <Constraints>
+      <Constraint>Authority is the user request and issue 375; exact base main b1e60af895e6918f8938e9c54bf3ee7e2cee76be. Runtime and application version remain unchanged.</Constraint>
+      <Constraint>Additive migration 033 only. Applied migrations, original files, versions, extracted evidence and historical exports remain unchanged.</Constraint>
+      <Constraint>Saved template versions and selection results are immutable. ACL and current source fingerprints are rechecked when suggestions are read, applied or exported.</Constraint>
+      <Constraint>LLM sees only accessible bounded candidates and has no tools. Only existing identifiers and verified source substrings may produce proposals. Operator acceptance cannot silently overwrite manual data.</Constraint>
+      <Constraint>Normal work remains local and available without LLM. Unknown dates or fields remain empty; failed candidates do not invalidate valid candidates.</Constraint>
+      <Constraint>Archive completed C-PLAN-COMPOSITION-371 with terminal status only. Preserve existing uploaded DOCX template flow, authentication model, installer and dependencies.</Constraint>
+    </Constraints>
+    <NonGoals><NonGoal>General office-document editing, scheduled creation of plans, semantic merging of duplicate obligations, changing roles or publishing a release.</NonGoal></NonGoals>
+    <AcceptanceCriteria>
+      <Criterion>Title, term, optional executor and location are available; users can add text/date/number/select fields, preview the document and save a new template version.</Criterion>
+      <Criterion>Canonical extra fields persist across monthly plans; print overrides do not change source dates, ownership or calendar counts.</Criterion>
+      <Criterion>Selection returns visible recommended, review and other candidates with source reasons; approved selected rows are prefilled from server-saved grounded proposals with safe repeats and partial results.</Criterion>
+      <Criterion>Unsaved input survives errors and revision conflicts; late selection responses cannot affect a different month, template or draft.</Criterion>
+      <Criterion>DOCX contains the selected visible fields, order and values, checks required fields and pins exact field/template/source snapshots. Existing DOCX samples remain compatible.</Criterion>
+      <Criterion>Clean install, base upgrade, repeat, integrity, backup/verify/restore and forced migration failure recovery pass, along with focused API and desktop/mobile browser regression.</Criterion>
+    </AcceptanceCriteria>
+    <AffectedAreas><M-API /><M-DATABASE /><M-CI-GATE /></AffectedAreas>
+    <VerificationIntent><ExpectedCommand>npm run check</ExpectedCommand><ExpectedCommand>npm test</ExpectedCommand><ExpectedCommand>npm run smoke</ExpectedCommand><ExpectedCommand>bash scripts/ci/grace-db-gate.sh b1e60af895e6918f8938e9c54bf3ee7e2cee76be</ExpectedCommand><ExpectedEvidence>Exact-head CI, targeted desktop/mobile scenarios, database recovery and independent integration audit; no real-model-quality claim from HTTP fixtures.</ExpectedEvidence></VerificationIntent>
+  </C-EVENT-TEMPLATES-375>
+</GraceChangeSpec>

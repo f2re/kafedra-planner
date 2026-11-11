@@ -96,6 +96,16 @@ UI-e132b40aed	public/calendar-start-settings.js:81:9	ensureDialog	Закрыть
 UI-dee1a42f69	public/calendar-start-settings.js:82:9	ensureDialog	Сохранить	C01	запланировано
 UI-bb454c5a37	public/calendar-start-settings.js:101:14	ensureSettingsEntry	Настройки	C01	запланировано
 UI-d8e408ee8a	public/calendar-start-settings.js:119:18	ensureSettingsEntry	Настройки	C01	запланировано
+UI-a3c631d40d	public/event-template-editor.js:82:302	render	Свернуть	C01	запланировано
+UI-0d6fb4345f	public/event-template-editor.js:85:267	render / callback@85	{dynamic}. {dynamic} {dynamic}	C01	запланировано
+UI-bf2c1822e4	public/event-template-editor.js:85:539	render / callback@85	Поднять колонку __________________	C01	запланировано
+UI-0fbd88d371	public/event-template-editor.js:85:767	render / callback@85	Опустить колонку __________________	C01	запланировано
+UI-de68ad72a7	public/event-template-editor.js:85:1055	render	Добавить поле	C01	запланировано
+UI-83cc3e598f	public/event-template-editor.js:87:1627	render	Убрать колонку	C02	запланировано
+UI-d7eecfd07f	public/event-template-editor.js:88:44	render	{dynamic}	C01	запланировано
+UI-1c34ec2f93	public/event-template-editor.js:88:206	render	Сохранить как новый шаблон	C01	запланировано
+UI-ef71c29736	public/event-template-editor.js:88:323	render	Обновить версию	C01	запланировано
+UI-b613ea5112	public/event-template-editor.js:88:433	render	Отменить изменения	C01	запланировано
 UI-b7d03a2783	public/folder-sync.js:65:11	render	{dynamic}	C01	запланировано
 UI-43ee642478	public/folder-sync.js:68:11	render	↻ Синхронизировать всё	C01	запланировано
 UI-72abe74e56	public/folder-sync.js:71:11	render	Закрыть	C01	запланировано

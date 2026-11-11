@@ -45,9 +45,9 @@ jobs:
             git diff --name-only -z "$PR_BASE_SHA" "$SOURCE_SHA" -- > "$changed_paths_file"
             while IFS= read -r -d '' changed_path; do
               case "$changed_path" in
-                packages/plans/*|packages/plan-docx/*|packages/document-intake/*|packages/storage/*|packages/auth/*|packages/access-control/*|packages/ai/src/plan-task.mjs|migrations/*.sql|\
+                packages/plans/*|packages/plan-docx/*|packages/document-intake/*|packages/storage/*|packages/auth/*|packages/access-control/*|packages/ai/src/plan-task.mjs|packages/ai/src/plan-selection*.mjs|migrations/*.sql|\
                 apps/worker/src/*|apps/api/src/app.mjs|apps/api/src/http-utils.mjs|apps/api/src/access-router.mjs|apps/api/src/*plans-router.mjs|apps/api/src/plan-items-router.mjs|apps/api/src/plan-source-rows-router.mjs|\
-                public/plan*.js|public/plan*.css|public/index.html|\
+                apps/api/src/plan-selection-router.mjs|public/plan*.js|public/plan*.css|public/event-template*.js|public/event-template*.css|public/index.html|\
                 tests/browser/plan-collection.spec.mjs|tests/browser/start-server.mjs|playwright.config.mjs|.github/workflows/ci.yml)
                   required=true
                   ;;
