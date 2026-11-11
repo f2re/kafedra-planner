@@ -137,12 +137,24 @@ export function createEventTemplateEditor({ root, api, json, onSaved, getItems, 
   });
   root.addEventListener('change', event => {
     if (busy || externalBusy) return;
+    let rebuild = false, focus = null;
     if (event.target.matches('[data-template-orientation]')) definition.layout.orientation = event.target.value;
     else if (event.target.matches('[data-template-numbered]')) definition.layout.showRowNumbers = event.target.checked;
-    else if (event.target.matches('[data-template-builtin]')) { const source = event.target.value; if (!source || definition.fields.length >= 20) return; selected = source; definition.fields.push({ key: source, source, label: sourceLabels[source], type: 'text', required: false, visible: true, width: 20 }); }
-    else if (event.target.closest('[data-template-inspector]')) readInspector();
+    else if (event.target.matches('[data-template-builtin]')) { const source = event.target.value; if (!source || definition.fields.length >= 20) return; selected = source; definition.fields.push({ key: source, source, label: sourceLabels[source], type: 'text', required: false, visible: true, width: 20 }); rebuild = true; focus = '[name="label"]'; }
+    else if (event.target.closest('[data-template-inspector]')) {
+      readInspector();
+      rebuild = event.target.matches('[name="type"], [name="visible"], [name="required"]');
+      if (rebuild) focus = `[name="${event.target.name}"]`;
+    }
     else return;
-    markDirty(); render();
+    markDirty();
+    if (rebuild) { render(); root.querySelector(focus)?.focus(); }
+    else {
+      // Text inputs emit change on blur, before a following button click. Keep
+      // that button mounted so saving or switching columns works on one click.
+      const label = root.querySelector(`[data-field-label="${CSS.escape(selected)}"]`); if (label) label.textContent = definition.fields.find(field => field.key === selected)?.label || '';
+      renderPreview();
+    }
   });
   return {
     open(template = null) {
