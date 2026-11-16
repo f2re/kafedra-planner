@@ -46,12 +46,17 @@ UI-f78d065be4	public/supporting-documents-next.js:154:11	showSupportingModal	Д�
 UI-a61d2de8a4	public/supporting-documents-next.js:323:11	supportButton	{dynamic}	C01	запланировано
 UI-912b449f7a	public/template-binding.js:92:5	ensureBindButton	Создать поле из выбранного фрагмента	C01	запланировано
 UI-bd4efeed42	public/work-automation-next.js:36:27	enhancePeriodicForm	Создать периодическую задачу	C01	запланировано
-UI-bd892461f2	public/work-next.js:29:56	ensureWorkUi	→ Поручения	C01	запланировано
-UI-03b2243829	public/work-next.js:30:57	ensureWorkUi	→ Поручения	C01	запланировано
-UI-abd1d2fc2e	public/work-next.js:56:45	ensureWorkUi	Создать задачу	C01	запланировано
-UI-6842881a22	public/work-next.js:91:80	renderWork / callback@91	{dynamic} {dynamic} {dynamic} {dynamic} {dynamic}	C01	запланировано
-UI-950bef566c	public/work-next.js:196:48	responsibilityEditor	Сохранить ответственность	C01	запланировано
-UI-339a2c5d51	public/work-next.js:212:304	showDirective	Открыть оригинал	C01	запланировано
-UI-82f647727c	public/work-next.js:235:39	assignmentProgressPanel	{dynamic}	C01	запланировано
-UI-926f66c05f	public/work-next.js:254:860	assignmentHtml	Приложить отчёт	C01	запланировано
-UI-5c5ae5b19e	public/work-next.js:281:46	showPeriodicTask	Сохранить изменения	C01	запланировано
+UI-ff32691a27	public/work-next.js:33:56	ensureWorkUi	→ Поручения	C01	запланировано
+UI-5d1c8cad95	public/work-next.js:34:57	ensureWorkUi	→ Поручения	C01	запланировано
+UI-832e1b2eaa	public/work-next.js:62:45	ensureWorkUi	Создать задачу	C01	запланировано
+UI-fdbe5576ef	public/work-next.js:101:80	renderWork / callback@101	{dynamic} {dynamic} {dynamic} {dynamic} {dynamic}	C01	запланировано
+UI-dc8498c4f3	public/work-next.js:130:45	workStatus	Повторить	C01	запланировано
+UI-0f4e891f51	public/work-next.js:153:59	loadWorkPeople / callback@137	Повторить	C01	запланировано
+UI-0ff3bf2976	public/work-next.js:182:122	loadWorkDocuments	Повторить	C01	запланировано
+UI-ba9245eaeb	public/work-next.js:297:141	responsibilityEditor	Повторить	C01	запланировано
+UI-f35e8d3a43	public/work-next.js:311:48	responsibilityEditor	Сохранить ответственность	C01	запланировано
+UI-f3037db67f	public/work-next.js:331:304	showDirective	Открыть оригинал	C01	запланировано
+UI-d2e62c2dcd	public/work-next.js:362:39	assignmentProgressPanel	{dynamic}	C01	запланировано
+UI-0dae2a7f29	public/work-next.js:381:860	assignmentHtml	Приложить отчёт	C01	запланировано
+UI-531983b0a3	public/work-next.js:417:46	showPeriodicTask	Сохранить изменения	C01	запланировано
+UI-0fadac1722	public/work-next.js:419:372	showPeriodicTask	Повторить	C01	запланировано

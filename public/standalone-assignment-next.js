@@ -185,10 +185,10 @@ async function findAssignment(assignmentId) {
   return (response.items || []).find((item) => item.id === assignmentId) || null;
 }
 
-async function openStandaloneAssignment(assignmentId, message = '') {
+async function openStandaloneAssignment(assignmentId, message = '', options = {}) {
   const sequence = ++standaloneAssignmentState.openSequence;
   const assignment = await findAssignment(assignmentId);
-  if (sequence !== standaloneAssignmentState.openSequence) return true;
+  if (sequence !== standaloneAssignmentState.openSequence || (options.isCurrent && !options.isCurrent())) return true;
   if (!assignment || assignment.directive_id) return false;
   standaloneAssignmentState.assignmentId = assignmentId;
   standaloneAssignmentState.assignment = assignment;
@@ -356,10 +356,6 @@ async function saveStandaloneEvidence(form) {
 
 document.addEventListener('click', (event) => {
   if (event.target.closest('[data-standalone-documents-retry]')) loadStandaloneDocuments();
-  const card = event.target.closest('.work-card[data-work-kind="assignment"]');
-  if (card) {
-    setTimeout(() => openStandaloneAssignment(card.dataset.workId).catch(() => {}), 0);
-  }
 }, true);
 
 document.addEventListener('submit', (event) => {
@@ -377,6 +373,14 @@ document.addEventListener('submit', (event) => {
     saveStandaloneEvidence(evidence);
   }
 }, true);
+
+window.addEventListener('kafedra-auth-changed', () => {
+  standaloneAssignmentState.openSequence += 1;
+  standaloneAssignmentState.documentsSequence += 1;
+  standaloneAssignmentState.assignmentId = null;
+  standaloneAssignmentState.assignment = null;
+  standaloneAssignmentState.documents = [];
+});
 
 ensureStandaloneStyles();
 window.kafedraOpenStandaloneAssignment = openStandaloneAssignment;
