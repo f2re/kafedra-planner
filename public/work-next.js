@@ -1,4 +1,8 @@
-const workState = { filters: {}, data: null, documents: [], people: [], periodic: [], currentPersonId: null };
+const workState = {
+  filters: {}, data: null, documents: [], people: [], periodic: [], currentPersonId: null,
+  searchSequence: 0, searchController: null, openSequence: 0, session: 0,
+  peopleReady: false, peopleRequest: null, lastOpen: null
+};
 const q = (selector, root = document) => root.querySelector(selector);
 const qa = (selector, root = document) => [...root.querySelectorAll(selector)];
 const esc = (value) => String(value ?? '').replaceAll('&','&amp;').replaceAll('<','&lt;').replaceAll('>','&gt;').replaceAll('"','&quot;').replaceAll("'",'&#039;');
@@ -6,7 +10,7 @@ const esc = (value) => String(value ?? '').replaceAll('&','&amp;').replaceAll('<
 async function workApi(path, options = {}) {
   const response = await fetch(path, options);
   const data = await response.json().catch(() => ({}));
-  if (!response.ok) throw new Error(data?.error?.message || `Ошибка HTTP ${response.status}`);
+  if (!response.ok) throw new Error(data?.error?.message || 'Не удалось выполнить запрос. Повторите попытку.');
   return data;
 }
 
@@ -33,13 +37,15 @@ function ensureWorkUi() {
     q('.workspace')?.insertAdjacentHTML('beforeend', `<section class="view" data-view-panel="work">
       <div class="section-heading"><div><h2>Поручения и основания</h2><p>Основания, ответственность, контрольные сроки и периодические задачи в одном месте.</p></div></div>
       <form id="work-search-form" class="work-toolbar">
-        <input name="q" type="search" placeholder="Номер, тема, текст…">
+        <input name="q" type="search" aria-label="Поиск поручений" placeholder="Номер, тема, текст…">
         <input name="from" type="date" aria-label="Дата с">
         <input name="to" type="date" aria-label="Дата по">
-        <select name="direction"><option value="">Все направления</option><option value="science">Наука</option><option value="education">Образование</option><option value="organizational">Организация</option><option value="personnel">Кадры</option><option value="safety">Безопасность</option><option value="finance">Финансы</option><option value="digital">Цифровизация</option></select>
-        <input name="executor" placeholder="Исполнитель">
-        <select name="status"><option value="">Все состояния</option><option value="open">Открыто</option><option value="submitted">Отчёт представлен</option><option value="completed">Выполнено</option><option value="cancelled">Отменено</option></select>
+        <select name="direction" aria-label="Направление"><option value="">Все направления</option><option value="science">Наука</option><option value="education">Образование</option><option value="organizational">Организация</option><option value="personnel">Кадры</option><option value="safety">Безопасность</option><option value="finance">Финансы</option><option value="digital">Цифровизация</option></select>
+        <input name="executor" aria-label="Исполнитель" placeholder="Исполнитель">
+        <select name="status" aria-label="Состояние"><option value="">Все состояния</option><option value="open">Открыто</option><option value="submitted">Отчёт представлен</option><option value="completed">Выполнено</option><option value="cancelled">Отменено</option></select>
       </form>
+      <div id="work-load-status" role="status" aria-live="polite"></div>
+      <div id="work-open-status" role="status" aria-live="polite"></div>
       <div id="work-summary" class="work-summary"></div>
       <div id="work-results" class="work-list"></div>
       <form id="periodic-task-form" class="work-periodic-form">
@@ -70,14 +76,18 @@ function openWorkView() {
   q('#calendar-mode-switch')?.classList.add('hidden');
   document.body.classList.remove('mobile-sidebar-open');
   loadWork();
+  loadWorkPeople(true);
 }
 
 function renderPeopleOptions() {
   const options = ['<option value="">Определить автоматически</option>', ...workState.people.map((person) => `<option value="${esc(person.id)}">${esc(person.display_name)}</option>`)].join('');
   const owner = q('#periodic-task-form select[name="ownerPersonId"]');
   const manager = q('#periodic-task-form select[name="managerPersonId"]');
+  const selectedOwner = owner?.value, selectedManager = manager?.value;
   if (owner) owner.innerHTML = `<option value="">Выберите сотрудника</option>${workState.people.map((person) => `<option value="${esc(person.id)}">${esc(person.display_name)}</option>`).join('')}`;
   if (manager) manager.innerHTML = options;
+  if (owner && selectedOwner) owner.value = selectedOwner;
+  if (manager && selectedManager) manager.value = selectedManager;
 }
 
 function workKindLabel(item) {
@@ -89,8 +99,8 @@ function workKindLabel(item) {
 function renderWork(data) {
   q('#work-summary').innerHTML = `<span>Основания: ${data.items.filter((i)=>i.sourceKind==='directive').length}</span><span>Поручения: ${data.items.filter((i)=>i.sourceKind==='assignment').length}</span><span>Периодические: ${data.items.filter((i)=>i.sourceKind==='periodic_task').length}</span><span>Открыто: ${data.items.filter((i)=>!['completed','cancelled'].includes(i.status)).length}</span>`;
   q('#work-results').innerHTML = data.items.length ? data.items.map((item) => `<button type="button" class="work-card" data-work-kind="${esc(item.sourceKind)}" data-work-id="${esc(item.id)}">
-    <div><strong>${esc(item.title)}</strong><div class="work-card-meta"><span class="work-pill">${esc(workKindLabel(item))}</span>${item.documentNumber ? `<span>№ ${esc(item.documentNumber)}</span>` : ''}${item.periodKey ? `<span>${esc(item.periodKey)}</span>` : ''}${item.direction ? `<span>${esc(item.direction)}</span>` : ''}${item.executor ? `<span>${esc(item.executor)}</span>` : ''}</div></div>
-    <div class="work-card-side"><time>${esc(item.eventDate || 'Без даты')}</time><span>${esc(item.status || '')}</span></div>
+    <div><strong>${esc(item.title)}</strong><div class="work-card-meta"><span class="work-pill">${esc(workKindLabel(item))}</span>${item.documentNumber ? `<span>№ ${esc(item.documentNumber)}</span>` : ''}${item.periodKey ? `<span>${esc(item.periodKey)}</span>` : ''}${item.direction ? `<span>${esc(workDirectionLabel(item.direction))}</span>` : ''}${item.executor ? `<span>${esc(item.executor)}</span>` : ''}</div></div>
+    <div class="work-card-side"><time>${esc(item.eventDate || 'Без даты')}</time><span>${esc(assignmentStatusLabel(item.status))}</span></div>
   </button>`).join('') : '<div class="empty-state">По выбранным условиям ничего не найдено.</div>';
 }
 
@@ -107,32 +117,134 @@ function periodicMatches(task, values) {
   return true;
 }
 
+function invalidateWorkSearch() {
+  workState.searchSequence += 1;
+  workState.searchController?.abort();
+  clearTimeout(workState.timer);
+}
+
+function workStatus(target, text, retry = '') {
+  const node = q(target);
+  if (!node) return;
+  node.setAttribute('role', retry ? 'alert' : 'status');
+  node.innerHTML = `${esc(text)}${retry ? ` <button type="button" class="text-button" ${retry}>Повторить</button>` : ''}`;
+}
+
+async function loadWorkPeople(refresh = false) {
+  if (workState.peopleRequest) return workState.peopleRequest;
+  if (workState.peopleReady && !refresh) return true;
+  const session = workState.session;
+  const request = (async () => {
+    try {
+      const people = await workApi('/api/people');
+      if (session !== workState.session) return false;
+      workState.people = people.items || [];
+      workState.peopleReady = true;
+      renderPeopleOptions();
+      const error = q('#periodic-task-error');
+      if (error?.dataset.peopleError) { error.textContent = ''; delete error.dataset.peopleError; }
+      return true;
+    } catch {
+      if (session !== workState.session) return false;
+      workState.peopleReady = false;
+      const error = q('#periodic-task-error');
+      if (error) {
+        error.dataset.peopleError = 'true';
+        error.innerHTML = 'Список сотрудников недоступен. <button type="button" class="text-button" data-work-people-retry>Повторить</button>';
+      }
+      return false;
+    }
+  })();
+  workState.peopleRequest = request;
+  try { return await request; }
+  finally { if (workState.peopleRequest === request) workState.peopleRequest = null; }
+}
+
+async function loadWorkDocuments() {
+  const forms = qa('#ux-inspector [data-report-form]');
+  if (!forms.length) return;
+  const session = workState.session;
+  const sequence = workState.openSequence;
+  for (const form of forms) q('[name="documentId"]', form).disabled = true;
+  try {
+    const documents = await workApi('/api/documents?limit=500');
+    if (session !== workState.session || sequence !== workState.openSequence) return;
+    workState.documents = documents.items || [];
+    for (const form of forms.filter(item => item.isConnected)) {
+      const select = q('[name="documentId"]', form), selected = select.value;
+      select.innerHTML = '<option value="">Выберите отчётный документ</option>' + workState.documents.map(d => `<option value="${esc(d.id)}">${esc(d.title)}</option>`).join('');
+      select.value = selected; select.disabled = false;
+      q('[data-assignment-material-error]', form).textContent = '';
+    }
+  } catch {
+    if (session !== workState.session || sequence !== workState.openSequence) return;
+    for (const form of forms.filter(item => item.isConnected)) {
+      q('[data-assignment-material-error]', form).innerHTML = 'Список материалов недоступен. Выполнение задачи доступно. <button type="button" class="text-button" data-work-documents-retry>Повторить</button>';
+    }
+  }
+}
+
 async function loadWork() {
+  invalidateWorkSearch();
+  const sequence = workState.searchSequence, session = workState.session;
+  const controller = new AbortController();
+  workState.searchController = controller;
   const form = q('#work-search-form');
+  if (!form) return false;
   const values = Object.fromEntries(new FormData(form));
   const params = new URLSearchParams(values);
-  [...params].forEach(([key,value]) => { if (!value) params.delete(key); });
-  const [data, periodic, people, documents] = await Promise.all([
-    workApi(`/api/work/search?${params}`), workApi(`/api/periodic-tasks?${params}`),
-    workApi('/api/people'), workApi('/api/documents?limit=500').catch(() => ({ items: [], unavailable: true }))
-  ]);
-  workState.people = people.items;
-  workState.documents = documents.items;
-  workState.periodic = periodic.items || [];
-  workState.currentPersonId = window.kafedraAuthContext?.user?.person?.id
-    || window.kafedraAuthContext?.user?.account?.person_id
-    || null;
-  const periodicItems = workState.periodic.filter((task) => periodicMatches(task, values)).map((task) => ({
-    sourceKind: 'periodic_task', id: task.id, title: task.title, subtype: task.period_kind,
-    eventDate: task.due_date, direction: task.direction, status: task.status,
-    executor: task.owner_name || null, periodKey: task.period_key, plannedDate: task.starts_at
-  }));
-  const merged = [...(data.items || []), ...periodicItems].sort((left, right) =>
-    String(left.eventDate || '9999-12-31').localeCompare(String(right.eventDate || '9999-12-31')) || String(left.title).localeCompare(String(right.title), 'ru')
-  );
-  workState.data = { ...data, items: merged };
-  renderPeopleOptions(); renderWork(workState.data);
-  if (documents.unavailable) q('#work-summary').insertAdjacentHTML('beforeend', '<span role="status">Список материалов недоступен. Поручения доступны.</span>');
+  [...params].forEach(([key, value]) => { if (!value) params.delete(key); });
+  const current = () => sequence === workState.searchSequence && session === workState.session;
+  q('#work-results').setAttribute('aria-busy', 'true');
+  workStatus('#work-load-status', 'Обновляем список…');
+  try {
+    const [data, periodic] = await Promise.all([
+      workApi(`/api/work/search?${params}`, { signal: controller.signal }),
+      workApi(`/api/periodic-tasks?${params}`, { signal: controller.signal })
+    ]);
+    if (!current()) return false;
+    workState.periodic = periodic.items || [];
+    workState.currentPersonId = window.kafedraAuthContext?.user?.person?.id
+      || window.kafedraAuthContext?.user?.account?.person_id || null;
+    const periodicItems = workState.periodic.filter(task => periodicMatches(task, values)).map(task => ({
+      sourceKind: 'periodic_task', id: task.id, title: task.title, subtype: task.period_kind,
+      eventDate: task.due_date, direction: task.direction, status: task.status,
+      executor: task.owner_name || null, periodKey: task.period_key, plannedDate: task.starts_at
+    }));
+    const merged = [...(data.items || []), ...periodicItems].sort((left, right) =>
+      String(left.eventDate || '9999-12-31').localeCompare(String(right.eventDate || '9999-12-31')) || String(left.title).localeCompare(String(right.title), 'ru')
+    );
+    workState.data = { ...data, items: merged };
+    renderWork(workState.data);
+    workStatus('#work-load-status', '');
+    return true;
+  } catch (error) {
+    if (!current() || controller.signal.aborted) return false;
+    workStatus('#work-load-status', `${error.message || 'Не удалось связаться с сервером.'}${workState.data ? ' Показан предыдущий список.' : ''}`, 'data-work-search-retry');
+    return false;
+  } finally {
+    if (current()) q('#work-results')?.setAttribute('aria-busy', 'false');
+  }
+}
+
+function workOpenContext(options = {}) {
+  if (options.isCurrent) return options;
+  const sequence = ++workState.openSequence, session = workState.session;
+  return { ...options, isCurrent: () => sequence === workState.openSequence && session === workState.session };
+}
+
+async function openWorkCard(kind, id) {
+  const options = workOpenContext();
+  workState.lastOpen = { kind, id };
+  workStatus('#work-open-status', 'Открываем запись…');
+  try {
+    if (kind === 'directive') await showDirective(id, options);
+    else if (kind === 'periodic_task') await showPeriodicTask(id, options);
+    else await showAssignment(id, options);
+    if (options.isCurrent()) workStatus('#work-open-status', '');
+  } catch (error) {
+    if (options.isCurrent()) workStatus('#work-open-status', error.message || 'Не удалось открыть запись.', 'data-work-open-retry');
+  }
 }
 
 function currentPersonId() {
@@ -181,6 +293,9 @@ function responsibilityEditor(a, responsibility) {
   if (!responsibility) return '';
   const names = roleNames(responsibility);
   const summary = `<div class="work-responsibility-summary"><span><b>Поручил:</b> ${esc(responsibility.delegatorRaw || 'не указан в основании')}</span><span><b>Ответственный:</b> ${esc(names.primary)}</span>${names.co ? `<span><b>Соисполнители:</b> ${esc(names.co)}</span>` : ''}<span><b>Контроль:</b> ${esc(names.controller)}</span>${names.observers ? `<span><b>Наблюдатели:</b> ${esc(names.observers)}</span>` : ''}</div>`;
+  if (!workState.peopleReady && canControlResponsibility(responsibility)) {
+    return `<details class="work-responsibility"><summary>Ответственность</summary>${summary}<p role="alert">Список сотрудников недоступен. <button type="button" class="text-button" data-work-open-retry>Повторить</button></p></details>`;
+  }
   if (!canControlResponsibility(responsibility)) {
     return `<details class="work-responsibility"><summary>Ответственность</summary>${summary}${historyHtml(responsibility.history, 'Изменений ответственности ещё не было.')}</details>`;
   }
@@ -198,6 +313,7 @@ function responsibilityEditor(a, responsibility) {
 }
 
 async function showDirective(id, options = {}) {
+  options = workOpenContext(options);
   const item = await workApi(`/api/directives/${encodeURIComponent(id)}`);
   const responsibilityPairs = await Promise.all((item.assignments || []).map(async (assignment) => {
     try {
@@ -206,18 +322,29 @@ async function showDirective(id, options = {}) {
       return [assignment.id, null];
     }
   }));
+  await loadWorkPeople();
+  if (!options.isCurrent()) return;
+  workState.documents = [];
   const responsibilities = Object.fromEntries(responsibilityPairs);
   const inspector = q('#ux-inspector'); const body = q('#ux-inspector-body');
-  if (!inspector || !body) return;
+  if (!inspector || !body) throw new Error('Карточка ещё загружается. Повторите открытие.');
   body.innerHTML = `<div class="work-inspector-grid"><section class="inspector-section"><div class="eyebrow">${esc(item.directive_kind)}</div><h2>${esc(item.title)}</h2><p>№ ${esc(item.document_number || 'не указан')} · ${esc(item.issued_at || 'дата не указана')}</p><p>${esc(item.issuer_raw || '')}</p><button class="secondary-button" type="button" data-inspector-document="${esc(item.source_document_id)}">Открыть оригинал</button></section>
   <section class="inspector-section"><h3>Поручения</h3>${item.assignments.map((a)=>assignmentHtml(a, responsibilities[a.id], options)).join('') || '<div class="empty-state">Поручений не найдено.</div>'}</section></div>`;
   inspector.classList.remove('hidden'); q('#sheet-backdrop')?.classList.remove('hidden');
+  loadWorkDocuments();
 }
 
 function assignmentStatusLabel(status) {
-  if (status === 'completed') return 'Выполнено';
-  if (status === 'cancelled') return 'Отменено';
-  return 'В работе';
+  return ({ open: 'В работе', in_progress: 'В работе', overdue: 'Просрочено', submitted: 'Отчёт представлен',
+    completed: 'Выполнено', cancelled: 'Отменено', rework: 'На доработке', draft: 'Черновик',
+    active: 'Действует', confirmed_auto: 'Распознано', proposed: 'Предложено', archived: 'В архиве'
+  })[status] || 'Неизвестное состояние';
+}
+
+function workDirectionLabel(direction) {
+  return ({ science: 'Наука', education: 'Образование', organizational: 'Организация', personnel: 'Кадры',
+    safety: 'Безопасность', finance: 'Финансы', digital: 'Цифровизация', everyday: 'Повседневная работа'
+  })[direction] || 'Другое направление';
 }
 
 function assignmentProgressPanel(assignment) {
@@ -254,22 +381,31 @@ function assignmentHtml(a, responsibility, options = {}) {
   return `<article class="work-assignment" data-assignment-id="${esc(a.id)}" data-directive-id="${esc(a.directive_id || '')}"><header><strong>${esc(a.title)}</strong><span>${esc(a.due_date || 'без срока')}</span></header><div class="work-executors">Ответственный: ${esc(names.primary)}${names.co ? ` · соисполнители: ${esc(names.co)}` : ''} · состояние: ${esc(assignmentStatusLabel(a.status))}</div><p>${esc(a.instruction_text)}</p>${options.assignmentId === a.id && options.message ? `<p class="assignment-notice" role="status">${esc(options.message)}</p>` : ''}${responsibilityEditor(a, responsibility)}${assignmentProgressPanel(a)}<section class="assignment-evidence-panel"><h4>Подтверждающие материалы — необязательно</h4><p>Материал не меняет состояние задачи.</p><form class="work-report-form" data-report-form><select name="documentId">${docs}</select><button class="secondary-button" type="submit">Приложить отчёт</button><span data-assignment-material-error role="alert"></span></form>${assignmentEvidenceHistory(a)}</section></article>`;
 }
 
-async function showAssignment(id) {
+async function showAssignment(id, options = {}) {
+  options = workOpenContext(options);
   const { items } = await workApi('/api/assignments?limit=1000');
-  const item = items.find((entry)=>entry.id===id);
-  if (item?.directive_id) return showDirective(item.directive_id);
+  if (!options.isCurrent()) return;
+  const item = items.find(entry => entry.id === id);
+  if (!item) throw new Error('Поручение недоступно. Обновите список.');
+  if (item.directive_id) return showDirective(item.directive_id, options);
+  if (typeof window.kafedraOpenStandaloneAssignment !== 'function') throw new Error('Карточка ещё загружается. Повторите открытие.');
+  const opened = await window.kafedraOpenStandaloneAssignment(id, '', options);
+  if (!opened && options.isCurrent()) throw new Error('Поручение недоступно. Обновите список.');
 }
 
 function periodicHistory(task) {
   return historyHtml(task.history, 'Переносов и делегирования ещё не было.');
 }
 
-async function showPeriodicTask(id) {
+async function showPeriodicTask(id, options = {}) {
+  options = workOpenContext(options);
   const task = await workApi(`/api/periodic-tasks/${encodeURIComponent(id)}`);
+  await loadWorkPeople();
+  if (!options.isCurrent()) return;
   const inspector = q('#ux-inspector'); const body = q('#ux-inspector-body');
-  if (!inspector || !body) return;
+  if (!inspector || !body) throw new Error('Карточка ещё загружается. Повторите открытие.');
   const summary = `<div class="work-responsibility-summary"><span><b>Сотрудник:</b> ${esc(task.owner_name || 'не указан')}</span><span><b>Руководитель:</b> ${esc(task.manager_name || 'не указан')}</span><span><b>Период:</b> ${esc(task.period_key)}</span><span><b>Плановый рубеж:</b> ${esc(task.starts_at || 'не задан')}</span><span><b>Контрольный срок:</b> ${esc(task.due_date)}</span></div>`;
-  const edit = canControlPeriodic(task) ? `<form data-periodic-edit-form data-periodic-id="${esc(task.id)}">
+  const edit = canControlPeriodic(task) && workState.peopleReady ? `<form data-periodic-edit-form data-periodic-id="${esc(task.id)}">
     <div class="work-responsibility-grid">
       <label class="field"><span>Сотрудник</span>${personSelect('ownerPersonId', task.owner_person_id, 'Выберите сотрудника')}</label>
       <label class="field"><span>Руководитель</span>${personSelect('managerPersonId', task.manager_person_id || '', 'Определить автоматически')}</label>
@@ -280,22 +416,20 @@ async function showPeriodicTask(id) {
     </div>
     <div class="work-responsibility-actions"><button class="secondary-button" type="submit">Сохранить изменения</button><span data-periodic-edit-error role="alert"></span></div>
   </form>` : '';
-  body.innerHTML = `<div class="work-inspector-grid"><section class="inspector-section"><div class="eyebrow">Периодическая задача</div><h2>${esc(task.title)}</h2>${summary}<p>${esc(task.expected_result || task.description || '')}</p>${edit}${periodicHistory(task)}</section></div>`;
+  body.innerHTML = `<div class="work-inspector-grid"><section class="inspector-section"><div class="eyebrow">Периодическая задача</div><h2>${esc(task.title)}</h2>${summary}<p>${esc(task.expected_result || task.description || '')}</p>${edit}${canControlPeriodic(task) && !workState.peopleReady ? '<p role="alert">Список сотрудников недоступен. Выполнение задачи доступно. <button type="button" class="text-button" data-work-open-retry>Повторить</button></p>' : ''}${periodicHistory(task)}</section></div>`;
   inspector.classList.remove('hidden'); q('#sheet-backdrop')?.classList.remove('hidden');
 }
 
 document.addEventListener('click', (event) => {
+  if (event.target.closest('#ux-inspector-close,#sheet-backdrop') || event.target.closest('[data-view]')) workState.openSequence += 1;
   const workButton = event.target.closest('[data-view="work"]');
   if (workButton) { event.preventDefault(); event.stopPropagation(); openWorkView(); }
+  if (event.target.closest('[data-work-search-retry]')) loadWork();
+  if (event.target.closest('[data-work-people-retry]')) loadWorkPeople(true);
+  if (event.target.closest('[data-work-documents-retry]')) loadWorkDocuments();
+  if (event.target.closest('[data-work-open-retry]') && workState.lastOpen) openWorkCard(workState.lastOpen.kind, workState.lastOpen.id);
   const card = event.target.closest('[data-work-id]');
-  if (card) {
-    const action = card.dataset.workKind === 'directive'
-      ? showDirective(card.dataset.workId)
-      : card.dataset.workKind === 'periodic_task'
-        ? showPeriodicTask(card.dataset.workId)
-        : showAssignment(card.dataset.workId);
-    action.catch(()=>{});
-  }
+  if (card) openWorkCard(card.dataset.workKind, card.dataset.workId);
 }, true);
 
 document.addEventListener('change', (event) => {
@@ -411,8 +545,38 @@ document.addEventListener('submit', async (event) => {
 });
 
 document.addEventListener('input', (event) => {
-  if (event.target.closest('#work-search-form')) { clearTimeout(workState.timer); workState.timer=setTimeout(()=>loadWork().catch(()=>{}),250); }
+  if (event.target.closest('#work-search-form')) {
+    invalidateWorkSearch();
+    workStatus('#work-load-status', 'Обновляем список…');
+    workState.timer = setTimeout(loadWork, 250);
+  }
 });
+
+window.addEventListener('kafedra-auth-changed', event => {
+  workState.session += 1;
+  workState.openSequence += 1;
+  invalidateWorkSearch();
+  workState.peopleRequest = null;
+  workState.peopleReady = false;
+  workState.people = []; workState.documents = []; workState.periodic = [];
+  workState.data = null; workState.currentPersonId = null; workState.lastOpen = null;
+  q('#work-results')?.replaceChildren(); q('#work-results')?.setAttribute('aria-busy', 'false');
+  q('#work-summary')?.replaceChildren();
+  workStatus('#work-load-status', ''); workStatus('#work-open-status', '');
+  renderPeopleOptions();
+  q('#work-search-form')?.reset(); q('#periodic-task-form')?.reset();
+  const inspectorBody = q('#ux-inspector-body');
+  if (q('.work-inspector-grid,#standalone-assignment-inspector', inspectorBody || document)) {
+    inspectorBody?.replaceChildren(); q('#ux-inspector-actions')?.replaceChildren();
+    q('#ux-inspector')?.classList.add('hidden'); q('#sheet-backdrop')?.classList.add('hidden');
+  }
+  const auth = event.detail;
+  if ((!auth?.authEnabled || auth.authenticated) && q('[data-view-panel="work"].active')) {
+    loadWork(); loadWorkPeople(true);
+  }
+});
+
+document.addEventListener('keydown', event => { if (event.key === 'Escape') workState.openSequence += 1; });
 
 window.loadWork = loadWork;
 ensureWorkUi();
