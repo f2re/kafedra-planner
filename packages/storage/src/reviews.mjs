@@ -55,6 +55,24 @@ export function listReviewItems(database, workspaceId, status = 'open', limit = 
   `, workspaceId, actualStatus, actualLimit);
 }
 
+function canApplyReviewValue(database, workspaceId, meetingId, issueCode, incomingValue, resolution) {
+  if (resolution?.resolvedVia !== 'ai_assistant_bulk') return true;
+  const meeting = database.get(
+    'SELECT meeting_date, protocol_number FROM meetings WHERE id = ? AND workspace_id = ?',
+    meetingId,
+    workspaceId
+  );
+  if (!meeting) return false;
+  const code = String(issueCode || '');
+  const current = code.includes('date')
+    ? meeting.meeting_date
+    : (code.includes('number') || code.includes('protocol'))
+      ? meeting.protocol_number
+      : null;
+  if (current === null || current === undefined || String(current).trim() === '') return true;
+  return String(current).trim() === String(incomingValue || '').trim();
+}
+
 export function resolveReviewItem(database, workspaceId, reviewId, resolution = {}) {
   const now = new Date().toISOString();
   const review = database.get('SELECT * FROM review_items WHERE id = ? AND workspace_id = ? AND status = \'open\'', reviewId, workspaceId);
@@ -87,6 +105,9 @@ export function resolveReviewItem(database, workspaceId, reviewId, resolution = 
   if (targetMeetingId && resolution && resolution.appliedValue && typeof resolution.appliedValue === 'string') {
     const val = resolution.appliedValue.trim();
     const code = String(review.issue_code || '');
+    if (!canApplyReviewValue(database, workspaceId, targetMeetingId, code, val, resolution)) {
+      return false;
+    }
     if (code.includes('date')) {
       database.run('UPDATE meetings SET meeting_date = ?, updated_at = ? WHERE id = ? AND workspace_id = ?', val, now, targetMeetingId, workspaceId);
     } else if (code.includes('number') || code.includes('protocol')) {

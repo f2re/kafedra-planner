@@ -5,6 +5,7 @@ await import('./ui-preference-origin.js');
 await import('./upload-feedback-next.js');
 
 await import('./auth-next.js');
+await import('./admin-password-reset.js');
 await import('./notification-delivery.js');
 await import('./plans-next.js');
 await import('./calendar-plan-continuation.js');

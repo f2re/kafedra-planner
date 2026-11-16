@@ -129,7 +129,7 @@
   font: inherit;
 }
 .auth-user-menu button:hover { background: #f1f5f9; }
-.auth-pin-dialog {
+.auth-secret-dialog {
   width: min(420px, calc(100vw - 32px));
   border: 1px solid rgba(15,23,42,.12);
   border-radius: 20px;
@@ -138,8 +138,8 @@
   color: #0f172a;
   box-shadow: 0 24px 80px rgba(15,23,42,.24);
 }
-.auth-pin-dialog::backdrop { background: rgba(15,23,42,.34); backdrop-filter: blur(6px); }
-.auth-pin-dialog .auth-form { margin-top: 0; }
+.auth-secret-dialog::backdrop { background: rgba(15,23,42,.34); backdrop-filter: blur(6px); }
+.auth-secret-dialog .auth-form { margin-top: 0; }
 .auth-dialog-header { display: flex; align-items: flex-start; justify-content: space-between; gap: 16px; }
 .auth-dialog-header strong { font-size: 20px; }
 .auth-dialog-header p { margin: 6px 0 0; color: #64748b; font-size: 13px; }
@@ -165,7 +165,7 @@ body.auth-staff #plan-fact-view-form .checkbox-field { display: none !important;
 }
 @media (prefers-color-scheme: dark) {
   .auth-gate { background: rgba(15,23,42,.92); }
-  .auth-card, .auth-user-menu, .auth-pin-dialog { background: #111827; color: #e5e7eb; }
+  .auth-card, .auth-user-menu, .auth-secret-dialog { background: #111827; color: #e5e7eb; }
   .auth-lock-mark, .auth-dialog-close { background: #1e293b !important; color: #cbd5e1 !important; }
   .auth-form input { background: #0f172a; color: #e5e7eb; border-color: #334155; }
   .auth-user-button { background: #111827; color: #e5e7eb; border-color: #334155; }
